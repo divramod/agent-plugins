@@ -7,8 +7,7 @@ import mtm_scan
 import tasks
 import tick
 
-PROPOSAL = (Path(__file__).resolve().parents[7] / "plans/0240-owner-everything-deterministic-runs-as-code"
-            / "owner-role-hal2-tasks.md").read_text()
+PROPOSAL = (Path(__file__).resolve().parent / "testdata/owner-role-hal2-tasks.md").read_text()
 TODAY = """
 ## Tasks
 

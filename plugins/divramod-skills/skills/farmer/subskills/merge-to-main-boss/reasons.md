@@ -9,7 +9,8 @@ before, while 5 landings were ready and waiting.
 
 ## Landings through CI (hal2 plan 0131)
 
-Where the default branch has `.github/workflows/land.yml`, a landing is a candidate on `land/<slot>` that
+Where the default branch has `.github/workflows/merge-to-main.yml` (or `land.yml`, its name before plan 0263), a
+landing is a candidate on `land/<slot>` that
 GitHub Actions tests on hal2's own runners and fast-forwards on green ([mtm's CI page](../../../mtm/references/ci.md)).
 Nothing holds the queue on red and nothing runs on the Mac, so the local cases change:
 
@@ -20,6 +21,21 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   reproduces it with `gate/main.sh <job>`).
 - **New**, the C cases below. A red job's cause in the runner, its image or the workflow is the ci duty's (one fix
   for every slot, through a servant), never the slot's.
+
+## C9 · A landing that tested nothing: "landed as a plain merge"
+
+- **Signature**: in a repository whose workflow is `merge-to-main.yml`, a landing's warning `no
+  .github/workflows/land.yml: landed as a plain merge, nothing was tested` (the hal2-cli-git that reads both names
+  says `no .github/workflows/merge-to-main.yml or land.yml: ...`; match `landed as a plain merge`); or a landing
+  that ends `testing` (exit 6) again and again while no run of its candidate exists under `land.yml`.
+- **Occurrences**: none yet; named when the workflow was renamed (hal2 plan 0263).
+- **Cause**: the installed hal2-cli-git is older than the rename: it looks for `land.yml` only, finds none and
+  takes the repository for one without CI (the merge was pushed untested), or waits for a `land.yml` run of a
+  candidate that GitHub tests under `merge-to-main.yml`.
+- **Remedy**: install the CLI (`cargo install --locked --path code/rust/apps/hal2-cli-git` in the main checkout),
+  then check the landed commit by hand with the gate jobs of the files it changed.
+- **Lasting fix**: hal2 plan 0263: the mtm skill's `check-landing-cli.sh` stops `/mtm` (exit 8) before the reserve
+  and in front of every `merge-to-main` while the CLI's `--help` does not name `merge-to-main.yml`.
 
 ## C8 · A delivery cannot read the new main's job map
 
@@ -64,8 +80,9 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   ship job waits for a runner has status `queued` (also `waiting`, `pending`, `requested`), so `ci/ship.rs`
   `shipping()` saw no shipping run: the landing released the queue and the next one pushed.
 - **Remedy**: stop the newer landing (`hal2-cli-git worktree stop <slot>`), cancel its run, "land now" once the older
-  run is completed. Check by hand: `gh run list --workflow land.yml --limit 10 --json databaseId,headBranch,status
-  --jq '.[] | select(.status != "completed")'` (empty: go).
+  run is completed. Check by hand: `gh run list --workflow <file> --limit 10 --json databaseId,headBranch,status
+  --jq '.[] | select(.status != "completed")'` for `merge-to-main.yml` and for `land.yml` (both empty: go; the
+  mtm skill's `land-runs.sh --once` asks both).
 - **Lasting fix**: landed: hal2 plan 0150 (cf97733d, on main with 9fda0676 #23; installed by that run's deliver
   2026-10-06 15:10, `hal2-cli-git` asks every non-completed status); mtm skill documents the check (skills plan
   0013, skills/30-1).

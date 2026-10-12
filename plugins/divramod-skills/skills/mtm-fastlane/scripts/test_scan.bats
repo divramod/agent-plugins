@@ -60,3 +60,22 @@ teardown() { rm -rf "$tmp"; }
   [ "$(echo "$output" | jq -c '.workflows[] | select(.file | endswith("land.yml")) | .jobs')" \
     = '[{"name":"rust-test","runs_on":"[self-hosted, linux]"},{"name":"merge","runs_on":"ubuntu-latest"}]' ]
 }
+
+@test "scan: after the rename merge-to-main.yml is the land workflow, found by the refs it runs on" {
+  git mv .github/workflows/land.yml .github/workflows/merge-to-main.yml && git commit -q -m rename
+  run bash "$here/scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/merge-to-main.yml"]' ]
+  [ "$(echo "$output" | jq -c '[.workflows[] | select(.file | endswith("merge-to-main.yml")) | .jobs[].name]')" = '["rust-test","merge"]' ]
+}
+
+@test "scan: both workflow files are land workflows; with neither there is none" {
+  cp .github/workflows/land.yml .github/workflows/merge-to-main.yml
+  run bash "$here/scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/land.yml",".github/workflows/merge-to-main.yml"]' ]
+  rm .github/workflows/land.yml .github/workflows/merge-to-main.yml
+  run bash "$here/scan.sh"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c .land_workflows)" = '[]' ]
+}

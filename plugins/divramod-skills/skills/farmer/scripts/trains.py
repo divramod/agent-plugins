@@ -138,7 +138,7 @@ def train_actions(cars: list[str], branches: dict[str, str], panes: dict, plans:
 
 def failures(trains: dict[str, dict], tickets: list[dict], red: list[dict] = ()) -> list[dict]:
     """A train whose carrier's landing failed: its ticket held by a failed local landing, or (CI, mtm_ci) a red
-    land.yml run of the carrier started after the train (a red CI landing keeps its reservation hold, which says
+    landing-workflow run of the carrier started after the train (a red CI landing keeps its reservation hold, which says
     nothing about the run): wake the farmer to split it."""
     held = {t["slot"]: t for t in tickets if (t.get("hold") or {}).get("reason") == "failed"}
     out = []
@@ -159,7 +159,7 @@ def failures(trains: dict[str, dict], tickets: list[dict], red: list[dict] = ())
 
 
 def ci_red(main: str, now: dt.datetime) -> list[dict]:
-    """The failed land.yml runs within WINDOW, where the repository lands through CI."""
+    """The failed merge-to-main.yml and land.yml runs within WINDOW, where the repository lands through CI."""
     default = default_ref(main).removeprefix("origin/")
     if not mtm_ci.ci_mode(mtm_scan.run, main, default):
         return []

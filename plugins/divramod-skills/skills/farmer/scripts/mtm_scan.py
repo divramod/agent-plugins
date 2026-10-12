@@ -23,7 +23,7 @@
       the priority, the pause flag, the last scan, the actions of the last 6 h
 
 Reads hal2 (hal2-cli-git worktree queue, hal2-cli-agents list), git and the recent
-landings: GitHub's land.yml runs (gh) where the default branch has land.yml (mtm_ci.py),
+landings: GitHub's merge-to-main.yml and land.yml runs (gh) where the default branch has either (mtm_ci.py),
 else `hal2-cli-git worktree landings`; writes only the farmer's state folder (roles/farmer/ of its slot). Exit 0 on success,
 2 when a tool is missing.
 """
@@ -216,7 +216,8 @@ def reservation_waits(head: dict, w: dict, now: float) -> dict | None:
 def holder_works(w: dict, snap: dict) -> bool:
     """The reserved queue's holder is not idle (hal2 plan 0169, the incident of 2026-10-06: `reserved-idle` made
     slot 05 land in the middle of its measurement turn): its agent is busy or was within HELD_IDLE_AFTER, runs a
-    background shell, subagent or workflow, or a land.yml run (a dispatch of it, a landing that ships) is unfinished."""
+    background shell, subagent or workflow, or a landing-workflow run (merge-to-main.yml or land.yml: a dispatch of it,
+    a landing that ships) is unfinished."""
     agent = w.get("agent_state")
     return bool(agent in BUSY or (agent and w.get("agent_idle_seconds", 0) < HELD_IDLE_AFTER)
                 or w.get("agent_tasks") or snap.get("runs_unfinished"))

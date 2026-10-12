@@ -5,8 +5,10 @@
 #   ci-stop.sh [--dry-run] [--max-wait 60m] [--interval <s>] [<dir>]
 # 1. hal2-cli-git: this slot goes to the front of the queue's priority list, and
 #    another slot's landing or reservation that holds the queue is stopped.
-# 2. Every unfinished land run (GitHub: the conf's LAND_WORKFLOWS, default land.yml;
-#    GitLab: pipelines on LAND_REFS, default land/*) whose MERGE_JOB has not
+# 2. Every unfinished land run (GitHub: the conf's LAND_WORKFLOWS, default the repository's
+#    merge-to-main.yml or land.yml, and always both of these names where one is a land
+#    workflow: a run started before the rename is under the old one; GitLab: pipelines
+#    on LAND_REFS, default land/*) whose MERGE_JOB has not
 #    succeeded is cancelled; one that merged is waited for, and once SHIP_GRACE
 #    (default 15m) has passed its jobs that never started are cancelled.
 # Exits once no land run is unfinished, printing JSON: provider, stopped_slots,
@@ -64,7 +66,7 @@ fi
 provider=$(provider_of)
 case "$provider" in
   github) need gh
-    [ -n "$(github_workflows)" ] || say "no land workflow (LAND_WORKFLOWS, .github/workflows/land.yml): no land runs to stop" ;;
+    [ -n "$(github_workflows)" ] || say "no land workflow (LAND_WORKFLOWS, .github/workflows/merge-to-main.yml or land.yml): no land runs to stop" ;;
   gitlab) need glab ;;
   *) say "origin is on neither GitHub nor GitLab: no land runs to stop" ;;
 esac

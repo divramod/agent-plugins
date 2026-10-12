@@ -1,11 +1,12 @@
 # Landing through CI
 
-A repository whose default branch (or this worktree's `HEAD`) has `.github/workflows/land.yml` lands through
+A repository whose default branch (or this worktree's `HEAD`) has `.github/workflows/merge-to-main.yml` (or `land.yml`,
+its name before hal2 plan 0263) lands through
 GitHub Actions (hal2's plan 0131 and its decision record
 [landings-on-github-actions](https://github.com/divramod/hal2/blob/main/.adr/landings-on-github-actions.md)). Nothing is tested on this machine:
 `hal2-cli-git worktree merge-to-main` takes the worktree's turn in the merge queue, merges the default branch in,
 builds the `--no-ff` candidate, pushes the branch and `land/<slot>`, opens or updates the landing's pull request
-(`land/<slot>` → the default branch) and waits until `land.yml` has tested the candidate: green, its `merge` job
+(`land/<slot>` → the default branch) and waits until that workflow has tested the candidate: green, its `merge` job
 fast-forwards the default branch to the candidate (the PR shows merged); red, the queue stays held for this worktree
 until its fix lands (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"). There
 is no attempts counter, and `reserve` only holds the queue while `land-runs.sh` waits (below): SKILL.md's steps 2 and 5 to 8 apply as they are, this page replaces steps
@@ -19,12 +20,20 @@ Run in the worktree (SKILL.md step 2 first: everything committed and pushed):
 after exit 3 or 4 (a new candidate), never before an exit-6 rerun (that one waits for its own run or for the queue
 ahead; a wait over 10 minutes loses its parked ticket, so it reruns at once):
 
+0. `bash $S/check-landing-cli.sh` first, before anything is reserved. Exit 8: the repository's workflow is
+   `merge-to-main.yml` and the installed hal2-cli-git does not know that name (its `--help` does not name it): it
+   would find no `land.yml` and land this worktree **as a plain merge, untested**. Nothing lands: stop and tell the
+   user what the script printed (the binary, the install command); a plan's landing pushes a notification first.
+   Exit 2: a missing tool, `bash $S/install-prerequisites.sh`. Exit 0 prints nothing: go on. It checks the
+   worktree it runs in; for another one pass its directory (`bash $S/check-landing-cli.sh <dir>`), here and below.
 1. `hal2-cli-git worktree reserve --max-wait 100m --json [<slot>]`, in the background like the landing (exit 6:
    rerun at once; after exit 3 or 4 the queue is still held for this worktree: skip this). The hold keeps any other
    landing from starting while you wait; `merge-to-main` takes it over.
-2. `bash $S/land-runs.sh`, in the background too. It runs `gh run list --workflow land.yml --limit 10 --json
-   databaseId,headBranch,status --jq '.[] | select(.status != "completed")'` every minute and exits 0 once that
-   prints nothing; while it lists a run, an earlier landing still runs or ships (`queued` counts too: a run whose
+2. `bash $S/land-runs.sh`, in the background too. It runs `gh run list --workflow <file> --limit 10 --json
+   databaseId,headBranch,status --jq '.[] | select(.status != "completed")'` for `merge-to-main.yml` and for
+   `land.yml` every minute (a run started before the rename finishes under the old name; a file GitHub does not
+   know has no runs) and exits 0 once neither
+   prints anything; while it lists a run, an earlier landing still runs or ships (`queued` counts too: a run whose
    ship job waits for a runner is queued), so never push meanwhile. Exit 7: a run stayed unfinished for an hour
    (`--max-wait`; a parked runner, a pending approval): tell the farmer and wait for it, the hold stays. Exit 1: gh
    failed, nothing is known: check again. hal2-cli-git's own check misses queued runs (the user, 2026-10-06: "the
@@ -33,10 +42,16 @@ ahead; a wait over 10 minutes loses its parked ticket, so it reruns at once):
 
 Then land:
 
-`hal2-cli-git worktree merge-to-main --max-wait 100m --keep-reserved --json [<slot>]`, in the background with the
+`bash $S/check-landing-cli.sh && hal2-cli-git worktree merge-to-main --max-wait 100m --keep-reserved --json [<slot>]`,
+in the background with the
 shell tool's maximum timeout (Claude Code: `run_in_background`, `timeout` 7200000; a lower limit gets a
 `--max-wait` 20 minutes below it). It needs `gh` logged in to GitHub (`gh auth status`). Wait for it by its task
 notification or its own PID, never by a `pgrep` pattern (SKILL.md step 4 says why).
+
+**The guard is part of the command**, on every run of it, an exit-6 rerun too: hal2-cli-git decides anew at each
+start, from this worktree's `HEAD` and origin's default branch, whether the repository lands through CI, and both
+may have got the renamed workflow since step 0 (the default branch merged in, the rename landed meanwhile). The
+guard takes no time and prints nothing when it passes.
 
 **`--keep-reserved` only when something follows**: the plan has steps to finish after the landing (`after_landing`
 of `plan.py current`). Without such steps, and for the finish landing of SKILL.md step 5, run the command **without
@@ -60,6 +75,7 @@ SKILL.md step 6 as milestone mode says.
 | 5 | `stopped`, `cancelled` | the user ended it: report and stop, never rerun on your own (your own shell's time limit is no user stop: rerun) |
 | 5 | `interrupted` | its process went away, not the user: rerun at once; it adopts the same landing and its run (never cancel the run) |
 | 1 | `error` | uncommitted changes: SKILL.md step 2. Anything else: report the `message`; the queue may be held for this worktree, so ask the user (fix, or `hal2-cli-git worktree release`) |
+| 8 | none (`check-landing-cli.sh: nothing was landed ...`) | the guard stopped the command before hal2-cli-git ran: the installed one does not know `merge-to-main.yml` (step 0 above). Never run `merge-to-main` without the guard to get past it. This landing cannot go on until the CLI is installed: `hal2-cli-git worktree release --json [<slot>]` when the queue is held or reserved for this worktree (`hal2-cli-git worktree queue --json`), then stop and tell the user what the script printed |
 
 **Watch the run every 5 minutes while it is tested** (the user, 2026-10-06). Once the candidate's run is known (exit
 6 names `run`; else `hal2-cli-git worktree landings --json`), look at its jobs every 5 minutes
@@ -69,6 +85,11 @@ for the landing to end; the landing keeps its place meanwhile, and when it ends 
 for the next [Land](#land) at once. Never cancel the run: the whole workflow finishes, so every red job of it is
 known and fixed in that one next landing (the user, 2026-10-06: "that way we save time"). A red outside the code (runner offline, full disk, network): tell the farmer
 right away.
+
+**Work while it is tested** (the user, 2026-10-12: "you should always trigger work, which can be done while you are
+waiting for a pipeline run to finish"). A land run takes an hour and more: right after the landing started, do what
+the plan skill's "A wait is never idle" says (prepare the steps that wait for the landing, move idle servants, merge
+nothing into the landing's branch), and only wait when nothing is left, saying why.
 
 ## Red
 
@@ -89,13 +110,13 @@ the runner's work, not the Mac's:
 A job red for a reason outside the code (the runner offline, a network failure, a full disk, the runner's image) is
 no code fix and cannot be seen green locally: fix the environment (a runner image is built first:
 `code/bash/scripts/ci-runner-linux/main.sh image-build`), then check **that one job alone** on CI (`gh workflow run
-land.yml --ref <branch> -f ref=<sha> -f jobs=<job>`) and land only after it is green. Never rerun a whole landing on
+merge-to-main.yml --ref <branch> -f ref=<sha> -f jobs=<job>`; `land.yml` where the repository still has that name) and land only after it is green. Never rerun a whole landing on
 hope; when the job alone stays red, report it and ask the user (the farmer's ci duty may already be on it). Keep going until the PR is merged: every fix is a new candidate, and the queue stays held for this worktree
 meanwhile, so every other landing waits on you: fix and run again at once.
 
 ## After the landing
 
-land.yml's `merge` pushes the version tags; the same run's `ship / ...` jobs (ship.yml, called after `merge`) promote
+The workflow's `merge` pushes the version tags; the same run's `ship / ...` jobs (ship.yml, called after `merge`) promote
 the staged Linux bundle, install the landed apps on the Mac host (cargo installs, hal2-api/hal2-daemon, the apps'
 install) and pull the main checkout; the landing pulls it too when ship has not yet. hal2-cli-git decides the landing
 once `merge` completed: a `ship / ...` job never delays or reddens it. In the report, name the PR and the land run

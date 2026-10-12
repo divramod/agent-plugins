@@ -67,7 +67,8 @@ Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool
 8. **Finish** as mtm steps 5-8: plan steps checked after the landing, then land those too; `bash $S/fastlane.sh
    release` once nothing is left; CURRENT_PLAN; cleanup; the report. The report adds:
    - the CI jobs the fastlane skipped (Linux, Docker stacks, Windows, VMs; the worktree script lists them) and the
-     command that runs them once CI works again (hal2: `gh workflow run land.yml -f ref=<default> -f jobs=<jobs>`);
+     command that runs them once CI works again (hal2: `gh workflow run merge-to-main.yml -f ref=<default> -f
+     jobs=<jobs>`, `land.yml` where the repository still has that name);
    - the slots whose landings `ci-stop.sh` stopped: send them to the repository's farmer in one line (SendMessage to
      the session in its slot `farmer-<repo>`, `ListAgents`) so they land again later; no farmer: name them to the
      user.
@@ -88,7 +89,10 @@ Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool
    `$S/templates/` (same names), filling every `@PLACEHOLDER@`: the header says what they replace and what is
    skipped with the CI command for it; `@CHECKS@` and `@STEPS@` become `step <name> <command>` lines, each guarded
    with `if touches '<ERE>'; then ...; fi` (never `touches ... && step ...`: a false last line fails the script),
-   and `skip <job> <why>` for every CI job that cannot run here. The conf: `LAND_WORKFLOWS`, `LAND_REFS`,
+   and `skip <job> <why>` for every CI job that cannot run here. The conf: `LAND_WORKFLOWS` (the file names of
+   scan's `land_workflows`; of `merge-to-main.yml` and `land.yml`, one workflow before and after its rename,
+   `ci-stop.sh` asks both where one is listed, so a conf written before the rename still stops every land run),
+   `LAND_REFS`,
    `MERGE_JOB`, `SHIP_GRACE`, `FINGERPRINT_INPUTS` (scan's `fingerprint_inputs`); commit the inputs, then set
    `FINGERPRINT=$(bash $S/fastlane.sh fingerprint)` last.
 4. `bash $S/check.sh` validates them (`bash -n`, executable, shellcheck when present, the fingerprint) and runs the

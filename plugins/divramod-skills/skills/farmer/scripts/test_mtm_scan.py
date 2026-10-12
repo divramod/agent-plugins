@@ -78,7 +78,7 @@ class Findings(unittest.TestCase):
         self.assertIn("reserved-idle", kinds(idle))
         self.assertNotIn("reserved-idle", kinds(dict(idle, agent_idle_seconds=120)), "its turn just ended")
         self.assertNotIn("reserved-idle", kinds(dict(idle, agent_tasks=1)), "a background shell runs")
-        self.assertNotIn("reserved-idle", kinds(idle, runs_unfinished=1), "a land.yml run is unfinished")
+        self.assertNotIn("reserved-idle", kinds(idle, runs_unfinished=1), "a landing-workflow run is unfinished")
         self.assertNotIn("reserved-idle", kinds(dict(idle, agent_state="working", agent_idle_seconds=0)))
 
     def test_a_held_landing_whose_agent_works_is_left_alone(self):

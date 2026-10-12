@@ -24,6 +24,6 @@ fi
 if command -v gh >/dev/null 2>&1; then
   echo "ok gh"
 else
-  echo "optional gh (a landing through CI, land.yml) -> brew install gh"
+  echo "optional gh (a landing through CI, merge-to-main.yml or land.yml) -> brew install gh"
 fi
 exit "$missing"

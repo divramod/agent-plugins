@@ -57,7 +57,8 @@ class GhRunsTest(unittest.TestCase):
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in first],
                          [("07", "failed", "gate-1"), ("03", "failed", "gate-2"), ("05", "running", ""),
                           ("09", "landed", "")])
-        self.assertEqual((stats["list"], stats["view"], stats["cached"], gh.views()), (1, 3, 0, 3))
+        # one list per landing workflow file (merge-to-main.yml, land.yml), each once per round
+        self.assertEqual((stats["list"], stats["view"], stats["cached"], gh.views()), (2, 3, 0, 3))
 
     def test_a_completed_runs_jobs_come_from_the_disk_next_round_a_running_one_is_fetched_again(self):
         with gh_runs.round(self.cache):

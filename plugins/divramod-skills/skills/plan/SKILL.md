@@ -60,8 +60,8 @@ runnable command where possible (`cargo test -p x`, `grep -rn "old" src | wc -l`
 behaviour. A done-when tests only what the step changed: the crates or packages it touched (`cargo nextest run -p <crate>`), or
 a gate job for the branch's range (`gate/main.sh <job> --branch origin/main` in hal2). It never runs a whole-workspace
 test (`--workspace`, a bare `cargo nextest run`) or a full gate job (a release bundle, an e2e stack) on the Mac: those
-are the landing's CI; a check that needs one before then runs on the CI runner (hal2: `gh workflow run land.yml -f
-ref=<branch> -f jobs=<job>`; hal2 plan 0157).
+are the landing's CI; a check that needs one before then runs on the CI runner (hal2: `gh workflow run
+merge-to-main.yml -f ref=<branch> -f jobs=<job>`, `land.yml` where the repository still has that name; hal2 plan 0157).
 
 **Short and concise** (hal2's record plans-short-and-concise): one line per step, `plan.md` at most 150 lines, a
 table cell at most 200 characters, a step file at most 120 lines; link the research, records and code instead of
@@ -355,6 +355,20 @@ fix them before dispatching.
    `"worktree": {"baseRef": "head"}` (otherwise the isolated tree branches from the default branch).
 3. As each reports: its done-when, the diff, its commit, `status <n> done`, then `ready` again. Shared files
    (`plan.md`, `INTENT.md`, `AGENTS.md`, lockfiles, generated files, CI config) are the coordinator's alone.
+
+**A wait is never idle** (the user, 2026-10-12: "you should always trigger work, which can be done while you are
+waiting for a pipeline run to finish ... i dont want to babysit"; the global record `a-wait-is-never-idle`). Whenever
+the coordinator has started something it waits for (a landing, a CI run, a reserve, a long step), its next action is
+this, before it ends the turn:
+
+1. `plan.py ready --json`, and its `waiting` list too: "nothing ready" is no answer. For every waiting step, what
+   can be prepared ahead without the thing it waits for (a document's draft, a deploy's runbook checked dry, a test,
+   the step's brief, a fix for a job already red) is started as a subagent in a slot the wait does not lock.
+2. Every other plan this session leads or handed to servants (the handoff's **Next** and **Watch out** name them):
+   ask each servant that is idle for its state and get it moving; merge a branch that is finished.
+3. Never what harms the wait: a second CI run beside a land run, load on a machine that must stay quiet, a tracked
+   change in a worktree the landing locks.
+4. Only when nothing is left, wait, and say in one line per step why it could not start.
 
 **Milestones** land a plan too big to land once in parts: a row "Milestone n: land ...", whose Needs name what it
 carries and which touches `@land`; before it, every gate job the candidate touches runs green locally, then the

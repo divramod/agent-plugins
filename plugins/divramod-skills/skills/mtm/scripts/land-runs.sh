@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# Wait until no land.yml run is unfinished in the repository of <dir> (default .),
+# Wait until no run of the landing workflow is unfinished in the repository of <dir> (default .),
 # so a landing through CI (which reserves the queue first) never pushes a
-# candidate while another landing still runs or ships (references/ci.md). A run counts until its
+# candidate while another landing still runs or ships (references/ci.md). The workflow is
+# merge-to-main.yml, before hal2 plan 0263 land.yml: both are asked, a run started before the
+# rename finishes under the old name. A run counts until its
 # status is `completed`: `queued` too (a ship job waiting for a runner is queued).
 #   land-runs.sh [--once] [--interval <s>] [--max-wait <minutes>] [<dir>]
 # Exit 0: none unfinished. --once: exit 6 and list them instead of waiting.
 # Exit 7: still unfinished after --max-wait (default 60): a run stuck queued or
 # waiting (a parked runner, a pending approval); tell the farmer, do not push.
+# A file GitHub does not know (HTTP 404: the workflow is not renamed yet, or has been) has no runs,
+# as long as GitHub knows the other one; when it knows neither, nothing is known.
 # Exit 2: gh is missing, or --max-wait/--interval is no whole number. Exit 1: gh failed, nothing is known: do not push.
 set -euo pipefail
 once=0
@@ -32,9 +36,41 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 2
 fi
 cd "$dir"
+# The unfinished runs of one workflow file, a line each. Exit 3: GitHub does not know the file; 1: gh failed
+# otherwise (its message on stderr).
+unfinished_of() {
+  local err rc=0
+  # gh's stdout stays this function's (fd 3); its stderr is read, a 404 says GitHub does not know the file.
+  { err=$(gh run list --workflow "$1" --limit 10 --json databaseId,headBranch,status \
+    --jq '.[] | select(.status != "completed") | "\(.databaseId) \(.headBranch) \(.status)"' 2>&1 >&3); } 3>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+  case "$err" in
+    *"HTTP 404"*|*"could not find any workflows named"*) return 3 ;;
+  esac
+  [ -z "$err" ] || echo "$err" >&2
+  return 1
+}
+# The unfinished runs of both workflow files.
 unfinished() {
-  gh run list --workflow land.yml --limit 10 --json databaseId,headBranch,status \
-    --jq '.[] | select(.status != "completed") | "\(.databaseId) \(.headBranch) \(.status)"'
+  local file runs rc known=0 all=""
+  for file in merge-to-main.yml land.yml; do
+    rc=0
+    runs=$(unfinished_of "$file") || rc=$?
+    case "$rc" in
+      0) known=1 ;;
+      3) continue ;;
+      *) return 1 ;;
+    esac
+    [ -z "$runs" ] || all="${all:+$all
+}$runs"
+  done
+  if [ "$known" -eq 0 ]; then
+    echo "land-runs.sh: GitHub knows neither merge-to-main.yml nor land.yml in this repository" >&2
+    return 1
+  fi
+  [ -z "$all" ] || echo "$all"
 }
 while :; do
   if ! runs=$(unfinished); then

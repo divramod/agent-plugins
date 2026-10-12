@@ -37,23 +37,73 @@ judge_jobs() {
   echo "$merged $queued_only"
 }
 
+# The landing workflow's two names: merge-to-main.yml, before hal2 plan 0263 land.yml. A run is under the name its
+# commit had, so around the rename the unfinished runs are under either: where one is a land workflow, both are.
+LAND_TWINS="merge-to-main.yml land.yml"
+
+# The land workflows, words: the conf's LAND_WORKFLOWS, else those of the two names the worktree or origin's
+# default branch has; then the other name of the two where one is among them (a conf written before the rename).
 github_workflows() {
-  local w
+  local w f
   w=$(conf_get LAND_WORKFLOWS "")
-  if [ -z "$w" ] && [ -f "$top/.github/workflows/land.yml" ]; then w=land.yml; fi
+  if [ -z "$w" ]; then
+    for f in $LAND_TWINS; do
+      if [ -f "$top/.github/workflows/$f" ] \
+        || git -C "$top" cat-file -e "origin/${default:-main}:.github/workflows/$f" 2>/dev/null; then
+        w="$w${w:+ }$f"
+      fi
+    done
+  fi
+  for f in $LAND_TWINS; do
+    case " $w " in
+      *" $f "*|*"/$f "*) ;;
+      *" merge-to-main.yml "*|*"/merge-to-main.yml "*|*" land.yml "*|*"/land.yml "*) w="$w $f" ;;
+    esac
+  done
   echo "$w"
 }
 
+# The unfinished runs (`<id> <ref>` lines) of one workflow file. Exit 3: GitHub does not know the file (not
+# renamed yet, or renamed away: no runs); 1: gh failed otherwise (its message on stderr).
+github_unfinished() {
+  local err rc=0
+  # gh's stdout stays this function's (fd 3); its stderr is read, a 404 says GitHub does not know the file.
+  { err=$(gh run list --workflow "$1" --limit 20 --json databaseId,headBranch,status \
+    --jq '.[] | select(.status != "completed") | "\(.databaseId) \(.headBranch)"' 2>&1 >&3); } 3>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+  case "$err" in
+    *"HTTP 404"*|*"could not find any workflows named"*) return 3 ;;
+  esac
+  [ -z "$err" ] || echo "$err" >&2
+  return 1
+}
+
+# A workflow file GitHub does not know has no runs, as long as it knows another of them: when it knows none,
+# nothing is known (exit 1).
 github_runs() {
-  local w id ref
+  local w runs rc id ref known=0 asked=0
   for w in $(github_workflows); do
-    gh run list --workflow "$w" --limit 20 --json databaseId,headBranch,status \
-      --jq '.[] | select(.status != "completed") | "\(.databaseId) \(.headBranch)"' \
-      | while read -r id ref; do
-          echo "$id $ref $(gh run view "$id" --json jobs \
-            --jq '.jobs[] | "\(.status) \(if (.conclusion // "") == "" then "none" else .conclusion end) \(.name)"' | judge_jobs)"
-        done
+    asked=1 rc=0
+    runs=$(github_unfinished "$w") || rc=$?
+    case "$rc" in
+      0) known=1 ;;
+      3) continue ;;
+      *) return 1 ;;
+    esac
+    while read -r id ref; do
+      [ -n "$id" ] || continue
+      echo "$id $ref $(gh run view "$id" --json jobs \
+        --jq '.jobs[] | "\(.status) \(if (.conclusion // "") == "" then "none" else .conclusion end) \(.name)"' | judge_jobs)"
+    done <<RUNS
+$runs
+RUNS
   done
+  if [ "$asked" = 1 ] && [ "$known" = 0 ]; then
+    echo "GitHub knows none of the land workflows ($(github_workflows))" >&2
+    return 1
+  fi
 }
 
 github_cancel() { gh run cancel "$1" >/dev/null; }
