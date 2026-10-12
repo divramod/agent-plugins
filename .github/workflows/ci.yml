@@ -1,0 +1,65 @@
+# The mirror's CI (hal2 plan 0233 D22), published from hal2's code/claude-code/marketplace: on GitHub's hosted
+# runners, no secret. The same checks as hal2's gate job claude-code-plugins-test: per plugin `claude plugin validate
+# --strict`, `claude plugin test` when it has *.test.ts(x), scripts/check-plugins.py, every scripts folder's unittest
+# suite and bats files; all run, also after a red one. Edit it in hal2, never here.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Claude Code version
+        run: claude --version
+      - name: Validate the marketplace
+        run: claude plugin validate --strict .
+      - name: Validate and test every plugin
+        run: |
+          code=0
+          for p in plugins/*/; do
+            p=${p%/}
+            echo "::group::$p"
+            claude plugin validate --strict "$p" || code=1
+            if find "$p" -name node_modules -prune -o \( -name '*.test.ts' -o -name '*.test.tsx' \) -print | grep -q .; then
+              claude plugin test "$p" || code=1
+            fi
+            if [ -f "$p/scripts/check-plugins.py" ]; then
+              (cd "$p" && python3 scripts/check-plugins.py) || code=1
+            fi
+            for s in $(find "$p" -name node_modules -prune -o -type d -name scripts -print | sort); do
+              if compgen -G "$s/test_*.py" >/dev/null; then
+                (cd "$s" && python3 -m unittest discover -q -s . -p 'test_*.py') || code=1
+              fi
+              if compgen -G "$s/*.bats" >/dev/null; then
+                bunx --bun bats@1.11.1 "$s" || code=1
+              fi
+            done
+            echo "::endgroup::"
+          done
+          exit $code
+      - name: The screenshots are up to date
+        run: |
+          for s in plugins/*/scripts/screenshot.ts; do
+            [ -e "$s" ] && bun "$s"
+          done
+          git diff --exit-code -- 'plugins/*/docs'
