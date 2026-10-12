@@ -1,0 +1,42 @@
+{
+  "name": "divramod-skills",
+  "version": "0.3.0",
+  "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
+  "author": {
+    "name": "Arvid Petermann",
+    "url": "https://github.com/divramod"
+  },
+  "homepage": "https://github.com/divramod/divramod-claude-code-plugins/tree/main/plugins/divramod-skills",
+  "repository": "https://github.com/divramod/divramod-claude-code-plugins",
+  "license": "MIT",
+  "keywords": ["skills", "summarize", "video", "youtube", "article", "github", "twitter", "x", "hacker-news", "reddit", "pdf", "digest", "topic", "research"],
+  "skills": [
+    "./skills/adapt-merge-queue",
+    "./skills/adr",
+    "./skills/c",
+    "./skills/cleanup",
+    "./skills/continue",
+    "./skills/continue-all-agent-work",
+    "./skills/create-shot",
+    "./skills/create-worktree-session",
+    "./skills/delete-worktree-session",
+    "./skills/digest-todolist-picture",
+    "./skills/farmer",
+    "./skills/fix-autoclear",
+    "./skills/fix-loc",
+    "./skills/grill",
+    "./skills/h",
+    "./skills/handoff",
+    "./skills/list-free-worktrees",
+    "./skills/mfm",
+    "./skills/mtm",
+    "./skills/mtm-fastlane",
+    "./skills/pause",
+    "./skills/plan",
+    "./skills/research",
+    "./skills/sanity-watch",
+    "./skills/shoot",
+    "./skills/stop-all-agent-work",
+    "./skills/tell"
+  ]
+}

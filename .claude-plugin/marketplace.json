@@ -1,0 +1,22 @@
+{
+  "name": "divramod-claude-code-plugins",
+  "owner": {
+    "name": "Arvid Petermann",
+    "url": "https://github.com/divramod"
+  },
+  "description": "divramod's Claude Code plugins: agent skills and live panes for Claude Code, published from hal2.",
+  "plugins": [
+    {
+      "name": "divramod-skills",
+      "source": "./plugins/divramod-skills",
+      "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
+      "category": "productivity"
+    },
+    {
+      "name": "divramod-subagent-context",
+      "source": "./plugins/divramod-subagent-context",
+      "description": "A Claude Code mod: a live pane of every subagent of the session with its model, effort, context fill, peak and compactions.",
+      "category": "productivity"
+    }
+  ]
+}

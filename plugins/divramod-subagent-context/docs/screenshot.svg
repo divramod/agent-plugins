@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1077" height="422" viewBox="0 0 1077 422" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15">
+  <title>Subagents: context</title>
+  <rect width="100%" height="100%" rx="8" fill="#1a1b26"/>
+  <text x="12" y="36" fill="#565f89" xml:space="preserve"> All 5   Running 2   Finished 3 </text>
+  <text x="12" y="58" fill="#565f89" xml:space="preserve">┌───┬──────────────────────────────────┬─────────┬──────────┬─────────┬───────┬────────┬─────────┬───────┬────────┐</text>
+  <text x="12" y="80" fill="#c0caf5" font-weight="bold" xml:space="preserve">│   │ Subagent                         │  Model  │  Effort  │   Calls │   Now │   Peak │     %1M │   Cmp │   Time │</text>
+  <text x="12" y="102" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="124" fill="#c0caf5" xml:space="preserve">│ ✓ │ 149-163 part 2: e2e              │ sonnet  │  medium  │      31 │  118k │   142k │    14.2 │     0 │  09:00 │</text>
+  <text x="12" y="146" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="168" fill="#e0af68" xml:space="preserve">│ ● │ 149-232: Automations plugin      │  opus   │   high   │      54 │  336k │   336k │    33.6 │     0 │  17:00 │</text>
+  <text x="12" y="190" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="212" fill="#7dcfff" xml:space="preserve">│ ● │ 149-212: Servers plugin          │ sonnet  │  medium  │      22 │  288k │   288k │    28.8 │     0 │  11:00 │</text>
+  <text x="12" y="234" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="256" fill="#c0caf5" xml:space="preserve">│ ✓ │ Explore the code map             │  haiku  │   low    │       8 │   41k │    41k │     4.1 │     0 │  02:05 │</text>
+  <text x="12" y="278" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="300" fill="#f7768e" xml:space="preserve">│ ✗ │ 149-178: Repositories plugin     │  opus   │   high   │      66 │  120k │   410k │    41.0 │     1 │  24:00 │</text>
+  <text x="12" y="322" fill="#565f89" xml:space="preserve">├───┼──────────────────────────────────┼─────────┼──────────┼─────────┼───────┼────────┼─────────┼───────┼────────┤</text>
+  <text x="12" y="344" fill="#c0caf5" font-weight="bold" xml:space="preserve">│ Σ │ 5 subagents                      │         │          │     181 │  903k │  1217k │   121.7 │     1 │  63:05 │</text>
+  <text x="12" y="366" fill="#565f89" xml:space="preserve">└───┴──────────────────────────────────┴─────────┴──────────┴─────────┴───────┴────────┴─────────┴───────┴────────┘</text>
+  <text x="12" y="388" fill="#565f89" xml:space="preserve">warn 30% · stop 35% of 1M · live</text>
+</svg>

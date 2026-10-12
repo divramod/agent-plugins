@@ -1,0 +1,20 @@
+{
+  "name": "divramod-claude-code-plugins",
+  "interface": {
+    "displayName": "divramod Claude Code plugins"
+  },
+  "plugins": [
+    {
+      "name": "divramod-skills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/divramod-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
