@@ -1,4 +1,5 @@
 {
   "h": {"skill": "handoff", "args": ""},
-  "c": {"skill": "handoff", "args": "continue"}
+  "c": {"skill": "handoff", "args": "continue"},
+  "hv": {"skill": "halverse", "args": ""}
 }

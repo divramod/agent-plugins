@@ -123,7 +123,15 @@ class TestCreate(unittest.TestCase):
     def test_from_starts_the_search_at_the_slot(self):
         out = self.run_create("--from", "30")
         self.assertEqual((out["slot"], out["skipped"]), ("30", []))
-        self.assertIn("--from needs a slot from 01 to 99", self.refused("--from", "0"))
+        self.assertIn("--from needs a slot from 00 to 99", self.refused("--from", "100"))
+        self.assertIn("--from needs a slot from 00 to 99", self.refused("--from", "x"))
+
+    def test_from_00_reaches_slot_00(self):
+        """Plan 0270 (D13): the farmer's foremen start in the first free worktree from 00."""
+        out = self.run_create("--from", "00", extra="00")
+        self.assertEqual((out["slot"], out["skipped"]), ("00", []))
+        self.assertEqual(self.run_call()[3], "00")
+        self.assertEqual(self.run_create()["slot"], "06", "without --from the search still starts at 01")
 
     def test_a_reused_clean_slot_from_30_is_taken(self):
         out = self.run_create("--from", "30", "--min-free-gb", "999999999", extra="30")

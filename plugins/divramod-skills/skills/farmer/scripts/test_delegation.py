@@ -50,7 +50,7 @@ class Delegation(Ledger):
         r = delegation.delegate(flaky(), MAIN, 5, True, NOW)
         self.assertEqual(r["how"], "new")
         self.assertEqual(r["calls"][0], delegation.FREE + ["--repo", MAIN])
-        self.assertEqual(r["calls"][1][:11], delegation.CREATE + ["--repo", MAIN, "--from", "30", "--model", "opus",
+        self.assertEqual(r["calls"][1][:11], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--model", "opus",
                                                                   "--effort", "medium", "--prompt"])
         self.assertIn('/plan new "disable the load-flaky test t"', r["calls"][1][-1])
         self.assertEqual([c for c in self.calls if c[:2] == delegation.CREATE], [])
@@ -144,27 +144,48 @@ class Delegation(Ledger):
 
 
 class ServantSlots(Ledger):
-    """Skills plan 0013: the farmer's servants work only in slots 30-99, the user's helper slots."""
+    """Plan 0270 (D13): the farmer's sessions (foremen) work in the first free worktree counting from 00; a foreman's
+    own servants stay in 30-99 (skills plan 0013)."""
 
-    def test_a_free_session_is_reused_only_in_a_slot_from_30(self):
-        self.free = [{"slot": "05", "panes": ["%5"]}, {"slot": "main", "panes": ["%1"]},
-                     {"slot": "farmer-hal2", "panes": ["%2"]}, {"slot": "31", "panes": ["%31"]}]
+    def delegate_free(self, free):
+        self.free = free
         with mock.patch.object(delegation.deliver, "send", return_value=None) as send:
-            r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
-        self.assertEqual((r["state"], r["slot"], r["how"]), ("running", "31", "free"))
+            return delegation.delegate(flaky(), MAIN, 5, False, NOW), send
+
+    def test_a_free_session_below_30_is_reused(self):
+        """Fails on the old behaviour: slot 05 was skipped and a new session started at 30."""
+        r, send = self.delegate_free([{"slot": "05", "panes": ["%5"]}, {"slot": "31", "panes": ["%31"]}])
+        self.assertEqual((r["state"], r["slot"], r["how"]), ("running", "05", "free"))
         send.assert_called_once()
-        self.assertEqual(send.call_args.args[0], "%31")
+        self.assertEqual(send.call_args.args[0], "%5")
         self.assertEqual([c for c in self.calls if c[:2] == delegation.CREATE], [])
 
-    def test_with_no_free_session_from_30_a_new_one_starts_from_30(self):
-        self.free = [{"slot": "05", "panes": ["%5"]}, {"slot": "29", "panes": ["%29"]}]
-        with mock.patch.object(delegation.deliver, "send", return_value=None) as send:
-            r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
+    def test_slot_00_is_taken_when_free_and_the_lowest_slot_wins(self):
+        r, send = self.delegate_free([{"slot": "31", "panes": ["%31"]}, {"slot": "12", "panes": ["%12"]},
+                                      {"slot": "00", "panes": ["%0"]}])
+        self.assertEqual((r["slot"], r["how"]), ("00", "free"))
+        self.assertEqual(send.call_args.args[0], "%0")
+
+    def test_main_and_the_role_slots_are_never_taken(self):
+        r, send = self.delegate_free([{"slot": "main", "panes": ["%1"]}, {"slot": "farmer-hal2", "panes": ["%2"]},
+                                      {"slot": "31", "panes": ["%31"]}])
+        self.assertEqual((r["slot"], r["how"]), ("31", "free"))
+        self.assertEqual(send.call_args.args[0], "%31")
+
+    def test_with_no_free_session_a_new_one_starts_from_00(self):
+        r, send = self.delegate_free([{"slot": "main", "panes": ["%1"]}])
         send.assert_not_called()
         self.assertEqual((r["state"], r["how"]), ("running", "new"))
         create = [c for c in self.calls if c[:2] == delegation.CREATE]
         self.assertEqual(len(create), 1)
-        self.assertEqual(create[0][2:6], ["--repo", MAIN, "--from", "30"])
+        self.assertEqual(create[0][2:6], ["--repo", MAIN, "--from", "00"])
+
+    def test_a_foremans_servants_still_work_only_in_30_to_99(self):
+        import prune
+        self.assertEqual(prune.SUBSERVANTS_FROM, 30)
+        record = Path(delegation.__file__).parents[5] / ".adr" / "subservants-in-slots-30-99.md"
+        if record.exists():  # the repository's record stays as it is
+            self.assertIn("A subservant MUST work only in a worktree slot from 30 to 99", record.read_text())
 
     def test_a_reused_session_at_other_values_is_switched_never_typed_into(self):
         """Skills plan 0016: a free session at sonnet or another effort restarts at the servant's values."""

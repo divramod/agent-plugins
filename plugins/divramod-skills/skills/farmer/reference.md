@@ -128,12 +128,14 @@ script, a recurring failure class, a rule patch in `pending/`), it delegates:
      --branch origin/main`), never a whole-workspace test or a full gate job on the Mac (hal2 plan 0157);
    - the urgency;
    - a pending patch's path, when there is one.
-4. **Slot**, only 30-99, the user's helper slots (skills plan 0013: "helper sessions only work in the worktrees
-   30+"). Idle sessions first, including the ones the user started: `python3 $K/list-free-worktrees/scripts/free.py`
-   finds a running session that is idle and holds no work; take one in a slot 30-99. When it runs at
+4. **Slot**, the first free worktree counting from 00 (the user, 2026-10-13, plan 0270 D13: "the farmer should start
+   in the first free worktree from 00"). The session started here runs the plan, so it is a foreman; its own servants
+   stay in 30-99 (skills plan 0013). Idle sessions first, including the ones the user started:
+   `python3 $K/list-free-worktrees/scripts/free.py` finds a running session that is idle and holds no work; take the
+   one in the lowest numbered slot. When it runs at
    `servant_model` and `servant_effort` (`python3 $K/plan/scripts/session.py --session <its session id>`), SendMessage
    the prompt below to it; otherwise `hal2-cli-agents switch <pane> --model <m> --effort <e> --prompt "<prompt>"
-   --detach`. Otherwise start a new one: `python3 $K/create-worktree-session/scripts/create.py --from 30 --model <m>
+   --detach`. Otherwise start a new one: `python3 $K/create-worktree-session/scripts/create.py --from 00 --model <m>
    --effort <e> --prompt "<prompt>"`. Its first prompt runs `/mfm`, then the given prompt.
 5. **Role file**: `farmer.py delegate --brief <file> --title <title>` writes it on its own; by hand, fill
    [templates/SERVANT-ROLE.md](templates/SERVANT-ROLE.md) into `roles/farmer/servants/<title-slug>.md`
@@ -170,9 +172,9 @@ From the grill with the user on 2026-10-03. They are recorded for the repositori
 - Servants: at most `servant_limit` at a time (`auto` by load, or a number); idle sessions first (the user's too), else
   new ones. Each is its plan's coordinator and starts at an explicit model and effort, `servant_model` and
   `servant_effort` (default opus medium, skills plan 0016: the user, 2026-10-09: "new sessions should always set the
-  effort level to medium and the model to opus 5.5"), so a restart can take them from its plan's `run`. Since skills
-  plan 0013 only in slots 30-99, the user's helper slots (the user: "helper sessions only work in the worktrees
-  30+").
+  effort level to medium and the model to opus 5.5"), so a restart can take them from its plan's `run`. They are the
+  foremen of the user's glossary and work in the first free worktree counting from 00 (plan 0270, D13); only a
+  foreman's own servants are limited to slots 30-99 (skills plan 0013).
 - Notification: every round that has open items, batched into one push.
 - **Nothing implicit**: every duty and task is an opt-in in roles/farmer/ROLE.md, each with its own cron (5-field
   notation). The settings are required, and without the file the farmer runs nothing. The loop runs at the

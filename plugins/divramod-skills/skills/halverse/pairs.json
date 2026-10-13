@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "comment": "Old word -> farm word pairs for `halverse.py learn` (plan 0270 D4). old/new_forms/ambiguous[].form are regular expressions, matched case-insensitively as whole words (not inside a longer or hyphenated word, not as a slash command). keep_names: farm-table words that keep their name and need no pair (D9). practise=false: both words stay, shown but never among the words to practise.",
+  "keep_names": ["pause", "shoot", "grill", "autogrill", "hand off", "continue", "cockcrow"],
+  "pairs": [
+    {
+      "new": "harvest", "since": "2026-10-13", "command": "/mtm", "practise": true,
+      "old_label": "merge-to-main, mtm, land on main",
+      "old": ["merge[- ]to[- ]main", "mtm", "land(?:s|ed|ing)? +(?:on|to|onto|in) +main"],
+      "new_forms": ["harvest(?:s|ed|ing)?"],
+      "ambiguous": [
+        {"form": "land(?:s|ed|ing|ings)?", "note": "landing is also a landing page or a plane, land a common verb"}
+      ]
+    },
+    {
+      "new": "smuggle", "since": "2026-10-13", "command": "/mtm-fastlane", "practise": true,
+      "old_label": "mtm-fastlane, fastlane",
+      "old": ["mtm[- ]fastlane", "fastlane"],
+      "new_forms": ["smuggl(?:e|es|ed|ing)"],
+      "ambiguous": []
+    },
+    {
+      "new": "restock", "since": "2026-10-13", "command": "/mfm", "practise": true,
+      "old_label": "merge-from-main, mfm",
+      "old": ["merge[- ]from[- ]main", "mfm"],
+      "new_forms": ["restock(?:s|ed|ing)?"],
+      "ambiguous": []
+    },
+    {
+      "new": "toll gate", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "merge queue",
+      "old": ["merge[- ]queues?"],
+      "new_forms": ["toll[- ]gates?"],
+      "ambiguous": []
+    },
+    {
+      "new": "wagon train", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "merge train",
+      "old": ["merge[- ]trains?"],
+      "new_forms": ["wagon[- ]trains?"],
+      "ambiguous": []
+    },
+    {
+      "new": "muck out", "since": "2026-10-13", "command": "/cleanup", "practise": true,
+      "old_label": "cleanup (of a worktree)",
+      "old": ["run +cleanup", "cleanup +(?:the +)?(?:wt|work[- ]?trees?|slots?)"],
+      "new_forms": ["muck(?:s|ed|ing)? +out"],
+      "ambiguous": [
+        {"form": "clean(?:s|ed|ing)? +up", "note": "clean up is the everyday verb, not always the worktree cleanup"},
+        {"form": "cleanups?", "note": "cleanup alone is the everyday noun; it counts as the old word only as run cleanup or cleanup of a worktree"}
+      ]
+    },
+    {
+      "new": "seed", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "shot",
+      "old": ["shots?"],
+      "new_forms": ["seeds?"],
+      "ambiguous": []
+    },
+    {
+      "new": "sow", "since": "2026-10-13", "command": "/shoot", "practise": true,
+      "old_label": "shoot",
+      "old": ["shoot(?:s|ing)?(?! +skill)"],
+      "new_forms": ["sow(?:s|ed|n|ing)?"],
+      "ambiguous": []
+    },
+    {
+      "new": "seedbag", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "shotfile",
+      "old": ["shot[- ]?files?"],
+      "new_forms": ["seed[- ]?bags?"],
+      "ambiguous": []
+    },
+    {
+      "new": "steward", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "main agent",
+      "old": ["main +agents?"],
+      "new_forms": ["stewards?"],
+      "ambiguous": [
+        {"form": "assistants?", "note": "assistant is also a role at the person's level in the ontology"}
+      ]
+    },
+    {
+      "new": "daybook", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "daily to-do list, to-do list",
+      "old": ["(?:daily +)?to-?do[- ]lists?"],
+      "new_forms": ["daybooks?"],
+      "ambiguous": [
+        {"form": "daily", "note": "daily is also jobsearch's daily favourites"}
+      ]
+    },
+    {
+      "new": "chore", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "to-do, todo",
+      "old": ["to-?dos?"],
+      "new_forms": ["chores?"],
+      "ambiguous": [
+        {"form": "tasks?", "note": "a task may be a chore, a step or a plain piece of work"}
+      ]
+    },
+    {
+      "new": "jot", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "add a to-do/chore",
+      "old": ["add(?:s|ed|ing)? +(?:an? +|the +|this +|that +)?(?:to-?do|chore)s?"],
+      "new_forms": ["jot(?:s|ted|ting)?"],
+      "ambiguous": [
+        {"form": "add(?:s|ed|ing)? +(?:it +|this +|that +)?to +(?:the +)?(?:daybook|list)", "note": "adding to a list may be a chore or any other entry"}
+      ]
+    },
+    {
+      "new": "tick off", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "finish a to-do/chore",
+      "old": ["(?:finish|complete|check)(?:es|ed|ing|s)? +(?:off +)?(?:an? +|the +|this +|that +)?(?:to-?do|chore)s?"],
+      "new_forms": ["tick(?:s|ed|ing)? +(?:\\S+ +)?off"],
+      "ambiguous": []
+    },
+    {
+      "new": "lookout", "since": "2026-10-13", "command": null, "practise": false,
+      "old_label": "watch (both words stay)",
+      "old": [],
+      "new_forms": ["lookouts?"],
+      "ambiguous": [
+        {"form": "watch(?:es|ed|ing)?", "note": "watch is also the everyday verb; watch and lookout both stay"}
+      ]
+    },
+    {
+      "new": "field", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "worktree, wt, slot <nn>",
+      "old": ["work[- ]?trees?", "wts?", "slots? +[0-9]{2}"],
+      "new_forms": ["fields? +[0-9]{2}"],
+      "ambiguous": [
+        {"form": "git +work[- ]?trees?", "note": "git worktree is the git feature, not the farm place"},
+        {"form": "slots?", "note": "slot is the old word for a worktree, but also a VM or queue slot"}
+      ],
+      "note": "field counts as a farm word only with a number (field 07): field alone is an input field or a struct field"
+    },
+    {
+      "new": "crop", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "branch",
+      "old": [],
+      "new_forms": ["crops?"],
+      "ambiguous": [
+        {"form": "branch(?:es)?", "note": "branch is the git term; crop is the farm synonym for a worktree's branch"}
+      ]
+    },
+    {
+      "new": "barn", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "default branch, main branch",
+      "old": ["default +branch", "main +branch"],
+      "new_forms": ["barns?"],
+      "ambiguous": [
+        {"form": "main", "note": "main alone may be the branch, the main checkout or the word"}
+      ]
+    },
+    {
+      "new": "yard", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "main checkout",
+      "old": ["main +checkouts?"],
+      "new_forms": ["yards?"],
+      "ambiguous": []
+    },
+    {
+      "new": "foreman", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "lead, servant (as foreman)",
+      "old": [],
+      "new_forms": ["foremen", "foreman"],
+      "ambiguous": [
+        {"form": "leads?", "note": "lead is the old word for a foreman of a parallel plan, but also an everyday verb and noun"}
+      ]
+    },
+    {
+      "new": "servant", "since": "2026-10-13", "command": null, "practise": true,
+      "old_label": "subservant",
+      "old": ["sub-?servants?"],
+      "new_forms": ["servants?"],
+      "ambiguous": [],
+      "note": "servant was once the word for a foreman: such a use cannot be told from today's servant and counts as new"
+    }
+  ]
+}

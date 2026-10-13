@@ -1,6 +1,6 @@
 {
   "name": "divramod-skills",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
   "author": {
     "name": "Arvid Petermann",
@@ -26,7 +26,9 @@
     "./skills/fix-loc",
     "./skills/grill",
     "./skills/h",
+    "./skills/halverse",
     "./skills/handoff",
+    "./skills/hv",
     "./skills/list-free-worktrees",
     "./skills/mfm",
     "./skills/mtm",

@@ -144,7 +144,8 @@ The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farm
 - pause the merge queue and reorder it;
 - **start servant sessions and give them plans**, autogrilled, run and landed, **without asking the user**
   ([Delegate](reference.md#delegate-a-fix)): each runs its plan as the plan's coordinator (every step in a subagent),
-  started at ROLE.md's `servant_model` and `servant_effort`, only in slots 30-99, the user's helper slots; stop the
+  started at ROLE.md's `servant_model` and `servant_effort`, in the first free worktree counting from 00 (these are the
+  foremen of the user's glossary; a foreman's own servants stay in 30-99); stop the
   sessions it started once their work has landed (only those: never a session it did not start);
 - have a test that fails only under load disabled (recorded, with a shot to bring it back);
 - review code, okay what a session waits for, and answer questions that the repository's decisions answer;

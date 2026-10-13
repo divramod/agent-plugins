@@ -15,8 +15,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 
 - [.claude-plugin/plugin.json](.claude-plugin/plugin.json): the Claude Code manifest, every skill listed; its
   `version` is the plugin's ([.codex-plugin/plugin.json](.codex-plugin/plugin.json) keeps the same name and version).
-- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`) and `c` (`/handoff continue`), generated into
-  `skills/h` and `skills/c` by `scripts/gen-aliases.py`.
+- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`), `c` (`/handoff continue`) and `hv` (`/halverse`), generated into
+  `skills/h`, `skills/c` and `skills/hv` by `scripts/gen-aliases.py`.
 - [docs/selfimprovement/common/](docs/selfimprovement/common/): notes on agent mistakes the skills guard against.
 - [LICENSE](LICENSE): MIT.
 - `scripts/`: the plugin's own checks and installers, each with its `test_*.py`.
@@ -44,6 +44,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
 | [fix-loc](skills/fix-loc/SKILL.md) | the loop that brings files under 300 code lines |
 | [grill](skills/grill/SKILL.md) | questions a plan until every branch is decided |
+| [halverse](skills/halverse/SKILL.md) | shows the user's ontology and counts old words against farm words (`/hv`) |
 | [handoff](skills/handoff/SKILL.md) | writes the handoff before a clear and continues from it |
 | [list-free-worktrees](skills/list-free-worktrees/SKILL.md) | lists the idle worktree sessions |
 | [mfm](skills/mfm/SKILL.md), [mtm](skills/mtm/SKILL.md), [mtm-fastlane](skills/mtm-fastlane/SKILL.md) | merge from main, land on main, land without CI |

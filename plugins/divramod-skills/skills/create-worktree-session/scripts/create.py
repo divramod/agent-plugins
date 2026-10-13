@@ -13,7 +13,7 @@ given prompt (`--exact`: the prompt as given, without /mfm). `--model` and `--ef
 (saved nowhere). Prints JSON: slot, pane, worktree, the attach command, the model and effort asked for (null: the
 agent's default) and the slots skipped for their work. Exit 2 when a hal2 CLI is missing, 1 when no slot is left.
 
-`--from NN` starts the search at slot NN (the farmer's servants: 30, skills plan 0013). A missing worktree is
+`--from NN` starts the search at slot NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30). A missing worktree is
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 """
 import json
@@ -159,8 +159,8 @@ def main(argv: list[str]) -> int:
         return 0
     repo = main_checkout(Path(arg(argv, "--repo") or ".").expanduser().resolve())
     first = arg(argv, "--from") or "1"
-    if not first.isdigit() or not 1 <= int(first) <= 99:
-        die(f"--from needs a slot from 01 to 99, not '{first}'")
+    if not first.isdigit() or not 0 <= int(first) <= 99:
+        die(f"--from needs a slot from 00 to 99, not '{first}'")
     for gone in ("--lead", "--base"):
         if gone in argv:
             die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in subservant slots")

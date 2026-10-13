@@ -3,8 +3,10 @@ idle session first (list-free-worktrees' free.py) or a new one (create-worktree-
 prompt, the ledger `delegations.jsonl`, and the follow-up: a servant whose plan has landed is recorded and its idle
 session stopped (delete-worktree-session's stop.py).
 
-Servants work only in slots 30-99, the user's helper slots (skills plan 0013: "helper sessions only work in the
-worktrees 30+"): a free session is reused only there and a new one starts with `create.py --from 30`. The follow-up
+The sessions the farmer hands plans to (the user's glossary: foremen, called servants here) work in the first free
+worktree counting from 00 (plan 0270, D13: "the farmer should start in the first free worktree from 00"): a free
+session is reused in the lowest numbered slot that has one, and a new one starts with `create.py --from 00`. A
+foreman's own servants stay in 30-99 (the record subservants-in-slots-30-99; prune.py, the plan skill). The follow-up
 reads only this ledger, so a session the farmer did not start is never followed up or stopped here.
 
 A servant is its plan's coordinator (skills plan 0016, D7): it runs every step in a subagent. It starts at the ROLE
@@ -34,7 +36,7 @@ CREATE = [sys.executable, str(SKILLS / "create-worktree-session/scripts/create.p
 STOP = [sys.executable, str(SKILLS / "delete-worktree-session/scripts/stop.py"), "stop"]
 SESSION = [sys.executable, str(SKILLS / "plan/scripts/session.py")]
 SWITCH = ["hal2-cli-agents", "switch"]
-FROM = 30  # the first slot a servant may work in
+FROM = 0  # the first slot a farmer-started session may work in (plan 0270, D13); a foreman's own servants: 30-99
 SETTLE = dt.timedelta(minutes=30)  # a servant younger than this has not started its plan yet
 ROLE = Path(__file__).resolve().parents[1] / "templates" / "SERVANT-ROLE.md"
 # Plan 0016's D7, verbatim: the same sentence in the plan skill and every servant prompt (grep for it).
@@ -114,7 +116,8 @@ def write_role(main: str, brief: Path, title: str, now: dt.datetime, task: str |
 
 
 def servant_slot(slot) -> bool:
-    """A numbered slot FROM-99, where servants work."""
+    """A numbered worktree slot FROM-99 (00-99), where the farmer-started sessions work; `main` and the role slots
+    (`farmer-<repo>`) are not."""
     return isinstance(slot, str) and len(slot) == 2 and slot.isdigit() and int(slot) >= FROM
 
 
@@ -165,15 +168,13 @@ def differs(live: dict | None, want: dict) -> bool:
 
 
 def start(prompt: str, main: str, dry: bool, values: dict | None = None) -> dict:
-    """An idle free session in a slot 30-99 gets the prompt: typed when it runs at `values`, else through a switch to
-    them; otherwise a new session at `values` in the first free slot from 30."""
+    """An idle free session in the lowest numbered slot that has one gets the prompt: typed when it runs at `values`,
+    else through a switch to them; otherwise a new session at `values` in the first free slot from 00."""
     values = values or servant_values()
     flags = ["--model", values["model"], "--effort", values["effort"]]
     code, out = call(FREE + ["--repo", main], main)
     free = (json.loads(out).get("worktrees") or []) if code == 0 and out.strip() else []
-    for w in free:
-        if not servant_slot(w.get("slot")):
-            continue
+    for w in sorted((w for w in free if servant_slot(w.get("slot"))), key=lambda w: int(w["slot"])):
         pane = w.get("pane") or next(iter(w.get("panes") or []), None)  # free.py lists `panes`
         if not pane:
             continue
@@ -186,7 +187,7 @@ def start(prompt: str, main: str, dry: bool, values: dict | None = None) -> dict
                 return {"slot": w.get("slot"), "how": "switch", **values}
         elif not deliver.send(pane, prompt):
             return {"slot": w.get("slot"), "how": "free", **values}
-    argv = CREATE + ["--repo", main, "--from", str(FROM)] + flags + ["--prompt", prompt]
+    argv = CREATE + ["--repo", main, "--from", f"{FROM:02d}"] + flags + ["--prompt", prompt]
     if dry:
         return {"slot": None, "how": "new", **values, "calls": [FREE + ["--repo", main], argv]}
     code, out = call(argv, main)

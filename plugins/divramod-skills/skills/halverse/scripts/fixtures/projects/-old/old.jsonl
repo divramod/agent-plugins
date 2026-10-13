@@ -1,0 +1,1 @@
+{"type": "user", "timestamp": "2026-10-12T10:00:00.000Z", "sessionId": "s1", "isSidechain": false, "userType": "external", "message": {"role": "user", "content": "in an old file"}, "origin": {"kind": "human"}}
