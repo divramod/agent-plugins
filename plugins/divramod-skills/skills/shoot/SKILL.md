@@ -129,10 +129,12 @@ unknown id: say so and stop), before marking any: ids refer to that list.
      global shotfile `<file>` (at `path`), carried out in this repository. Read the shotfile (`path`) only when
      you need more context on what was prompted before.
    - In a git worktree, run `/mfm` (merge-from-main) once before starting the first shot.
-   - Make every shot a plan before starting it: `/plan new "<file> <number> <title>"` (`shooter 3 i want all
-     shots to become a plan`; `<file> <number>` for a shot without a title; a global shot:
-     `"global <file> <number> <title>"`; a shot that asks for research rather than implementation becomes a
-     research plan, `/plan new --research ...`, slug `<NNNN>-research-...`), then run the plan as its
+   - Make every shot a plan before starting it: `/plan new "<name>" --seed <file>#<number>`, the name at most four
+     words saying what the shot is about, taken from its title (`shooter 3 i want all shots to become a plan` becomes
+     `"shots become plans"`; a shot without a title: name it by its text), never the file and number: `--seed` names
+     the shot (a global shot: `--seed global:<file>#<number>`), writes it into the plan's Context and its words
+     become the Brief; a shot that asks for research rather than implementation becomes a
+     research plan, `/plan new --research ...`, slug `<NNNN>-research-...`; then run the plan as its
      coordinator: **You are the plan's coordinator: you never do a step yourself; each step runs in one subagent
      at its row's Model and Effort, sized under 35% of its Window; you check its done-when, commit it and keep
      `run` current.** `/plan` writes the plan's `<NNNN>-<slug>` into `plans/CURRENT_PLAN`, so the statusline shows it; the file is

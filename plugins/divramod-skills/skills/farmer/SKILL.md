@@ -40,7 +40,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 
 `S=<skill-dir>/scripts`, `K=<skills repo>/skills`. **State** in the role folder `roles/farmer/` of the farmer slot, beside `ROLE.md` (`FARMER_DIR` overrides it with
 `$FARMER_DIR/<repo>/`): `log.jsonl` (every action), `handoff.md` (what the session knew before its last clear), `mode`,
-`timer.json`, `tick.log`, `wake.json`, `delegations.jsonl`, `briefs/`, `servants/` (each servant's role file),
+`timer.json`, `tick.log`, `wake.json`, `questions.jsonl` (the farmer's own questions, a keyed log: `farmer.py question add|answer|drop|list`), `delegations.jsonl`, `briefs/`, `servants/` (each servant's role file),
 `pending/`, `flaky.md`, `lead.jsonl`, `ci.jsonl`, `disk.json` (prune's sizes), `cache/run-jobs/` (completed CI runs'
 jobs). Every round ends its `tick.log` output with a `timing:` line (see [Timing](reference.md#timing)). **History**: a summary per round with actions in
 `summaries/<day>/<HHMM>.md`, `latest.md` every round. The folder's own `.gitignore` ignores all of it but `ROLE.md`
@@ -56,6 +56,8 @@ and itself, so the slot's `git status` stays clean ([reference](reference.md#the
 | `/farmer measure` | a full dry round with every duty and task due, where its time goes: `python3 $S/farmer.py tick --dry-run --all-due` (the `timing:` line) |
 | `/farmer check` | `python3 $S/due.py check`: roles/farmer/ROLE.md valid? Each duty and task with its cron and mode (machine or prose) |
 | `/farmer first <slot>... [why]` | the user's priority: these slots land first, each place reserved (`python3 $S/mtm_scan.py priority <slot>... --note <why>` wraps `hal2-cli-git worktree queue order`; `first clear` ends it: `priority --clear`); to tell the slots their places too, use the skill `adapt-merge-queue` |
+| `/farmer questions [a\|l]`, `/farmer q` | the open (`a` answered, `l` all) questions of the farmer, the log's open asks and every worktree slot, one list: `python3 $S/farmer.py questions [a\|l]`; print its output and nothing else (the same list as `/q` in this slot) |
+| `/s` | the state of every worktree slot as one table: the skill `s`, for every session |
 | `/farmer status [<hours>]` | `farmer.py timer status`, `mtm_scan.py status`, the log's last hours (default 6), delegations, `latest.md` |
 | `/farmer h`, `/farmer help` | print this table and stop |
 
@@ -121,7 +123,7 @@ the log as well. A peer's message after a clear: read `handoff.md` and the log's
 
 1. `python3 $S/farmer.py handoff` names `roles/farmer/handoff.md` of the farmer slot (and its sections when it is missing).
 2. Rewrite it whole from this session: the user's decisions (do not ask again), the merge queue and its holds, merge
-   trains, open threads (questions to peers, messages promised, what each waits for), pauses and priorities with
+   trains, open threads (questions to peers, messages promised, what each waits for; the user's open questions are in `questions.jsonl`, not in this file), pauses and priorities with
    their reasons, what comes next. Facts and pointers (slots, tickets, commits, log entries), no narrative. Durable
    decisions also go where they go today: `log.jsonl`, `priority.json`, `paused.json`. Never a HANDOFF.md in the
    branch: the farmer commits nothing but `roles/farmer/ROLE.md`.
@@ -158,7 +160,8 @@ The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farm
 It **never**:
 
 - changes, commits or lands anything in its own branch (except committing the user's `roles/farmer/ROLE.md`);
-- decides product questions (they go to the user, batched);
+- decides product questions (they go into the list with `python3 $S/farmer.py question add --slot <slot|farmer> --text "<the question in the Q form>" [--waits "<what waits for it>"]`, which the user reads with `/farmer questions`; a question the user answered: `farmer.py question answer <n> --text "<the answer>"`, one that no longer matters: `question drop <n>`);
+- lists an open question to the user unasked: a report or stop names only how many are open (`/q`, `/farmer questions` list them); one the farmer cannot continue without is printed once, in full, in the Q form;
 - deploys to production unless the user asked;
 - force-pushes, or deletes a slot's work or branch;
 - stops a session that the user started while it has work;

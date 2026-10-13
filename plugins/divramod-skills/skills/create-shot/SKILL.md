@@ -150,4 +150,7 @@ After the report (not for `--dry-run` or `--no-implement`), offer to start the s
    `hal2-cli-agents attach <repo>/<slot>` of the first into both clipboards (`pbcopy`, `tmux set-buffer` when a
    tmux server runs). Nothing is carried out in this session.
 
+A shot sent to be carried out becomes a plan with `plan.py new --seed <shotfile>#<n>`: the shot's words become the
+plan's Brief and the shot is linked to its plan.
+
 `--implement` skips the question and takes the recommended option (the first idle session, else a new one).

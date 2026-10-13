@@ -22,6 +22,20 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **New**, the C cases below. A red job's cause in the runner, its image or the workflow is the ci duty's (one fix
   for every slot, through a servant), never the slot's.
 
+## C10 · A landing paused by the fastlane
+
+- **Signature**: `queue --json` shows the head with `paused_by` (`slot`, `seq`, `since`) and another ticket with
+  `fastlane`; `hal2-cli-git worktree queue` ends the line with `paused by the fastlane of <slot>`; the paused
+  landing's own command ended exit 6 `paused`. A handed-over fastlane reads `verification taken over`.
+- **Occurrences**: none yet; named when the fastlane stopped stopping (hal2 plan 0228).
+- **Cause**: the user ran `/mtm-fastlane` (CI down, or a broken local tool needing its fix now). It pauses the queue
+  holder in place instead of stopping it and cancels the land runs that have not merged.
+- **Remedy**: none. The paused landing resumes from merge-from-main within seconds of the fastlane's release (its
+  cancelled run is re-run once and is no red); the boss does nothing: it does not wake or release the paused ticket,
+  never releases the fastlane's, and never starts a fastlane.
+- **Lasting fix**: landed (hal2 plan 0228, 2026-10-10): `paused_by` and `fastlane` in the queue; the scan skips
+  them.
+
 ## C9 · A landing that tested nothing: "landed as a plain merge"
 
 - **Signature**: in a repository whose workflow is `merge-to-main.yml`, a landing's warning `no

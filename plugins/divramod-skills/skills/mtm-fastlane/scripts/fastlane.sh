@@ -46,6 +46,11 @@ preflight() {
   echo "default: $default"
   echo "main checkout: $main_checkout"
   if bin=$(hal2_bin); then echo "lands: hal2-cli-git ($bin)"; else echo "lands: plain git"; fi
+  if bin=$(hal2_fastlane_bin); then
+    echo "fastlane: $bin worktree merge-to-main --fastlane (one call, SKILL.md)"
+  else
+    echo "fastlane: no hal2-cli-git --fastlane here: the steps (SKILL.md)"
+  fi
   local want now
   want=$(conf_get FINGERPRINT "")
   now=$(fingerprint)

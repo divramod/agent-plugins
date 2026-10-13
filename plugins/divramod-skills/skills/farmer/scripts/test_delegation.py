@@ -52,7 +52,11 @@ class Delegation(Ledger):
         self.assertEqual(r["calls"][0], delegation.FREE + ["--repo", MAIN])
         self.assertEqual(r["calls"][1][:11], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--model", "opus",
                                                                   "--effort", "medium", "--prompt"])
-        self.assertIn('/plan new "disable the load-flaky test t"', r["calls"][1][-1])
+        prompt = r["calls"][1][-1]
+        self.assertNotIn('/plan new "disable the load-flaky test t"', prompt)
+        self.assertNotIn("disable the load-flaky test t", prompt.split("/plan new")[1].split("`")[0])
+        self.assertIn("/plan new <name>", prompt)
+        self.assertIn("at most four words", prompt)
         self.assertEqual([c for c in self.calls if c[:2] == delegation.CREATE], [])
         self.assertFalse((self.tmp / "hal2" / "delegations.jsonl").exists())
 

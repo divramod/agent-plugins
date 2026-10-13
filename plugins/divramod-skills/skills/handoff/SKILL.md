@@ -89,10 +89,11 @@ the lead's plan. When the step's report is pushed and the lead told, the work is
    ```
    The first report starts with them, before anything else: an open question **of the user** (`user`) is answered
    now, in words, from the handoff, the plan and the code (look up what it needs first; an instruction is confirmed
-   with what you do about it and when); an open question **of yours** (`agent`) is asked again, numbered, with its
-   options and the recommended one first. Write each answer you give into the file (`answered <date>`, your answer
-   under `**A:**`). Then carry on at once: an unanswered question of yours never stops the work, and the user's
-   answer, whenever it comes, goes into the file with their words quoted.
+   with what you do about it and when); an open question **of yours** (`agent`) stays in the file, listed only
+   when the user asks (`/q`) or when you cannot continue without the answer (then asked once, in the Q form, with
+   its options and the recommended one first; the user, 2026-10-13, D9). Write each answer you give into the file
+   (`answered <date>`, your answer under `**A:**`). Then carry on at once: an unanswered question of yours never
+   stops the work, and the user's answer, whenever it comes, goes into the file with their words quoted.
 5. Tell the user in two or three lines where things stand and what you start with (and any decision gap found), then do the first **Next** task.
    When the handoff continues a plan (**Plan** links one with steps left) and this is no subservant's slot, the
    plan was already approved: keep running it as the `plan` skill's "Run the plan" says (step after step without asking, a commit after every
@@ -288,7 +289,7 @@ Done when: <a check the next session can run>
 - <traps, fragile spots, things that must not be done>
 
 ## Questions
-[<n> open](<plans/<NNNN>-<slug>/questions.md>): answer the user's and ask yours again before anything else.
+[<n> open](<plans/<NNNN>-<slug>/questions.md>): answer the user's first; yours stay recorded (`/q` lists them) and are asked only when you cannot continue.
 - Q<n> (<agent | user>): <the question in one line>
 
 ## Open
@@ -349,8 +350,8 @@ If a script exits 2 with a missing-tool error, run `bash $S/install-prerequisite
 ### 6. Report
 
 Tell the user the commit, which decisions you recorded and where (ledger entries, decision records, the intent
-doc), the open questions (yours asked again,
-numbered, so the user can answer before the clear), the plan it links (or that there is none),
+doc), how many questions are open (`/q` lists them; print them only when you cannot continue
+without an answer), the plan it links (or that there is none),
 and the prompt from **Start the next session with**, so they can `/clear` and paste it (with `/handoff clear`:
 see below instead).
 

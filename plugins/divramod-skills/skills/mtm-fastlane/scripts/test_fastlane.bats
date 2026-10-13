@@ -45,6 +45,7 @@ work() { echo "$1" > "$1.txt" && git add "$1.txt" && git commit -q -m "$1"; }
   [[ "$output" == *"branch: 07"* ]]
   [[ "$output" == *"main checkout: $tmp/main"* ]]
   [[ "$output" == *"lands: plain git"* ]]
+  [[ "$output" == *"fastlane: no hal2-cli-git --fastlane here"* ]]
   [[ "$output" == *"fingerprint: current"* ]]
 }
 
@@ -137,6 +138,18 @@ work() { echo "$1" > "$1.txt" && git add "$1.txt" && git commit -q -m "$1"; }
   run bash "$here/fastlane.sh" main
   [ "$status" -eq 1 ]
   [[ "$output" == *"the landing stays"* ]]
+}
+
+@test "preflight names the one call when hal2-cli-git has --fastlane" {
+  mkdir -p "$tmp/bin"
+  printf '#!/usr/bin/env bash\necho "merge-to-main [--local] [--fastlane]"\n' > "$tmp/bin/hal2-cli-git"
+  chmod +x "$tmp/bin/hal2-cli-git"
+  export FASTLANE_PLAIN=0 HAL2_CLI_GIT="$tmp/bin/hal2-cli-git"
+  run bash "$here/fastlane.sh" preflight
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"fastlane: $tmp/bin/hal2-cli-git worktree merge-to-main --fastlane"* ]]
+  FASTLANE_PLAIN=1 run bash "$here/fastlane.sh" preflight
+  [[ "$output" == *"fastlane: no hal2-cli-git --fastlane here"* ]]
 }
 
 @test "hal2-cli-git lands with --local --keep-reserved; its exits map to the fastlane's" {

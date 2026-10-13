@@ -86,6 +86,24 @@ class Findings(unittest.TestCase):
         w = [{"slot": "12", "ahead": 2, "agent_state": "working"}]
         self.assertEqual(scan.findings(snap(queue=q, worktrees=w)), [])
 
+    def test_a_landing_paused_by_a_fastlane_and_the_fastlane_itself_are_no_stuck_holders(self):
+        # hal2 plan 0228: the user's fastlane pauses the holder in place (`paused_by`), the holder resumes by itself;
+        # a chained fastlane's verification taken over is a paused fastlane ticket. None is woken or released.
+        held = {"slot": "12", "state": "held", "process_alive": False, "enqueued": "2026-10-03T02:33:17Z",
+                "hold": {"reason": "failed", "step": "gate", "attempts": 3}}
+        w = [{"slot": "12", "ahead": 2, "agent_state": "sleeping", "agent_idle_seconds": 9000},
+             {"slot": "41", "ahead": 1, "agent_state": "working"}]
+        kinds = lambda q: [f["kind"] for f in scan.findings(snap(queue=q, worktrees=w))]  # noqa: E731
+        by = {"slot": "41", "seq": 7, "since": "2026-10-12T10:00:00Z"}
+        fastlane = {"slot": "41", "state": "held", "process_alive": False, "hold": {"reason": "interrupted"},
+                    "fastlane": {"phase": "verifying", "since": "2026-10-12T10:01:00Z", "run": 5}}
+        self.assertIn("held-idle", kinds([held]))
+        self.assertNotIn("held-idle", kinds([dict(held, paused_by=by), fastlane]))
+        self.assertNotIn("held-idle", kinds([fastlane]), "the user's fastlane is never released")
+        self.assertNotIn("held-idle", kinds([dict(fastlane, paused_by=by)]), "a verification taken over")
+        waiter = {"slot": "41", "state": "waiting", "process_alive": False, "fastlane": {"phase": "queued"}}
+        self.assertNotIn("waiter-gone", kinds([dict(held, process_alive=True), waiter]))
+
     def test_high_load_during_a_landing_names_the_busy_slots(self):
         q = [{"slot": "01", "state": "active", "process_alive": True, "active_seconds": 60}]
         w = [{"slot": "01", "ahead": 1, "agent_state": "working"},

@@ -56,7 +56,8 @@ guard takes no time and prints nothing when it passes.
 **`--keep-reserved` only when something follows**: the plan has steps to finish after the landing (`after_landing`
 of `plan.py current`). Without such steps, and for the finish landing of SKILL.md step 5, run the command **without
 it**: the tool releases the queue the moment the landing ends (after its run has shipped). The finish landing
-starts within the kept reservation's lease (10 minutes, git.toml `[queue] keep_lease_minutes`), takes the hold back
+starts within the kept reservation's lease (10 minutes, longer while the session that started the landing lives, at most 60: git.toml
+`[queue] keep_lease_minutes`, `keep_lease_max_minutes`), takes the hold back
 at once and needs no `reserve` or `land-runs.sh` before it; a kept reservation nobody follows up ends with its
 lease and the next waiter lands (hal2 plan 0169).
 
@@ -70,6 +71,7 @@ SKILL.md step 6 as milestone mode says.
 | 0 | `landed` | the default branch is the candidate (`commit`), the PR (`pull_request`) merged; `retests` counts how often the default branch moved under it. `reserved: true` (kept, a lease): go to SKILL.md [step 5](../SKILL.md#5-finish-the-plan-and-land-it) at once; `reserved: false`: the queue is released, step 5 only checks that nothing is left. Report `warnings` (e.g. the main checkout could not be pulled) |
 | 0 | `nothing` | the branch has nothing the default branch lacks; the queue is released, with or without `--keep-reserved` (`reserved: false`), and a worktree that held no ticket never entered the queue: step 5 |
 | 6 | `waiting`, `testing`, `shipping` | the slice passed: in the queue (`ahead`), while the candidate is tested (`candidate`, `run`) or while a run ships (`runs`; with `commit`: this landing has landed and waits for its run's `ship / ...` jobs before it releases the queue: strictly one land run at a time). The place and the candidate are kept: **rerun the same command at once**, as often as it takes, without reserve or `land-runs.sh` before it |
+| 6 | `paused` | a fastlane of another worktree (`paused_by`: its slot, the user's `/mtm-fastlane`) paused this landing in place; it waits by itself and resumes when the fastlane releases: **rerun the same command at once**, as for `waiting`, and say in one line that it was paused. A run the pause cancelled is no red and needs no fix |
 | 4 | `gate_failed` | the candidate is red; the queue stays held for this worktree (`released: false`): [fix it](#red) and run again at once, the rerun adopts the hold at the head of the queue. Never release it yourself while you can fix: it is released when the branch lands. An older hal2-cli-git answers `released: true`: rerun at once all the same (it queues again) |
 | 3 | `conflict` | merging the default branch in conflicts (`files`): resolve as the [mfm](../../mfm/SKILL.md) skill's **Conflicts** says, commit, rerun (the queue stays held for this worktree meanwhile: go straight on) |
 | 5 | `stopped`, `cancelled` | the user ended it: report and stop, never rerun on your own (your own shell's time limit is no user stop: rerun) |

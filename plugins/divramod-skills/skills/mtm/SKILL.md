@@ -22,7 +22,7 @@ default branch.** It handles what needs judgment. `S=<skill-dir>/scripts`. Ask q
 rule (background first; ~/.claude/CLAUDE.md), recommended option first.
 
 **When CI does not work** (or a broken local tool's fix must land and be installed now), the user may land with
-[mtm-fastlane](../mtm-fastlane/SKILL.md) instead: it stops the running land attempts and lands from this machine.
+[mtm-fastlane](../mtm-fastlane/SKILL.md) instead: it pauses the running landing (it resumes by itself) and lands from this machine.
 Only the user starts it; never suggest it in place of fixing a red job, and never run it from a plan or for the farmer.
 
 **Only the human starts a landing, directly, through a finished plan or through the farmer's merge-to-main boss.** Run merge-to-main only when
@@ -224,7 +224,8 @@ worktree waits for this one. `hal2-cli-git worktree queue` confirms who holds it
 
 The landing is on the default branch and the queue is still reserved for this worktree: every other landing waits,
 so work through this without pausing. The kept reservation is a **lease** (hal2 plan 0169): it ends by itself when
-no landing or reserve of this worktree starts within it (10 minutes; git.toml `[queue] keep_lease_minutes`), and the
+no landing or reserve of this worktree starts within it (10 minutes, longer while the session that started the landing lives, at most 60: git.toml `[queue] keep_lease_minutes`,
+`keep_lease_max_minutes`), and the
 next waiter takes the queue, so a session that never gets here no longer blocks anyone. A landing started within
 the lease takes the hold back at once; after it the worktree queues like any other. Never count on the lease to
 release for you: it is the net, the steps below are the way. What only the landing let you check (a step whose done-when needs the landed

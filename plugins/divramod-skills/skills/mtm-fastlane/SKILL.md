@@ -1,6 +1,6 @@
 ---
 name: mtm-fastlane
-description: mtm-fastlane — merge-to-main's emergency twin, which lands the current git worktree from the local machine when the normal landing cannot: when CI does not work (runners down, GitHub Actions or GitLab CI broken, a land run stuck), and when a problem on the local machine (a broken CLI, daemon, hook or install that stops the agent sessions) needs its fix landed and delivered now to get everything running again. It stops the running land attempts (moves this worktree to the front of the merge queue, stops another worktree's held landing, cancels the land runs that have not merged and waits for the ones that have), reserves the queue, merges the default branch in, runs the repository's local fastlane checks (`.hal/mtm-fastlane-worktree.sh`: only what the branch changed and what runs natively on this machine), lands the same candidate as /mtm (through `hal2-cli-git worktree merge-to-main --local`, else plain git) straight onto the default branch, then runs the after-landing work on it (`.hal/mtm-fastlane-main.sh`: version tags, deliveries, installs) and reports the CI jobs it skipped with the command that checks them once CI works again. `/mtm-fastlane configure` writes the two scripts for any repository from its CI workflows, apps, libs, `code/` and `utils/`. Only ever started by the user, never by a plan, the farmer or another session. Use when the user says /mtm-fastlane, "fastlane", "land without CI", "CI is down, land it anyway" or "land this fix now, everything is broken". `/mtm-fastlane --dry-run` changes nothing, `/mtm-fastlane h` shows help.
+description: mtm-fastlane — merge-to-main's emergency twin, which lands the current git worktree from the local machine when the normal landing cannot: when CI does not work (runners down, GitHub Actions or GitLab CI broken, a land run stuck), and when a problem on the local machine (a broken CLI, daemon, hook or install that stops the agent sessions) needs its fix landed and delivered now to get everything running again. It pauses the running landing (moves this worktree to the front of the merge queue, pauses the landing that holds it so it resumes by itself, cancels the land runs that have not merged and waits for the ones that have), reserves the queue, merges the default branch in, runs the repository's local fastlane checks (`.hal/mtm-fastlane-worktree.sh`: only what the branch changed and what runs natively on this machine), lands the same candidate as /mtm straight onto the default branch (where hal2 has it, in one call, `hal2-cli-git worktree merge-to-main --fastlane`; else by this skill's steps with `--local` or plain git), then runs the after-landing work on it (`.hal/mtm-fastlane-main.sh`: version tags, deliveries, installs) and reports the CI jobs it skipped with the command that checks them once CI works again. `/mtm-fastlane configure` writes the two scripts for any repository from its CI workflows, apps, libs, `code/` and `utils/`. Only ever started by the user, never by a plan, the farmer or another session. Use when the user says /mtm-fastlane, "fastlane", "land without CI", "CI is down, land it anyway" or "land this fix now, everything is broken". `/mtm-fastlane --dry-run` changes nothing, `/mtm-fastlane h` shows help.
 ---
 
 # mtm-fastlane
@@ -20,19 +20,22 @@ Two uses, both the user's call:
    which gets everything running again.
 
 **Only the user starts it** (`/mtm-fastlane` in this session). Never a plan's landing, never the farmer's
-merge-to-main boss, never another session's message: they land with `/mtm`. Stopping other worktrees' landings is
-the user's own stop (hal2: merge-queue-policy, amendment of plan 0216).
+merge-to-main boss, never another session's message: they land with `/mtm`. It pauses other worktrees'
+landings, which resume by themselves (hal2: merge-queue-policy, amendment of 2026-10-10; docs/ci-fastlane.md).
 
 ## Usage
 
 | Call | Does |
 |---|---|
 | `/mtm-fastlane` | [land](#land) this worktree |
-| `/mtm-fastlane --dry-run` | preflight, `ci-stop.sh --dry-run`, `checks --dry-run`: what it would stop and run, nothing changed |
+| `/mtm-fastlane --dry-run` | `merge-to-main --fastlane --dry-run` (the holder it pauses, the runs it cancels, the phases, the scripts' dry runs; nothing changed); without hal2's `--fastlane`: preflight, `ci-stop.sh --dry-run`, `checks --dry-run` |
 | `/mtm-fastlane configure` | [write the two scripts](#configure) for this repository |
 | `/mtm-fastlane h` | print this table and stop |
 
-Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool (run
+`hal2-cli-git worktree merge-to-main --fastlane` exits 0 landed, nothing to merge or handed over, 1 an error, 2 a
+usage error (`--local` and `--keep-reserved` are refused with it), 3 a conflict, 4 `checks_failed`, `gate_failed` or
+`delivery_failed`, 5 `stopped`, `cancelled` or `interrupted`, 6 `queued` or `verifying`; the [land](#land) section
+says what to do for each. The skill's own scripts exit 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool (run
 `bash $S/install-prerequisites.sh`, then rerun), 3 a conflict, 5 stopped by the user, 7 a wait over `--max-wait`
 (default 60m: tell the user; a held reservation stays held), 64 a usage error. Long waits (`reserve`, `ci-stop.sh`,
 `land`) run in the background with the shell tool's maximum timeout, as mtm's reserve does.
@@ -43,8 +46,42 @@ Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool
    (`.hal/mtm-fastlane-worktree.sh`, `.hal/mtm-fastlane-main.sh`) executable; missing ones: offer
    `/mtm-fastlane configure` first. `fingerprint: stale` (the CI inputs changed since configure) is a warning only:
    say so and go on (CI is down, the user needs to land); configure again after the landing. It names how it lands
-   (`hal2-cli-git` or `plain git`).
+   (`hal2-cli-git` or `plain git`) and whether hal2-cli-git has `--fastlane`.
 2. **Commit and push** everything, by mtm's step 2 rules (gitignore junk, never a secret, ask about unclear files).
+
+Then **pick the way**: the preflight prints `fastlane: hal2-cli-git ... --fastlane` where the installed hal2-cli-git
+has the flag: take [one call](#with-hal2-one-call). Else (no hal2, an older one): [the steps 3-8](#without---fastlane-the-steps-3-8).
+
+### With hal2: one call
+
+Run `hal2-cli-git worktree merge-to-main --fastlane --json` **in the background** (`run_in_background`, the maximum
+timeout; a shell timeout's SIGTERM counts as the user's stop). It pauses the queue holder (never stops it), cancels
+this slot's unmerged land runs, merges the default branch in, runs the worktree script and the release build in
+parallel, lands, installs, and holds the queue until its own land run has shipped. It does what the steps below do
+by hand (`ci-stop.sh`, `fastlane.sh reserve|checks|land|main|release`): run none of them beside it. Read the
+result by exit code and `status`:
+
+| Exit | `status` | Do |
+|---|---|---|
+| 0 | `landed`, `nothing` | done. A `landed` with `handed_to` is done too (a later fastlane's land run gates this range: say so). Report `phases`, `report` (its `ci` line lists the jobs left to the land run), `warnings` |
+| 1 | `failed` | report the error; fix and rerun |
+| 3 | `conflict` | resolve as the mfm skill does, commit, rerun |
+| 4 | `checks_failed`, `gate_failed`, `delivery_failed` | the queue stays held: read `part` and `tail`, fix, commit, rerun. A `delivery_failed` or a red run with `landed: true` is already on the default branch: fix it in a new fastlane |
+| 5 | `stopped`, `cancelled` | the user's stop is final: report and stop |
+| 5 | `interrupted` | its process went away: rerun the same command, it adopts the landing |
+| 6 | `queued`, `verifying` | the slice passed: rerun the same command at once, the ticket keeps its place |
+
+Then **finish** as mtm steps 5-8 (plan steps checked after the landing, then land those too; CURRENT_PLAN;
+cleanup); the command released the queue itself, so no `fastlane.sh release`. The report adds:
+
+- `paused` (the slots it paused: they resume by themselves, no message to the farmer) and `took_over` (fastlanes
+  whose verification it took over);
+- the CI jobs the fastlane skipped (`report`'s `ci` line) and the command that runs them once CI works again (hal2:
+  `gh workflow run merge-to-main.yml -f ref=<default> -f jobs=<jobs>`, `land.yml` where the repository still has
+  that name).
+
+### Without `--fastlane`: the steps 3-8
+
 3. **Stop the land attempts, then reserve**, in this order (else the reserve waits behind the very landing it wants
    to stop): `bash $S/ci-stop.sh` moves this slot to the front of the merge queue, stops another slot's landing
    that holds it, asks every land run whose merge job has not succeeded to cancel and waits for those that have
@@ -79,11 +116,15 @@ Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool
      jobs=<jobs>`, `land.yml` where the repository still has that name);
    - the slots whose landings `ci-stop.sh` stopped: send them to the repository's farmer in one line (SendMessage to
      the session in its slot `farmer-<repo>`, `ListAgents`) so they land again later; no farmer: name them to the
-     user.
+     user. (This list stays only here: the one call above pauses, it stops nothing.)
 
 ## Configure
 
 `/mtm-fastlane configure` writes the two scripts and `.hal/mtm-fastlane.conf` for this repository:
+
+In hal2 itself the two scripts are thin delegates to `code/bash/scripts/fastlane/` (the worktree script exits
+0/1/2 and writes a JSON line per lane to `FASTLANE_REPORT`; the main script takes `build|install|tags` and exits 75
+while the deliver lock is held). The steps below write them for any other repository.
 
 1. `bash $S/scan.sh` prints the facts as JSON: the CI workflows' jobs (`runs-on`, `run` lines), the change map
    (`.github/hal2-changes.toml` or similar), the units under `code/` with their manifests and test commands,

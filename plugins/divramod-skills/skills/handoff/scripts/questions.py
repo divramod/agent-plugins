@@ -73,6 +73,22 @@ def parse(text: str) -> tuple[list[dict], list[str]]:
     return entries, problems
 
 
+def raw_entries(text: str) -> dict[int, dict]:
+    """Per entry number the `**Q:**` text as written (lines and option lines kept, `question`) and the date the
+    entry was answered or dropped (`closed`, empty when open); the `/q` skill prints entries as they stand."""
+    out: dict[int, dict] = {}
+    parts = re.split(r"^(## .*)$", text, flags=re.M)
+    for head, body in zip(parts[1::2], parts[2::2]):
+        m = HEAD.match(head)
+        if not m:
+            continue
+        q = re.search(r"^\*\*Q:\*\*[ \t]*(.*?)(?=^\*\*[A-Za-z]+:\*\*|\Z)", body, re.M | re.S)
+        lines = [ln.rstrip() for ln in (q.group(1) if q else "").strip().splitlines()]
+        state = m.group(4).split()
+        out[int(m.group(1))] = {"question": "\n".join(lines), "closed": state[1] if len(state) > 1 else ""}
+    return out
+
+
 def check(entries: list[dict], problems: list[str]) -> list[str]:
     seen: set[int] = set()
     for e in entries:

@@ -49,6 +49,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [list-free-worktrees](skills/list-free-worktrees/SKILL.md) | lists the idle worktree sessions |
 | [mfm](skills/mfm/SKILL.md), [mtm](skills/mtm/SKILL.md), [mtm-fastlane](skills/mtm-fastlane/SKILL.md) | merge from main, land on main, land without CI |
 | [plan](skills/plan/SKILL.md), [research](skills/research/SKILL.md) | plans and research docs |
+| [q](skills/q/SKILL.md) | lists the session's open, answered or all questions in the Q form (`scripts/q.py`) |
+| [s](skills/s/SKILL.md) | prints the state of every worktree slot as one table, the session's own row marked (`scripts/state.py`, `state_sources.py`, `state_table.py`, `farmer_link.py`) |
 | [sanity-watch](skills/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [tell](skills/tell/SKILL.md) | summarizes a URL, file or topic into a note |
 

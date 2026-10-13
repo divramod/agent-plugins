@@ -30,6 +30,10 @@ the user. `subservant-holds`
 lead instead; when it holds the queue and no landing runs, release it (`hal2-cli-git worktree release <NN>`).
 A landing of it that has merged into main stays: notify the user.
 
+A ticket with `paused_by` or `fastlane` in `queue --json` (a landing the user's `/mtm-fastlane` paused, the fastlane
+itself, a verification taken over) is not stuck: never wake or release it, never start a fastlane
+([reasons.md](../subskills/merge-to-main-boss/reasons.md) C10).
+
 A slot the boss paused (a `pause` entry in `log.jsonl` with no `go` after it) waits for that go, which the tick
 sends when the landing ends: leave it, record nothing. A slot with an open `ask` waits for the user: leave it too.
 

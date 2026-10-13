@@ -77,7 +77,10 @@ One autogrill round: the grill without the user. The plan skill runs one on ever
    and its decision record. Ask nothing.
 3. Record each decision in its one home as in **Record**, marked `(autogrill <n>)`, and adjust the plan's steps
    and done-when checks it changes.
-4. **Size every step.** Give every open row of the plan's step table its Model, Effort, Window and Size by the plan
+4. **Check the Brief** (`plan.py current`'s `brief`): every `Must` has a step whose done-when proves it and
+   every step serves a `Must` or the goal (adjust steps or checks, not the Must); fill `Out` and `Proof` where
+   they are still the placeholder.
+5. **Size every step.** Give every open row of the plan's step table its Model, Effort, Window and Size by the plan
    skill's rubric, [Model, effort and window per step](../plan/SKILL.md#model-effort-and-window-per-step) (linked,
    never copied here). Size is the step's subagent's estimated peak context, its start (about 85k) included, so
    estimate it from the step's files and checks, not from the template. A row over 35% of its Window (70k of 200k,
@@ -85,8 +88,8 @@ One autogrill round: the grill without the user. The plan skill runs one on ever
    renumber only rows not yet done, never a done one, and fix the `Needs` of a parallel plan's later rows. A Size `?` (from
    `plan.py migrate`) or the template's default values get a real estimate. Then run `python3 <plan-skill-dir>/scripts/plan.py check`:
    rule `plan-steps-sized` must pass after the round.
-5. Stamp the round: `python3 <plan-skill-dir>/scripts/plan.py grilled --auto` (`Grilled: <date> (autogrill ×n)`).
-6. Report the round's decisions in a few lines; the caller (the plan skill's offer) asks what next. When a
+6. Stamp the round: `python3 <plan-skill-dir>/scripts/plan.py grilled --auto` (`Grilled: <date> (autogrill ×n)`).
+7. Report the round's decisions in a few lines; the caller (the plan skill's offer) asks what next. When a
    branch can only be settled by the user (taste, how something should look), decide it provisionally, say so,
    and recommend a manual grill.
 

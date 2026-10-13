@@ -59,6 +59,14 @@ hal2_bin() {
   echo "$bin"
 }
 
+# Whether the hal2-cli-git of hal2_bin has the one-call `merge-to-main --fastlane`; prints the binary.
+hal2_fastlane_bin() {
+  local bin
+  bin=$(hal2_bin) || return 1
+  "$bin" --help 2>&1 | grep -q -- '--fastlane' || return 1
+  echo "$bin"
+}
+
 minutes() { # minutes <60m|2h|90>: whole minutes, exit 64 otherwise
   local n=${1%[mh]}
   case "$n" in

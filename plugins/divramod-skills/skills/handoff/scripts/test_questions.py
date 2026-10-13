@@ -70,6 +70,15 @@ class Questions(unittest.TestCase):
         self.assertEqual(data["next"], 4)
         self.assertEqual(self.run_script("--check").stdout.strip(), "ok")
 
+    def test_raw_entries_keep_the_option_lines_and_the_closing_date(self):
+        import questions
+        raw = questions.raw_entries(FILE + "\n## Q4 · 2026-10-09 · agent · open\n\n**Q:** Pick one?\n"
+                                    "  a) (Recommended) yes — x\n  b) no — y\n**Decision:** D1\n")
+        self.assertEqual(raw[4]["question"], "Pick one?\n  a) (Recommended) yes — x\n  b) no — y")
+        self.assertEqual(raw[4]["closed"], "")
+        self.assertEqual(raw[1]["closed"], "2026-10-07")
+        self.assertEqual(raw[3]["closed"], "2026-10-08")
+
     def test_check_names_every_problem(self):
         (self.root / "plans" / "questions.md").write_text(
             "## Q1 · 2026-10-07 · agent · answered 2026-10-07\n\n**Q:** a?\n\n"

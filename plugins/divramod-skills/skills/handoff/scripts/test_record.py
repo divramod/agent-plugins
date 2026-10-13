@@ -12,6 +12,7 @@ HERE = Path(__file__).resolve().parent
 PLAN = HERE.parents[1] / "plan" / "scripts" / "plan.py"
 sys.path.insert(0, str(PLAN.parent))
 import checker  # noqa: E402  (the plan skill's: hal2's records checker, hal2 plan 0214 step 6)
+from checker_probe import unless_brief_refused  # noqa: E402  (a checker that accepts a new plan's Brief)
 
 needs_checker = unittest.skipUnless(checker.binary(), f"{checker.NAME} is not installed and ${checker.ENV} is unset")
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -96,6 +97,7 @@ class RecordHandoffTest(unittest.TestCase):
         (self.repo / "plans" / "LEAD").write_text("30 0001-tiny 2\n")
         self.assertEqual((self.where()["file"], self.where()["form"]), ("HANDOFF.md", "legacy"))
 
+    @unless_brief_refused
     def test_stamp_writes_a_missing_handoff_and_says_where_it_was_written(self):
         plan = self.new_plan()
         sha = self.commit_all("the plan")
@@ -119,6 +121,7 @@ class RecordHandoffTest(unittest.TestCase):
         self.assertIn("another session worked", out)
         self.assertNotIn("docs: the handoff", out)
 
+    @unless_brief_refused
     def test_the_ledger_is_the_decisions_index(self):
         plan = self.new_plan()
         ledger = plan.parent / "decisions.md"

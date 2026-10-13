@@ -42,7 +42,8 @@ class MtmCiTest(unittest.TestCase):
                               lambda rid: jobs.get(rid, []), 0)
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
                          [("07", "landed", ""), ("03", "failed", "04-xxx1hx/gate, 02-vhl1hx/rust-test")])
-        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("ship / deliver", "08-lmm1ha/linux-host-ship-start", "x / publish-claude-plugins")))
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("ship / deliver", "08-lmm1ha/linux-host-ship-start", "x / publish-claude-plugins",
+                                                         "06-lmm1ha/tmux-publish-hal9k")))
         self.assertFalse(mtm_ci.is_ship("06-xxx1hx/all-tag-versions"))
         self.assertEqual([mtm_ci.job_part(n) for n in ("merge", "a / merge", "05-xxx1hx/merge", "park")],
                          ["merge", "merge", "merge", "park"])

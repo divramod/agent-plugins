@@ -23,6 +23,12 @@ the parks, unrun. A run that ended `cancelled` without such a job is a pause's o
 pauses and flaky disabling are rarely needed (the gates do not run on the Mac). The farmer's own branch `farmer-<repo>`
 lands like any slot's (an ordinary `/mtm` of the farmer slot), its per-round mfm stays.
 
+**The fastlane** (`/mtm-fastlane`, hal2 docs/ci-fastlane.md) is the user's own landing, never the boss's: the farmer
+never starts one. `queue --json` shows its ticket with `fastlane` (`phase`, `since`, `run`, `gate_base`) and the
+landing it paused with `paused_by` (`slot`, `seq`, `since`); a paused landing resumes by itself within seconds of the
+fastlane's release. The scan leaves both out of its stuck-holder findings (no `held-idle`, `reserved-idle`,
+`active-long` or `waiter-gone` for them), see [reasons.md](reasons.md) C10.
+
 ## Disable a flaky test
 
 1. Pick where to change it:
@@ -98,6 +104,9 @@ You never decide product questions, secrets, deploys to production, or anything 
   - deploy.
 - `release` is allowed only for a `held` ticket with no live landing process and no session (none, or ended): a
   holder with a live session is only woken, again every hour, never released (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"). Always tell its session.
+- Never wake, release or count as `held-idle` a ticket with `paused_by` (a landing a fastlane paused) or one that is a
+  `fastlane` (also a `verification taken over`, a handed-over fastlane, and one holding a takeover: a later fastlane's
+  `gate_base`). A fastlane is the user's landing: never `release` it, never start one.
 - Disabled tests are always recorded in the ledger and get a shot. The boss never deletes a test.
 - Never act on the boss's own session. Never start `/mtm` for a slot without its session being told, except for
   orphaned work (R7).

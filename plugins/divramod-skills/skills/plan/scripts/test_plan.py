@@ -55,6 +55,84 @@ class PlanTest(unittest.TestCase):
 
         self.assertEqual(info["slug"], "0001-research-plugin-runtimes")
 
+    def test_new_refuses_a_name_of_more_than_four_words_and_reserves_no_number(self):
+        result = self.run_plan("new", "a plan with a rather long name")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("plan-names-are-short", result.stderr)
+        self.assertIn("has 7", result.stderr)
+        self.assertFalse(self.plans.exists())
+        self.assertEqual(self.plan("new", "four words are fine")["slug"], "0001-four-words-are-fine")
+
+    def test_new_research_plan_does_not_count_research(self):
+        self.assertEqual(self.plan("new", "one two three four", "--research")["slug"],
+                         "0001-research-one-two-three-four")
+        self.assertEqual(self.run_plan("new", "one two three four five", "--research").returncode, 1)
+
+    def test_check_reports_a_long_current_plan_not_landed(self):
+        slug = "0002-this-name-has-way-too-many-words"
+        self.write_plan(slug)
+        (self.plans / "CURRENT_PLAN").write_text(slug + "\n")
+        self.write_plan("0003-another-name-with-too-many-words")  # not current, no origin: passes
+
+        result = self.run_plan("check")
+
+        self.assertIn(f"plans/{slug}/plan.md: a plan name has at most 4 words", result.stdout)
+        self.assertNotIn("0003-another", result.stdout)
+        self.assertEqual(result.returncode, 1)
+
+    def test_check_passes_a_short_name(self):
+        self.write_plan()
+        (self.plans / "CURRENT_PLAN").write_text("0002-migrate-daily-tools\n")
+
+        self.assertNotIn("at most 4 words", self.run_plan("check").stdout)
+
+    def test_new_writes_the_brief_after_the_goal_and_the_seed_line_for_every_kind_of_plan(self):
+        for args in (["deploy the hub"], ["compare tabs", "--research"]):
+            info = self.plan("new", *args, "--goal", "The hub runs.")
+            text = (self.root / info["path"]).read_text()
+            self.assertEqual([text.index(h) for h in ("## Goal", "## Brief", "## Context")],
+                             sorted(text.index(h) for h in ("## Goal", "## Brief", "## Context")))
+            for line in ("- In: <what this plan delivers>", "- Out: <what it leaves alone>",
+                         "- Must: <each requirement one line, the user's words quoted>",
+                         "- Proof: <the command or the UAT checks that show the whole works>"):
+                self.assertIn(line + "\n", text)
+            self.assertNotIn("Seed", text)  # step 4: the Context line comes only with `--seed`
+
+    def test_current_shows_the_brief_with_placeholders_empty_and_null_without_the_section(self):
+        info = self.plan("new", "deploy the hub")
+        self.assertEqual(info["brief"], {"In": "", "Out": "", "Must": "", "Proof": ""})
+        path = self.root / info["path"]
+        path.write_text(path.read_text().replace("- Out: <what it leaves alone>", "- Out: the nodes"))
+        self.assertEqual(self.plan("current")["brief"], {"In": "", "Out": "the nodes", "Must": "", "Proof": ""})
+        self.write_plan()
+        legacy = [p for p in self.plan("list") if p["slug"] == "0002-migrate-daily-tools"][0]
+        self.assertIsNone(legacy["brief"])
+
+    def test_check_reports_an_unwritten_brief_and_seed_until_the_plan_is_done(self):
+        info = self.plan("new", "deploy the hub")
+        path = self.root / info["path"]
+        lines = [l for l in self.run_plan("check").stdout.splitlines() if l.endswith("(plan-brief-filled)")]
+        self.assertEqual(len(lines), 2)  # Out and Proof; a new plan without `--seed` has no Seed line
+        self.assertTrue(all(l.startswith("plans/0001-deploy-the-hub/plan.md: ") for l in lines))
+        self.assertEqual(self.run_plan("check").returncode, 1)
+        text = path.read_text().replace("## Context\n\n", "## Context\n\n- Seed: <seedbag>#<n>\n")
+        path.write_text(text)  # a hand-written placeholder Seed line is reported too
+        lines = [l for l in self.run_plan("check").stdout.splitlines() if l.endswith("(plan-brief-filled)")]
+        self.assertEqual(len(lines), 3)
+        path.write_text(text.replace("- Out: <what it leaves alone>", "- Out: x")
+                        .replace("- Proof: <the command or the UAT checks that show the whole works>", "- Proof: y")
+                        .replace("- Seed: <seedbag>#<n>\n", ""))
+        self.assertEqual([l for l in self.run_plan("check").stdout.splitlines() if "plan-brief-filled" in l], [])
+        path.write_text(text)
+        self.plan("status", "1", "done")
+        self.plan("status", "2", "done")
+        self.assertEqual([l for l in self.run_plan("check").stdout.splitlines() if "plan-brief-filled" in l], [])
+
+    def test_check_passes_a_plan_without_a_brief(self):
+        self.write_plan()
+        self.assertNotIn("plan-brief-filled", self.run_plan("check").stdout)
+
     def test_plain_plan_is_no_research_plan(self):
         info = self.plan("new", "researcher view")
 

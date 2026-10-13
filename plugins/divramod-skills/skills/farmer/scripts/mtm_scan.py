@@ -223,6 +223,13 @@ def holder_works(w: dict, snap: dict) -> bool:
                 or w.get("agent_tasks") or snap.get("runs_unfinished"))
 
 
+def fastlane_owned(t: dict) -> bool:
+    """A ticket of the user's fastlane (`fastlane` in `queue --json`) or one a fastlane paused (`paused_by`: a landing
+    that resumes by itself within seconds of the fastlane's release, or a verification taken over): not a stuck
+    holder. The boss never wakes, releases or counts it, and never starts or releases a fastlane."""
+    return bool(t.get("fastlane") or t.get("paused_by"))
+
+
 def orphaned_subservant(w: dict) -> dict:
     """A marked slot without a session whose work its lead's branch lacks: restarted only with /handoff c, never
     /mtm (boss.orphan); a slot whose work is all in origin/<lead> is done (prune removes it), never restarted."""
@@ -236,7 +243,7 @@ def findings(snap: dict) -> list[dict]:
     queue, by_slot = snap["queue"], {w["slot"]: w for w in snap["worktrees"]}
     # A subservant never lands (plans/LEAD): its ticket wakes the farmer, the landing findings skip it.
     marked = {s: w["lead"] for s, w in by_slot.items() if w.get("lead")}
-    head = queue[0] if queue and queue[0]["slot"] not in marked else None
+    head = queue[0] if queue and queue[0]["slot"] not in marked and not fastlane_owned(queue[0]) else None
     for slot in (snap.get("priority") or {}).get("slots", []):
         w, t = by_slot.get(slot, {}), next((t for t in queue if t["slot"] == slot), None)
         state = "reserved, waits for its landing" if t and t.get("awaiting_slot") else (t or {}).get("state")
@@ -282,7 +289,7 @@ def findings(snap: dict) -> list[dict]:
                     "why": f"load {snap['load']['load1']:.0f} on {snap['load']['cores']} cores during a landing",
                     "busy_slots": [w["slot"] for w in snap["worktrees"]
                                    if w.get("agent_state") in BUSY and w["slot"] != head["slot"]]})
-    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked]
+    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked and not fastlane_owned(t)]
     for t in waiting:
         if not t.get("process_alive") and not t.get("parked") and not t.get("reserved"):
             out.append({"kind": "waiter-gone", "slot": t["slot"], "why": "ticket without a live reserve process"})
@@ -355,6 +362,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True) -> dict:
             "slot": t.get("slot"), "state": t.get("state"), "seq": t.get("seq"),
             "enqueued": t.get("enqueued"), "landing": t.get("landing"), "hold": t.get("hold"),
             "process_alive": pid_alive(t.get("pid")), "parked": bool(t.get("parked_until")),
+            "fastlane": t.get("fastlane"), "paused_by": t.get("paused_by"), "kept_by": t.get("kept_by"),
             "reserved": t.get("reserved"), "awaiting_slot": bool(t.get("reserved")) and not t.get("pid"),
             "active_seconds": int(now - (landing_start(t.get("landing")) or now)),
         })

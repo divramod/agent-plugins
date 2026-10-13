@@ -6,6 +6,7 @@ Every run is isolated from the session running the tests: its own HOME, no sessi
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -133,6 +134,11 @@ class SizingTest(unittest.TestCase):
         self.live = {"ANTHROPIC_MODEL": "claude-opus-5-5[1m]", "CLAUDE_EFFORT": "max"}
         info = self.plan("new", "deploy the nodes")
         self.assertIn("\nrun: claude-opus-5-5 max 1m\n", (self.root / info["path"]).read_text())
+        code, lines = self.check()  # the new plans' Briefs are not written yet (plan-brief-filled)
+        self.assertEqual((code, len(lines), {l.rsplit("(", 1)[1] for l in lines}), (1, 4, {"plan-brief-filled)"}))
+        for path in self.root.glob("plans/*/plan.md"):
+            path.write_text(re.sub(r"^- (Out|Proof): <.*>$", r"- \1: written", path.read_text(), flags=re.M)
+                            .replace("- Seed: <seedbag>#<n>\n", ""))
         self.assertEqual(self.check(), (0, []))
 
     def test_run_check_sync_and_explicit_values(self):

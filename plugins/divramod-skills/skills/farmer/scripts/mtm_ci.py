@@ -35,7 +35,7 @@ NOT_COUNTED = {"park", "merge"}  # park's state is no verdict; a red merge is "m
 # The workflow's ship jobs run after merge: a delivery never reddens or delays a landing. A fixed set of job parts since
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
 SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linux-host-ship-start",
-             "publish-claude-plugins", "docker-publish-github-runner-image"}
+             "publish-claude-plugins", "tmux-publish-hal9k", "docker-publish-github-runner-image"}
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 NAME = re.compile(r"^(?:\d\d-[a-z0-9]{6}/|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"

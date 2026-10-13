@@ -16,8 +16,16 @@ created: {date}
 
 {goal}
 
+## Brief
+
+- In: <what this plan delivers>
+- Out: <what it leaves alone>
+- Must: <each requirement one line, the user's words quoted>
+- Proof: <the command or the UAT checks that show the whole works>
+
 ## Context
 
+- Seed: <seedbag>#<n>
 - <links to the intent doc, decision records, research or code this plan builds on>
 - The ledgers: [decisions.md](decisions.md), [questions.md](questions.md); the state: [handoff.md](handoff.md).
 

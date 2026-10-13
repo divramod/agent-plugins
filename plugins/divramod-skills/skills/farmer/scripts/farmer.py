@@ -34,11 +34,15 @@
   farmer.py migrate [--role <role>] [--repo <dir>] [--dry-run] [--json]
       move a role's slot `<role>` to `<role>-<project>` with its files in roles/<role>/ (migrate.py, hal2 plan 0143):
       refuses while the timer is installed or a session sits in the slot; idempotent
+  farmer.py question add --slot <slot|farmer> --text <Q form> [--waits <what>] | answer <n> --text <a> | drop <n> | list
+      the farmer's own question store (questions.jsonl, questions.py); never from prose by hand
+  farmer.py questions [a|answered|l|list] [--json] [--repo <dir>]
+      the one list of everyone's questions: the farmer's own, the log's open asks, each slot's store; no model call
   farmer.py mode [claude|timer] [--repo <dir>]
       who runs the rounds: the farmer's Claude session (`claude`, the default) or the external
       timer (`timer`). A tick without --dry-run runs only in timer mode, so the two never overlap.
 
-State: roles/farmer/ of the farmer slot farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, runs.jsonl, wake.json,
+State: roles/farmer/ of the farmer slot farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, runs.jsonl, questions.jsonl, wake.json,
 timer.json, tick.log, handoff.md, summaries/; its .gitignore ignores all but ROLE.md and itself.
 Exit 0 ok (also: another tick holds the lock, `busy`), 1 roles/farmer/ROLE.md invalid, 2 a tool missing,
 3 no roles/farmer/ROLE.md, 4 not the farmer slot (or one still named `farmer`: migrate first), a slot holding other work, or not in timer mode.
@@ -64,6 +68,7 @@ import roles
 import handoff
 import migrate
 import prune
+import questions
 import tasks
 import tick
 import timer
@@ -296,6 +301,7 @@ def parser() -> argparse.ArgumentParser:
     m = sub.add_parser("mode")
     m.add_argument("set", nargs="?", choices=MODES)
     m.add_argument("--repo", default=os.getcwd())
+    questions.add_parsers(sub)
     return p
 
 
@@ -328,6 +334,8 @@ def main(argv: list[str]) -> int:
         return run_timer(args)
     if args.cmd == "migrate":
         return migrate.run(args)
+    if args.cmd in ("question", "questions"):
+        return questions.run(args)
     if args.cmd == "decision":
         if args.action == "supersede" and not (args.at and args.by):
             print("farmer.py decision supersede: give the replaced decisions' <at> and --by <at>", file=sys.stderr)
