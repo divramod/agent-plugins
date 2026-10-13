@@ -9,6 +9,16 @@ before the rename finishes under the old one, and the candidate that renames
 the file already runs under the new one.
 Here they become the same recent-landings rows the local landings' records
 give mtm_scan.py.
+
+Fail-fast (plan 0263 rows 19 and 73, as hal2-git's ci/fail_fast.rs reads it): a job the workflow's `gate` job needs
+ends with the step `[NN] fail fast: stop the run`, which runs only in a job that failed or hit its time limit and
+cancels the run. A cause is told by a job's steps, never by its conclusion (GitHub concludes the job that stopped its
+run `cancelled` like the ones cancelled with it): its stop step ran (it ended `success`, or `failure` when GitHub
+refused the request), or it ended not green with a step that failed before a cancel reached the job. A run
+with a cause is failed at once, also while its other jobs still end, and its red jobs are the causes and `gate`: a
+cancelled job only stopped. A run without the step, or without a cause (a pause's cancel), is read as before.
+A stop step still `in_progress` is no cause yet (it has not ended), but its run is `ending` like one whose stop step
+ended `success` or one with a job of the gate concluded `cancelled`: nobody asks such a run to cancel (ci_scan.py).
 """
 
 import datetime as dt
@@ -20,6 +30,7 @@ import gh_runs
 LAND_NAMES = ["merge-to-main.yml", "land.yml"]
 LAND_FILES = [f".github/workflows/{name}" for name in LAND_NAMES]
 RED = {"failure", "timed_out", "startup_failure", "cancelled"}
+GREEN = {"success", "skipped", "neutral"}
 NOT_COUNTED = {"park", "merge"}  # park's state is no verdict; a red merge is "main moved"
 # The workflow's ship jobs run after merge: a delivery never reddens or delays a landing. A fixed set of job parts since
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
@@ -28,6 +39,8 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 NAME = re.compile(r"^(?:\d\d-[a-z0-9]{6}/|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
+STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
+STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, without its `[NN] ` number
 
 
 def ci_mode(run, main: str, default: str) -> bool:
@@ -65,8 +78,58 @@ def is_ship(name: str) -> bool:
     return m["job"] in SHIP_JOBS or m["lane"] in SHIP_LANES
 
 
+def needed(job: dict) -> bool:
+    """A job the `gate` job needs: one of its steps (`gh run view --json jobs`) is the workflow's stop step."""
+    return any(STEP.match(s.get("name") or "")["task"] == STOP_STEP for s in job.get("steps") or [])
+
+
+def cause(job: dict) -> bool:
+    """A job of the gate that makes its candidate red: its stop step ran to its end (`success`, or `failure`: it ran
+    and GitHub refused the request; not skipped, not cut short), or it ended not green with a step that ended
+    `failure` before any step of it ended `cancelled`: a step that fails after the cut failed because a cancel had
+    reached the job. Never told by the job's own conclusion; a green job is none, nor is one the workflow's start
+    step stopped (`[01] fail fast` its first failed step, plan 0263 row 3)."""
+    steps = [(STEP.match(s.get("name") or "")["task"], s.get("conclusion") or "") for s in job.get("steps") or []]
+    stop = next((c for task, c in steps if task == STOP_STEP), None)
+    cut = next((at for at, (_, c) in enumerate(steps) if c == "cancelled"), len(steps))
+    failed = [task for task, c in steps[:cut] if c == "failure" and task != STOP_STEP]
+    if not needed(job) or job.get("conclusion") in GREEN or failed[:1] == ["fail fast"]:
+        return False
+    return stop in ("success", "failure") or bool(failed and job.get("conclusion"))
+
+
+def ending(jobs: list[dict]) -> bool:
+    """A run its own fail-fast is ending, which nobody asks to cancel (a second request seems to end the run's last
+    jobs, the parks, unrun): the stop step of one of its jobs ended `success` or still runs (`in_progress`: it runs
+    only in a job that failed or hit its time limit, its request is going out), or a job that carries the stop step
+    concluded `cancelled`. Such a run can no longer merge. A stop step still to come, one that ended `failure` (no
+    request arrived) and a cancelled job without the step are none: mtm-fastlane's GITHUB_ENDING, hal2-git's
+    `Needs::ending`, the workflow's own look (gate/lib/stop-run.sh)."""
+    def stops(job: dict) -> list[dict]:
+        return [s for s in job.get("steps") or [] if STEP.match(s.get("name") or "")["task"] == STOP_STEP]
+    return any(job.get("conclusion") == "cancelled" or s.get("status") == "in_progress"
+               or s.get("conclusion") == "success" for job in jobs or [] for s in stops(job))
+
+
+def stopped_by(jobs: list[dict]) -> list[str]:
+    """The causes of a run its own job stopped (fail-fast)."""
+    return [j["name"] for j in jobs if cause(j)]
+
+
 def red_jobs(jobs: list[dict]) -> list[str]:
-    return [j["name"] for j in jobs if j.get("conclusion") in RED and job_part(j.get("name", "")) not in NOT_COUNTED
+    """The red jobs that count. In a run with a cause: the causes and a `gate` that is not green; every other
+    cancelled job only stopped and is left out."""
+    causes = stopped_by(jobs)
+
+    def red(job: dict) -> bool:
+        name, conclusion = job.get("name", ""), job.get("conclusion")
+        if name in causes:
+            return True
+        if causes and conclusion == "cancelled" and job_part(name) != "gate":
+            return False
+        return conclusion in RED
+
+    return [j["name"] for j in jobs if red(j) and job_part(j.get("name", "")) not in NOT_COUNTED
             and not is_ship(j.get("name", ""))]
 
 
@@ -87,6 +150,8 @@ def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:
         jobs = jobs_of(r["databaseId"]) if o != "landed" else []
         if o != "landed" and merged(jobs):
             o = "landed"
+        elif o == "running" and stopped_by(jobs):
+            o = "failed"  # decided at its first cause, whatever still ends (hal2-git returns then)
         red = red_jobs(jobs) if o == "failed" else []
         out.append({"id": str(r.get("databaseId")), "slot": slot, "outcome": o,
                     "task": ", ".join(red) if o == "failed" else "", "tests": [], "load_hint": False,

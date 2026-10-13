@@ -18,6 +18,10 @@ setup() {
   # A run is a line `<id> <ref> <status> [<workflow file>]` of $FAKE/runs (no file: land.yml) and is listed only
   # under its own workflow file. A file named in $FAKE/unknown gets GitHub's 404 (gh 2.92's words), one named in
   # $FAKE/broken another failure. GitHub before the rename: it does not know merge-to-main.yml.
+  # A run's jobs are gh's JSON in $FAKE/jobs-<id>, read with the script's own --jq; its attempt is 1, or what
+  # $FAKE/attempt-<id> says. A cancel ends its run at once;
+  # with $FAKE/linger (a number) a run only notes the request and every run ends after that many rounds (lists of
+  # a known workflow file). $FAKE/refuses: the cancel fails.
   echo merge-to-main.yml > "$fake/unknown"
   cat > "$fake/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -37,9 +41,22 @@ case "$1 $2" in
       echo "HTTP 502: Bad Gateway (https://api.github.com/repos/o/r/actions/workflows/$workflow)" >&2
       exit 1
     fi
-    awk -v w="$workflow" '$3 != "completed" && ($4 == "" ? "land.yml" : $4) == w {print $1, $2}' "$FAKE/runs" ;;
-  "run view") cat "$FAKE/jobs-$3" ;;
+    echo "$workflow" >> "$FAKE/rounds"
+    if [ -e "$FAKE/linger" ] && [ "$(grep -cx "$workflow" "$FAKE/rounds")" -gt "$(cat "$FAKE/linger")" ]; then
+      awk '{$3 = "completed"} {print}' "$FAKE/runs" > "$FAKE/runs.new" && mv "$FAKE/runs.new" "$FAKE/runs"
+    fi
+    awk -v w="$workflow" '$3 != "completed" && ($4 == "" ? "land.yml" : $4) == w {print $1, $2}' "$FAKE/runs" \
+      | while read -r id ref; do echo "$id $ref $(cat "$FAKE/attempt-$id" 2>/dev/null || echo 1)"; done ;;
+  "run view")
+    filter="" prev=""
+    for arg in "$@"; do
+      if [ "$prev" = --jq ]; then filter=$arg; fi
+      prev=$arg
+    done
+    jq -r "$filter" "$FAKE/jobs-$3" ;;
   "run cancel") echo "$3" >> "$FAKE/cancelled"
+    [ ! -e "$FAKE/refuses" ] || { echo "HTTP 500: Server Error" >&2; exit 1; }
+    [ ! -e "$FAKE/linger" ] || exit 0
     awk -v id="$3" '$1 == id {$3 = "completed"} {print}' "$FAKE/runs" > "$FAKE/runs.new" && mv "$FAKE/runs.new" "$FAKE/runs" ;;
 esac
 EOF
@@ -48,10 +65,29 @@ EOF
 
 teardown() { rm -rf "$tmp"; }
 
-run_on() { echo "$1 $2 in_progress" >> "$fake/runs"; printf '%s\n' "${@:3}" > "$fake/jobs-$1"; }
+# jobs <job>...: gh's `run view --json jobs` of jobs given as `<status> <conclusion or none> <name>`.
+jobs() {
+  printf '%s\n' "$@" | jq -R 'capture("^(?<status>\\S+) (?<conclusion>\\S+) (?<name>.+)$")
+    | .conclusion |= (if . == "none" then "" else . end) | .steps = []' | jq -s '{jobs: .}'
+}
+
+# run_on <id> <ref> <job>...: an unfinished run of land.yml.
+run_on() { echo "$1 $2 in_progress" >> "$fake/runs"; jobs "${@:3}" > "$fake/jobs-$1"; }
 
 # run_under <workflow file> <id> <ref> <job>...: an unfinished run of that workflow file.
-run_under() { echo "$2 $3 in_progress $1" >> "$fake/runs"; printf '%s\n' "${@:4}" > "$fake/jobs-$2"; }
+run_under() { echo "$2 $3 in_progress $1" >> "$fake/runs"; jobs "${@:4}" > "$fake/jobs-$2"; }
+
+# step_of <id> <job name> <conclusion> [<step>] [<status>]: one more step of that job, by default the gate jobs' stop
+# step; its status as gh gives it (`completed`, or `pending` and `in_progress` with the conclusion "").
+step_of() {
+  jq --arg job "$2" --arg c "$3" --arg step "${4:-[19] fail fast: stop the run}" --arg s "${5:-completed}" \
+    '(.jobs[] | select(.name == $job) | .steps) += [{name: $step, conclusion: $c, status: $s}]' "$fake/jobs-$1" \
+    > "$fake/new"
+  mv "$fake/new" "$fake/jobs-$1"
+}
+
+# The runs gh was asked to cancel, sorted, a request each.
+requests() { sort "$fake/cancelled" 2>/dev/null | paste -sd ' ' -; }
 
 # The lists gh was asked for, a workflow file per line.
 asked() { sed -n 's/^run list --workflow \([^ ]*\) .*/\1/p' "$fake/gh-calls" 2>/dev/null | sort -u | paste -sd ' ' -; }
@@ -91,6 +127,138 @@ path_without_gh() {
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 11 ]
   [ "$(echo "$output" | tail -1 | jq -c .cancelled)" = "[11]" ]
+}
+
+@test "github: a run unfinished over three rounds gets one request, two runs one each" {
+  echo 3 > "$fake/linger"
+  run_on 41 land/03 "in_progress none 02-vhl1hb/rust-test" "queued none 05-xxx1hx/merge"
+  run_on 42 land/04 "queued none 05-xxx1hx/merge"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ] # three rounds unfinished, the fourth finds them ended
+  [ "$(requests)" = "41 42" ]
+  [ "$(grep -c "waiting for run 41 (land/03) to end: it was asked to cancel" <<<"$output")" -eq 1 ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[41,42],[]]" ]
+}
+
+@test "github: a run asked by an earlier call, also one whose request failed, is not asked again" {
+  echo 2 > "$fake/linger"
+  run_on 43 land/03 "in_progress none 02-vhl1hb/rust-test"
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  [ "$status" -eq 7 ]
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = 43 ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[],[43]]" ]
+  rm "$fake/rounds"
+  : > "$fake/refuses"
+  run_on 44 land/04 "in_progress none 02-vhl1hb/rust-test"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"cancelling run 44 failed; it is not asked again"*"/mtm-fastlane/ci-stop/44.1.asked"* ]]
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = "43 44" ]
+}
+
+@test "github: a run started again, a new attempt under its old id, is asked once more" {
+  run_on 43 land/03 "in_progress none 02-vhl1hb/rust-test"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  echo "43 land/03 in_progress" > "$fake/runs"
+  echo 2 > "$fake/attempt-43"
+  echo 2 > "$fake/linger"
+  rm "$fake/rounds"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = "43 43" ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[43],[]]" ]
+}
+
+@test "github: a run its own fail fast is ending gets no request, the loop waits for its end" {
+  echo 2 > "$fake/linger"
+  # The stop step of a job ended success: that job asked GitHub. And a job that carries the step concluded cancelled.
+  run_on 45 land/03 "in_progress none 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
+  step_of 45 02-vhl1ha/python-test failure "[07] gate python-test"
+  step_of 45 02-vhl1ha/python-test success
+  run_on 46 land/04 "completed cancelled 02-lmm1ha/bash-test" "in_progress none 03-lmm1ha/mac-vm-park"
+  step_of 46 02-lmm1ha/bash-test skipped " [08]  fail fast: stop the run "
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ ! -e "$fake/cancelled" ]
+  [ "$(grep -cx land.yml "$fake/rounds")" -eq 3 ]
+  [ "$(grep -c "run 45 (land/03) ends by itself" <<<"$output")" -eq 1 ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[],[45,46]]" ]
+  [ "$(grep -c "^run view 45 " "$fake/gh-calls")" -eq 3 ] # a look per round for the list, one for the ending
+}
+
+@test "github: only its own fail fast spares a run: any other cancelled job, a refused stop step, no step: asked" {
+  echo 2 > "$fake/linger"
+  run_on 47 land/03 "completed cancelled 02-vzw1ha/rust-test-windows" "in_progress none 02-vhl1hb/rust-test"
+  step_of 47 02-vhl1hb/rust-test "" # cancelled at its own limit, without the step; a gate job still at work
+  run_on 48 land/04 "completed failure 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
+  step_of 48 02-vhl1ha/python-test failure # it ran, GitHub refused: nothing is cancelling the run
+  step_of 48 02-vhl1hb/rust-test skipped
+  run_on 49 land/05 "completed cancelled 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
+  step_of 49 02-vhl1ha/python-test cancelled "[19] fail fast: stop the run later" # another step's name
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = "47 48 49" ]
+}
+
+@test "github: a run whose stop step still runs is ending and gets no request, one whose stop step is still to come is asked" {
+  echo 2 > "$fake/linger"
+  # The review of the fix round, 1: the step runs only in a job that failed or hit its limit, and its request is on
+  # its way in these seconds. A look that asked now would send the run's second request.
+  run_on 55 land/03 "in_progress none 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
+  step_of 55 02-vhl1ha/python-test failure "[07] gate python-test"
+  step_of 55 02-vhl1ha/python-test "" "[20] fail fast: stop the run" in_progress
+  step_of 55 02-vhl1hb/rust-test "" "[20] fail fast: stop the run" pending
+  # A failed step, the stop step not started: the job may yet find another job's stop and ask nothing. Not ending.
+  run_on 56 land/04 "in_progress none 02-vhl1ha/python-test"
+  step_of 56 02-vhl1ha/python-test failure "[07] gate python-test"
+  step_of 56 02-vhl1ha/python-test "" "[19] fail fast: why this job ended" in_progress
+  step_of 56 02-vhl1ha/python-test "" "[20] fail fast: stop the run" pending
+  # Another step in progress is no stop step.
+  run_on 57 land/05 "in_progress none 02-vhl1hb/rust-test"
+  step_of 57 02-vhl1hb/rust-test "" "[07] gate rust-test" in_progress
+  step_of 57 02-vhl1hb/rust-test "" "[20] fail fast: stop the run" pending
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = "56 57" ]
+  [ "$(grep -c "run 55 (land/03) ends by itself" <<<"$output")" -eq 1 ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[56,57],[55]]" ]
+}
+
+@test "github: dry-run names an ending run and one asked before, and asks neither" {
+  run_on 50 land/03 "completed cancelled 02-lmm1ha/bash-test"
+  step_of 50 02-lmm1ha/bash-test success
+  run_on 51 land/04 "queued none merge"
+  run_on 52 land/05 "queued none merge"
+  mkdir -p "$(git rev-parse --git-common-dir)/mtm-fastlane/ci-stop"
+  : > "$(git rev-parse --git-common-dir)/mtm-fastlane/ci-stop/52.1.asked"
+  run bash "$here/ci-stop.sh" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"run 50 (land/03) ends by itself"* ]]
+  [[ "$output" == *"would cancel run 51"* ]]
+  [[ "$output" == *"waiting for run 52 (land/05) to end: it was asked to cancel"* ]]
+  [ ! -e "$fake/cancelled" ]
+  [ ! -e "$(git rev-parse --git-common-dir)/mtm-fastlane/ci-stop/51.1.asked" ]
+}
+
+@test "github: a merged run gets no request while a job of it runs, and one after the grace however long it ends" {
+  echo 3 > "$fake/linger"
+  run_on 53 land/05 "completed success 05-xxx1hx/merge" "in_progress none 06-lmm1ha/deliver"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ ! -e "$fake/cancelled" ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending, .waited]')" = "[[],[],[53]]" ]
+  rm "$fake/rounds"
+  run_on 54 land/06 "completed success 05-xxx1hx/merge" "queued none 06-lmm1ha/deliver"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ]
+  [ "$(requests)" = 54 ]
 }
 
 @test "github: a merged run's queued jobs are cancelled after the grace, not before" {

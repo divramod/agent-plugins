@@ -11,8 +11,14 @@
 #    on LAND_REFS, default land/*) whose MERGE_JOB has not
 #    succeeded is cancelled; one that merged is waited for, and once SHIP_GRACE
 #    (default 15m) has passed its jobs that never started are cancelled.
+#    A run is asked to cancel once (once more when it was started again: a new
+#    attempt), however many rounds its end takes and however often this is called,
+#    and never when its own fail-fast is ending it already (`ending` below): a
+#    second request to a run that is cancelling seems to end its `always()` jobs,
+#    the parks, unrun, and a machine stays on (hal2 plan 0263).
 # Exits once no land run is unfinished, printing JSON: provider, stopped_slots,
-# cancelled, waited. --dry-run says what it would do and changes nothing.
+# cancelled (asked by this call), ending (not asked: ending by itself, or asked by
+# an earlier call), waited. --dry-run says what it would do and changes nothing.
 # Exit 0 done, 1 a CLI failed, 2 a missing tool, 7 runs still unfinished after --max-wait, 64 usage.
 set -euo pipefail
 FASTLANE_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,7 +45,7 @@ repo_paths
 mins=$(minutes "$max_wait")
 grace=$(minutes "$(conf_get SHIP_GRACE 15m)")
 say() { echo "ci-stop: $*" >&2; }
-stopped="" cancelled="" waited=""
+stopped="" cancelled="" waited="" ending="" spared=""
 
 # 1. The merge queue.
 if bin=$(hal2_bin); then
@@ -72,14 +78,36 @@ case "$provider" in
 esac
 marks="$state/ci-stop"
 mkdir -p "$marks"
+# The runs asked to cancel, a file `<id>.<attempt>.asked` each (a run started again keeps its id and is a new
+# attempt): ci-providers.sh calls `asking` before a request goes out, so a request that failed counts too (it may
+# have arrived), and a later call of this script knows them as well.
+asked() { [ -e "$marks/$1.$2.asked" ]; }
+asking() { : > "$marks/$1.$2.asked"; }
+
+# spared <id> <ref> <attempt>: this run gets no request, said once: it was asked before, or it is ending by itself.
+spared() {
+  case " $spared " in *" $1.$3 "*) return 0 ;; esac
+  if asked "$1" "$3"; then
+    say "waiting for run $1 ($2) to end: it was asked to cancel, and no run is asked twice"
+    case " $cancelled " in *" $1 "*) ;; *) ending="$ending $1" ;; esac
+  elif "${provider}_ending" "$1"; then
+    say "run $1 ($2) ends by itself (its own fail fast stopped it): not asked, waiting for its end"
+    ending="$ending $1"
+  else
+    return 1
+  fi
+  spared="$spared $1.$3"
+}
 waited_s=0
 while [ "$provider" = github ] || [ "$provider" = gitlab ]; do
   runs=$("${provider}_runs") || die 1 "listing the $provider land runs failed (logged in?)"
   [ -n "$runs" ] || break
-  while read -r id ref merged queued_only; do
+  while read -r id ref merged queued_only attempt; do
     if [ "$merged" = 0 ]; then
+      spared "$id" "$ref" "$attempt" && continue
       if [ "$dry_run" = 1 ]; then say "would cancel run $id ($ref), not merged"; continue; fi
-      "${provider}_cancel" "$id" || die 1 "cancelling run $id failed"
+      "${provider}_cancel" "$id" "$attempt" || die 1 "cancelling run $id failed; it is not asked again \
+(if nothing cancels it: rm $marks/$id.$attempt.asked, rerun)"
       say "cancelled run $id ($ref), not merged"
       cancelled="$cancelled $id"
       continue
@@ -88,7 +116,8 @@ while [ "$provider" = github ] || [ "$provider" = gitlab ]; do
     case " $waited " in *" $id "*) ;; *) waited="$waited $id" ;; esac
     if [ "$dry_run" = 1 ]; then say "would wait for run $id ($ref): merged, shipping"; continue; fi
     if [ $(( $(date +%s) - $(cat "$marks/$id") )) -ge $(( grace * 60 )) ] && [ "$queued_only" = 1 ]; then
-      if "${provider}_cancel_queued" "$id"; then
+      spared "$id" "$ref" "$attempt" && continue
+      if "${provider}_cancel_queued" "$id" "$attempt"; then
         say "cancelled the jobs of run $id ($ref) that never started, after the ${grace}m grace"
         cancelled="$cancelled $id"
       fi
@@ -108,5 +137,6 @@ words() { for w in "$@"; do echo "$w"; done | jq -R . | jq -sc 'map(select(. != 
 ids() { words "$@" | jq -c 'map(tonumber? // .)'; }
 # shellcheck disable=SC2086 # the lists are words
 jq -nc --arg provider "$provider" --argjson dry "$dry_run" --argjson stopped "$(words $stopped)" \
-  --argjson cancelled "$(ids $cancelled)" --argjson waited "$(ids $waited)" \
-  '{provider: $provider, dry_run: ($dry == 1), stopped_slots: $stopped, cancelled: $cancelled, waited: $waited}'
+  --argjson cancelled "$(ids $cancelled)" --argjson ending "$(ids $ending)" --argjson waited "$(ids $waited)" \
+  '{provider: $provider, dry_run: ($dry == 1), stopped_slots: $stopped, cancelled: $cancelled, ending: $ending,
+    waited: $waited}'

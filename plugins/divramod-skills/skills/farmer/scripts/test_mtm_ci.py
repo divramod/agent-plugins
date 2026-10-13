@@ -47,6 +47,108 @@ class MtmCiTest(unittest.TestCase):
         self.assertEqual([mtm_ci.job_part(n) for n in ("merge", "a / merge", "05-xxx1hx/merge", "park")],
                          ["merge", "merge", "merge", "park"])
 
+    def test_a_job_that_stops_its_run_fails_it_at_once_and_the_cancelled_jobs_only_stopped(self):
+        # `gh run view --json jobs`, shaped after land run 38215106904 with the lanes' stop step; the job that stops
+        # its run mostly ends `cancelled` itself (gate jobs 113753096365, 114169773542), its failed step `failure`.
+        def job(name, conclusion, work, stop="skipped"):
+            steps = [{"name": "Set up job", "conclusion": "success"}, {"name": "[07] gate", "conclusion": work}]
+            steps += [{"name": "[19] fail fast: stop the run", "conclusion": stop}] if stop is not None else []
+            return {"name": name, "conclusion": conclusion, "status": "completed" if conclusion else "in_progress",
+                    "steps": steps}
+        failing = job("02-vhl1ha/python-test", "", "failure", "success")  # its step failed, its stop step ran
+        cut = lambda name, stop="skipped": job(name, "cancelled", "cancelled", stop)
+        gate = lambda conclusion: {"name": "04-xxx1hx/gate", "conclusion": conclusion, "steps": []}
+        merge = {"name": "05-xxx1hx/merge", "conclusion": "skipped", "steps": []}
+        jobs = {1: [failing, job("02-vhl1hb/rust-test", "", "", "")],  # the others still run
+                2: [job("02-vhl1ha/python-test", "cancelled", "failure", "success"), cut("02-lmm1ha/bash-test"),
+                    cut("02-vzw1ha/rust-test-windows", None), gate("cancelled"), merge],  # the run it cancelled
+                3: [job("02-vhl1ha/python-test", "success", "success"), job("02-vhl1hb/rust-test", "", "", ""),
+                    job("02-vhl1h0/monitor", "failure", "failure", None)],  # a red job without the step: nothing
+                4: [job("02-vhl1ha/python-test", "failure", "failure", None),
+                    job("02-vhl1hb/rust-test", "", "", None)],  # a file without the step: as before
+                5: [cut("02-vhl1ha/python-test"), cut("02-vhl1hb/rust-test"), gate("failure")],  # a pause's cancel
+                6: [cut("02-lmm1ha/bash-test", "success"), cut("02-vhl1hb/rust-test"), gate("failure"), merge],
+                7: [job("02-vhl1ha/python-test", "", "failure", ""),  # a failed step while its job goes on,
+                    job("02-vhl1hb/rust-test", "success", "failure")]}  # and one its job survived: nothing
+        rows = mtm_ci.summary([run(1, "land/01", status="in_progress", conclusion=""),
+                               run(2, "land/02", conclusion="cancelled"),
+                               run(3, "land/03", status="in_progress", conclusion=""),
+                               run(4, "land/04", status="in_progress", conclusion=""),
+                               run(5, "land/05", conclusion="cancelled"), run(6, "land/06", conclusion="cancelled"),
+                               run(7, "land/07", status="in_progress", conclusion="")],
+                              lambda rid: jobs.get(rid, []), 0)
+        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
+                         [("01", "failed", "02-vhl1ha/python-test"),
+                          ("02", "failed", "02-vhl1ha/python-test, 04-xxx1hx/gate"),
+                          ("03", "running", ""), ("04", "running", ""),
+                          ("05", "failed", "02-vhl1ha/python-test, 02-vhl1hb/rust-test, 04-xxx1hx/gate"),
+                          ("06", "failed", "02-lmm1ha/bash-test, 04-xxx1hx/gate"),  # a time limit: no step failed
+                          ("07", "running", "")])
+        self.assertTrue(all(mtm_ci.needed({"steps": [{"name": n}]}) for n in
+                            ("[08] fail fast: stop the run", " [19]  fail fast: stop the run ", "fail fast: stop the run")))
+        self.assertFalse(any(mtm_ci.needed({"steps": [{"name": n}]}) for n in
+                             ("[01] fail fast", "[08] fail fast: stop the run later", "[x] fail fast: stop the run")))
+        self.assertFalse(mtm_ci.needed({"name": "04-xxx1hx/gate"}))
+        self.assertFalse(mtm_ci.cause(cut("02-vhl1hb/rust-test", "cancelled")))  # a stop step cut short proves nothing
+        stopped = job("02-vhl1ha/ts-lint", "failure", "skipped", "success")  # row 3's start step stopped it: no work
+        stopped["steps"].insert(0, {"name": "[01] fail fast", "conclusion": "failure"})
+        self.assertFalse(mtm_ci.cause(stopped))
+
+    def test_a_step_that_failed_after_the_cancel_is_no_cause_and_a_refused_stop_step_is_one(self):
+        def job(conclusion, *steps):
+            return {"name": "02-vhl1ha/python-test", "conclusion": conclusion,
+                    "status": "completed" if conclusion else "in_progress",
+                    "steps": [{"name": name, "conclusion": c} for name, c in steps]}
+        work, keep, stop = "[07] gate python-test", "[13] keep what the job left", "[19] fail fast: stop the run"
+        # A pause's cancel cut the job's work; a later step then failed in the cancelled job: the cancel is no red.
+        after = job("cancelled", (work, "cancelled"), (keep, "failure"), (stop, "skipped"))
+        # A step failed, the run's cancel then cut a later one: the failure came first and stays the cause.
+        before = job("cancelled", (work, "failure"), (keep, "cancelled"), (stop, "skipped"))
+        # The time limit cut the work, a later step failed, the stop step ran: a cause by its stop step alone.
+        limit = job("cancelled", (work, "cancelled"), (keep, "failure"), (stop, "success"))
+        # The stop step ran and GitHub refused the request: the job is a cause, the run goes on.
+        refused = job("", (work, "failure"), (keep, "success"), (stop, "failure"))
+        alone = job("", (work, "cancelled"), (stop, "failure"))  # at its limit, the request refused
+        self.assertEqual([mtm_ci.cause(j) for j in (after, before, limit, refused, alone)],
+                         [False, True, True, True, True])
+        gate = {"name": "04-xxx1hx/gate", "conclusion": "failure", "steps": []}
+        going = {"name": "02-vhl1hb/rust-test", "conclusion": "", "status": "in_progress",
+                 "steps": [{"name": "[07] gate rust-test", "conclusion": ""}, {"name": stop, "conclusion": ""}]}
+        jobs = {1: [after, gate], 2: [refused, going], 3: [after, going]}
+        rows = mtm_ci.summary([run(1, "land/01", conclusion="cancelled"),
+                               run(2, "land/02", status="in_progress", conclusion=""),
+                               run(3, "land/03", status="in_progress", conclusion="")],
+                              lambda rid: jobs.get(rid, []), 0)
+        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
+                         [("01", "failed", "02-vhl1ha/python-test, 04-xxx1hx/gate"),  # no cause: read as before
+                          ("02", "failed", "02-vhl1ha/python-test"),  # red at once, by the refused stop step
+                          ("03", "running", "")])
+
+    def test_a_stop_step_still_in_progress_is_ending_and_never_a_cause(self):
+        # The review of the fix round, 1: the step's request is going out in these seconds (about 1, 20 at most).
+        def job(conclusion, *steps, name="02-vhl1ha/python-test"):
+            return {"name": name, "conclusion": conclusion, "status": "completed" if conclusion else "in_progress",
+                    "steps": [{"name": n, "conclusion": c, "status": s} for n, c, s in steps]}
+        work, stop = "[07] gate python-test", " [20]  fail fast: stop the run "
+        failed, done = (work, "failure", "completed"), (work, "success", "completed")
+        asking = job("", failed, (stop, "", "in_progress"))
+        self.assertTrue(mtm_ci.ending([asking]))
+        self.assertFalse(mtm_ci.cause(asking))  # not yet: it is one once its stop step ended
+        rows = mtm_ci.summary([run(1, "land/01", status="in_progress", conclusion="")], lambda rid: [asking], 0)
+        self.assertEqual([(r["outcome"], r["task"]) for r in rows], [("running", "")])
+        # Ending as mtm-fastlane's GITHUB_ENDING tells it: the stop step ended `success`, a gate job was cancelled.
+        self.assertTrue(mtm_ci.ending([job("", failed, (stop, "success", "completed"))]))
+        cut, skipped = (work, "cancelled", "completed"), (stop, "skipped", "completed")
+        self.assertTrue(mtm_ci.ending([job("success", done, skipped), job("cancelled", cut, skipped)]))
+        # Not ending: the stop step still to come or refused, a cancelled job without it, another step in progress.
+        self.assertFalse(mtm_ci.ending([job("", failed, ("[19] fail fast: why this job ended", "", "in_progress"),
+                                            (stop, "", "pending"))]))
+        self.assertFalse(mtm_ci.ending([job("", failed, (stop, "failure", "completed"))]))
+        self.assertFalse(mtm_ci.ending([job("cancelled", cut, name="02-vzw1ha/rust-test-windows"),
+                                        job("", (work, "", "in_progress"), (stop, "", "pending"))]))
+        self.assertFalse(mtm_ci.ending([job("", failed, ("[20] fail fast: stop the run later", "", "in_progress"))]))
+        self.assertFalse(mtm_ci.ending([]))
+
     def test_old_runs_are_left_out(self):
         since = dt.datetime(2026, 10, 5, 7, tzinfo=dt.timezone.utc).timestamp()
         self.assertEqual(mtm_ci.summary([run(1, "land/07")], lambda rid: [], since), [])

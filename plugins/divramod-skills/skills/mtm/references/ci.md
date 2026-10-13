@@ -79,12 +79,22 @@ SKILL.md step 6 as milestone mode says.
 
 **Watch the run every 5 minutes while it is tested** (the user, 2026-10-06). Once the candidate's run is known (exit
 6 names `run`; else `hal2-cli-git worktree landings --json`), look at its jobs every 5 minutes
-(`gh run view <run> --json jobs`) for as long as the landing waits. A job that concluded `failure` or `timed_out`
-while others still run: start on [Red](#red) at once (read its log, reproduce, fix, commit, push) instead of waiting
-for the landing to end; the landing keeps its place meanwhile, and when it ends with `gate_failed` the fix is ready
-for the next [Land](#land) at once. Never cancel the run: the whole workflow finishes, so every red job of it is
-known and fixed in that one next landing (the user, 2026-10-06: "that way we save time"). A red outside the code (runner offline, full disk, network): tell the farmer
-right away.
+(`gh run view <run> --json jobs`) for as long as the landing waits. A red outside the code (runner offline, full
+disk, network): tell the farmer right away.
+
+**A workflow with fail-fast** (the lanes' jobs have the step `[NN] fail fast: stop the run`; hal2 plan 0263, the user,
+2026-10-12: "when one job fails. the whole pipeline fails instantly"): the first job the `gate` job needs that fails
+or hits its time limit cancels the run itself, and the landing returns `gate_failed` **at once** with that job in
+`red`, without waiting for the run's other jobs. Nothing to start early, and **never cancel the run yourself** (`gh
+run cancel`): a second cancel request seems to end the run's last jobs, which park the machines, unrun. Go to
+[Red](#red) when it returns. One landing names one cause; a second red job shows in the next landing. A red monitor,
+cleanup or Windows job has no such step and stops nothing.
+
+**A workflow without it**: a job that concluded `failure` or `timed_out` while others still run: start on
+[Red](#red) at once (read its log, reproduce, fix, commit, push) instead of waiting for the landing to end; the landing
+keeps its place meanwhile, and when it ends with `gate_failed` the fix is ready for the next [Land](#land) at once.
+Never cancel the run: the whole workflow finishes, so every red job of it is known and fixed in that one next landing
+(the user, 2026-10-06: "that way we save time").
 
 **Work while it is tested** (the user, 2026-10-12: "you should always trigger work, which can be done while you are
 waiting for a pipeline run to finish"). A land run takes an hour and more: right after the landing started, do what
@@ -96,7 +106,11 @@ nothing into the landing's branch), and only wait when nothing is left, saying w
 `gate_failed` lists the `red` jobs, each with its `url` (the job's log) and `reproduce`, the command that runs the
 same job in this checkout for only what this branch changed (`code/bash/scripts/gate/main.sh <job> --branch
 origin/main`; hal2 plan 0157). Never drop the `--branch`: without a range the job tests the whole workspace, which is
-the runner's work, not the Mac's:
+the runner's work, not the Mac's. `stopped` names the jobs that only stopped because of them (cancelled after the
+failure, or still running when a fail-fast workflow's first failed job decided the landing): no cause, nothing to
+reproduce or fix, they run again in the next landing. A red job with `conclusion: timed_out` hit its time limit: its
+log shows what hung. On GitHub the run of a fail-fast red landing reads `cancelled`, and so does the job that failed
+(only its failed step reads `failure`): trust `red`, not the conclusions there, and do not rerun the run, fix the job:
 
 1. Read why: `gh run view <run id> --log-failed` (the run is the JSON's `run`), or the job's `url`.
 2. Reproduce locally with `reproduce` (it runs the same script as CI; a macOS-only job needs this Mac's Xcode, a

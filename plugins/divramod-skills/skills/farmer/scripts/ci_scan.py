@@ -4,7 +4,8 @@
   ci_scan.py scan [--repo <dir>] [--json] [--all]
       the latest run of every workflow (dynamic ones such as Dependabot's included) on the default branch and on each slot branch,
       and findings: a workflow red on the default branch (with its failed jobs), red on
-      a slot's branch, a run queued too long (a runner offline?) or running too long.
+      a slot's branch, a run queued too long (a runner offline?) or running too long (with `ending`: its own
+      fail fast is stopping it, never cancel it by hand).
       Runs already handled are left out (--all: shown too). No workflows: nothing to do
   ci_scan.py record <run-id> <what> [--note <text>] [--repo <dir>]
       mark a run handled (log: ci.jsonl in the farmer's state folder)
@@ -25,6 +26,7 @@ import time
 from pathlib import Path
 
 import gh_runs
+import mtm_ci
 import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer slot's roles/farmer/ (roles.state_dir)
@@ -121,6 +123,15 @@ def failed_jobs(jobs: list[dict]) -> list[str]:
             for j in jobs or [] if j.get("conclusion") in RED]
 
 
+def stuck(finding: dict, jobs: list[dict]) -> dict:
+    """A running-long finding with what its jobs say of a cancel by hand: `ending` (mtm_ci.ending: a job of the gate
+    concluded `cancelled`, or a stop step ended `success` or still runs) is a run nobody asks to cancel."""
+    finding["ending"] = mtm_ci.ending(jobs)
+    if finding["ending"]:
+        finding["why"] += ": its own fail fast is ending it, never cancel it"
+    return finding
+
+
 def handled(main: str) -> set[int]:
     f = roles.state_dir(main, DATA) / "ci.jsonl"
     if not f.exists():
@@ -142,9 +153,12 @@ def scan(repo: str, show_all: bool) -> dict:
     if wake:
         found.insert(0, {**wake, "tool": str(Path(main) / WAKE_TOOL)})
     red = [f for f in found if f["kind"].endswith("-red")]
-    jobs = gh_runs.jobs([f["run"] for f in red], {f["run"] for f in red}, gh_runs.view_jobs(run_json, main))
+    long = [f for f in found if f["kind"] == "running-long"]
+    jobs = gh_runs.jobs([f["run"] for f in red + long], {f["run"] for f in red}, gh_runs.view_jobs(run_json, main))
     for f in red:  # a red run is completed: its jobs are kept on disk (gh_runs)
         f["failed_jobs"] = failed_jobs(jobs.get(f["run"], []))
+    for f in long:  # a running run's jobs are read again every round
+        stuck(f, jobs.get(f["run"], []))
     return {"repo": main, "workflows": True, "default": default, "findings": found}
 
 

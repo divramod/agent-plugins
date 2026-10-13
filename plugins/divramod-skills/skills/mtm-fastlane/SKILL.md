@@ -47,8 +47,16 @@ Every script exits 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool
 2. **Commit and push** everything, by mtm's step 2 rules (gitignore junk, never a secret, ask about unclear files).
 3. **Stop the land attempts, then reserve**, in this order (else the reserve waits behind the very landing it wants
    to stop): `bash $S/ci-stop.sh` moves this slot to the front of the merge queue, stops another slot's landing
-   that holds it, cancels every land run whose merge job has not succeeded and waits for those that have (only
-   their still queued jobs are cancelled after `SHIP_GRACE`); it prints the stopped slots. Then
+   that holds it, asks every land run whose merge job has not succeeded to cancel and waits for those that have
+   (only their still queued jobs are cancelled after `SHIP_GRACE`), then waits until every one has ended; it prints
+   the stopped slots. **A run gets one cancel request**, however many rounds its end takes and however often the
+   script is rerun (it notes the runs it asked in the git common dir; a run started again, a new attempt, is asked
+   once more), and none when its own fail-fast is ending it already (the step `fail fast: stop the run` of one of
+   its jobs ended `success` or still runs, or a job with that step concluded `cancelled`; such a run can no longer
+   merge and is printed as `ending`, like one an earlier call asked). Never send a `gh run cancel` of your own
+   beside it: a second request to a run that is cancelling seems to end its last jobs, which park the machines,
+   unrun (hal2 plan 0263). Exit 1 with "cancelling run <id> failed": the run is not asked again; look at it (`gh run view
+   <id>`) and only when nothing is cancelling it remove the file the message names and rerun. Then
    `bash $S/fastlane.sh reserve` (hal2-cli-git's queue, else a lock in the git common dir).
 4. **Merge the default branch in**: `hal2-cli-git worktree merge-from-main --json` where hal2 runs, else
    `git fetch origin && git merge origin/<default>`. Fix conflicts as the mfm skill does, commit.

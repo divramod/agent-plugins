@@ -36,6 +36,23 @@ class Findings(unittest.TestCase):
         self.assertTrue(f[0]["handled"])
 
 
+class Stuck(unittest.TestCase):
+    def test_a_long_run_its_own_fail_fast_is_ending_says_so_and_is_never_cancelled_by_hand(self):
+        def job(conclusion, stop, status="completed"):
+            return {"name": "02-vhl1ha/python-test", "conclusion": conclusion, "steps": [
+                {"name": "[07] gate python-test", "conclusion": "failure", "status": "completed"},
+                {"name": "[20] fail fast: stop the run", "conclusion": stop, "status": status}]}
+        long = lambda: {"run": 7, "kind": "running-long", "why": "land running 95 min on 08"}
+        asking = ci.stuck(long(), [job("", "", "in_progress")])  # the stop step runs: its request is on its way
+        self.assertTrue(asking["ending"])
+        self.assertEqual(asking["why"], "land running 95 min on 08: its own fail fast is ending it, never cancel it")
+        self.assertTrue(ci.stuck(long(), [job("cancelled", "skipped")])["ending"])  # a gate job cut with its run
+        hung = ci.stuck(long(), [job("", "", "pending")])  # a failed step, the stop step still to come: a hang
+        self.assertEqual((hung["ending"], hung["why"]), (False, "land running 95 min on 08"))
+        self.assertFalse(ci.stuck(long(), [job("", "failure")])["ending"])  # refused: nothing stops the run
+        self.assertFalse(ci.stuck(long(), [])["ending"])  # no jobs read: as before
+
+
 class Wake(unittest.TestCase):
     def test_the_oldest_run_queued_over_five_minutes_of_any_branch_wakes(self):
         runs = [run(1, "land", "land/12", status="queued", conclusion=None, ago=400),
