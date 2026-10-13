@@ -44,7 +44,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
 | [fix-loc](skills/fix-loc/SKILL.md) | the loop that brings files under 300 code lines |
 | [grill](skills/grill/SKILL.md) | questions a plan until every branch is decided |
-| [halverse](skills/halverse/SKILL.md) | shows the user's ontology and counts old words against farm words (`/hv`) |
+| [halverse](skills/halverse/SKILL.md) | shows the user's ontology, counts old words against farm words and syncs the words into VoiceInk (`/hv`) |
 | [handoff](skills/handoff/SKILL.md) | writes the handoff before a clear and continues from it |
 | [list-free-worktrees](skills/list-free-worktrees/SKILL.md) | lists the idle worktree sessions |
 | [mfm](skills/mfm/SKILL.md), [mtm](skills/mtm/SKILL.md), [mtm-fastlane](skills/mtm-fastlane/SKILL.md) | merge from main, land on main, land without CI |

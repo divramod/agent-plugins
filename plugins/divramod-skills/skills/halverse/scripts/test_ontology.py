@@ -60,15 +60,15 @@ class Cli(unittest.TestCase):
         self.assertIn("- cockcrow | the nightly start [proposed, not chosen]", out)
 
     def test_term_with_entry_place_old_word_and_command(self):
-        code, out, _ = self.call("harvest")
+        code, out, _ = self.call("bring in")
         self.assertEqual(code, 0)
-        self.assertIn("glossary (landing, harvest)", out)
-        self.assertIn("ontology, Activities: harvest", out)
+        self.assertIn("glossary (landing, bring in)", out)
+        self.assertIn("ontology, Activities: bring in", out)
         self.assertIn("command: /mtm", out)
 
     def test_an_old_word_finds_its_pair(self):
         _, out, _ = self.call("mtm", "--json")
-        self.assertEqual(json.loads(out)["pair"]["new"], "harvest")
+        self.assertEqual(json.loads(out)["pair"]["new"], "bring in")
 
     def test_unknown_term_names_the_closest_and_exits_1(self):
         code, _, err = self.call("sheed")

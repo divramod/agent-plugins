@@ -23,7 +23,7 @@ class PairsFile(unittest.TestCase):
             self.assertGreater(stat(pair.new + " 07", pair.new).new, 0, pair.new)  # field needs its number
 
     def test_every_old_form_has_an_example_that_counts(self):
-        self.assertEqual(stat("we merge-to-main", "harvest").old, 1)
+        self.assertEqual(stat("we merge-to-main", "bring in").old, 1)
 
     def test_pair_is_a_known_shape(self):
         for pair in PAIRS:
@@ -40,21 +40,21 @@ class WholeWords(unittest.TestCase):
         self.assertEqual(stat("Shots and a shot.", "seed").old, 2)
 
     def test_slash_command_is_not_a_word(self):
-        self.assertEqual(stat("then run /mtm now", "harvest").old, 0)
-        self.assertEqual(stat("then run mtm now", "harvest").old, 1)
+        self.assertEqual(stat("then run /mtm now", "bring in").old, 0)
+        self.assertEqual(stat("then run mtm now", "bring in").old, 1)
 
     def test_slash_between_words_still_counts(self):
         self.assertEqual(stat("shots/screens", "seed").old, 1)
 
     def test_hyphenated_longer_word_is_one_word(self):
-        self.assertEqual(stat("mtm-fastlane please", "harvest").old, 0)
+        self.assertEqual(stat("mtm-fastlane please", "bring in").old, 0)
         self.assertEqual(stat("mtm-fastlane please", "smuggle").old, 1)
 
     def test_old_and_new_inflections(self):
-        self.assertEqual((stat("harvested", "harvest").new, stat("seeds", "seed").new, stat("sowing", "sow").new,
+        self.assertEqual((stat("brought in", "bring in").new, stat("seeds", "seed").new, stat("sowing", "sow").new,
                           stat("smuggled", "smuggle").new, stat("mucks out", "muck out").new,
                           stat("ticked it off", "tick off").new), (1, 1, 1, 1, 1, 1))
-        self.assertEqual(stat("he landed on main", "harvest").old, 1)
+        self.assertEqual(stat("he landed on main", "bring in").old, 1)
         self.assertEqual(stat("shooting it", "sow").old, 1)
 
     def test_longest_stretch_wins(self):
@@ -86,10 +86,18 @@ class Ambiguous(unittest.TestCase):
         self.assertEqual(stat("the lead said", "foreman").ambiguous_count, 1)
         self.assertEqual(stat("a task", "chore").ambiguous_count, 1)
         self.assertEqual(stat("watch it", "lookout").ambiguous_count, 1)
-        self.assertEqual(stat("a landing page", "harvest").ambiguous_count, 1)
+        self.assertEqual(stat("a landing page", "bring in").ambiguous_count, 1)
+
+    def test_harvest_is_no_longer_the_landing_and_keeps_its_name(self):
+        s = stat("harvest 07 and brings 08 in", "bring in")  # the landing's word until 2026-10-13: ambiguous now
+        self.assertEqual((s.old, s.new, s.ambiguous_count), (0, 1, 1))
+        kept = {k.lower() for k in PAIRSET.keep_names}
+        self.assertTrue({"harvest", "christen", "christening"} <= kept)
+        words = [sources.FarmWord("harvest", "the foreman's part", "in force", "Activities")]
+        self.assertEqual(learn.coverage_warnings(PAIRSET, words, [("christen", "christening"), ("landing", "bring in")]), [])
 
     def test_ambiguous_is_left_out_of_the_share(self):
-        s = stat("", "harvest", ["a landing page", "mtm", "harvest"])
+        s = stat("", "bring in", ["a landing page", "mtm", "bring in"])
         self.assertEqual((s.old, s.new, s.ambiguous_count, s.share), (1, 1, 1, 0.5))
 
     def test_ambiguous_lines_say_what_and_why(self):
@@ -100,8 +108,8 @@ class Ambiguous(unittest.TestCase):
 
 class Table(unittest.TestCase):
     def test_sorted_by_old_uses_and_unused_left_out(self):
-        stats = learn.count(["shot shot shot", "mtm mtm", "merge queue", "harvest"], PAIRS)
-        self.assertEqual([s.pair.new for s in learn.ranked(stats)][:3], ["seed", "harvest", "toll gate"])
+        stats = learn.count(["shot shot shot", "mtm mtm", "merge queue", "bring in"], PAIRS)
+        self.assertEqual([s.pair.new for s in learn.ranked(stats)][:3], ["seed", "bring in", "toll gate"])
         self.assertNotIn("steward", [s.pair.new for s in learn.ranked(stats)])
 
     def test_share_percent_in_the_table(self):
@@ -114,18 +122,18 @@ class Table(unittest.TestCase):
 
     def test_example_has_the_new_word_and_is_short(self):
         long_line = "x " * 80 + "please do the mtm of this work " + "y " * 80
-        s = stat("", "harvest", [long_line])
-        self.assertIn("harvest", s.example[1])
+        s = stat("", "bring in", [long_line])
+        self.assertIn("bring in", s.example[1])
         self.assertNotIn("mtm", s.example[1])
         self.assertLessEqual(len(s.example[1]), 100)
-        short = stat("please mtm this", "harvest")
-        self.assertEqual(short.example[1], "please harvest this")
+        short = stat("please mtm this", "bring in")
+        self.assertEqual(short.example[1], "please bring in this")
 
     def test_example_is_the_line_of_the_newest_message(self):
         old = Message("first mtm", NOW - timedelta(days=2), "p")
         new = Message("second mtm\nthird line", NOW, "p")
-        s = stat("", "harvest", [new, old])
-        self.assertEqual(s.example[1], "second harvest")
+        s = stat("", "bring in", [new, old])
+        self.assertEqual(s.example[1], "second bring in")
 
     def test_example_keeps_the_user_line_only(self):
         s = stat("", "seed", ["before\nthe shots here\nafter"])
@@ -146,7 +154,7 @@ class TalkAboutTheWords(unittest.TestCase):
         self.assertEqual((s.old, s.new), (1, 1))
 
     def test_ambiguous_forms_of_a_named_pair_still_count(self):
-        s = stat("mtm is harvest, a landing", "harvest")
+        s = stat("mtm is bring in, a landing", "bring in")
         self.assertEqual((s.old, s.new, s.ambiguous_count), (0, 0, 1))
 
 
@@ -164,12 +172,12 @@ class CleanupAndShootSkill(unittest.TestCase):
 
 class Practise(unittest.TestCase):
     def test_three_words_most_old_uses_ties_by_lower_share(self):
-        texts = ["shot " * 5, "mtm " * 3, "harvest", "fastlane " * 3, "merge queue", "merge queue", "toll gate"]
+        texts = ["shot " * 5, "mtm " * 3, "bring in", "fastlane " * 3, "merge queue", "merge queue", "toll gate"]
         top = [s.pair.new for s in learn.practise(learn.count(texts, PAIRS))]
-        self.assertEqual(top, ["seed", "smuggle", "harvest"])  # smuggle 3 old, 0% before harvest 3 old, 25%
+        self.assertEqual(top, ["seed", "smuggle", "bring in"])  # smuggle 3 old, 0% before bring in 3 old, 25%
 
     def test_a_pair_never_used_or_used_only_new_is_left_out(self):
-        top = [s.pair.new for s in learn.practise(learn.count(["harvest it", "a sow"], PAIRS))]
+        top = [s.pair.new for s in learn.practise(learn.count(["bring it in", "a sow"], PAIRS))]
         self.assertEqual(top, [])
 
     def test_a_pair_that_stays_is_never_practised(self):
@@ -189,6 +197,10 @@ class Coverage(unittest.TestCase):
         words = sources.farm_words(sources.read_text(os.path.join(here, self.sample, "ontology.md")))
         heads = sources.glossary_pairs(sources.read_text(os.path.join(here, self.sample, "GLOSSARY.md")))
         self.assertEqual(learn.coverage_warnings(PAIRSET, words, heads), [])
+        self.assertEqual(heads, [("shot", "seed"), ("landing", "bring in")])
+        for old, new in heads:  # the old word of a heading is matched by its pair
+            pair = next(p for p in PAIRS if p.new.lower() == new.lower())
+            self.assertTrue(learn._compile(list(pair.old) + [a[0] for a in pair.ambiguous]).search(old), (old, new))
 
     def test_a_farm_word_without_a_pair_warns_and_a_kept_name_does_not(self):
         words = [sources.FarmWord("scythe", "x", "in force", "Activities"),
@@ -199,17 +211,11 @@ class Coverage(unittest.TestCase):
         self.assertIn("scythe", warnings[0])
         self.assertIn("reap", warnings[1])
 
-    def test_the_real_files_are_covered_when_they_exist(self):
-        text = sources.read_text(sources.ontology_path())
-        glossary = sources.read_text(sources.glossary_path())
-        if text is None or glossary is None:
-            self.skipTest("the user's glossary and ontology are not on this machine")
-        words, heads = sources.farm_words(text), sources.glossary_pairs(glossary)
-        self.assertTrue(words and heads)
-        self.assertEqual(learn.coverage_warnings(PAIRSET, words, heads), [])
-        for old, new in heads:  # the old word of a heading is matched by its pair
-            pair = next(p for p in PAIRS if p.new.lower() == new.lower())
-            self.assertTrue(learn._compile(list(pair.old) + [a[0] for a in pair.ambiguous]).search(old), (old, new))
+    def test_a_new_word_of_the_live_files_is_a_warning_of_learn_not_an_error(self):
+        words = [sources.FarmWord("farmhouse", "x", "in force", "Places")]
+        warnings = learn.coverage_warnings(PAIRSET, words, [("barn door", "toolshed")])
+        self.assertEqual(warnings, ['farm word "farmhouse" (ontology: Places) has no pair in pairs.json',
+                                    'glossary heading "barn door, toolshed" has no pair in pairs.json'])
 
 
 if __name__ == "__main__":

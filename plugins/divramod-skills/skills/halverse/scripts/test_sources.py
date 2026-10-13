@@ -15,7 +15,7 @@ class FarmWords(unittest.TestCase):
 
     def test_places_and_activities_tables_are_read_other_tables_are_not(self):
         self.assertEqual(sorted(self.by_word),
-                         ["cockcrow", "continue", "field", "hand off", "harvest", "jot", "pause", "tick off", "yard"])
+                         ["bring in", "cockcrow", "continue", "field", "hand off", "harvest", "jot", "pause", "tick off", "yard"])
 
     def test_a_table_without_status_is_in_force(self):
         self.assertTrue(self.by_word["field"].in_force)
@@ -28,7 +28,7 @@ class FarmWords(unittest.TestCase):
 
     def test_a_cell_with_two_words_is_split_and_backticks_go(self):
         self.assertEqual(self.by_word["jot"].stands_for, self.by_word["tick off"].stands_for)
-        self.assertEqual(self.by_word["harvest"].stands_for, "merge-to-main (`/mtm`)")
+        self.assertEqual(self.by_word["bring in"].stands_for, "merge-to-main (`/mtm`)")
 
     def test_missing_or_empty_text(self):
         self.assertEqual(sources.farm_words(None), [])
@@ -38,7 +38,7 @@ class FarmWords(unittest.TestCase):
 class Glossary(unittest.TestCase):
     def test_headings_with_two_terms_are_pairs(self):
         text = sources.read_text(os.path.join(SAMPLE, "GLOSSARY.md"))
-        self.assertEqual(sources.glossary_pairs(text), [("shot", "seed"), ("landing", "harvest")])
+        self.assertEqual(sources.glossary_pairs(text), [("shot", "seed"), ("landing", "bring in")])
 
     def test_three_terms_pair_the_first_with_each_other(self):
         self.assertEqual(sources.glossary_pairs("**a**, **b**, **c**:\ntext **x**, **y**\n"), [("a", "b"), ("a", "c")])

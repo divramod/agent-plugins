@@ -16,7 +16,8 @@
 
 | Farm word | Stands for | Status |
 |---|---|---|
-| harvest | merge-to-main (`/mtm`) | in force (synonym) |
+| harvest | the foreman's part before a landing | in force |
+| bring in | merge-to-main (`/mtm`) | in force (synonym) |
 | jot, tick off | adding a chore, finishing it | in force |
 | cockcrow | the nightly start | proposed, not chosen |
 | pause | `/pause` | in force, keeps its name |

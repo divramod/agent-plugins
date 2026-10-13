@@ -1,15 +1,16 @@
 {
   "schema": 1,
   "comment": "Old word -> farm word pairs for `halverse.py learn` (plan 0270 D4). old/new_forms/ambiguous[].form are regular expressions, matched case-insensitively as whole words (not inside a longer or hyphenated word, not as a slash command). keep_names: farm-table words that keep their name and need no pair (D9). practise=false: both words stay, shown but never among the words to practise.",
-  "keep_names": ["pause", "shoot", "grill", "autogrill", "hand off", "continue", "cockcrow"],
+  "keep_names": ["pause", "shoot", "grill", "autogrill", "hand off", "continue", "cockcrow", "wagon", "harvest", "christen", "christening"],
   "pairs": [
     {
-      "new": "harvest", "since": "2026-10-13", "command": "/mtm", "practise": true,
+      "new": "bring in", "since": "2026-10-13", "command": "/mtm", "practise": true,
       "old_label": "merge-to-main, mtm, land on main",
       "old": ["merge[- ]to[- ]main", "mtm", "land(?:s|ed|ing)? +(?:on|to|onto|in) +main"],
-      "new_forms": ["harvest(?:s|ed|ing)?"],
+      "new_forms": ["br(?:ings?|inging|ought) +(?:\\S+ +)?in"],
       "ambiguous": [
-        {"form": "land(?:s|ed|ing|ings)?", "note": "landing is also a landing page or a plane, land a common verb"}
+        {"form": "land(?:s|ed|ing|ings)?", "note": "landing is also a landing page or a plane, land a common verb"},
+        {"form": "harvest(?:s|ed|ing)?", "note": "harvest was the word for the landing until 2026-10-13; now it is the foreman's part before it and keeps its name"}
       ]
     },
     {

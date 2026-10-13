@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270).
+"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270); `voiceink [status|restore]` syncs the words into VoiceInk through hal2-cli-voiceink (plan 0273).
 
 Reads the user's typed prompts of the last n days (transcripts.py) and the two source files (sources.py); prints a
 table, the ambiguous forms and the three words to practise. Stores nothing, sends nothing. Python stdlib only.
@@ -13,6 +13,7 @@ import learn
 import ontology
 import sources
 import transcripts
+import voiceink
 
 
 def run_learn(days: float, as_json: bool) -> str:
@@ -51,7 +52,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     onto = sub.add_parser("ontology", help="the user's ontology and glossary, or one term of them")
     onto.add_argument("term", nargs="?", help="a term: its glossary entry, ontology lines, old word and command")
     onto.add_argument("--json", action="store_true", help="print data instead of text")
+    vi = sub.add_parser("voiceink", help="sync the words into VoiceInk (hal2-cli-voiceink), or show the difference, or restore a backup")
+    vi.add_argument("action", nargs="?", choices=["sync", "status", "restore"], default="sync", help="sync (default), status or restore")
+    vi.add_argument("backup", nargs="?", help="restore: the backup to put back (default the newest)")
+    vi.add_argument("--dry-run", action="store_true", help="sync: show what it would write, write nothing")
+    vi.add_argument("--list", action="store_true", help="restore: list the backups")
+    vi.add_argument("--json", action="store_true", help="print the CLI's data instead of the report")
     args = parser.parse_args(argv)
+    if args.command == "voiceink":
+        text, code = voiceink.run(args.action, args.json, args.dry_run, args.backup, args.list)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
     if args.command == "ontology":
         text, code = ontology.run(args.term, args.json)
         print(text, file=sys.stderr if code else sys.stdout)
