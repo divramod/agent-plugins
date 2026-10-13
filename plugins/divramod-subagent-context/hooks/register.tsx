@@ -5,7 +5,8 @@ import type { JobRow, SessionRow, SubagentRow, TableState, Tab } from '../types'
 import { LIMIT, type File, idOf, metaOf, rowOf } from './backfill'
 import { adopt, fill, mark, record } from './rows'
 import { DAYS, parse, serialize } from './store'
-import { agentsGrid, asTable, parse as parseSession, plansGrid, planOf } from './sessions'
+import { agentsGrid, asTable, plansGrid } from './sessions'
+import { CHECK_MS, PACE, type World, sessionCheck } from './live'
 import { jobsGrid, merge, stepType } from './jobs'
 import { bodyOf } from './tabs'
 import { type Filter, isClose, isState, order, stepOf, tabOf, shown, step } from './grid'
@@ -53,7 +54,7 @@ async function stepJobs($: EngineInterface, dir: 'prev' | 'next') {
   await update($, epoch, n => n + 1)
 }
 
-// The pane's top-level tab and the sessions of this machine the Plans and Agents tabs list (reloaded every 10 seconds).
+// The pane's top-level tab and the sessions of this machine the Plans and Agents tabs list (reloaded every 30 seconds, live.ts).
 const tab = atom({ plugin: 'divramod-subagent-context', key: 'tab' } as const, 'subagents' as Tab)
 const sessions = atom({ plugin: 'divramod-subagent-context', key: 'sessions' } as const, [] as SessionRow[])
 // The plans and agents tables' own sort, widths and cursor (the subagents' is `view`).
@@ -73,37 +74,26 @@ async function snapshot($: EngineInterface, e: { background_tasks?: Parameters<t
 
 const configDir = async ($: EngineInterface) => (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
 
-// The live sessions of this machine: each `<config>/sessions/<pid>.json` whose process still runs (`ps`), with the plan its
-// folder names. A file or a plan that cannot be read is left out, never an error.
-async function loadSessions($: EngineInterface, config: string, session: string) {
-  const dir = `${config}/sessions`
-  const found: NonNullable<ReturnType<typeof parseSession>>[] = []
-  for (const f of await $.fs.list(dir).catch(() => [])) {
-    if (f.kind !== 'file' || !/^\d+\.json$/.test(f.name)) continue
-    const s = parseSession(String(await $.fs.read(`${dir}/${f.name}`).catch(() => '')))
-    if (s) found.push(s)
-  }
-  if (!found.length) return []
-  const ps = await $.process.run(['ps', '-o', 'pid=', '-p', found.map(s => s.pid).join(',')]).catch(() => undefined)
-  const alive = new Set(String(ps?.stdout ?? '').split('\n').map(l => l.trim()).filter(Boolean))
-  const out: SessionRow[] = []
-  for (const s of found.filter(s => alive.has(String(s.pid)))) {
-    out.push({ ...s, plan: planOf(String(await $.fs.read(`${s.cwd}/plans/CURRENT_PLAN`).catch(() => ''))), here: s.id === session })
-  }
-  return out
-}
-
-// Reloads the sessions; the atom is written only when they changed, so a quiet round redraws nothing.
-async function refresh($: EngineInterface) {
-  try {
-    const next = await loadSessions($, await configDir($), await $.session.id())
-    if (JSON.stringify(next) !== JSON.stringify(await read($, sessions))) await update($, sessions, () => next)
-  } catch {}
-}
+// The session check (live.ts): the first refresh at the start, then only on an open Plans or Agents tab. `$` stays in
+// this file, so the check gets what it needs as functions.
+const check = sessionCheck()
+const world = ($: EngineInterface): World => ({
+  config: () => configDir($),
+  session: () => $.session.id(),
+  list: dir => $.fs.list(dir),
+  read: path => $.fs.read(path),
+  run: argv => $.process.run(argv, { timeoutMs: CHECK_MS }),
+  open: async () => (await $.ui.panes()).some(p => p.id === PANE),
+  tab: () => read($, tab),
+  get: () => read($, sessions),
+  set: next => update($, sessions, () => next),
+})
+const refresh = ($: EngineInterface) => check.refresh(world($))
+const tick = ($: EngineInterface) => check.tick(world($))
 
 async function show($: EngineInterface, to: Tab) {
   await update($, tab, () => to)
-  if (to !== 'subagents') await refresh($)
+  if (to === 'plans' || to === 'agents') await refresh($)
 }
 
 // The agents `$.agent.list()` named, and the loop ids it does not (the engine's compaction and memory forks).
@@ -258,7 +248,8 @@ export const register: Register = (on, options) => {
     await update($, jobs, () => [])
     void earlier($).then(() => purge($)).catch(() => {})
     void refresh($)
-    void $.clock.every(10_000, () => void refresh($).then(() => release($)).catch(() => {}))
+    void $.clock.every(PACE, () => void tick($).catch(() => {}))
+    void $.clock.every(10_000, () => void release($).catch(() => {}))
     return started
   })
 

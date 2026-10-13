@@ -13,8 +13,8 @@ export const bodyOf = (current: Exclude<Tab, 'subagents'>, found: readonly Sessi
     return { grid, empty: 'No background jobs in this view.', foot: `${jobs.filter(j => !j.ended).length} running · ${jobs.length} seen this session`, table: { ...asTable(grid, typesLine(jobs, type), views.jobs, grid.ids, 2, 'jobs', true), epoch } as TableProps }
   }
   const grid = current === 'plans' ? plansGrid(found, now) : agentsGrid(found, now)
-  const foot = `${ordered(found, current === 'plans').length} sessions · reloaded every 10 s · ● this session`
-  return { grid, empty: current === 'plans' ? 'No session has a current plan.' : 'No Claude sessions found.', foot, table: { ...asTable(grid, `${grid.cells.length} sessions · reloaded every 10 s · ● this session`, views[current], grid.ids, current === 'plans' ? 0 : 3), epoch } as TableProps }
+  const foot = `${ordered(found, current === 'plans').length} sessions · reloaded every 30 s · ● this session`
+  return { grid, empty: current === 'plans' ? 'No session has a current plan.' : 'No Claude sessions found.', foot, table: { ...asTable(grid, `${grid.cells.length} sessions · reloaded every 30 s · ● this session`, views[current], grid.ids, current === 'plans' ? 0 : 3), epoch } as TableProps }
 }
 
 // The count in a tab's label: the subagents, the running jobs, or the sessions the tab lists.

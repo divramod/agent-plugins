@@ -44,6 +44,8 @@ Install it (more in that repository's README):
   - [rows.ts](hooks/rows.ts), [transcript.ts](hooks/transcript.ts), [backfill.ts](hooks/backfill.ts): a subagent's
     row from its steps and its transcript.
   - [sessions.ts](hooks/sessions.ts), [jobs.ts](hooks/jobs.ts): the plans, agents and jobs tabs' rows.
+  - [live.ts](hooks/live.ts) (its test [live.test.ts](hooks/live.test.ts)): the session check behind the plans and
+    agents tabs: one `kill -0` per pid, one refresh at a time, every 30 s and only while the pane shows one of the two.
   - [store.ts](hooks/store.ts): the remembered rows.
   - [testkit.ts](hooks/testkit.ts): what the tests share.
 - [types/index.d.ts](types/index.d.ts): the mod's own types; [tsconfig.json](tsconfig.json) extends the engine's

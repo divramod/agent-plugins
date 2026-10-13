@@ -120,7 +120,7 @@ test('s, p and a switch between the subagents, the plans of the live sessions an
     if (!(e.path in files)) throw new Error(`ENOENT ${e.path}`)
     return { value: files[e.path]! }
   })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: '11\n12\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } as never }))
+  on('process.run', (_$, e) => ({ value: { exitCode: ['11', '12'].includes(e.argv.at(-1)!) ? 0 : 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } as never }))
   await steps($, on)
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, scroll: { offset: 0, bodyRows: 30 } } })
   expect((await ui.find({ type: 'Button', key: 'plans' }))?.props.hotkey).toBe('p')
