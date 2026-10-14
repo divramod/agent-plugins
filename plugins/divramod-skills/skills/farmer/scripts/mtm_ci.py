@@ -35,9 +35,15 @@ NOT_COUNTED = {"park", "merge"}  # park's state is no verdict; a red merge is "m
 # The workflow's ship jobs run after merge: a delivery never reddens or delays a landing. A fixed set of job parts since
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
 SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linux-host-ship-start",
-             "publish-claude-plugins", "tmux-publish-hal9k", "docker-publish-github-runner-image"}
+             "laptops-start", "publish-claude-plugins", "tmux-publish-hal9k",
+             "docker-publish-github-runner-image"}
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
-NAME = re.compile(r"^(?:\d\d-[a-z0-9]{6}/|(?P<lane>\S+) / )?(?P<job>.+)$")
+# The macOS build jobs (the workflow's `mac-vm-build`, plan 0263 D64) build beside the checks what the delivery installs,
+# and `mac-vm-build-plan` names them on the Mac host before (D128): `gate` needs none of them, so a red one is no red of
+# a candidate (hal2-git's ci/job_name.rs BUILD_JOBS).
+BUILD_JOBS = {"rust-bundle-apps-macos", "ts-bundle-desktop-macos", "mac-vm-build-plan"}
+BUILD_NAME = re.compile(r"^\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?P<job>.+)$")  # today's names only: no older run had these jobs
+NAME = re.compile(r"^(?:\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
 STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, without its `[NN] ` number
@@ -76,6 +82,12 @@ def is_ship(name: str) -> bool:
     """A ship job: its job part in the fixed set (the new names), or an old lane `ship / `, `mac-host-ship / `."""
     m = NAME.match(name or "")
     return m["job"] in SHIP_JOBS or m["lane"] in SHIP_LANES
+
+
+def is_build(name: str) -> bool:
+    """A macOS build job, `04-mac-vm-x/rust-bundle-apps-macos`, or the build's plan: red or not, it fails no candidate."""
+    m = BUILD_NAME.match(name or "")
+    return bool(m) and m["job"] in BUILD_JOBS
 
 
 def needed(job: dict) -> bool:
@@ -118,7 +130,7 @@ def stopped_by(jobs: list[dict]) -> list[str]:
 
 def red_jobs(jobs: list[dict]) -> list[str]:
     """The red jobs that count. In a run with a cause: the causes and a `gate` that is not green; every other
-    cancelled job only stopped and is left out."""
+    cancelled job only stopped and is left out. Never a ship job or a macOS build job: `gate` needs neither."""
     causes = stopped_by(jobs)
 
     def red(job: dict) -> bool:
@@ -130,7 +142,7 @@ def red_jobs(jobs: list[dict]) -> list[str]:
         return conclusion in RED
 
     return [j["name"] for j in jobs if red(j) and job_part(j.get("name", "")) not in NOT_COUNTED
-            and not is_ship(j.get("name", ""))]
+            and not is_ship(j.get("name", "")) and not is_build(j.get("name", ""))]
 
 
 def merged(jobs: list[dict]) -> bool:

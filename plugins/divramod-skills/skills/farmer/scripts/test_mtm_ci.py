@@ -30,6 +30,35 @@ class MtmCiTest(unittest.TestCase):
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
                          [("07", "landed", ""), ("03", "landed", ""), ("05", "failed", "gate")])
 
+    def test_a_red_macos_build_job_is_no_red_of_a_candidate(self):
+        # Plan 0263 D64: `mac-vm-build`'s jobs run beside the checks, outside `gate`'s needs, and carry no stop step.
+        build = {"name": "03-lmm1vx/rust-bundle-apps-macos", "conclusion": "failure"}
+        jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"}, build,
+                    {"name": "06-lmm1ha/deliver", "conclusion": "failure"}],
+                2: [{"name": "02-vhl1hb/rust-test", "conclusion": "failure"}, build,
+                    {"name": "03-lmm1vx/ts-bundle-desktop-macos", "conclusion": "cancelled"},
+                    {"name": "04-xxx1hx/gate", "conclusion": "failure"}]}
+        rows = mtm_ci.summary([run(1, "land/07", conclusion="failure"), run(2, "land/03", conclusion="failure")],
+                              lambda rid: jobs.get(rid, []), 0)
+        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
+                         [("07", "landed", ""), ("03", "failed", "02-vhl1hb/rust-test, 04-xxx1hx/gate")])
+        self.assertTrue(mtm_ci.is_build("03-lmm1va/ts-bundle-desktop-macos"))
+        # Plan 0263 D128: the build's plan on the Mac host, red (no VM came up): the landing stands, the candidate's
+        # red is its check's alone.
+        plan = {"name": "03-lmm1ha/mac-vm-build-plan", "conclusion": "failure"}
+        jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"}, plan],
+                2: [{"name": "02-vhl1hb/rust-test", "conclusion": "failure"}, plan,
+                    {"name": "04-xxx1hx/gate", "conclusion": "failure"}]}
+        rows = mtm_ci.summary([run(1, "land/07", conclusion="failure"), run(2, "land/03", conclusion="failure")],
+                              lambda rid: jobs.get(rid, []), 0)
+        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
+                         [("07", "landed", ""), ("03", "failed", "02-vhl1hb/rust-test, 04-xxx1hx/gate")])
+        self.assertTrue(mtm_ci.is_build("04-lmm1vx/rust-bundle-apps-macos"))
+        self.assertFalse(any(mtm_ci.is_build(n) for n in (
+            "03-lmm1vx/bash-test", "02-vhl1hb/rust-bundle-apps-linux", "03-xxx1hx/macos-build-nothing-to-run",
+            "rust-bundle-apps-macos", "b / rust-bundle-apps-macos", "06-lmm1ha/deliver", "mac-vm-build-plan",
+            "02-lmm1ha/mac-vm-wake", "")))
+
     def test_stage_and_code_names_read_as_the_old_ones_did(self):
         jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"},
                     {"name": "06-lmm1ha/deliver", "conclusion": "failure"}],
@@ -46,6 +75,11 @@ class MtmCiTest(unittest.TestCase):
         self.assertFalse(mtm_ci.is_ship("06-xxx1hx/all-tag-versions"))
         self.assertEqual([mtm_ci.job_part(n) for n in ("merge", "a / merge", "05-xxx1hx/merge", "park")],
                          ["merge", "merge", "merge", "park"])
+
+    def test_runner_alias_names_read_as_the_old_codes_did(self):
+        self.assertEqual([mtm_ci.job_part(n) for n in ("05-x-host-x/merge", "02-hz01-host-a/bash-lint", "02-mac-host-0/monitor", "05-xxx1hx/merge")],
+                         ["merge", "bash-lint", "monitor", "merge"])
+        self.assertTrue(mtm_ci.is_ship("06-mac-host-a/deliver"))
 
     def test_a_job_that_stops_its_run_fails_it_at_once_and_the_cancelled_jobs_only_stopped(self):
         # `gh run view --json jobs`, shaped after land run 38215106904 with the lanes' stop step; the job that stops

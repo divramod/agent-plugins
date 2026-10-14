@@ -131,8 +131,8 @@ path_without_gh() {
 
 @test "github: a run unfinished over three rounds gets one request, two runs one each" {
   echo 3 > "$fake/linger"
-  run_on 41 land/03 "in_progress none 02-vhl1hb/rust-test" "queued none 05-xxx1hx/merge"
-  run_on 42 land/04 "queued none 05-xxx1hx/merge"
+  run_on 41 land/03 "in_progress none 02-hz01-host-b/rust-test" "queued none 05-x-host-x/merge"
+  run_on 42 land/04 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ] # three rounds unfinished, the fourth finds them ended
@@ -143,7 +143,7 @@ path_without_gh() {
 
 @test "github: a run asked by an earlier call, also one whose request failed, is not asked again" {
   echo 2 > "$fake/linger"
-  run_on 43 land/03 "in_progress none 02-vhl1hb/rust-test"
+  run_on 43 land/03 "in_progress none 02-hz01-host-b/rust-test"
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   run bash "$here/ci-stop.sh" --interval 1
@@ -152,7 +152,7 @@ path_without_gh() {
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[],[43]]" ]
   rm "$fake/rounds"
   : > "$fake/refuses"
-  run_on 44 land/04 "in_progress none 02-vhl1hb/rust-test"
+  run_on 44 land/04 "in_progress none 02-hz01-host-b/rust-test"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 1 ]
   [[ "$output" == *"cancelling run 44 failed; it is not asked again"*"/mtm-fastlane/ci-stop/44.1.asked"* ]]
@@ -162,7 +162,7 @@ path_without_gh() {
 }
 
 @test "github: a run started again, a new attempt under its old id, is asked once more" {
-  run_on 43 land/03 "in_progress none 02-vhl1hb/rust-test"
+  run_on 43 land/03 "in_progress none 02-hz01-host-b/rust-test"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   echo "43 land/03 in_progress" > "$fake/runs"
@@ -178,11 +178,11 @@ path_without_gh() {
 @test "github: a run its own fail fast is ending gets no request, the loop waits for its end" {
   echo 2 > "$fake/linger"
   # The stop step of a job ended success: that job asked GitHub. And a job that carries the step concluded cancelled.
-  run_on 45 land/03 "in_progress none 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
-  step_of 45 02-vhl1ha/python-test failure "[07] gate python-test"
-  step_of 45 02-vhl1ha/python-test success
-  run_on 46 land/04 "completed cancelled 02-lmm1ha/bash-test" "in_progress none 03-lmm1ha/mac-vm-park"
-  step_of 46 02-lmm1ha/bash-test skipped " [08]  fail fast: stop the run "
+  run_on 45 land/03 "in_progress none 02-hz01-host-a/python-test" "in_progress none 02-hz01-host-b/rust-test"
+  step_of 45 02-hz01-host-a/python-test failure "[07] gate python-test"
+  step_of 45 02-hz01-host-a/python-test success
+  run_on 46 land/04 "completed cancelled 02-mac-host-a/bash-test" "in_progress none 03-mac-host-a/mac-vm-park"
+  step_of 46 02-mac-host-a/bash-test skipped " [08]  fail fast: stop the run "
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ ! -e "$fake/cancelled" ]
@@ -194,13 +194,13 @@ path_without_gh() {
 
 @test "github: only its own fail fast spares a run: any other cancelled job, a refused stop step, no step: asked" {
   echo 2 > "$fake/linger"
-  run_on 47 land/03 "completed cancelled 02-vzw1ha/rust-test-windows" "in_progress none 02-vhl1hb/rust-test"
-  step_of 47 02-vhl1hb/rust-test "" # cancelled at its own limit, without the step; a gate job still at work
-  run_on 48 land/04 "completed failure 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
-  step_of 48 02-vhl1ha/python-test failure # it ran, GitHub refused: nothing is cancelling the run
-  step_of 48 02-vhl1hb/rust-test skipped
-  run_on 49 land/05 "completed cancelled 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
-  step_of 49 02-vhl1ha/python-test cancelled "[19] fail fast: stop the run later" # another step's name
+  run_on 47 land/03 "completed cancelled 02-az01-host-a/rust-test-windows" "in_progress none 02-hz01-host-b/rust-test"
+  step_of 47 02-hz01-host-b/rust-test "" # cancelled at its own limit, without the step; a gate job still at work
+  run_on 48 land/04 "completed failure 02-hz01-host-a/python-test" "in_progress none 02-hz01-host-b/rust-test"
+  step_of 48 02-hz01-host-a/python-test failure # it ran, GitHub refused: nothing is cancelling the run
+  step_of 48 02-hz01-host-b/rust-test skipped
+  run_on 49 land/05 "completed cancelled 02-hz01-host-a/python-test" "in_progress none 02-hz01-host-b/rust-test"
+  step_of 49 02-hz01-host-a/python-test cancelled "[19] fail fast: stop the run later" # another step's name
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(requests)" = "47 48 49" ]
@@ -210,19 +210,19 @@ path_without_gh() {
   echo 2 > "$fake/linger"
   # The review of the fix round, 1: the step runs only in a job that failed or hit its limit, and its request is on
   # its way in these seconds. A look that asked now would send the run's second request.
-  run_on 55 land/03 "in_progress none 02-vhl1ha/python-test" "in_progress none 02-vhl1hb/rust-test"
-  step_of 55 02-vhl1ha/python-test failure "[07] gate python-test"
-  step_of 55 02-vhl1ha/python-test "" "[20] fail fast: stop the run" in_progress
-  step_of 55 02-vhl1hb/rust-test "" "[20] fail fast: stop the run" pending
+  run_on 55 land/03 "in_progress none 02-hz01-host-a/python-test" "in_progress none 02-hz01-host-b/rust-test"
+  step_of 55 02-hz01-host-a/python-test failure "[07] gate python-test"
+  step_of 55 02-hz01-host-a/python-test "" "[20] fail fast: stop the run" in_progress
+  step_of 55 02-hz01-host-b/rust-test "" "[20] fail fast: stop the run" pending
   # A failed step, the stop step not started: the job may yet find another job's stop and ask nothing. Not ending.
-  run_on 56 land/04 "in_progress none 02-vhl1ha/python-test"
-  step_of 56 02-vhl1ha/python-test failure "[07] gate python-test"
-  step_of 56 02-vhl1ha/python-test "" "[19] fail fast: why this job ended" in_progress
-  step_of 56 02-vhl1ha/python-test "" "[20] fail fast: stop the run" pending
+  run_on 56 land/04 "in_progress none 02-hz01-host-a/python-test"
+  step_of 56 02-hz01-host-a/python-test failure "[07] gate python-test"
+  step_of 56 02-hz01-host-a/python-test "" "[19] fail fast: why this job ended" in_progress
+  step_of 56 02-hz01-host-a/python-test "" "[20] fail fast: stop the run" pending
   # Another step in progress is no stop step.
-  run_on 57 land/05 "in_progress none 02-vhl1hb/rust-test"
-  step_of 57 02-vhl1hb/rust-test "" "[07] gate rust-test" in_progress
-  step_of 57 02-vhl1hb/rust-test "" "[20] fail fast: stop the run" pending
+  run_on 57 land/05 "in_progress none 02-hz01-host-b/rust-test"
+  step_of 57 02-hz01-host-b/rust-test "" "[07] gate rust-test" in_progress
+  step_of 57 02-hz01-host-b/rust-test "" "[20] fail fast: stop the run" pending
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(requests)" = "56 57" ]
@@ -231,8 +231,8 @@ path_without_gh() {
 }
 
 @test "github: dry-run names an ending run and one asked before, and asks neither" {
-  run_on 50 land/03 "completed cancelled 02-lmm1ha/bash-test"
-  step_of 50 02-lmm1ha/bash-test success
+  run_on 50 land/03 "completed cancelled 02-mac-host-a/bash-test"
+  step_of 50 02-mac-host-a/bash-test success
   run_on 51 land/04 "queued none merge"
   run_on 52 land/05 "queued none merge"
   mkdir -p "$(git rev-parse --git-common-dir)/mtm-fastlane/ci-stop"
@@ -248,13 +248,13 @@ path_without_gh() {
 
 @test "github: a merged run gets no request while a job of it runs, and one after the grace however long it ends" {
   echo 3 > "$fake/linger"
-  run_on 53 land/05 "completed success 05-xxx1hx/merge" "in_progress none 06-lmm1ha/deliver"
+  run_on 53 land/05 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ ! -e "$fake/cancelled" ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending, .waited]')" = "[[],[],[53]]" ]
   rm "$fake/rounds"
-  run_on 54 land/06 "completed success 05-xxx1hx/merge" "queued none 06-lmm1ha/deliver"
+  run_on 54 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ]
@@ -275,7 +275,7 @@ path_without_gh() {
 }
 
 @test "github: the merge job named by its stage and runner code (plan 0260) is the merge, its ship jobs wait for the grace" {
-  run_on 15 land/06 "completed success 05-xxx1hx/merge" "queued none 06-lmm1ha/deliver"
+  run_on 15 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
@@ -283,7 +283,7 @@ path_without_gh() {
 }
 
 @test "github: a run whose merge job named by stage and runner code has not run is cancelled" {
-  run_on 16 land/07 "completed failure 04-xxx1hx/gate" "queued none 05-xxx1hx/merge"
+  run_on 16 land/07 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 16 ]
@@ -379,7 +379,7 @@ EOF
 
 @test "github: a conf written before the rename (LAND_WORKFLOWS=land.yml) also stops merge-to-main.yml's runs" {
   echo land.yml > "$fake/unknown" # after the rename GitHub does not know land.yml
-  run_under merge-to-main.yml 31 land/03 "completed failure 04-xxx1hx/gate" "queued none 05-xxx1hx/merge"
+  run_under merge-to-main.yml 31 land/03 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 31 ]
@@ -388,9 +388,9 @@ EOF
 
 @test "github: unfinished runs of both workflow files are stopped, a merged one of either is waited for" {
   : > "$fake/unknown"
-  run_on 32 land/04 "in_progress none 02-vhl1hx/rust-test" "queued none 05-xxx1hx/merge"
-  run_under merge-to-main.yml 33 land/05 "queued none 05-xxx1hx/merge"
-  run_under merge-to-main.yml 34 land/06 "completed success 05-xxx1hx/merge" "in_progress none 06-lmm1ha/deliver"
+  run_on 32 land/04 "in_progress none 02-hz01-host-x/rust-test" "queued none 05-x-host-x/merge"
+  run_under merge-to-main.yml 33 land/05 "queued none 05-x-host-x/merge"
+  run_under merge-to-main.yml 34 land/06 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "32 33" ]
@@ -442,7 +442,7 @@ EOF
   commit_workflow land.yml
   [ "$(workflows)" = "land.yml merge-to-main.yml" ]
   : > "$fake/unknown" # main was renamed meanwhile: GitHub knows both, the running landing is under the new name
-  run_under merge-to-main.yml 37 land/03 "queued none 05-xxx1hx/merge"
+  run_under merge-to-main.yml 37 land/03 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 37 ]
