@@ -1,6 +1,6 @@
 # Proposal: hal2's OWNER-ROLE.md tasks in the machine form
 
-For the user to apply in the owner slot (`~/.hal/git/worktree/hal2/owner/OWNER-ROLE.md`, the user's file: the owner
+For the user to apply in the owner's worktree (`~/.hal/git/worktree/hal2/owner/OWNER-ROLE.md`, the user's file: the owner
 never edits it). It replaces the `## Tasks` section; `python3 <owner>/scripts/due.py check` then names all four
 "run by the tick". The form: [tasks.py](../../code/claude-code/apps/skills/skills/owner/scripts/tasks.py)'s docstring. What changes: each Check is
 commands only, each Act commands and `notify`/`delegate`/`wake`, the prose moves to **Why**. Nothing changes in what
@@ -41,6 +41,6 @@ the owner may do: the n8n redeploy stays the one production deploy this file all
 - **Cron**: `0 * * * *`
 - **Check**: `owner check orphans`
 - **Act**: wake
-- **Why**: the `mtm` duty already starts a session in an orphaned slot that has a HANDOFF.md (`/handoff c`); what
+- **Why**: the `mtm` duty already starts a session in an orphaned worktree that has a HANDOFF.md (`/handoff c`); what
   this check still finds has none, and the model decides (`/plan n`, or ask the user).
-- **Done when**: every slot with work has a session.
+- **Done when**: every worktree with work has a session.

@@ -3,14 +3,14 @@
   farmer.py question add --slot <slot|farmer> --text <the question in the Q form> [--waits <what waits for it>]
   farmer.py question answer <n> --text <answer>      farmer.py question drop <n> [--text <why>]
   farmer.py question list [--open|--answered|--all] [--json]       the farmer's own store only
-  farmer.py questions [a|answered|l|list] [--json]    the call `/farmer questions` (and `/q` in the farmer slot): the
-      farmer's own entries, the log's open `ask` entries and unacked instructions, and every worktree slot's store (the
-      `q` skill's script), sorted by slot then number, each in the Q form under a head line. No model call.
+  farmer.py questions [a|answered|l|list] [--json]    the call `/farmer questions` (and `/q` in the farmer's worktree): the
+      farmer's own entries, the log's open `ask` entries and unacked instructions, and every worktree's store (the
+      `q` skill's script), sorted by worktree then number, each in the Q form under a head line. No model call.
 
 The store is `questions.jsonl` in the farmer's role folder, a keyed log (hal2 .adr/role-folder-formats.md): key `n`, the
 last line per number is the state, so add, answer and drop each append one whole line. A line: `schema` 1, `at` (UTC),
 `n`, `slot`, `text`, `waits`, `state` (open, answered, dropped), `asked`, `answer`, `closed`. A number is the highest ever
-written plus one: never reused. Reading never creates the folder; a write needs it (the farmer slot, or FARMER_DIR).
+written plus one: never reused. Reading never creates the folder; a write needs it (the farmer's worktree, or FARMER_DIR).
 """
 
 import argparse
@@ -89,7 +89,7 @@ def load(folder: Path) -> list[dict]:
 def append(folder: Path, make) -> dict:
     """Appends the line `make(entries by number)` returns, under an exclusive lock, so two writers never share a number."""
     if not folder.is_dir():
-        raise ValueError(f"no farmer state folder at {folder}: start the farmer slot first")
+        raise ValueError(f"no farmer state folder at {folder}: start the farmer's worktree first")
     with (folder / FILE).open("a+") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         f.seek(0)
@@ -146,7 +146,7 @@ def own_entries(folder: Path) -> list[dict]:
 
 
 def relayed(folder: Path) -> list[dict]:
-    """The log's open `ask` entries (a slot's last `ask` or answer is an `ask`) and the farmer's instructions nobody
+    """The log's open `ask` entries (a worktree's last `ask` or answer is an `ask`) and the farmer's instructions nobody
     acked (state_sources.unacked, the call `state` uses)."""
     log = mtm_scan.entries(folder / "log.jsonl")
     if not log:
@@ -176,7 +176,7 @@ def unacked_entries(log: list[dict]) -> list[dict]:
 
 
 def slot_entries(main: str, mode: str) -> tuple[list[dict], list[str]]:
-    """Every worktree slot's store (and the main checkout's) through the `q` skill's script; a store that cannot be read
+    """Every worktree's store (and the main checkout's) through the `q` skill's script; a store that cannot be read
     is named in the problems; without the `q` skill nothing is added."""
     qm = sibling("q_skill", Q_SCRIPTS, "q.py")
     if qm is None or getattr(qm, "questions", None) is None:
@@ -200,7 +200,7 @@ def slot_key(slot: str) -> tuple:
 
 
 def gather(main: str, mode: str) -> tuple[list[dict], list[str]]:
-    """Everything that matches `mode`, sorted by slot then number (a relayed ask has none)."""
+    """Everything that matches `mode`, sorted by worktree then number (a relayed ask has none)."""
     folder = read_dir(main)
     own = [e for e in own_entries(folder) if mode == "all" or e["state"] == mode]
     shown = relayed(folder) if mode in ("open", "all") else []
@@ -211,7 +211,7 @@ def gather(main: str, mode: str) -> tuple[list[dict], list[str]]:
 
 def head(entries: list[dict], mode: str) -> str:
     n, k = len(entries), len({e["slot"] for e in entries})
-    where = f"in {k} slot{'s' * (k != 1)}"
+    where = f"in {k} worktree{'s' * (k != 1)}"
     if mode == "all":
         return f"{n} question{'s' * (n != 1)} {where}, {sum(e['state'] == 'open' for e in entries)} open"
     return f"{n} {mode} question{'s' * (n != 1)} {where}"
@@ -223,7 +223,7 @@ def block(e: dict) -> str:
 
 
 def render(entries: list[dict], problems: list[str], mode: str) -> str:
-    """The head line, then each entry under its slot and source; one line when none. Problems close the list."""
+    """The head line, then each entry under its worktree and source; one line when none. Problems close the list."""
     tail = [f"(not read: {p})" for p in problems]
     if not entries:
         return "\n".join([NONE[mode], *tail])
@@ -231,7 +231,7 @@ def render(entries: list[dict], problems: list[str], mode: str) -> str:
 
 
 def joined(mode_key: str, as_json: bool, repo: str) -> int:
-    """`/farmer questions` (and `/q` in the farmer slot): print the one list."""
+    """`/farmer questions` (and `/q` in the farmer's worktree): print the one list."""
     mode, main = MODES[mode_key], mtm_scan.main_checkout(repo)
     entries, problems = gather(main, mode)
     if as_json:

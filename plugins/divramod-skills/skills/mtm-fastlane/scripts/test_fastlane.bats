@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # fastlane.sh and plain-land.sh against a scratch repository: a bare origin, its
-# main checkout and a worktree slot 07; hal2-cli-git faked where it lands.
+# main checkout and a worktree 07; hal2-cli-git faked where it lands.
 
 setup() {
   here="$BATS_TEST_DIRNAME"

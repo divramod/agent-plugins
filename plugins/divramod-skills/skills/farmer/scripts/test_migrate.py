@@ -16,7 +16,7 @@ def git(cwd, *args):
 
 
 class Repo(unittest.TestCase):
-    """Before plan 0143: main `a/hal2` (origin `hal2.git`) with FARMER-ROLE.md, the farmer slot `farmer` on branch
+    """Before plan 0143: main `a/hal2` (origin `hal2.git`) with FARMER-ROLE.md, the farmer's worktree `farmer` on branch
     `farmer` (pushed), state in `skills/farmer/hal2/` and round summaries in `plans/farmer/`; the home is tmp."""
 
     def setUp(self):

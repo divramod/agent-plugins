@@ -1,4 +1,4 @@
-# development-lead cases
+# development-lead cases (the development foreman's)
 
 Newest first. There is one case per kind of help. A recurrence adds a line under **Occurrences**. **Lasting fix**
 is `none`, `shot <shotfile>/<n>`, `plan <NNNN>` or `landed <plan> <date>`.
@@ -11,5 +11,5 @@ is `none`, `shot <shotfile>/<n>`, `plan <NNNN>` or `landed <plan> <date>`.
   "unlock the Mac" for the user.
 - **Occurrences**:
   - 2026-10-03 hal2 wt 04, 05, 06, 14.
-- **Lasting fix**: none. The idea is a scheduled UI-test window (the farmer runs every waiting slot's UI tests one
+- **Lasting fix**: none. The idea is a scheduled UI-test window (the farmer runs every waiting worktree's UI tests one
   after the other while the user is away and the Mac is unlocked).

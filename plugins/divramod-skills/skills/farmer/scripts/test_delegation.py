@@ -19,7 +19,7 @@ def flaky():
 
 
 class Ledger(unittest.TestCase):
-    """The farmer's state folder in a temp dir, free.py listing `self.free`, create.py starting slot 18."""
+    """The farmer's state folder in a temp dir, free.py listing `self.free`, create.py starting worktree 18."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -189,10 +189,10 @@ class ServantSlots(Ledger):
         self.assertEqual(prune.SUBSERVANTS_FROM, 30)
         record = Path(delegation.__file__).parents[5] / ".adr" / "subservants-in-slots-30-99.md"
         if record.exists():  # the repository's record stays as it is
-            self.assertIn("A subservant MUST work only in a worktree slot from 30 to 99", record.read_text())
+            self.assertIn("A servant MUST work only in a worktree from 30 to 99", record.read_text())
 
     def test_a_reused_session_at_other_values_is_switched_never_typed_into(self):
-        """Skills plan 0016: a free session at sonnet or another effort restarts at the servant's values."""
+        """Skills plan 0016: a free session at sonnet or another effort restarts at the foreman's values."""
         self.free = [{"slot": "31", "panes": ["%31"]}]
         for live in ({"model": "claude-sonnet-5-5", "effort": "medium"}, {"model": "opus[1m]", "effort": "max"},
                      {"model": "", "effort": ""}):
@@ -214,8 +214,8 @@ class ServantSlots(Ledger):
         self.assertFalse(delegation.same_model("claude-opus-4-6", "claude-opus-5-5"))
 
     def test_follow_up_never_touches_a_session_it_did_not_start(self):
-        """A session in slot 31 that is not in the farmer's ledger (a user's, or a former subservant) is neither
-        recorded nor stopped, even when its slot looks landed."""
+        """A session in worktree 31 that is not in the farmer's ledger (a user's, or a former servant) is neither
+        recorded nor stopped, even when its worktree looks landed."""
         delegation.delegate(flaky(), MAIN, 5, False, NOW)
         slots = {"18": {"plan": "0120-fix-t", "ahead": 2}, "31": {"plan": "", "ahead": 0}}
         self.assertEqual(delegation.follow_up(MAIN, slots, 5, False, NOW + dt.timedelta(hours=2)), [])

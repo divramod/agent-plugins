@@ -100,7 +100,7 @@ Never cancel the run: the whole workflow finishes, so every red job of it is kno
 
 **Work while it is tested** (the user, 2026-10-12: "you should always trigger work, which can be done while you are
 waiting for a pipeline run to finish"). A land run takes an hour and more: right after the landing started, do what
-the plan skill's "A wait is never idle" says (prepare the steps that wait for the landing, move idle servants, merge
+the plan skill's "A wait is never idle" says (prepare the steps that wait for the landing, move idle foremen, merge
 nothing into the landing's branch), and only wait when nothing is left, saying why.
 
 ## Red

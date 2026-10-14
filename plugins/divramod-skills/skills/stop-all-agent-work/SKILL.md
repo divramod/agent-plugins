@@ -20,7 +20,7 @@ Claude Code's cross-session socket (`ListAgents`, `SendMessage`); do not type in
 ## 1. Who stops
 
 `ListAgents` lists the peer sessions (this session is not among them and keeps running: it coordinates).
-Resolve each kept session to its row: a name like `07-53` is a slot, not a repository, so check its checkout —
+Resolve each kept session to its row: a name like `07-53` is a worktree number, not a repository, so check its checkout —
 `lsof -a -p <pid> -d cwd` of the `claude` processes (`pgrep -x claude`), or the row's tmux pane
 (`tmux display -p -t <%pane> '#{pane_current_path}'`). Keep the checkout path(s) for step 4 (`--keep-cwd`).
 Ask only when a kept name matches several sessions. Everyone else is stopped.

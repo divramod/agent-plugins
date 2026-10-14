@@ -168,7 +168,7 @@ def agent_label(agent):
 
 
 def place(cwd):
-    """(project, slot) of the checkout containing `cwd`, as hal2 derives it."""
+    """(project, worktree) of the checkout containing `cwd`, as hal2 derives it."""
     out = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
         cwd=cwd, capture_output=True, text=True,
@@ -193,7 +193,7 @@ def current_repo():
 
 
 def find_agent(all_agents, worktree, repo=None):
-    """The Claude agent of worktree slot `worktree` (`02`, `main`) of `repo`
+    """The Claude agent of worktree `worktree` (`02`, `main`) of `repo`
     (a name; any repository when None). Several matches: None and the labels."""
     hits = [a for a in all_agents if a.get("kind") == "claude" and a.get("slot") == worktree
             and (repo is None or Path(a.get("project") or "").name == repo)]
@@ -462,13 +462,13 @@ def main():
     s = sub.add_parser("show")
     s.add_argument("--pane")
     s.add_argument("--session")
-    s.add_argument("--worktree", help="worktree slot, e.g. 02 or main")
+    s.add_argument("--worktree", help="worktree, e.g. 02 or main")
     s.add_argument("--repo", help="repository name (default: this checkout's, else any)")
     s.add_argument("--hours", type=float, default=3)
     k = sub.add_parser("capture")
     k.add_argument("--pane")
     k.add_argument("--session")
-    k.add_argument("--worktree", help="worktree slot, e.g. 02 or main")
+    k.add_argument("--worktree", help="worktree, e.g. 02 or main")
     k.add_argument("--repo", help="repository name (default: this checkout's, else any)")
     k.add_argument("--out", required=True)
     k.add_argument("--hours", type=float, default=3)

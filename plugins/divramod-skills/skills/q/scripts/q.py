@@ -8,8 +8,8 @@
   q.py --path       only the store's path, relative to the checkout
   q.py ... --repo <path>   another checkout
 
-In the farmer's own slot (`farmer-<repo>`) it prints the farmer's joined list instead (`farmer.py questions`): the
-farmer's own questions, the log's open asks and every worktree slot's store; `--path` still names the own store.
+In the farmer's own worktree (`farmer-<repo>`) it prints the farmer's joined list instead (`farmer.py questions`): the
+farmer's own questions, the log's open asks and every worktree's store; `--path` still names the own store.
 
 The store is the current plan's `plans/<plan>/questions.md` (`plans/CURRENT_PLAN`, a slug or a path; else the plan the
 root HANDOFF.md links), else the checkout's gitignored root `QUESTIONS.md`, the same entry format (the handoff
@@ -130,12 +130,12 @@ def render(entries: list[dict], mode: str, store: str) -> str:
 
 
 def in_farmer_slot(root: Path) -> bool:
-    """The checkout is the farmer's own slot `farmer-<repo>`: `/q` there is the farmer's joined list (D14)."""
+    """The checkout is the farmer's own worktree `farmer-<repo>`: `/q` there is the farmer's joined list (D14)."""
     return root.name.startswith("farmer-") and (FARMER_SCRIPTS / "questions.py").is_file()
 
 
 def hand_over(args, root: Path) -> int | None:
-    """The farmer's joined list (`farmer.py questions`) in the farmer's slot; None when it cannot be loaded."""
+    """The farmer's joined list (`farmer.py questions`) in the farmer's worktree; None when it cannot be loaded."""
     if str(FARMER_SCRIPTS) not in sys.path:
         sys.path.append(str(FARMER_SCRIPTS))
     farmer = load_by_path("farmer_questions", FARMER_SCRIPTS / "questions.py")

@@ -47,7 +47,7 @@ class ParallelTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
-        self.root = self.base / "02"  # the lead's slot
+        self.root = self.base / "02"  # the foreman's worktree
         self.root.mkdir()
         git(self.root, "init", "-q", "-b", "main")
         self.plans = self.root / "plans"
@@ -242,7 +242,7 @@ class ParallelTest(unittest.TestCase):
         self.path.write_text(self.path.read_text().replace("Landing: auto\n", capacity))
         self.assertIn("7", self.numbers(self.ready()["ready"]))
 
-    # the subservant's slot
+    # the servant's worktree
 
     def test_a_marked_cwd_refuses_writes_to_the_lead_plan_given_by_root(self):
         slot = self.add_slot("32")
@@ -252,10 +252,10 @@ class ParallelTest(unittest.TestCase):
         before = self.path.read_text()
 
         for args in (("status", "3", "done"), ("assign", "3", "lead")):
-            self.assertIn("is a subservant of slot 02", self.refused(*args, cwd=slot / "sub"), args)
+            self.assertIn("is a servant of worktree 02", self.refused(*args, cwd=slot / "sub"), args)
         self.assertEqual(self.path.read_text(), before)
         self.assertEqual(self.plan("current")["slug"], SLUG)  # reading works
-        self.plan("status", "3", "done")  # from outside the slot the lead writes
+        self.plan("status", "3", "done")  # from outside the worktree the foreman writes
 
     def test_a_marked_slot_refuses_writes_to_the_plan(self):
         before = self.path.read_text()
@@ -263,7 +263,7 @@ class ParallelTest(unittest.TestCase):
 
         for args in (("new", "x"), ("status", "3", "done"), ("assign", "3", "lead"), ("grilled",),
                      ("landing", "manual"), ("uat",), ("scaffold",), ("run", "--effort", "max"), ("migrate",)):
-            self.assertIn("is a subservant of slot 02", self.refused(*args), args)
+            self.assertIn("is a servant of worktree 02", self.refused(*args), args)
         self.assertEqual(self.path.read_text(), before)
         self.assertEqual(self.plan("current")["lead"], {"slot": "02", "plan": SLUG, "step": "3"})
         self.assertEqual(self.numbers(self.ready()["ready"]), ["3", "5", "6"])
@@ -273,8 +273,8 @@ class ParallelTest(unittest.TestCase):
 
         error = self.refused("status", "3", "done")
 
-        self.assertIn(f"subservant of slot 07 (plan {SLUG} step 3)", error)
-        self.assertIn("stale plans/LEAD of the lead in slot 07", error)
+        self.assertIn(f"servant of worktree 07 (plan {SLUG} step 3)", error)
+        self.assertIn("stale plans/LEAD of the foreman in worktree 07", error)
         self.assertIn("never lands", error)
         self.assertIn("delete plans/LEAD", error)
         self.assertNotIn("plan.py report", error)

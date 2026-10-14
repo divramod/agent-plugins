@@ -72,7 +72,7 @@ def agents_by_checkout(agents: list[dict]) -> dict[str, dict]:
 
 
 def foreman_of(path: str | Path) -> str | None:
-    """The slot named by the worktree's `plans/LEAD` (`<foreman-slot> <plan> <step>`), None without a usable marker."""
+    """The worktree named by the worktree's `plans/LEAD` (`<foreman-slot> <plan> <step>`), None without a usable marker."""
     if lead_marker:
         m = lead_marker.marker(path)
         return m.get("slot") if m and not m.get("bad") else None

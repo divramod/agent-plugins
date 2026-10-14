@@ -2,15 +2,15 @@
 """The state of a repository's GitHub Actions, for the farmer skill's ci duty.
 
   ci_scan.py scan [--repo <dir>] [--json] [--all]
-      the latest run of every workflow (dynamic ones such as Dependabot's included) on the default branch and on each slot branch,
+      the latest run of every workflow (dynamic ones such as Dependabot's included) on the default branch and on each worktree branch,
       and findings: a workflow red on the default branch (with its failed jobs), red on
-      a slot's branch, a run queued too long (a runner offline?) or running too long (with `ending`: its own
+      a worktree's branch, a run queued too long (a runner offline?) or running too long (with `ending`: its own
       fail fast is stopping it, never cancel it by hand).
       Runs already handled are left out (--all: shown too). No workflows: nothing to do
   ci_scan.py record <run-id> <what> [--note <text>] [--repo <dir>]
       mark a run handled (log: ci.jsonl in the farmer's state folder)
 
-Reads gh (gh run list, gh run view) and git; writes only the farmer's state folder (roles/farmer/ of its slot).
+Reads gh (gh run list, gh run view) and git; writes only the farmer's state folder (roles/farmer/ of its worktree).
 Exit 0 on success, 2 when a tool is missing.
 """
 
@@ -29,7 +29,7 @@ import gh_runs
 import mtm_ci
 import roles
 
-DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer slot's roles/farmer/ (roles.state_dir)
+DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 MINUTE = 60
 QUEUED_TOO_LONG = 20 * MINUTE
 # A job queued this long wakes the repository's parked runner, when it has a wake tool (hal2's webhook missed it).
@@ -73,7 +73,7 @@ def is_slot_branch(branch: str) -> bool:
 
 
 def latest_runs(runs: list[dict], default: str) -> list[dict]:
-    """The newest run per (workflow, branch), for the default branch and slot branches."""
+    """The newest run per (workflow, branch), for the default branch and worktree branches."""
     seen, out = set(), []
     for r in sorted(runs, key=lambda r: parse_time(r.get("createdAt")), reverse=True):
         branch = r.get("headBranch") or ""

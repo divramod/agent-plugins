@@ -16,7 +16,7 @@ def ticket(slot, pos, state="waiting", **kw):
 
 
 def info(**slots):
-    """slot=commits ahead → slot_info's shape."""
+    """worktree=commits ahead → slot_info's shape."""
     return {s: {"ahead": n, "current": ""} for s, n in slots.items()}
 
 
@@ -70,7 +70,7 @@ class Group(unittest.TestCase):
         self.assertEqual(trains.group(q, info(**{"01": 1, "02": 0}), {}, clean), ([], {}))
 
     def test_a_subservants_slot_is_neither_carrier_nor_passenger(self):
-        # Review 1 finding 11: a slot with plans/LEAD (even a broken one) never lands, so it never rides.
+        # Review 1 finding 11: a worktree with plans/LEAD (even a broken one) never lands, so it never rides.
         with tempfile.TemporaryDirectory() as d:
             q = [dict(ticket(s, n), worktree=str(Path(d) / s)) for n, s in enumerate(("31", "01", "32", "02"))]
             for s in ("31", "32"):
@@ -135,7 +135,7 @@ class Plan(unittest.TestCase):
                           ("train", "record", "17")])
         self.assertIn("Merge 21, 12 into your branch", out[0]["text"])
         self.assertEqual(out[0]["pane"], "%1")
-        self.assertIn("rides in slot 17's landing; keep your ticket", out[1]["text"])
+        self.assertIn("rides in worktree 17's landing; keep your ticket", out[1]["text"])
         self.assertEqual({a.get("after") for a in out[1:]}, {"train:17+21+12:17"})
         self.assertNotIn("CURRENT_PLAN", out[0]["text"], "no car names a plan")
 

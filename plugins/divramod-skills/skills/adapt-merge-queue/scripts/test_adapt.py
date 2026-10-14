@@ -49,7 +49,7 @@ class Messages(unittest.TestCase):
 
     def test_the_queue_before_and_after(self):
         text = adapt.render({"queue": []}, {"queue": [ticket("18", 0, True)], "priority": {"slots": ["18"]}}, [])
-        self.assertEqual(text, "before:\n  (empty)\nafter:\n  1. 18: reserved, waits for its slot (reserved by "
+        self.assertEqual(text, "before:\n  (empty)\nafter:\n  1. 18: reserved, waits for its turn (reserved by "
                                "the user)\npriority: 18\ntell: nobody")
 
 

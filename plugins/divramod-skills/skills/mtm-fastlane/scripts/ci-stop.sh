@@ -3,8 +3,8 @@
 # Stop the land attempts before the fastlane reserves (SKILL.md, land step 3), in
 # the worktree <dir> (default .):
 #   ci-stop.sh [--dry-run] [--max-wait 60m] [--interval <s>] [<dir>]
-# 1. hal2-cli-git: this slot goes to the front of the queue's priority list, and
-#    another slot's landing or reservation that holds the queue is stopped.
+# 1. hal2-cli-git: this worktree goes to the front of the queue's priority list, and
+#    another worktree's landing or reservation that holds the queue is stopped.
 # 2. Every unfinished land run (GitHub: the conf's LAND_WORKFLOWS, default the repository's
 #    merge-to-main.yml or land.yml, and always both of these names where one is a land
 #    workflow: a run started before the rename is under the old one; GitLab: pipelines
@@ -57,7 +57,7 @@ if bin=$(hal2_bin); then
     say "would move $slot to the front of the queue"
     [ -z "$holder" ] || say "would stop the landing of $holder, which holds the queue"
   else
-    # shellcheck disable=SC2086 # the slots are words
+    # shellcheck disable=SC2086 # the worktrees are words
     (cd "$top" && "$bin" worktree queue order "$slot" $others --json >/dev/null) || die 1 "queue order failed"
     say "$slot is first in the queue"
     if [ -n "$holder" ]; then

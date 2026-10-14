@@ -12,14 +12,14 @@ with `do` one of
   send    pane, text: a templated message typed into an idle session's empty prompt (deliver.py); refused
           (busy, a draft, a dialog) it becomes a `relay`
   relay   text: a templated message the woken session sends verbatim with SendMessage (busy sessions)
-  delegate text, brief: a fix for a servant (delegation.py starts it; a failed start wakes the model)
+  delegate text, brief: a fix for a foreman (delegation.py starts it; a failed start wakes the model)
   wake    text: an item that needs the model (wake.py hands these to the woken session)
   notify  text: a notice for the user (the woken session pushes them, batched)
 
 An action may carry a `key` (the log keeps it) and a `window` in seconds (default a week): `fresh` drops an action
-whose key was logged within its window, and an action `after` a dropped key with it. Messages and wakes for a slot
+whose key was logged within its window, and an action `after` a dropped key with it. Messages and wakes for a worktree
 that waits for the user (an `ask` in the log with no `answered` after it) are dropped too, and so are
-messages and wakes about the farmer's own slot (its session is the one woken).
+messages and wakes about the farmer's own worktree (its session is the one woken).
 
 Every executed action except `ran` goes into the farmer's log with `"by": "tick"`.
 
@@ -48,7 +48,7 @@ import wake
 OFFLINE = 75  # EX_TEMPFAIL: a recheck that could not tell (this machine is offline) is not a failure
 
 ROLE = roles.ROLE_FILE
-ROLE_FILES = (roles.ROLE_FILE, roles.ROLE_IGNORE)  # what the farmer slot may change
+ROLE_FILES = (roles.ROLE_FILE, roles.ROLE_IGNORE)  # what the farmer's worktree may change
 MFM = ["hal2-cli-git", "worktree", "merge-from-main", "--json"]
 
 
@@ -74,19 +74,19 @@ def default_ref(repo: str) -> str:
 
 
 def slot_problem(repo: str) -> str | None:
-    """None when `repo` is the farmer slot (`farmer-<project>`) holding nothing but changes of its role files
+    """None when `repo` is the farmer's worktree (`farmer-<project>`) holding nothing but changes of its role files
     (ROLE_FILES), else why not."""
     top = git(repo, "rev-parse", "--show-toplevel")
     if top and Path(top).name == roles.ROLE:
-        return (f"the farmer slot {top} is not migrated to {roles.slot_name(top)}: "
+        return (f"the farmer's worktree {top} is not migrated to {roles.slot_name(top)}: "
                 f"run `farmer.py migrate --repo {top}`")
     if not top or not roles.is_slot(top):
         slot = roles.slot_name(top or repo)
-        return f"not the farmer slot {slot} ({top or repo}): start me with `hal2-cli-git worktree run {slot} --agent claude`"
+        return f"not the farmer's worktree {slot} ({top or repo}): start me with `hal2-cli-git worktree run {slot} --agent claude`"
     changed = set(git(top, "diff", "--name-only", f"{default_ref(top)}...HEAD").split())
     changed |= {line[3:].strip() for line in git(top, "status", "--porcelain", "-uall").splitlines()}
     other = sorted(changed - {*ROLE_FILES, ""})
-    return f"the farmer slot holds more than {ROLE}: {', '.join(other)}" if other else None
+    return f"the farmer's worktree holds more than {ROLE}: {', '.join(other)}" if other else None
 
 
 @contextmanager
@@ -109,7 +109,7 @@ def role_edit(top: str) -> tuple[list[dict], bool]:
         return [], True
     path = Path(top) / ROLE
     if not path.exists():
-        return [act("frame", "role-gone", "notify", text=f"{ROLE} was deleted in the farmer slot: nothing runs")], False
+        return [act("frame", "role-gone", "notify", text=f"{ROLE} was deleted in the farmer's worktree: nothing runs")], False
     problems = due.schedule(path.read_text())[2]
     if problems:
         return [act("frame", "role-invalid", "notify",
@@ -121,7 +121,7 @@ def role_edit(top: str) -> tuple[list[dict], bool]:
 
 
 def due_items(top: str, now: dt.datetime | None = None, all_due: bool = False) -> tuple[list[dict], dict, list[str]]:
-    """(the due duties and tasks, the settings, problems) from the slot's role file (ROLE); `all_due` counts every
+    """(the due duties and tasks, the settings, problems) from the worktree's role file (ROLE); `all_due` counts every
     opted-in item due (a dry run's measurement, farmer.py tick --all-due)."""
     path = Path(top) / ROLE
     if not path.exists():
@@ -161,7 +161,7 @@ def fresh(actions: list[dict], log: list[dict], now: dt.datetime) -> list[dict]:
         key = a.get("key")
         old = key and key in seen and (now - seen[key]).total_seconds() < a.get("window", WEEK)
         talk = a["do"] in ("send", "relay", "wake")
-        # An open ask holds what the farmer would type; a lead wake still reaches it: it finds the answer (plan 0137).
+        # An open ask holds what the farmer would type; a foreman wake still reaches it: it finds the answer (plan 0137).
         judge = a["do"] == "wake" and a.get("duty") == "lead"
         held = (a["slot"] in asked and ((talk and not judge) or a["kind"] == "orphan")) \
             or (roles.is_farmer_label(a["slot"]) and talk)
@@ -176,13 +176,13 @@ WAITS = {("lead", "idle-in-plan"), ("watch", "judge")}  # a stop that only means
 
 
 def waiting_noise(actions: list[dict], waiting: set[str]) -> list[dict]:
-    """Drop the wakes that only say a slot waits: idle in its plan or ended early while it is queued or paused."""
+    """Drop the wakes that only say a worktree waits: idle in its plan or ended early while it is queued or paused."""
     return [a for a in actions if not (a["do"] == "wake" and (a["duty"], a["kind"]) in WAITS and a["slot"] in waiting)]
 
 
 def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool) -> dict:
-    """What every duty's planner reads: the log, the opted-in duties, the agents by pane, each slot's pane and the
-    slots whose landing runs or holds the queue (never touched)."""
+    """What every duty's planner reads: the log, the opted-in duties, the agents by pane, each worktree's pane and the
+    worktrees whose landing runs or holds the queue (never touched)."""
     agents = deliver.cli("list", "--json")[1]
     try:
         data = json.loads(agents)
@@ -252,20 +252,20 @@ def execute(a: dict, top: str, main: str, out: dict) -> None:
 
 
 def stay_current(top: str, main: str, out: dict) -> None:
-    """Merge the default branch into the farmer slot the way /mfm does; a failure needs the model."""
-    a = act("frame", "stay-current", "run", argv=MFM, text="merge-from-main in the farmer slot")
+    """Merge the default branch into the farmer's worktree the way /mfm does; a failure needs the model."""
+    a = act("frame", "stay-current", "run", argv=MFM, text="merge-from-main in the farmer's worktree")
     execute(a, top, main, out)
     if a["exit"]:
         try:
             status = json.loads(a["output"].splitlines()[-1]).get("status", "error")
         except (ValueError, IndexError, AttributeError):
             status = "error"
-        execute(act("frame", "mfm-failed", "wake", text=f"merge-from-main in the farmer slot: {status}",
+        execute(act("frame", "mfm-failed", "wake", text=f"merge-from-main in the farmer's worktree: {status}",
                     evidence=a["output"]), top, main, out)
 
 
 def slot_state(main: str) -> dict[str, dict]:
-    """Each worktree slot's CURRENT_PLAN and commits not on main (what the delegation follow-up reads)."""
+    """Each worktree's CURRENT_PLAN and commits not on main (what the delegation follow-up reads)."""
     out = {}
     for w in mtm_scan.worktrees(main):
         plan = Path(w["path"]) / "plans/CURRENT_PLAN"
@@ -275,7 +275,7 @@ def slot_state(main: str) -> dict[str, dict]:
 
 
 def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
-    """Place this round's delegations (planned ones in a dry run), then follow up on the running servants."""
+    """Place this round's delegations (planned ones in a dry run), then follow up on the running foremen."""
     settings = out.get("settings") or {}
     limit, values = delegation.parse_limit(settings.get("servant_limit")), delegation.servant_values(settings)
     todo = [a for a in out["planned"] if a["do"] == "delegate"] if dry else out.get("delegate", [])
@@ -308,7 +308,7 @@ def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, al
     with timed(timing, "frame"):
         top = git(repo, "rev-parse", "--show-toplevel")
         main = mtm_scan.main_checkout(top)
-        out["planned"].append(act("frame", "stay-current", "run", argv=MFM, text="merge-from-main in the farmer slot"))
+        out["planned"].append(act("frame", "stay-current", "run", argv=MFM, text="merge-from-main in the farmer's worktree"))
         if not dry:
             stay_current(top, main, out)
             out["done"].append(out["planned"][0])

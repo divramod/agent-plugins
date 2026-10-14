@@ -123,30 +123,30 @@ After the report (not for `--dry-run` or `--no-implement`), offer to start the s
 1. Find idle sessions of the shot's repository (for a global shot: the current repository, where it will be
    carried out; outside a repository there is nowhere to run it, so skip the offer and point to `/shoot g`):
    `python3 <skill-dir>/../list-free-worktrees/scripts/free.py --repo <repo>`. Its `worktrees` (`slot`, `panes`) are the free
-   slots, lowest first: a running agent session, none of its agents busy, no plan in `plans/CURRENT_PLAN`, no
+   worktrees, lowest first: a running agent session, none of its agents busy, no plan in `plans/CURRENT_PLAN`, no
    uncommitted changes, nothing unmerged into main, no landing queued. Exit 2 (no hal2: a cloud session) or no
    `hal2-cli-agents`: skip the offer and say `/shoot <id>` runs it later.
 2. End the message (the report is the background, so a plain-text question, never the question tool):
 
    ```
    Implement it now?
-   1. Idle session wt <slot> (recommended): typed into the running idle session (<pane>)
-   2. New worktree session: a fresh session in the first slot without a session and without work
+   1. Idle session in worktree <slot> (recommended): typed into the running idle session (<pane>)
+   2. New worktree session: a fresh session in the first worktree without a session and without work
    3. Not now: it stays open for /shoot <id>
    ```
 
-   With no free slot, drop option 1, and the new worktree session is the recommended one. Several shots: one
-   question for all; each shot gets its own session, the free slots first (lowest first), then new ones; say
-   when there are more shots than free slots. Read the answer leniently (`1`, `idle`, `yes`, `new`, `2`, `no`,
-   `later`, another free slot's number).
+   With no free worktree, drop option 1, and the new worktree session is the recommended one. Several shots: one
+   question for all; each shot gets its own session, the free worktrees first (lowest first), then new ones; say
+   when there are more shots than free worktrees. Read the answer leniently (`1`, `idle`, `yes`, `new`, `2`, `no`,
+   `later`, another free worktree's number).
 3. Send, per shot in the order written:
-   `python3 $I send --repo <repo> --shotfile <file> --number <n> [--global] [--pane <the slot's first pane>]`
+   `python3 $I send --repo <repo> --shotfile <file> --number <n> [--global] [--pane <the worktree's first pane>]`
    (`--pane` for an idle session; without it a new session starts through create-worktree-session, which skips
-   slots holding work). It sends hal2-nvim's shot template (run `/mfm`, make the shot a plan, carry it out), then
+   worktrees holding work). It sends hal2-nvim's shot template (run `/mfm`, make the shot a plan, carry it out), then
    marks the shot sent (`## x shot ... [<slot>]`). Exit 2 names a missing hal2 CLI: run
    `bash <skill-dir>/../digest-todolist-picture/scripts/install-prerequisites.sh` once and retry; exit 1: report
    that shot (it stays written and open) and go on.
-4. Report one line per shot, `<file> shot <n> → wt <slot> (<pane>, idle | new session)`, and copy
+4. Report one line per shot, `<file> shot <n> → worktree <slot> (<pane>, idle | new session)`, and copy
    `hal2-cli-agents attach <repo>/<slot>` of the first into both clipboards (`pbcopy`, `tmux set-buffer` when a
    tmux server runs). Nothing is carried out in this session.
 

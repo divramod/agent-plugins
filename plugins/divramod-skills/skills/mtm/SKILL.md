@@ -1,6 +1,6 @@
 ---
 name: mtm
-description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `land.yml`, its older name) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the farmer skill's merge-to-main boss tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a slot with a stale plans/LEAD never lands. `/mtm h` shows help.
+description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `land.yml`, its older name) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the farmer skill's merge-to-main boss tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a worktree with a stale plans/LEAD never lands. `/mtm h` shows help.
 ---
 
 # mtm
@@ -33,7 +33,7 @@ Only the user starts it; never suggest it in place of fixing a red job, and neve
   the landing is done (`plan.py current` shows `land: ready`). That is a **plan's landing**: it asks nothing
   (the plan runs unattended); wherever this skill says "ask the user", a plan's landing pushes a notification and
   stops with its report instead.
-- the **farmer** skill's merge-to-main boss (`farmer/merge-to-main-boss`, the farmer session the user started in the repository's farmer slot `farmer-<repo>`)
+- the **farmer** skill's merge-to-main boss (`farmer/merge-to-main-boss`, the farmer session the user started in the repository's farmer worktree `farmer-<repo>`)
   tells this session to land now: a cross-session message from the session named in the user's farmer loop, saying
   `merge-to-main boss: land now`. The user gave the boss that authority on 2026-10-03 (hal2 INTENT.md). It counts
   as the user asking in this session, also mid-plan: land what is committed, steps not yet done stay for a later
@@ -55,17 +55,17 @@ you") before asking. A landing that went through only reports.
 
 | Call | Does |
 |---|---|
-| `/mtm [<slot>]` | land the current worktree (or hal slot `<slot>`) |
+| `/mtm [<slot>]` | land the current worktree (or the hal worktree `<slot>`) |
 | `/mtm milestone` | a plan's coordinator lands a milestone row: [milestone mode](#milestone-mode) |
 | `/mtm h`, `/mtm help` | print this table and stop |
 
-**Only a plan's coordinator lands, never a subagent or a slot with `plans/LEAD`.** Before anything else, also before [references/ci.md](references/ci.md), run
+**Only a plan's coordinator lands, never a subagent or a worktree with `plans/LEAD`.** Before anything else, also before [references/ci.md](references/ci.md), run
 `bash $S/subservant-guard.sh <slot>` on the worktree that would land: no argument for plain `/mtm` (the current
-worktree), the slot for `/mtm <slot>` (a bare slot name such as `31` resolves through `git worktree list` to the
+worktree), the worktree for `/mtm <slot>` (a bare worktree name such as `31` resolves through `git worktree list` to the
 worktree of that folder name; a directory works too, e.g. the `path` of that name in
 `hal2-cli-git worktree list --json`; exit 3: no such worktree, report it). A plan's steps run in subagents of the coordinator, which does the landing itself
-([plan](../plan/SKILL.md)); a subagent never starts `/mtm`. In a slot that still holds a stale `plans/LEAD` (the
-plan skill's "A stale `plans/LEAD`" note, a former subservant slot) the guard exits 1 and names the lead; then stop
+([plan](../plan/SKILL.md)); a subagent never starts `/mtm`. In a worktree that still holds a stale `plans/LEAD` (the
+plan skill's "A stale `plans/LEAD`" note, a former servant's worktree) the guard exits 1 and names the foreman; then stop
 with that message, whoever asked (the user, a plan, the farmer). The guard and its test stay (plan 0015 D12). Elsewhere it prints nothing and the landing goes on.
 
 **Through CI or locally.** `bash $S/landing-mode.sh` prints `ci` when `.github/workflows/merge-to-main.yml` or
@@ -120,7 +120,7 @@ give up for taking long, and never kill a waiting reserve. One that does not kno
 
 **The context threshold does not stop it either** (hal2 plan 0181). Above it hal2's guard stops this session's
 other tools although the checkout waits or lands (the reserve, merge-to-main and `worktree queue|release|stop`
-still pass): write the handoff, naming the reserve or landing under **Next** (the command, the slot, the ticket's
+still pass): write the handoff, naming the reserve or landing under **Next** (the command, the worktree, the ticket's
 state), never `TaskStop` or kill it, and end the turn. Its process goes on across the clear and its end wakes the
 continued session, which carries on from that exit code; a rerun of the same `reserve` takes the old ticket's place.
 
@@ -193,7 +193,7 @@ The default branch cannot move now, so what you merge in here is what the landin
    (Claude Code: `timeout` 7200000) and wait for it; its gates may take long, and there is no limit on that.
    **Wait for it by its task notification, or by its own PID** (`wait <pid>`, `while kill -0 <pid>`), **never by a
    pattern** (`pgrep -f`, `pkill -f`, `ps | grep`): every worktree's landing has the same command line, so a pattern
-   matches another slot's landing and the loop's own shell and never ends (2026-10-06: slot 35 waited on slot 32's
+   matches another worktree's landing and the loop's own shell and never ends (2026-10-06: worktree 35 waited on worktree 32's
    landing, never reached its release, and the queue stood still behind a dead process). When
    the tool's own limit ends it anyway (its notice says the command hit its timeout, not the user), it ended
    `stopped` before it merged into the default branch (the queue released) or `interrupted` (the queue held for
@@ -275,12 +275,12 @@ closed it with the plan's last step.
 
 Run `bash <skill-dir>/scripts/after-landing.sh` in the worktree (no question). It acts only when the worktree is fully
 landed (`git log <default>..HEAD` empty, no change) and its plan is finished (step 6 deleted `plans/CURRENT_PLAN`), in
-a numbered slot 00-99, and runs the [cleanup](../cleanup/SKILL.md) skill's `busy` then `delete` there: the build
+a numbered worktree 00-99, and runs the [cleanup](../cleanup/SKILL.md) skill's `busy` then `delete` there: the build
 artifacts the repo's `.hal/cleanup` lists go (generic build folders without the file), what it marks `!` stays (e.g.
 fetched dependencies). It prints `status: cleaned`, `skipped` (with why: after a stop, a cancel, a held queue,
 commits left over or an open plan the rerun would rebuild everything) or `busy` (a build or test still runs: name the
-process). In a slot 10-99 it also prints a `farmer: slot NN done: ...` line: send it to the repository's farmer
-(SendMessage to the session in its slot `farmer-<repo>`, `ListAgents`; none running: skip it). This session cannot
+process). In a worktree 10-99 it also prints a `farmer: worktree NN done: ...` line: send it to the repository's farmer
+(SendMessage to the session in its worktree `farmer-<repo>`, `ListAgents`; none running: skip it). This session cannot
 delete the worktree it runs in; the farmer's `prune` duty removes it with its branches (the user, 2026-10-06: "after a
 successful merge and a finished plan"). Note the space freed and any `unknown` rows for the report.
 

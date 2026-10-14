@@ -1,9 +1,9 @@
 """The merge-to-main boss's rules as code (subskills/merge-to-main-boss, plan 0007 step 2).
 
 `plan(snap, ctx)` turns mtm_scan's snapshot into planned actions (see tick.py): what a rule settles is done by code,
-messages are templates, and what needs judgment (a merge train, what an idle slot waits for, an unclear flaky test,
+messages are templates, and what needs judgment (a merge train, what an idle worktree waits for, an unclear flaky test,
 a long landing) becomes a `wake` item with the finding as evidence. Keys and windows go to tick.fresh, which drops
-what an earlier round did and what concerns a slot waiting for the user. Every action carries a `key`; a key already in
+what an earlier round did and what concerns a worktree waiting for the user. Every action carries a `key`; a key already in
 the farmer's log within its window is not done again, so a quiet queue gives a quiet round.
 """
 
@@ -20,7 +20,7 @@ BOSS = "farmer (merge-to-main boss)"
 REWAKE = dt.timedelta(hours=1)  # the same judgment item wakes the model at most hourly
 ORPHAN = dt.timedelta(hours=3)
 JUDGE = ("active-long", "work-not-queued", "long-queue", "paused")
-LANDS = ("held-idle", "reserved-idle", "waiter-gone")  # the kinds whose text tells a slot to land or queue
+LANDS = ("held-idle", "reserved-idle", "waiter-gone")  # the kinds whose text tells a worktree to land or queue
 TEXT = {
     "held-idle": BOSS + ": your failed landing holds the merge queue ({failure}). Fix the cause and rerun the "
                         "landing now (/mtm). A test that fails only under load: say so in one line.",
@@ -66,15 +66,15 @@ class Planner:
         return next((t for t in self.queue if t["slot"] == slot), {})
 
     def priority(self, f: dict) -> None:
-        """hal2 orders the queue and keeps a listed slot's place (`worktree queue order`, set by adapt-merge-queue or
-        `/farmer first`): the tick never re-ranks, it only takes a landed slot off priority.json and tells the user."""
+        """hal2 orders the queue and keeps a listed worktree's place (`worktree queue order`, set by adapt-merge-queue or
+        `/farmer first`): the tick never re-ranks, it only takes a landed worktree off priority.json and tells the user."""
         slot = f["slot"]
         landed = any(x["slot"] == slot and x["outcome"] == "landed" for x in self.snap["landings"])
         if landed and not self.ticket(slot) and not self.wt.get(slot, {}).get("ahead"):
             self.add("priority-done", "run", slot, argv=[sys.executable, str(HERE / "mtm_scan.py"), "priority",
                                                           "--done", slot, "--repo", self.ctx["main"]],
                      text=f"priority {slot} landed: done")
-            self.add("priority-done", "notify", slot, text=f"farmer: your priority slot {slot} has landed",
+            self.add("priority-done", "notify", slot, text=f"farmer: your priority worktree {slot} has landed",
                      key=f"priority-done:{slot}", window=dt.timedelta(hours=1))
 
     def reservation(self, f: dict) -> None:
@@ -109,7 +109,7 @@ class Planner:
                       dt.timedelta(days=1))
 
     def go(self) -> None:
-        """Slots paused for a landing that no longer runs get their go."""
+        """Worktrees paused for a landing that no longer runs get their go."""
         head = self.queue[0] if self.queue else {}
         running = head.get("landing") if head.get("state") == "active" else None
         cutoff = self.now - dt.timedelta(hours=12)
@@ -136,7 +136,7 @@ class Planner:
                      evidence=f)
 
     def subservant(self, f: dict) -> None:
-        """A parallel plan's subservant (plans/LEAD) never lands: its merge-queue ticket wakes the farmer, the slot
+        """A parallel plan's servant (plans/LEAD) never lands: its merge-queue ticket wakes the farmer, the worktree
         never gets the /mtm text and is never released by rule."""
         lead = f.get("lead") or self.wt.get(f["slot"], {}).get("lead")
         why = f["why"] if f["kind"] == "subservant-holds" else f"{mtm_scan.subservant(lead)}: {f['why']}"
@@ -145,10 +145,10 @@ class Planner:
 
     def orphan(self, f: dict) -> None:
         """Orphaned work with a handoff (the plan's plans/<plan>/handoff.md, hal2 plan 0206, or the root HANDOFF.md)
-        gets a session with /handoff c, else the farmer is woken. A subservant's
-        (plans/LEAD) restart is the same /handoff c, which continues its one step; never /mtm. A subservant whose work
-        is all in its lead's branch (no `missing`) is done: never restarted. One with a broken marker wakes the
-        farmer: its lead is unknown."""
+        gets a session with /handoff c, else the farmer is woken. A servant's
+        (plans/LEAD) restart is the same /handoff c, which continues its one step; never /mtm. A servant whose work
+        is all in its foreman's branch (no `missing`) is done: never restarted. One with a broken marker wakes the
+        farmer: its foreman is unknown."""
         slot, w = f["slot"], self.wt.get(f["slot"], {})
         lead = w.get("lead") or f.get("lead")
         if lead and not w.get("missing"):

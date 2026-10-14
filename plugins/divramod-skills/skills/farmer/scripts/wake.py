@@ -2,7 +2,7 @@
 
 A round's items that need the model, `wake` (judgment), `relay` (a templated message for a busy session, sent
 verbatim with SendMessage), `notify` (a notice for the user, pushed batched) and the delegations that could not be
-placed (`delegate-failed`), go into `wake.json` of the state folder (`roles/farmer/` of the farmer slot):
+placed (`delegate-failed`), go into `wake.json` of the state folder (`roles/farmer/` of the farmer's worktree):
 
   {"woken_at": <iso or null>, "items": [{"seq": n, "duty", "kind", "slot", "do", "text", "evidence"?, "brief"?,
                                          "instructions": <the file to read for this kind>}, ...]}
@@ -82,7 +82,7 @@ def write(main: str, data: dict) -> None:
 
 
 def farmer_pane(top: str) -> str | None:
-    """The pane of the agent whose checkout is the farmer slot."""
+    """The pane of the agent whose checkout is the farmer's worktree."""
     code, text = deliver.cli("list", "--json")
     try:
         data = json.loads(text) if code == 0 else []

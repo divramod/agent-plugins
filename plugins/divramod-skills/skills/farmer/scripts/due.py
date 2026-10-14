@@ -14,10 +14,10 @@ Nothing is implicit: only the duties under the front matter's `duties:` (name â†
 tasks under `## Tasks` (each `### <name>` with its `- **Cron**: <cron>` line) run, and the
 setting `notify` is required, `servant_limit` (`auto` or a number) defaults to `auto`, `servant_model` (an alias
 such as `opus` or a model id) to `opus` and `servant_effort` (low|medium|high|xhigh|max) to `medium`: the values a
-servant's coordinator session starts at (skills plan 0016). No roles/farmer/ROLE.md: nothing runs (exit 3).
+foreman's coordinator session starts at (skills plan 0016). No roles/farmer/ROLE.md: nothing runs (exit 3).
 A cron is standard 5-field notation in local time: minute hour day-of-month month day-of-week
 (`*/15 * * * *`, `0 * * * *`, `7 9 * * *`, `0 8 * * 1-5`). An item is due when one of its fire
-times passed since it last ran. Writes only runs.jsonl in the farmer's state folder (roles/farmer/ of its slot).
+times passed since it last ran. Writes only runs.jsonl in the farmer's state folder (roles/farmer/ of its worktree).
 Exit 0 ok, 1 invalid roles/farmer/ROLE.md, 3 no roles/farmer/ROLE.md.
 """
 
@@ -32,10 +32,10 @@ from pathlib import Path
 
 import roles
 
-DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer slot's roles/farmer/ (roles.state_dir)
+DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 DUTIES = ("mtm", "lead", "ci", "prs", "sync", "watch", "autoclear", "trains", "prune")
 NOTIFY = ("every-round", "hourly", "daily", "never")
-# A servant's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
+# A foreman's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
 SERVANT_MODEL, SERVANT_EFFORT = "opus", "medium"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 MODEL = re.compile(r"^[a-z][a-z0-9.\-]*(\[1m\])?$")

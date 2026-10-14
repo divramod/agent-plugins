@@ -36,7 +36,7 @@ def merge(repo: str, ours: str, theirs: str) -> tuple[str | None, list[str]]:
 
 
 def ride(repo: str, base: str, carrier: str, waiters: list[tuple[str, str]]) -> tuple[list[str], dict[str, list[str]]]:
-    """`waiters` are (slot, branch) in queue order: the slots that ride and, per slot left out, why (its files that
+    """`waiters` are (worktree, branch) in queue order: the worktrees that ride and, per worktree left out, why (its files that
     conflict outside SOFT, or `?` when the trial could not run)."""
     acc, _ = merge(repo, base, carrier)
     acc = acc or carrier

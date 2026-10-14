@@ -94,9 +94,9 @@ ready steps run as parallel subagents (`prompt`), never in other sessions (plan 
   plan.py assign <step> <who> [--force]                    who: lead, subagent or user (`slot NN` is refused: run
                                                            the step as a subagent); sets Who and `running` (a step
                                                            not ready only with --force)
-A cell holds a literal `|` written `\\|`. A slot still holding a former subservant's plans/LEAD (`<lead-slot> <plan>
+A cell holds a literal `|` written `\\|`. A worktree still holding a former servant's plans/LEAD (`<lead-slot> <plan>
 <step>`, `lead` in the JSON) refuses new, status, assign, grilled, landing, uat, scaffold, run and migrate: plan.md
-is the lead's (also with --root <lead's checkout> when the current directory is in a marked slot).
+is the foreman's (also with --root <foreman's checkout> when the current directory is in a marked worktree).
 
 Run from anywhere inside the repo, or pass --root. Prints JSON on stdout; exits 1 with a message on stderr.
 
@@ -922,7 +922,7 @@ def check_records(root: Path, folders: list[Path]) -> tuple[int, list[str]] | No
     return count, problems
 
 
-# What a subservant (a slot with plans/LEAD) may not do: plan.md is the lead's (hal2 shows the newest copy).
+# What a servant (a worktree with plans/LEAD) may not do: plan.md is the foreman's (hal2 shows the newest copy).
 SUBSERVANT_REFUSES = ("new", "status", "assign", "grilled", "landing", "uat", "scaffold", "run", "migrate")
 PARALLEL_COMMANDS = ("ready", "assign")
 
@@ -930,9 +930,9 @@ PARALLEL_COMMANDS = ("ready", "assign")
 def refuse_subservant(root: Path, command: str) -> None:
     marker = parallel.subservant_marker(root, Path.cwd())
     if marker and command in SUBSERVANT_REFUSES:
-        raise PlanError(f"this slot is a subservant of slot {marker['slot']} (plan {marker['plan']} step "
-                        f"{marker['step']}): it holds a stale plans/LEAD of the lead in slot {marker['slot']}, never "
-                        f"edits plan.md and never lands; the lead takes the work over, or delete plans/LEAD")
+        raise PlanError(f"this worktree is a servant of worktree {marker['slot']} (plan {marker['plan']} step "
+                        f"{marker['step']}): it holds a stale plans/LEAD of the foreman in worktree {marker['slot']}, never "
+                        f"edits plan.md and never lands; the foreman takes the work over, or delete plans/LEAD")
 
 
 def parallel_steps(path: Path) -> list[dict]:

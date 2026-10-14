@@ -11,7 +11,7 @@ them. A decision's id is its `at`; decisions sharing an `at` (the farmer logs se
 in log order, which an append-only log keeps stable.
 
 Links (skills plan 0010): `links(log)` gives each decision the ids of the farmer instructions (`acks.py instruct`,
-`12-6`) that relayed it, so a servant naming a decision by that id has it. Sources: the decision's own `ack`/`acks`,
+`12-6`) that relayed it, so a foreman naming a decision by that id has it. Sources: the decision's own `ack`/`acks`,
 `decision-link` entries (`acks.py instruct --decision <id>`), and a back-fill computed from the log's `ask-ack` entries
 (read-only, so past relays count without rewriting the log).
 """
@@ -65,7 +65,7 @@ ASIDE = re.compile(r"\([^()\"“”]*\)")
 
 def subject(text: str) -> str:
     """The text without its asides: a parenthetical holding no quote mark (an example list "(06 ..., 04 plan 0094 step
-    7)", "(slot 04)") names slots the decision is not about (skills plan 0012); the user's quoted words stay."""
+    7)", "(worktree 04)") names worktrees the decision is not about (skills plan 0012); the user's quoted words stay."""
     while True:
         bare = ASIDE.sub(" ", text or "")
         if bare == text:
@@ -78,16 +78,16 @@ def slots(entry: dict) -> list[str]:
 
 
 def concerns(entry: dict, slot: str, repo: str) -> bool:
-    """Is this `decision` entry for the slot (`<slot>` of the farmer's repo `repo`, or `<other repo>/<slot>`)? Its `slot`
-    names it, or it is repo-wide and its `what` names it: a slot of the farmer's repo outside asides (`subject`), a
-    slot of another repo together with that repo's name."""
+    """Is this `decision` entry for the worktree (`<slot>` of the farmer's repo `repo`, or `<other repo>/<slot>`)? Its `slot`
+    names it, or it is repo-wide and its `what` names it: a worktree of the farmer's repo outside asides (`subject`), a
+    worktree of another repo together with that repo's name."""
     own, _, bare = slot.rpartition("/")
     if slot in slots(entry) or (not own or own == repo) and bare in slots(entry):
         return True
     if not all(s in REPO_WIDE for s in slots(entry)):
         return False
-    text = entry.get("what", "")  # the decision itself; a note naming a slot is bookkeeping ("relayed to 12")
-    if not own or own == repo:  # the slot must be the subject, not an aside (skills plan 0012)
+    text = entry.get("what", "")  # the decision itself; a note naming a worktree is bookkeeping ("relayed to 12")
+    if not own or own == repo:  # the worktree must be the subject, not an aside (skills plan 0012)
         return names(subject(text), bare)
     return names(text, bare) and re.search(rf"\b{re.escape(own)}\b", text) is not None
 
@@ -97,7 +97,7 @@ def when(entry: dict) -> dt.datetime:
 
 
 def relayed(d: dict, ask: dict, repo: str) -> bool:
-    """Did the instruction `ask` relay decision `d`? It goes to a slot `d` concerns, and holds 3+ words of the user's
+    """Did the instruction `ask` relay decision `d`? It goes to a worktree `d` concerns, and holds 3+ words of the user's
     quote (sent from an hour before to 12 hours after `d`) or, for a decision without a quote, all its 2+ key words
     (sent within an hour either way)."""
     if not concerns(d, ask.get("slot", ""), repo):
@@ -116,7 +116,7 @@ def options(entry: dict) -> set[str]:
 
 def links(log: list[dict], repo: str = "") -> dict[str, set[str]]:
     """{decision id: the ack ids of the instructions that relayed it}. A decision whose option ids are a strict subset
-    of an earlier one's of the same slot within an hour (`3a done` after `1a, 2a, 3a`) inherits that one's links."""
+    of an earlier one's of the same worktree within an hour (`3a done` after `1a, 2a, 3a`) inherits that one's links."""
     asks = [e for e in log if e.get("kind") == "ask-ack" and e.get("id")]
     explicit = [e for e in log if e.get("kind") == "decision-link" and e.get("decision") and e.get("ack")]
     ds = ident(log)

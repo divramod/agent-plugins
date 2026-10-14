@@ -1,4 +1,4 @@
-"""Hal2 plan 0137: slot 12 sat idle 21:24-06:45 in plan 0131, "waiting for your go", and the farmer never woke.
+"""Hal2 plan 0137: worktree 12 sat idle 21:24-06:45 in plan 0131, "waiting for your go", and the farmer never woke.
 
 The replay: the session's overnight state through lead_scan.classify, duties.plan_lead and tick.fresh, with the
 farmer's log as it was (two `ask` entries for 12, the user's answer logged as a `decision`, never `answered`).

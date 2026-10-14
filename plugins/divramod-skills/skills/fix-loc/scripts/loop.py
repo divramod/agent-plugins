@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""fix-loc's loop: one tick watches the running servant and, once its plan landed, starts the next unit's.
+"""fix-loc's loop: one tick watches the running foreman and, once its plan landed, starts the next unit's.
 
   loop.py tick   --repo R [--coordinator-model M] [--coordinator-effort E] [--step-model S] [--dry-run] [--json]
                                                             one tick (what the cron job's /fix-loc runs)
-  loop.py claim  --repo W --plan <NNNN-slug> [--json]       the servant in checkout W names its plan
+  loop.py claim  --repo W --plan <NNNN-slug> [--json]       the foreman in checkout W names its plan
   loop.py record --repo R --started|--stopped [--json]      the loop (re)started (cron re-armed) or stopped
-  loop.py status --repo R [--json]                          the servant, blocked units, history
+  loop.py status --repo R [--json]                          the foreman, blocked units, history
 
-The servant is its plan's coordinator: it starts through create-worktree-session's create.py (`--from 30`: a
-helper slot without a session and without work) at `--coordinator-model` (`--model`; default claude-sonnet-5-5,
+The foreman is its plan's coordinator: it starts through create-worktree-session's create.py (`--from 30`: a
+helper worktree without a session and without work) at `--coordinator-model` (`--model`; default claude-sonnet-5-5,
 fix-loc's own rule) and `--coordinator-effort` (default medium), and its plan's rows run at `--step-model` (an
 Agent tool alias, default sonnet) with medium effort. Each value is the flag, else the one `state.json` keeps under
 `settings`, else the default; the tick stores it back. The state is `<state root>/state.json` (scan.state_root;
@@ -92,7 +92,7 @@ def current_plan(worktree):
 
 
 def observe(repo, project, servant):
-    """What `tick.decide` needs about the running servant, read from hal2 and git."""
+    """What `tick.decide` needs about the running foreman, read from hal2 and git."""
     ref = layout.default_branch(repo)
     queue = run_json(["hal2-cli-git", "worktree", "queue", "--json"], cwd=project).get("queue", [])
     plan = servant.get("plan") or current_plan(servant.get("worktree"))
@@ -124,7 +124,7 @@ def fill_prompt(unit, limit, step_model=DEFAULTS["step_model"]):
 
 
 def finish(repo, state, now, result):
-    """The servant's plan landed: count the unit again, record it, stop the servant's terminal host."""
+    """The foreman's plan landed: count the unit again, record it, stop the foreman's terminal host."""
     servant = state["servant"]
     after = scan.unit_files(repo, servant["unit"], worktree=False)
     over = [f for f in after["files"] if f["code"] > after["limit"]]
@@ -144,7 +144,7 @@ def finish(repo, state, now, result):
 
 
 def watch(repo, state, now, result):
-    """Decide about the running servant; True when a next unit may start."""
+    """Decide about the running foreman; True when a next unit may start."""
     servant = state["servant"]
     seen = observe(repo, state["project"], servant)
     decision = tick.decide(state, now, project=state["project"], **seen)
@@ -210,7 +210,7 @@ def claim(repo, plan):
     state, top = load(repo), layout.git(repo, "rev-parse", "--show-toplevel").strip()
     servant = state["servant"]
     if not servant or Path(servant.get("worktree") or "").resolve() != Path(top).resolve():
-        raise SystemExit(f"fix-loc: no fix-loc servant runs in {top}")
+        raise SystemExit(f"fix-loc: no fix-loc foreman runs in {top}")
     servant["plan"] = plan
     save(repo, state)
     return {"unit": servant["unit"], "plan": plan}

@@ -3,7 +3,7 @@
 The duty `mtm` of the [farmer](../../SKILL.md): every worktree's finished work lands on the default branch soon, in
 any order (the user, 2026-10-03). Throughput beats order and retries: a test that fails only under load is disabled
 and the work lands. Its rule-based part runs as code in the farmer's tick (`boss.py` over `mtm_scan.py`: wake failed
-landings and release held queues, landed priority slots done (hal2 keeps the order), a reservation waiting at the front
+landings and release held queues, landed priority worktrees done (hal2 keeps the order), a reservation waiting at the front
 reported to the user, pause heavy work under load and send go after it, waiter-gone,
 orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) restarted, flaky tests delegated). What needs judgment wakes the farmer session with
 [instructions/mtm.md](../../instructions/mtm.md), which links the procedures below. Why landings fail:
@@ -21,7 +21,7 @@ that job as the row's task (the cancelled jobs only stopped), and its landing ha
 Never cancel such a run again (`gh run cancel`): its own step did, and a second request seems to end its last jobs,
 the parks, unrun. A run that ended `cancelled` without such a job is a pause's or a hand's cancel, as before. While a CI landing's run is tested its process lives, so its reservation is not idle. Load
 pauses and flaky disabling are rarely needed (the gates do not run on the Mac). The farmer's own branch `farmer-<repo>`
-lands like any slot's (an ordinary `/mtm` of the farmer slot), its per-round mfm stays.
+lands like any worktree's (an ordinary `/mtm` of the farmer's worktree), its per-round mfm stays.
 
 **The fastlane** (`/mtm-fastlane`, hal2 docs/ci-fastlane.md) is the user's own landing, never the boss's: the farmer
 never starts one. `queue --json` shows its ticket with `fastlane` (`phase`, `since`, `run`, `gate_base`) and the
@@ -33,7 +33,7 @@ fastlane's release. The scan leaves both out of its stuck-holder findings (no `h
 
 1. Pick where to change it:
    - in the holder's branch, by telling its session to do it, when only that landing is blocked;
-   - through [a servant](#a-fix-several-landings-need) when several slots hit it.
+   - through [a foreman](#a-fix-several-landings-need) when several worktrees hit it.
 2. Mark it:
    - Swift Testing: `.disabled("flaky under landing load <date>, farmer merge-to-main boss")`;
    - XCTest: `throw XCTSkip(...)`;
@@ -41,7 +41,7 @@ fastlane's release. The scan leaves both out of its stuck-holder findings (no `h
    - TS: `it.skip`.
 
    Keep the test code itself.
-3. Add a line to `roles/farmer/flaky.md` in the farmer slot: date, test, file, slot, what the failure looked
+3. Add a line to `roles/farmer/flaky.md` in the farmer's worktree: date, test, file, worktree, what the failure looked
    like, where it was disabled.
 4. File one shot to bring it back load-proof (budget scaled by load, or out of the landing's gate):
    `hal2-cli-shooter shots create` in the repository's shotfile for tests, or the `create-shot` skill.
@@ -49,16 +49,16 @@ fastlane's release. The scan leaves both out of its stuck-holder findings (no `h
 ## A fix several landings need
 
 A failure that blocks several landings (a flaky test in R2, a broken gate script, a missing gitignore, a lint rule
-all slots trip on) gets a servant: [Delegate a fix](../../reference.md#delegate-a-fix), marked urgent in its brief.
+all worktrees trip on) gets a foreman: [Delegate a fix](../../reference.md#delegate-a-fix), marked urgent in its brief.
 
 1. **Faster:** when the queue head's session can make the fix in its own landing, it rides along. Tell that session
    the change, or hand it a patch from `pending/`. No extra gate run is needed.
-2. Otherwise start a servant and put it first: `$B priority <slot> --note "<why>"` (hal2 reserves its place at
+2. Otherwise start a foreman and put it first: `$B priority <slot> --note "<why>"` (hal2 reserves its place at
    the front, also before its `reserve` runs).
 3. When nothing should land before the fix (several landings fail on it), pause: `$B pause --note "<why>"`. Tell the
    waiters to hold their reruns until the fix has landed, then `$B resume` and tell everyone "go: /mfm before your
    next landing attempt".
-4. The farmer never edits a file itself: not in its slot, and not in the main checkout, where landings merge.
+4. The farmer never edits a file itself: not in its worktree, and not in the main checkout, where landings merge.
 
 ## Merge trains
 
@@ -67,10 +67,10 @@ train at every round is the farmer's duty (the user, 2026-10-06: "its a duty of 
 train for all the queued worktrees behind the current run"). The duty `trains` does this as code
 ([merge-train](../merge-train/SUBSKILL.md)); by hand it goes like this:
 
-1. Candidates are all waiting slots with commits, in queue order, whose trial merge is clean or conflicts only in
+1. Candidates are all waiting worktrees with commits, in queue order, whose trial merge is clean or conflicts only in
    append-only docs and generated files (`python3 $S/trains.py plan --repo <main>` runs it; by hand `git merge-tree
-   --write-tree --name-only <carrier> <branch>`). A subservant's slot (`plans/LEAD`) never rides.
-2. The **carrier** is the queue's holder while its candidate is not pushed (a plain reservation, a priority slot
+   --write-tree --name-only <carrier> <branch>`). A servant's worktree (`plans/LEAD`) never rides.
+2. The **carrier** is the queue's holder while its candidate is not pushed (a plain reservation, a priority worktree
    included), else the first waiter; never a landing that runs. Tell it: `git fetch && git merge --no-ff <other
    branch>`, one at a time in queue order. It runs its quick checks and lands as usual.
 3. Tell each **passenger**: "your branch rides in <carrier>'s landing; wait. After it lands run /mfm; your
@@ -82,13 +82,13 @@ train for all the queued worktrees behind the current run"). The duty `trains` d
 
 ## Review and okays
 
-When a slot waits for a review or for "is this okay", review its diff the way the `code-review` skill would, at
+When a worktree waits for a review or for "is this okay", review its diff the way the `code-review` skill would, at
 medium. Answer with the findings, or with "okay to land". You may okay:
 
 - landing without UI tests that only failed for unrelated reasons or need the Mac;
 - disabling a load-flaky test;
 - skipping a retry;
-- merging two slots' work.
+- merging two worktrees' work.
 
 You never decide product questions, secrets, deploys to production, or anything that deletes data.
 
@@ -97,7 +97,7 @@ You never decide product questions, secrets, deploys to production, or anything 
 - **Never do these:**
   - stop a landing that has merged into the default branch;
   - force-push;
-  - reset or delete a slot's work or branch;
+  - reset or delete a worktree's work or branch;
   - answer another session's dialog or permission prompt;
   - edit permissions, settings or CLAUDE.md files;
   - decide product questions;
@@ -108,7 +108,7 @@ You never decide product questions, secrets, deploys to production, or anything 
   `fastlane` (also a `verification taken over`, a handed-over fastlane, and one holding a takeover: a later fastlane's
   `gate_base`). A fastlane is the user's landing: never `release` it, never start one.
 - Disabled tests are always recorded in the ledger and get a shot. The boss never deletes a test.
-- Never act on the boss's own session. Never start `/mtm` for a slot without its session being told, except for
+- Never act on the boss's own session. Never start `/mtm` for a worktree without its session being told, except for
   orphaned work (R7).
 
 ## Ideas not built yet

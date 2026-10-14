@@ -38,7 +38,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [continue](skills/continue/SKILL.md), [pause](skills/pause/SKILL.md) | pause a session's work and pick it up again |
 | [continue-all-agent-work](skills/continue-all-agent-work/SKILL.md), [stop-all-agent-work](skills/stop-all-agent-work/SKILL.md) | stop every session for a quiet machine, and undo it |
 | [create-shot](skills/create-shot/SKILL.md), [shoot](skills/shoot/SKILL.md) | write a shot, list and send open shots |
-| [create-worktree-session](skills/create-worktree-session/SKILL.md), [delete-worktree-session](skills/delete-worktree-session/SKILL.md) | start or stop an agent session in a worktree slot |
+| [create-worktree-session](skills/create-worktree-session/SKILL.md), [delete-worktree-session](skills/delete-worktree-session/SKILL.md) | start or stop an agent session in a worktree |
 | [digest-todolist-picture](skills/digest-todolist-picture/SKILL.md) | turns a photo of a to-do list into shots |
 | [farmer](skills/farmer/SKILL.md) | the repository's helper session: landings, CI, unsticking sessions |
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
@@ -50,7 +50,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [mfm](skills/mfm/SKILL.md), [mtm](skills/mtm/SKILL.md), [mtm-fastlane](skills/mtm-fastlane/SKILL.md) | merge from main, land on main, land without CI |
 | [plan](skills/plan/SKILL.md), [research](skills/research/SKILL.md) | plans and research docs |
 | [q](skills/q/SKILL.md) | lists the session's open, answered or all questions in the Q form (`scripts/q.py`) |
-| [s](skills/s/SKILL.md) | prints the state of every worktree slot as one table, the session's own row marked (`scripts/state.py`, `state_sources.py`, `state_table.py`, `farmer_link.py`) |
+| [s](skills/s/SKILL.md) | prints the state of every worktree as one table, the session's own row marked (`scripts/state.py`, `state_sources.py`, `state_table.py`, `farmer_link.py`) |
 | [sanity-watch](skills/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [tell](skills/tell/SKILL.md) | summarizes a URL, file or topic into a note |
 

@@ -1,6 +1,6 @@
 # Woken for fix-autoclear (autoclear)
 
-The tick continues stuck sessions with `clear-and-continue` and delegates one `/fix-autoclear <slot>` servant per
+The tick continues stuck sessions with `clear-and-continue` and delegates one `/fix-autoclear <slot>` foreman per
 failure class itself; it wakes you for nothing of this duty today. A session whose autoclear the user switched
 off (fix-autoclear's `autoclear_off`: a hand-written `gave_up` marker, a rearm no context reaches, an agent's
 `autoclear_off`) is no failure: the tick never clears it or delegates it (plan 0011), and neither do you. Anything that does reach you: follow

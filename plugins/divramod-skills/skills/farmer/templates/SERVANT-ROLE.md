@@ -1,10 +1,10 @@
-# Servant role: {title}
+# Foreman role: {title}
 
 Written by the farmer of {repo} on {at} (runtime state: never committed). Read this first, then the brief.
 
 ## Whom you serve
 
-The **farmer**: the session in {repo}'s worktree slot `{farmer_slot}` (`~/.hal/git/worktree/{repo}/{farmer_slot}`), the user's
+The **farmer**: the session in {repo}'s worktree `{farmer_slot}` (`~/.hal/git/worktree/{repo}/{farmer_slot}`), the user's
 stand-in. The user started it and gave it the authority to start you and to tell you what to do. Do what it tells
 you; the user will not answer you.
 
@@ -33,7 +33,7 @@ you; the user will not answer you.
 - **Keep the farmer's decisions across a clear.** Record every relayed go and answer in its home at once (an entry
   of the plan's ledger `decisions.md` with the quoted words and `**Via:** farmer <id>`; a legacy plan: its Decisions
   or Pre-authorized). A legacy handoff names the farmer (`Farmer: <session> (<repo>)` in HANDOFF.md); a plan's
-  committed `handoff.md` names no session: the farmer is the session in the slot `farmer-<repo>` (`ListAgents`). A
+  committed `handoff.md` names no session: the farmer is the session in the worktree `farmer-<repo>` (`ListAgents`). A
   `decision check <slot>: ...` answer that reaches you: write what it names missing into the plan's ledger.
 - **Report** to the farmer in one line each: started (the plan's number), blocked (what and why), done (landed).
 - Never touch other sessions' work, never force-push, never deploy to production without a go.

@@ -1,6 +1,6 @@
 ---
 name: shoot
-description: shoot — list the open shots of the repo's shotfiles (`shotfiles/*.md` of the main checkout, also from a worktree; the prompts written with hal2-nvim's shooter) as a table of id, shotfile, shot number and title, then shoot the ones the user picks by id (`3`, `1,2,4`, `1-4`), as `<space>00` does from Neovim — the shots are marked sent (`## x shot ...`) in their shotfiles and carried out; in the repository's main checkout it first asks where: a new worktree session per shot (recommended), a free worktree session (running, idle, no plan, nothing unmerged) or here in main; in a worktree slot it carries them out in this session. `/shoot` shows the 10 most important open shots, `/shoot g` the global shotfiles' shots (ids `g1`, `g2`, ...), `/shoot -a` all of both, `/shoot <shotfile>` the open shots of one shotfile, `/shoot <ids>` shoots shots directly. Use when the user says /shoot, asks which shots are open, or wants to pick the next shot to work on. `/shoot h` shows help.
+description: shoot — list the open shots of the repo's shotfiles (`shotfiles/*.md` of the main checkout, also from a worktree; the prompts written with hal2-nvim's shooter) as a table of id, shotfile, shot number and title, then shoot the ones the user picks by id (`3`, `1,2,4`, `1-4`), as `<space>00` does from Neovim — the shots are marked sent (`## x shot ...`) in their shotfiles and carried out; in the repository's main checkout it first asks where: a new worktree session per shot (recommended), a free worktree session (running, idle, no plan, nothing unmerged) or here in main; in a worktree it carries them out in this session. `/shoot` shows the 10 most important open shots, `/shoot g` the global shotfiles' shots (ids `g1`, `g2`, ...), `/shoot -a` all of both, `/shoot <shotfile>` the open shots of one shotfile, `/shoot <ids>` shoots shots directly. Use when the user says /shoot, asks which shots are open, or wants to pick the next shot to work on. `/shoot h` shows help.
 ---
 
 # shoot
@@ -73,35 +73,35 @@ that is not an open shot: say which and ask again.
 
 ## Where (main checkout only)
 
-In a worktree slot (`git rev-parse --show-toplevel` is not the first path of `git worktree list`) the shots run in
+In a worktree (`git rev-parse --show-toplevel` is not the first path of `git worktree list`) the shots run in
 this session: go on with [Shoot](#shoot). In the repository's main checkout ask first, also for `/shoot <ids>`,
 after naming the picked shots (one line each: id, shotfile, shot, title), as one plain-text question:
 
 ```
 Where should <this shot | these <n> shots> run?
-1. New worktree session (recommended): each shot in its own new session, in the first slot without a session and without work
-2. Free session <slot>[, <slot>...]: typed into a running idle session whose worktree holds no work
+1. New worktree session (recommended): each shot in its own new session, in the first worktree without a session and without work
+2. Free session <worktree>[, <worktree>...]: typed into a running idle session whose worktree holds no work
 3. Here, in main
 ```
 
 A shot only ever goes to a worktree without work: no plan in `plans/CURRENT_PLAN`, no uncommitted changes, no
 commits not merged into main, no landing queued (behind main is fine: the shot's first step is `/mfm`). Offer 2
-only when `python3 <skill-dir>/../list-free-worktrees/scripts/free.py --repo <main>` lists free slots (it applies
+only when `python3 <skill-dir>/../list-free-worktrees/scripts/free.py --repo <main>` lists free worktrees (it applies
 that rule);
-with more shots than free slots, say that the rest get new sessions. Read the answer leniently (`1`, `new`, `free`,
-`here`, a slot number for 2).
+with more shots than free worktrees, say that the rest get new sessions. Read the answer leniently (`1`, `new`, `free`,
+`here`, a worktree number for 2).
 
 For 1 and 2, with `I=<skill-dir>/../digest-todolist-picture/scripts/implement.py`, per shot in the order picked:
 `python3 $I send --repo <main> --shotfile <file> --number <number> [--global] [--pane <pane>] [--model <m>]
-[--effort <e>]` (`--pane` with the next free slot's pane for 2; without it a new session starts through
-create-worktree-session's `create.py`, which skips slots holding work). It sends hal2-nvim's shot template (run
+[--effort <e>]` (`--pane` with the next free worktree's pane for 2; without it a new session starts through
+create-worktree-session's `create.py`, which skips worktrees holding work). It sends hal2-nvim's shot template (run
 `/mfm`, make the shot a plan, then run it as its coordinator, with the plan skill's coordinator sentence), starts or
-types into the session and only then marks the shot sent with that slot, so skip step 1 below. The session runs at
+types into the session and only then marks the shot sent with that worktree, so skip step 1 below. The session runs at
 an explicit model and effort: the user's defaults `opus` and `medium` (skills plan 0015's D15), or the ones the user
 names for the shot (`--model`, `--effort`). A free session whose model or effort differ (or cannot be read from its
 transcript) is restarted at them first, with the shot as its first prompt (`hal2-cli-agents switch`; the JSON says
 `switched`), instead of being typed into. Exit 2 names a missing hal2 CLI: run that skill's `install-prerequisites.sh` once and
-retry; exit 1: report that shot and go on with the next. Report one line per shot, `<file> shot <n> → <repo> wt
+retry; exit 1: report that shot and go on with the next. Report one line per shot, `<file> shot <n> → <repo> worktree
 <slot> (<pane>, new | existing session)`, copy `hal2-cli-agents attach <repo>/<slot>` of the first into both
 clipboards (`pbcopy`, `tmux set-buffer`), and stop: nothing is carried out here. For 3 go on with Shoot.
 

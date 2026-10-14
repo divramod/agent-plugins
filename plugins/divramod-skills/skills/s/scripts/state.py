@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""The state call, `/s` (hal2 plan 0268): one row per worktree slot of the repository, collected as code, no model.
+"""The state call, `/s` (hal2 plan 0268): one row per worktree of the repository, collected as code, no model.
 
     state.py [--repo <path>] [--json]
 
 Prints the table (the own row's WT bold, a foreman's servants under its row as `↳ <WT>`) `WT | Plan | Steps | State | Waits for` and a line under it (state_table.py), or with --json
-{repo, default, head, head_age, head_subject, queue, runs, rows}: the raw facts per slot (`wt`, `path`, `branch`, `plan` = the text of
-plans/CURRENT_PLAN, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `own` the checkout the script runs in, `foreman` the slot named by plans/LEAD (or null), `agent` busy|idle|none, `agent_state`,
+{repo, default, head, head_age, head_subject, queue, runs, rows}: the raw facts per worktree (`wt`, `path`, `branch`, `plan` = the text of
+plans/CURRENT_PLAN, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `own` the checkout the script runs in, `foreman` the worktree named by plans/LEAD (or null), `agent` busy|idle|none, `agent_state`,
 `last_commit_age` seconds, `uncommitted`, `ahead` commits not on origin/<default> (the main checkout: not pushed),
-`queue`, `ci` the slot's open runs, `waits` fact dicts, `cells` the five table cells). A fact that cannot be known is None (a missing, failing or
-slow tool never raises). Rows: numbered slots by number, named slots by name, the main checkout last as `main`; dot
-checkouts and prunable worktrees are no slots. Only reads: no fetch, no write.
+`queue`, `ci` the worktree's open runs, `waits` fact dicts, `cells` the five table cells). A fact that cannot be known is None (a missing, failing or
+slow tool never raises). Rows: numbered worktrees by number, named worktrees by name, the main checkout last as `main`; dot
+checkouts and prunable worktrees are no rows. Only reads: no fetch, no write.
 """
 
 import argparse
@@ -35,8 +35,8 @@ def slot_key(row: dict) -> tuple:
 
 
 def arrange(rows: list[dict]) -> set[str]:
-    """Moves each servant (a slot whose plans/LEAD names a foreman slot of this table) directly under its foreman's row,
-    the servants of one foreman by number, in place; returns the slots that now stand nested."""
+    """Moves each servant (a worktree whose plans/LEAD names a foreman's worktree of this table) directly under its foreman's row,
+    the servants of one foreman by number, in place; returns the worktrees that now stand nested."""
     by_wt = {r["wt"]: r for r in rows}
     kids = {}
     for r in rows:
@@ -95,7 +95,7 @@ def queue_fact(tickets: list[dict] | None, path: str, wt: str) -> dict | None:
 
 
 def waits_of(row: dict, log: list[dict] | None, asking: set, unacked: dict, questions: list[str]) -> list[dict]:
-    """The facts a slot waits for, in a fixed order: the queue, a CI run, an open ask, unacked instructions, plan questions."""
+    """The facts a worktree waits for, in a fixed order: the queue, a CI run, an open ask, unacked instructions, plan questions."""
     out = []
     if row["queue"]:
         out.append({"kind": "queue", **{k: row["queue"][k] for k in ("holds", "position")}})

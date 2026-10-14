@@ -82,7 +82,7 @@ class Role(unittest.TestCase):
         self.assertEqual(due.schedule("")[0], {})
 
     def test_the_servants_model_and_effort_default_to_opus_medium_or_are_named(self):
-        # Skills plan 0016 (D15): every servant starts at an explicit model and effort.
+        # Skills plan 0016 (D15): every foreman starts at an explicit model and effort.
         named = ROLE.replace("servant_limit: 5", "servant_limit: 5\nservant_model: claude-opus-5-5\nservant_effort: high")
         _, settings, problems = due.schedule(named)
         self.assertEqual((settings["servant_model"], settings["servant_effort"], problems),

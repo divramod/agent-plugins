@@ -26,15 +26,15 @@ PY
 
 teardown() { rm -rf "$tmp"; }
 
-@test "a landed 10-99 slot is cleaned and the farmer is told" {
+@test "a landed 10-99 worktree is cleaned and the farmer is told" {
   run bash "$here/after-landing.sh" "$tmp/12"
   [ "$status" -eq 0 ]
   [[ "$output" == *"status: cleaned"* ]]
-  [[ "$output" == *"farmer: slot 12 done"* ]]
+  [[ "$output" == *"farmer: worktree 12 done"* ]]
   grep -q "/12$" "$tmp/deleted"
 }
 
-@test "a landed 00-09 slot is cleaned without the farmer line" {
+@test "a landed 00-09 worktree is cleaned without the farmer line" {
   run bash "$here/after-landing.sh" "$tmp/03"
   [[ "$output" == *"status: cleaned"* ]]
   [[ "$output" != *"farmer:"* ]]
@@ -54,11 +54,11 @@ teardown() { rm -rf "$tmp"; }
   [ ! -e "$tmp/deleted" ]
 }
 
-@test "a busy worktree and a named slot are not cleaned" {
+@test "a busy worktree and a named worktree are not cleaned" {
   touch "$tmp/busy"
   run bash "$here/after-landing.sh" "$tmp/12"
   [[ "$output" == *"status: busy"* ]]
   run bash "$here/after-landing.sh" "$tmp/main"
-  [[ "$output" == *"not a numbered slot"* ]]
+  [[ "$output" == *"not a numbered worktree"* ]]
   [ ! -e "$tmp/deleted" ]
 }

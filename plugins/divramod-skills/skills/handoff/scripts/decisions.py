@@ -7,15 +7,15 @@
 Lists the decisions a session continuing with `/handoff c` has: HANDOFF.md's Decisions (the index of every user
 decision in force), then the current plan's Decisions and Pre-authorized (the plan `plans/CURRENT_PLAN` names, else
 the one HANDOFF.md links; an item holding one of the index's quotes is left out) and HANDOFF.md's Open. Prints the farmer
-HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a servant), the slot id the farmer knows
+HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a foreman), the worktree id the farmer knows
 (`<slot>`, or `<repo>/<slot>` when the farmer belongs to another repository) and the message to send it:
 
   decision check <slot>: I have these decisions: (1) ... (2) .... Did I forget one?
 
-In a parallel plan's subservant slot (skills plan 0013: `plans/LEAD` holds `<lead-slot> <plan> <step>`) it adds
-`lead` ({slot, plan, step}) to the JSON and a `lead:` line to the text: `/handoff c` there continues that one step
-only, never the plan and never a landing. A malformed marker still marks the slot: `lead` is {bad: true, error,
-text} and the text says `lead: broken marker ...`.
+In a parallel plan's servant worktree (skills plan 0013: `plans/LEAD` holds `<lead-slot> <plan> <step>`) it adds
+`lead` ({slot, plan, step}) to the JSON and a `foreman:` line to the text: `/handoff c` there continues that one step
+only, never the plan and never a landing. A malformed marker still marks the worktree: `lead` is {bad: true, error,
+text} and the text says `foreman: broken marker ...`.
 
 `--check` validates HANDOFF.md's Decisions section after /handoff wrote it: the section exists (`- none` when the
 work holds no user decision) and every line is `- <YYYY-MM-DD> "<the user's words>" (<who relayed it>) · home: <plan |
@@ -186,8 +186,8 @@ def plan_file(root: Path, handoff: str) -> Path | None:
 
 
 def lead_of(root: Path) -> dict | None:
-    """The subservant marker plans/LEAD: {slot, plan, step}; a malformed one {bad: True, error, text}: the slot is
-    still a subservant (bad but marked, as the farmer reads it); None without the file."""
+    """The servant marker plans/LEAD: {slot, plan, step}; a malformed one {bad: True, error, text}: the worktree is
+    still a servant's (bad but marked, as the farmer reads it); None without the file."""
     f = root / "plans" / "LEAD"
     if not f.is_file():
         return None
@@ -203,9 +203,9 @@ def lead_of(root: Path) -> dict | None:
 
 def lead_line(lead: dict) -> str:
     if lead.get("bad"):
-        return (f"lead: broken marker ({lead['error']}): still a subservant, never the plan, never a landing; ask "
-                "the lead to rewrite plans/LEAD")
-    return (f"lead: slot {lead['slot']}, plan {lead['plan']}, step {lead['step']}: a subservant, continue that one "
+        return (f"foreman: broken marker ({lead['error']}): still a servant, never the plan, never a landing; ask "
+                "the foreman to rewrite plans/LEAD")
+    return (f"foreman: worktree {lead['slot']}, plan {lead['plan']}, step {lead['step']}: a servant, continue that one "
             "step only (never the plan, never a landing)")
 
 
@@ -284,8 +284,8 @@ def main(argv: list[str]) -> int:
         print(lead_line(r["lead"]))
     for n, d in enumerate(r["decisions"], 1):
         print(f"{n:3}. [{d['from']}] {short(d['text'])}")
-    print(f"farmer: {r['farmer'] or 'none named in HANDOFF.md: ListAgents, the session in the farmer slot of ' + r['farmer_repo']}"
-          f" (repo {r['farmer_repo']}, slot id {r['slot']})")
+    print(f"farmer: {r['farmer'] or 'none named in HANDOFF.md: ListAgents, the session in the farmer worktree of ' + r['farmer_repo']}"
+          f" (repo {r['farmer_repo']}, worktree id {r['slot']})")
     print(f"message: {r['message']}")
     return 0
 

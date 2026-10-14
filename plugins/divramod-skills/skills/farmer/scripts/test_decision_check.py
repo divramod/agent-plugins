@@ -1,4 +1,4 @@
-"""Skills plan 0008: a servant's `decision check <slot>` after its clear, answered as code from the farmer's log."""
+"""Skills plan 0008: a foreman's `decision check <slot>` after its clear, answered as code from the farmer's log."""
 
 import io
 import json
@@ -36,7 +36,7 @@ def check(message, trees=("12", "04", "07")):
 
 class Check(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp())  # no real ~/.hal/git/worktree slot counts as known
+        self.root = Path(tempfile.mkdtemp())  # no real ~/.hal/git/worktree counts as known
         p = mock.patch.object(dc, "WORKTREES", self.root)
         p.start()
         self.addCleanup(p.stop)
@@ -58,7 +58,7 @@ class Check(unittest.TestCase):
     def test_an_unknown_slot(self):
         code, text, entry = check("decision check 09: I have these decisions: none. Did I forget one?")
         self.assertEqual((code, entry), (1, {}))
-        self.assertIn("unknown slot", text)
+        self.assertIn("unknown worktree", text)
         self.assertEqual(check("hello")[0], 1)
 
     def test_a_repo_wide_entry_counts_for_the_slot_it_names(self):
@@ -67,10 +67,10 @@ class Check(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("handoff skill: after clear-and-continue", text)
         self.assertIn('- 2026-10-05 · - · "can we adapt the handoff" / "1" [handoff skill: after clear-and-continue', text)
-        self.assertNotIn("workflow runs", text)  # hal2's slot 12, not skills/04
+        self.assertNotIn("workflow runs", text)  # hal2's worktree 12, not skills/04
         self.assertIn("none missing", check("decision check 07: use sqlite")[1])
         relayed = {**OTHER, "slot": "-", "what": "commit the skills edits", "note": "12 told skills is free"}
-        self.assertFalse(decision_log.concerns(relayed, "12", "hal2"))  # a note naming a slot is bookkeeping
+        self.assertFalse(decision_log.concerns(relayed, "12", "hal2"))  # a note naming a worktree is bookkeeping
 
     def test_a_slot_is_a_standalone_token(self):
         self.assertTrue(decision_log.names("in ~/a/skills (slot 04).", "04"))
@@ -78,7 +78,7 @@ class Check(unittest.TestCase):
         self.assertFalse(decision_log.names("plan 0004", "04"))
 
 
-# hal2's slot 12 as the farmer's evidence of 2026-10-05 showed it (shortened): the servant listed "1a/2a/3a CI
+# hal2's worktree 12 as the farmer's evidence of 2026-10-05 showed it (shortened): the foreman listed "1a/2a/3a CI
 # redesign, version bumps" and got 22 back.
 REDESIGN = {"at": "2026-10-05T21:22:06", "kind": "decision", "slot": "12",
             "what": "1a gate+merge on a label shared by the Linux runner and the Mac host runner; 2a build+publish+deliver "
@@ -240,7 +240,7 @@ TWELVES_LOG = [
 
 
 class ByRelay(unittest.TestCase):
-    """Plan 0010: a servant naming the farmer's instruction ids or a distinctive topic has those decisions."""
+    """Plan 0010: a foreman naming the farmer's instruction ids or a distinctive topic has those decisions."""
 
     def test_twelves_exact_message_misses_only_what_it_does_not_name(self):
         slot, have = dc.parse(TWELVES_MESSAGE)
@@ -395,7 +395,7 @@ class InTheCheckout(unittest.TestCase):
 
 
 class Subject(unittest.TestCase):
-    """Skills plan 0012: a repo-wide decision concerns a slot when the slot is its subject, not an aside."""
+    """Skills plan 0012: a repo-wide decision concerns a worktree when the worktree is its subject, not an aside."""
 
     ASK = {"at": "2026-10-05T07:12:28", "kind": "decision", "slot": "-",
            "what": "user: ask every farmer round: (a) is the user away from the Mac, so UI tests may run (06 three "
@@ -433,7 +433,7 @@ MESSAGE04 = ("decision check 04: I have these decisions: plan 0094's Decisions (
 
 
 class Replay04(unittest.TestCase):
-    """Skills plan 0012: hal2 slot 04's decision check of 2026-10-06 10:54 (5 reported, 1 really missing), replayed
+    """Skills plan 0012: hal2 worktree 04's decision check of 2026-10-06 10:54 (5 reported, 1 really missing), replayed
     with 04's checkout and the farmer log (trimmed fixtures in testdata/slot04)."""
 
     def setUp(self):

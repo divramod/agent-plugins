@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Set the user's merge-queue order and say what each affected slot must hear.
+"""Set the user's merge-queue order and say what each affected worktree must hear.
 
-  adapt.py <slot>... [--note WHY] [--repo DIR] [--instruct] [--json]
+  adapt.py <worktree>... [--note WHY] [--repo DIR] [--instruct] [--json]
   adapt.py clear [--repo DIR] [--instruct] [--json]
 
-hal2 owns the order (`hal2-cli-git worktree queue order`, hal2 plan 0143): the listed slots land first, in this
-order, before every other waiting landing, also one enqueued later; the holder is never preempted. A listed slot is a
+hal2 owns the order (`hal2-cli-git worktree queue order`, hal2 plan 0143): the listed worktrees land first, in this
+order, before every other waiting landing, also one enqueued later; the holder is never preempted. A listed worktree is a
 reservation: without a ticket it gets one at its place, and at the front the queue waits for it until its own
 merge-to-main takes it over. `clear` drops the list and every reservation.
 
-Then it prints the queue before and after and one message per slot to tell: each listed slot its place (a slot whose
-work is finished but not queued: land now, it takes its place; one still working: keep working, the place waits),
-each other slot that moved back, each slot whose reservation went. It sends nothing: the caller does (SendMessage).
+Then it prints the queue before and after and one message per worktree to tell:
+each listed worktree its place (a worktree whose work is finished but not queued: land now, it takes its
+place; one still working: keep working, the place waits), each other worktree that moved back, each worktree
+whose reservation went. It sends nothing: the caller does (SendMessage).
 --instruct stamps every message with the farmer's ack id (acks.py instruct: the farmer session). Exit 2 when
 hal2-cli-git is missing, 1 when hal2 refuses the order.
 """
@@ -71,7 +72,7 @@ def default_branch(main: Path) -> str:
 
 
 def messages(before: dict, after: dict, note: str, is_finished) -> list[dict]:
-    """What each affected slot hears: places are 1-based, place 1 is the front."""
+    """What each affected worktree hears: places are 1-based, place 1 is the front."""
     old = [t["slot"] for t in before.get("queue", [])]
     new = after.get("queue", [])
     listed = (after.get("priority") or {}).get("slots", [])
@@ -82,11 +83,11 @@ def messages(before: dict, after: dict, note: str, is_finished) -> list[dict]:
         if slot in listed:
             pure = bool(t.get("reserved")) and not t.get("pid")
             if pure and is_finished(t["worktree"]):
-                kind, text = "land", (f"{BOSS}: land now. The user put slot {slot} at {of}{why}: run /mtm now, it "
+                kind, text = "land", (f"{BOSS}: land now. The user put worktree {slot} at {of}{why}: run /mtm now, it "
                                       "takes this reserved place and lands when its turn comes. What is committed "
                                       "lands; unfinished steps land after it.")
             elif pure:
-                kind, text = "reserved", (f"farmer: the user reserved {of} for slot {slot}{why}. Keep working: your "
+                kind, text = "reserved", (f"farmer: the user reserved {of} for worktree {slot}{why}. Keep working: your "
                                           "plan's landing (/mtm at its end) takes this place, and at the front the "
                                           "queue waits for you.")
             else:
@@ -101,7 +102,7 @@ def messages(before: dict, after: dict, note: str, is_finished) -> list[dict]:
     for t in before.get("queue", []):
         if t.get("reserved") and not t.get("pid") and t["slot"] not in gone:
             out.append({"slot": t["slot"], "kind": "unreserved", "worktree": t["worktree"],
-                        "text": f"farmer: the user took slot {t['slot']}'s reserved place out of the merge queue; "
+                        "text": f"farmer: the user took worktree {t['slot']}'s reserved place out of the merge queue; "
                                 "land with /mtm as usual when your work is done."})
     return out
 
@@ -117,7 +118,7 @@ def instruct(main: Path, m: dict) -> dict:
 
 def line(place: int, t: dict) -> str:
     reserved = t.get("reserved")
-    what = "reserved, waits for its slot" if reserved and not t.get("pid") else t.get("state", "waiting")
+    what = "reserved, waits for its turn" if reserved and not t.get("pid") else t.get("state", "waiting")
     by = f" (reserved by {reserved['by']})" if reserved else ""
     return f"  {place}. {t['slot']}: {what}{by}"
 
@@ -134,8 +135,8 @@ def render(before: dict, after: dict, sent: list[dict]) -> str:
 
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("slots", nargs="+", help="slots in landing order, or `clear`")
-    p.add_argument("--note", default="", help="why, as the slots hear it")
+    p.add_argument("slots", nargs="+", help="worktrees in landing order, or `clear`")
+    p.add_argument("--note", default="", help="why, as the worktrees hear it")
     p.add_argument("--repo", default=".")
     p.add_argument("--instruct", action="store_true", help="stamp each message with a farmer ack id")
     p.add_argument("--json", action="store_true")

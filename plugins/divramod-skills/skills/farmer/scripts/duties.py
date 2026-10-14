@@ -1,4 +1,4 @@
-"""The development lead's, ci's, prs', watch's and autoclear's rules as code (plan 0007 step 3).
+"""The development foreman's, ci's, prs', watch's and autoclear's rules as code (plan 0007 step 3).
 
 Each `<duty>(item, ctx)` scans read-only and plans actions (see tick.py). Templated help is typed into idle
 sessions; what needs judgment (a question, a permission prompt, a real CI failure, an unclear stop) becomes a
@@ -23,7 +23,7 @@ sys.path.insert(0, str(SKILLS / "fix-autoclear" / "scripts"))
 import evidence  # noqa: E402  (fix-autoclear)
 import scan as watch_scan  # noqa: E402  (sanity-watch)
 
-LEAD = "farmer (development lead)"
+LEAD = "farmer (development foreman)"
 # The relayed go (plan 0137): a farmer message whose first line has this form carries the user's own decision, quoted
 # from the farmer's session or the log's `decision` entries; the plan and mtm skills accept it for exactly those words.
 USER_DECIDED = 'farmer [<id>]: the user decided: "<the user\'s words>"'
@@ -37,11 +37,11 @@ TEXT = {
                       "<shotfile>/<n>/<title-slug>, or a short kebab-case task name (global CLAUDE.md).",
     "context-high": LEAD + ": your context is at {percent}%. Run /handoff now; hal2's autoclear continues you.",
     "continue": LEAD + ": you stopped mid-plan ({plan}). Continue the plan to its end.",
-    # A former subservant (a stale plans/LEAD, skills plan 0013) never lands; since skills plan 0016 a plan's steps
-    # run in subagents and `plan.py report` is gone: the lead takes the work over, or plans/LEAD is deleted.
-    "continue-step": LEAD + ": you stopped mid-step {step} of plan {plan} and hold a stale plans/LEAD of the lead in "
-                            "slot {slot}: never land and never edit plan.md; commit your work on your branch, then "
-                            "the lead in slot {slot} takes the work over, or delete plans/LEAD.",
+    # A former servant (a stale plans/LEAD, skills plan 0013) never lands; since skills plan 0016 a plan's steps
+    # run in subagents and `plan.py report` is gone: the foreman takes the work over, or plans/LEAD is deleted.
+    "continue-step": LEAD + ": you stopped mid-step {step} of plan {plan} and hold a stale plans/LEAD of the foreman in "
+                            "worktree {slot}: never land and never edit plan.md; commit your work on your branch, then "
+                            "the foreman in worktree {slot} takes the work over, or delete plans/LEAD.",
     "failed": "Your last turn failed ({why}). Check git status and your last tool result, then continue.",
     "resume": "Your last response was cut off ({error}). Check git status and the result of your last tool call, "
               "then continue where you stopped.",
@@ -76,7 +76,7 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
         elif kind == "context-high":
             text = TEXT["context-high"].format(percent=n.get("context_percent"))
         elif kind == "idle-in-plan" and GOING_ON.search(said) and not WAITS.search(said):
-            lead = n.get("lead")  # a subservant continues its one step, never the plan to its landing
+            lead = n.get("lead")  # a servant continues its one step, never the plan to its landing
             if not lead:
                 text = TEXT["continue"].format(plan=n.get("plan") or "your plan")
             elif not lead.get("bad"):  # a broken marker names no step: the farmer judges it (a wake)
@@ -119,7 +119,7 @@ def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) ->
         elif kind == "slot-red" and f["branch"] in slots:
             text = TEXT["slot-red"].format(workflow=f["workflow"], jobs=", ".join(f.get("failed_jobs", [])), url=f["url"])
             out.append(act("ci", kind, "send", f["branch"], pane=ctx["panes"][f["branch"]], text=text, key=key))
-            out.append(act("ci", "handled", "run", f["branch"], argv=record + ["told the slot", "--repo", ctx["top"]],
+            out.append(act("ci", "handled", "run", f["branch"], argv=record + ["told the worktree", "--repo", ctx["top"]],
                            after=key))
         else:
             out.append(act("ci", kind, "wake", f.get("branch") or "-", key=key, text=f["why"], evidence=f))
@@ -183,8 +183,8 @@ def plan_autoclear(item: dict, ctx: dict, problems: list[dict] | None = None, of
 
 
 DEPENDABOT_TASK = (
-    "Apply these Dependabot updates in your slot and land them together as one plan:\n\n"
-    "- Merge each PR's branch into your slot branch as it is, oldest first (`git fetch origin <head>` then "
+    "Apply these Dependabot updates in your worktree and land them together as one plan:\n\n"
+    "- Merge each PR's branch into your worktree's branch as it is, oldest first (`git fetch origin <head>` then "
     "`git merge --no-ff origin/<head>`), resolving conflicts in the merge. Never rewrite Dependabot's commits: GitHub "
     "marks a PR merged once its head commit reaches main.\n"
     "- Fix what each update breaks (build, tests, lint, a major version's migration) in commits of your own, and "
@@ -195,13 +195,13 @@ DEPENDABOT_TASK = (
 DEPENDABOT_DONE = ("Every PR listed is merged by your landing (GitHub shows it merged, or Dependabot closes it as up to "
                    "date) or closed by you with its reason, and the landing's gates were green.")
 CLOSE = {"superseded": "Closed by the farmer: main already holds this update.",
-         "land-stale": "Closed by the farmer: this landing's slot has no ticket in the merge queue and nothing beyond "
+         "land-stale": "Closed by the farmer: this landing's worktree has no ticket in the merge queue and nothing beyond "
                        "main; a new landing opens its own PR."}
 
 
 def plan_prs(item: dict, ctx: dict, scan: dict | None = None, held: dict | None = None) -> list[dict]:
-    """The open PRs kept clean: Dependabot's applied by one servant per batch, PRs main holds closed, a leftover
-    landing PR closed (its slot holds nothing) or judged, any other PR the user's."""
+    """The open PRs kept clean: Dependabot's applied by one foreman per batch, PRs main holds closed, a leftover
+    landing PR closed (its worktree holds nothing) or judged, any other PR the user's."""
     scan = scan if scan is not None else pr_scan.scan(ctx["top"])
     held = held if held is not None else delegation.ledger(ctx["main"])
     busy = any(k.startswith("prs:dependabot") and e.get("state") in ("running", "waiting") for k, e in held.items())

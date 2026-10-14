@@ -83,10 +83,10 @@ cleanup); the command released the queue itself, so no `fastlane.sh release`. Th
 ### Without `--fastlane`: the steps 3-8
 
 3. **Stop the land attempts, then reserve**, in this order (else the reserve waits behind the very landing it wants
-   to stop): `bash $S/ci-stop.sh` moves this slot to the front of the merge queue, stops another slot's landing
+   to stop): `bash $S/ci-stop.sh` moves this worktree to the front of the merge queue, stops another worktree's landing
    that holds it, asks every land run whose merge job has not succeeded to cancel and waits for those that have
    (only their still queued jobs are cancelled after `SHIP_GRACE`), then waits until every one has ended; it prints
-   the stopped slots. **A run gets one cancel request**, however many rounds its end takes and however often the
+   the stopped worktrees. **A run gets one cancel request**, however many rounds its end takes and however often the
    script is rerun (it notes the runs it asked in the git common dir; a run started again, a new attempt, is asked
    once more), and none when its own fail-fast is ending it already (the step `fail fast: stop the run` of one of
    its jobs ended `success` or still runs, or a job with that step concluded `cancelled`; such a run can no longer
@@ -114,8 +114,8 @@ cleanup); the command released the queue itself, so no `fastlane.sh release`. Th
    - the CI jobs the fastlane skipped (Linux, Docker stacks, Windows, VMs; the worktree script lists them) and the
      command that runs them once CI works again (hal2: `gh workflow run merge-to-main.yml -f ref=<default> -f
      jobs=<jobs>`, `land.yml` where the repository still has that name);
-   - the slots whose landings `ci-stop.sh` stopped: send them to the repository's farmer in one line (SendMessage to
-     the session in its slot `farmer-<repo>`, `ListAgents`) so they land again later; no farmer: name them to the
+   - the worktrees whose landings `ci-stop.sh` stopped: send them to the repository's farmer in one line (SendMessage to
+     the session in its worktree `farmer-<repo>`, `ListAgents`) so they land again later; no farmer: name them to the
      user. (This list stays only here: the one call above pauses, it stops nothing.)
 
 ## Configure

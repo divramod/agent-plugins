@@ -3,7 +3,7 @@
 
   acks.py instruct <slot> <text> [--decision <id>]... [--repo <dir>] [--json]
       stamp a message the farmer sends itself (SendMessage): prints it with its id, logs the `ask-ack`; with
-      --decision (a prefix of a `decision` entry's id) also a `decision-link`, so a servant naming the user's
+      --decision (a prefix of a `decision` entry's id) also a `decision-link`, so a foreman naming the user's
       decision by this id has it in a decision check (skills plan 0010)
   acks.py ack <id> started|done|refused [<why>...] [--repo <dir>]
       record a session's ack when its message arrives
@@ -35,7 +35,7 @@ STAMPED = re.compile(r"^farmer \[([^\]]+)\]")
 
 
 def next_id(log: list[dict], slot: str) -> str:
-    """`<slot>-<n>`: n counts the slot's instructions so far."""
+    """`<slot>-<n>`: n counts the worktree's instructions so far."""
     return f"{slot}-{1 + sum(1 for e in log if e.get('kind') == 'ask-ack' and e.get('slot') == slot)}"
 
 

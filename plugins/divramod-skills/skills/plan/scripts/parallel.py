@@ -7,11 +7,11 @@
   under the title (`Capacity: @vm=2, @x=3`; a plan in the record format: above its step table) overrides. A row whose Step starts with `Milestone <n>` touches `@land`.
   Resources compare without backticks, whitespace and case.
 - Who: `lead`, `subagent` or `user`; every step runs in a subagent (plan 0016: `plan.py prompt <n>`). A `slot NN`
-  an older row names (a subservant session, gone) is still read but never assigned.
+  an older row names (a servant session, gone) is still read but never assigned.
 - Status: `done...`, `running`, `blocked <why>`, anything else (blank, `next`) is open. A running step, and a blocked
   one with a Who, holds its Touches.
 
-A former subservant's slot may still hold the gitignored marker `plans/LEAD` (`<lead-slot> <plan-slug> <step>`):
+A former servant's worktree may still hold the gitignored marker `plans/LEAD` (`<lead-slot> <plan-slug> <step>`):
 plan.py and mtm refuse to write the plan or land there (plan 0015 D12) until the marker is gone.
 """
 import re
@@ -170,11 +170,11 @@ def schedule(steps: list[dict], room: dict[str, int], limit: int | None = None) 
 
 
 def check_who(who: str) -> str:
-    """lead, subagent or user. `slot NN` (a subservant session, gone with plan 0016) is refused; a row that already
+    """`lead`, subagent or user. `slot NN` (a servant session, gone with plan 0016) is refused; a row that already
     names one is still read (enrich, holds)."""
     who = " ".join(who.split()).lower()
     if SLOT.match(who):
-        raise ParallelError(f"{who}: steps no longer go to subservant sessions in worktree slots; run the step as a "
+        raise ParallelError(f"{who}: steps no longer go to servant sessions in worktrees; run the step as a "
                             "subagent: `plan.py assign <step> subagent`, then `plan.py prompt <step>` prints its Agent "
                             "call")
     if not WHO.match(who):
@@ -183,7 +183,7 @@ def check_who(who: str) -> str:
 
 
 def read_marker(root: Path) -> dict | None:
-    """The subservant marker `plans/LEAD`: {slot, plan, step}, None when there is none."""
+    """The servant marker `plans/LEAD`: {slot, plan, step}, None when there is none."""
     f = root / LEAD
     if not f.is_file():
         return None
@@ -200,7 +200,7 @@ def worktree_of(path: Path) -> Path | None:
 
 
 def subservant_marker(root: Path, cwd: Path) -> dict | None:
-    """The marker of the `--root` checkout, else of the cwd's: a subservant passing --root <lead> is one too."""
+    """The marker of the `--root` checkout, else of the cwd's: a servant passing --root <foreman> is one too."""
     if marker := read_marker(root):
         return marker
     top = worktree_of(cwd)

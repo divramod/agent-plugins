@@ -390,7 +390,7 @@ def cmd_scan(args) -> int:
     else:
         print(f"{project}: {result['agents']} agents, {len(found)} incident(s)")
         for i in found:
-            print(f"  {i['class']:<3} {i['action']:<9} slot {i['slot'] or '-':<4} {i['pane'] or '-':<16} "
+            print(f"  {i['class']:<3} {i['action']:<9} worktree {i['slot'] or '-':<4} {i['pane'] or '-':<16} "
                   f"{i['name']}{' — ' + i['reason'] if i['reason'] else ''}  [{i['id']}]")
     return 0
 

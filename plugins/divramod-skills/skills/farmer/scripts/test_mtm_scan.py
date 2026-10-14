@@ -150,7 +150,7 @@ class Summary(unittest.TestCase):
         acts = [{"at": "2026-10-03T07:40:00", "kind": "wake", "slot": "12", "what": "told to rerun", "note": ""}]
         land = [{"slot": "01", "outcome": "landed", "task": "", "tests": []}]
         text = scan.render_summary(snap(queue=q, findings=f, worktrees=w), acts, land, "Unblocked 12.", "Answered 05.")
-        for part in ("# farmer ", "## Development lead", "Answered 05.", "Queue head: 12 held", "Unblocked 12.", "- 01 landed", "0. 12 held (failed, attempt 7)",
+        for part in ("# farmer ", "## Development foreman", "Answered 05.", "Queue head: 12 held", "Unblocked 12.", "- 01 landed", "0. 12 held (failed, attempt 7)",
                      "- held-idle 12: nobody reruns", "- 07:40 wake 12: told to rerun", "| 12 | 2 | sleeping |"):
             self.assertIn(part, text)
         self.assertNotIn("| 03 |", text)
@@ -196,7 +196,7 @@ LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
 
 
 class Subservants(unittest.TestCase):
-    """Skills plan 0013: a slot with plans/LEAD is a parallel plan's subservant and never lands."""
+    """Skills plan 0013: a worktree with plans/LEAD is a parallel plan's servant and never lands."""
 
     def test_the_marker_is_read_a_missing_one_is_none_a_broken_one_bad_but_marked(self):
         import tempfile
@@ -207,7 +207,7 @@ class Subservants(unittest.TestCase):
             (Path(d) / "plans/LEAD").write_text("02 0149-hal9k\n")  # review 1 finding 10: still marked
             bad = scan.lead_of(d)
             self.assertTrue(bad["bad"])
-            self.assertIn("subservant with a broken marker (plans/LEAD is not", scan.subservant(bad))
+            self.assertIn("servant with a broken marker (plans/LEAD is not", scan.subservant(bad))
             (Path(d) / "plans/LEAD").write_text("02 0149-hal9k 7\n")
             self.assertEqual(scan.lead_of(d), LEAD)
 
@@ -252,7 +252,7 @@ class Subservants(unittest.TestCase):
               "missing": ["HEAD: 2 commit(s) not in origin/02"]}]
         f = scan.findings(snap(worktrees=w))
         self.assertEqual([(x["kind"], x["slot"], x["lead"]) for x in f], [("work-without-agent", "31", LEAD)])
-        self.assertIn("subservant of slot 02 (plan 0149-hal9k step 7): HEAD: 2 commit(s) not in origin/02", f[0]["why"])
+        self.assertIn("servant of worktree 02 (plan 0149-hal9k step 7): HEAD: 2 commit(s) not in origin/02", f[0]["why"])
         merged = [dict(w[0], missing=[])]  # review 1 finding 3: ahead of main, but all of it in origin/02
         self.assertEqual(scan.findings(snap(worktrees=merged)), [])
 
@@ -348,8 +348,8 @@ class Priority(unittest.TestCase):
 
 
 class SubservantWork(test_prune.MarkedSlots):
-    """Review 1 finding 3: a marked slot's work is measured against origin/<lead>, never main, so a subservant whose
-    step its lead merged is not restarted with /handoff c every 3 hours. 31: merged into origin/02; 32: not."""
+    """Review 1 finding 3: a marked worktree's work is measured against origin/<foreman>, never main, so a servant whose
+    step its foreman merged is not restarted with /handoff c every 3 hours. 31: merged into origin/02; 32: not."""
 
     def entry(self, name):
         return scan.worktree_entry({"path": str(self.base / name), "branch": name}, {}, "main", time.time())

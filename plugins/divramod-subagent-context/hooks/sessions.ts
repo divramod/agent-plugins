@@ -20,7 +20,7 @@ export const parse = (text: string): Omit<SessionRow, 'plan' | 'here'> | undefin
   }
 }
 
-// A plan file's first line: the plan the slot works on (`plans/CURRENT_PLAN`); empty when there is none.
+// A plan file's first line: the plan the worktree works on (`plans/CURRENT_PLAN`); empty when there is none.
 export const planOf = (text: string | undefined) => (text ?? '').split('\n')[0]!.trim()
 
 // `/…/worktree/<repo>/<NN>` reads `<repo> <NN>`; any other folder its last two parts.

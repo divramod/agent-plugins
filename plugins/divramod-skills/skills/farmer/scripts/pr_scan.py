@@ -3,10 +3,10 @@
 
   pr_scan.py scan [--repo <dir>] [--json]
       every open pull request by kind, and findings:
-        dependabot   the open Dependabot PRs, as one batch (one servant applies them all)
+        dependabot   the open Dependabot PRs, as one batch (one foreman applies them all)
         superseded   a Dependabot PR main already holds (merging it changes nothing): closed by the tick
-        land-stale   a landing's PR (land/<slot>) whose slot has no ticket in the merge queue for a day;
-                     `ahead` says how many commits the slot still holds beyond main
+        land-stale   a landing's PR (land/<slot>) whose worktree has no ticket in the merge queue for a day;
+                     `ahead` says how many commits the worktree still holds beyond main
         other        any other open PR (a person's, an app's): the user's to decide
 
 Reads gh (gh pr list), git and hal2-cli-git; writes nothing.
@@ -42,8 +42,8 @@ def brief_pr(pr: dict) -> dict:
 
 
 def findings(prs: list[dict], queued: set[str], superseded: set[int], ahead: dict[str, int], now: float) -> list[dict]:
-    """The findings of the open PRs. `queued`: slots with a merge-queue ticket; `superseded`: Dependabot PRs main
-    already holds; `ahead`: commits each slot holds beyond main (absent: no such slot)."""
+    """The findings of the open PRs. `queued`: worktrees with a merge-queue ticket; `superseded`: Dependabot PRs main
+    already holds; `ahead`: commits each worktree holds beyond main (absent: no such worktree)."""
     out, deps = [], []
     for pr in sorted(prs, key=lambda p: p["number"]):
         kind, base = kind_of(pr), brief_pr(pr)

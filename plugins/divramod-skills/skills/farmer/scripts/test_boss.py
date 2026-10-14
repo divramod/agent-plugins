@@ -63,10 +63,10 @@ LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
 
 
 class Subservant(unittest.TestCase):
-    """Skills plan 0013: a slot with plans/LEAD never lands, so it never gets the /mtm text."""
+    """Skills plan 0013: a worktree with plans/LEAD never lands, so it never gets the /mtm text."""
 
     def test_a_subservant_holding_the_queue_wakes_the_farmer(self):
-        f = {"kind": "subservant-holds", "slot": "31", "seq": 7, "lead": LEAD, "why": "subservant of slot 02"}
+        f = {"kind": "subservant-holds", "slot": "31", "seq": 7, "lead": LEAD, "why": "servant of worktree 02"}
         s = snap([f], [{"slot": "31", "state": "held", "seq": 7}], [wt("31", lead=LEAD)])
         self.assertEqual(plan(s), [("wake", "subservant-holds", "31")])
         self.assertEqual(plan(s, [{"at": at(30), "key": "subservant-holds:31"}]), [], "at most hourly")
@@ -80,7 +80,7 @@ class Subservant(unittest.TestCase):
             planned = boss.plan(s, {"now": NOW, "log": [], "main": "/x/hal2"})
             self.assertEqual({(a["do"], a["kind"]) for a in planned}, {("wake", "subservant-holds")}, state)
             self.assertNotIn("/mtm", json.dumps(planned))
-            self.assertIn("subservant of slot 02 (plan 0149-hal9k step 7)", planned[0]["text"])
+            self.assertIn("servant of worktree 02 (plan 0149-hal9k step 7)", planned[0]["text"])
 
 
 class Queue(unittest.TestCase):
@@ -159,7 +159,7 @@ class Work(unittest.TestCase):
         self.assertEqual(plan(snap([f], [], [dict(w, plan="shooter/1/x")])), [("wake", "orphan", "12")])
 
     def test_a_marked_orphan_is_restarted_only_with_handoff_c_else_wakes(self):
-        # Skills plan 0013: a subservant (plans/LEAD) continues its one step, never lands.
+        # Skills plan 0013: a servant (plans/LEAD) continues its one step, never lands.
         (self.tmp / "31").mkdir()
         (self.tmp / "31" / "HANDOFF.md").write_text("x")
         f = {"kind": "work-without-agent", "slot": "31", "why": "", "lead": LEAD}
@@ -172,8 +172,8 @@ class Work(unittest.TestCase):
         self.assertNotIn("/mtm", json.dumps(planned + bare))
 
     def test_a_marked_orphan_merged_into_its_lead_is_not_restarted_a_broken_marker_wakes(self):
-        # Review 1 findings 3 and 10: nothing missing in origin/<lead> means its step is done; a broken marker
-        # names no lead, so the farmer judges it.
+        # Review 1 findings 3 and 10: nothing missing in origin/<foreman> means its step is done; a broken marker
+        # names no foreman, so the farmer judges it.
         (self.tmp / "31").mkdir()
         (self.tmp / "31" / "HANDOFF.md").write_text("x")
         f = {"kind": "work-without-agent", "slot": "31", "why": "", "lead": LEAD}

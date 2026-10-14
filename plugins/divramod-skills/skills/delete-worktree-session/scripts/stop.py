@@ -9,8 +9,8 @@
 terminal host (`t:<id>`) or sends SIGHUP, SIGTERM, SIGKILL to its tmux pane's process group, and refuses a draft in
 its box, running background tasks or a clear-and-continue job too; an older hal2 without `stop` cannot see a draft:
 refused, with --force its host killed or its process signalled here. It waits --wait seconds (default 15) for the session to be gone. It refuses (exit 3,
-`refused` names why) the session it runs in, a busy agent (working, starting, blocked) and a slot whose landing runs
-or waits in the merge queue, unless --force (never for its own session). Exit 4: several sessions in that slot (name the pane). Prints
+`refused` names why) the session it runs in, a busy agent (working, starting, blocked) and a worktree whose landing runs
+or waits in the merge queue, unless --force (never for its own session). Exit 4: several sessions in that worktree (name the pane). Prints
 JSON. Exit 2 when a hal2 CLI is missing.
 """
 import json

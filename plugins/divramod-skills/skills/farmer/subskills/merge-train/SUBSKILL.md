@@ -12,11 +12,11 @@ The by-hand practice it mirrors: [merge-to-main-boss › Merge trains](../merge-
 ## What the code does each round
 
 1. **Carrier**: the queue's holder while its candidate is not pushed (`hal2-cli-git worktree queue --json`: its
-   ticket is `held` with the reason `reserved`, no lease (`kept_until`) and no landing; a slot with the user's
+   ticket is `held` with the reason `reserved`, no lease (`kept_until`) and no landing; a worktree with the user's
    priority included), else the first waiter. A running landing, a red candidate's hold and a kept lease are never
    touched: then the first waiter carries, and its train lands after the current run.
 2. **Passengers**: every other waiting ticket, in queue order, whose branch has commits the default branch lacks
-   and whose slot is no subservant's (`plans/LEAD`). No maximum, and no look at the plan: a ticket in the queue
+   and whose worktree is no servant's (`plans/LEAD`). No maximum, and no look at the plan: a ticket in the queue
    says the branch is to land.
 3. **Trial merge** (`trial.py`, `git merge-tree --write-tree`: nothing is checked out, no ref moves): the carrier's
    branch merged into the default branch, then each passenger in order. Clean, or conflicts only in append-only
@@ -25,7 +25,7 @@ The by-hand practice it mirrors: [merge-to-main-boss › Merge trains](../merge-
    told to merge the passengers' branches (`git merge --no-ff --no-edit`, one at a time, in that order), run its
    quick checks and land as usual (/mtm); a merge that conflicts after all, or a passenger change that fails before
    the landing merged: `git reset --hard ORIG_HEAD` for it, land without it, name it.
-4. **Passengers** keep their tickets (their follow-up landing is quick; hal2 cannot cancel another slot's ticket
+4. **Passengers** keep their tickets (their follow-up landing is quick; hal2 cannot cancel another worktree's ticket
    without killing its `reserve`): told to wait, then `/mfm` after the carrier lands and `/mtm` what is left.
 5. **Record**: `train:<carrier>+<passenger>...` in the log. For 12 hours its passengers are not taken again and its
    carrier is watched; a carrier that has not landed yet takes on the waiters that came since (a new train record); a busy session gets the message as a relay. A carrier waiting for the user holds the train.

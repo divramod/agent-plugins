@@ -36,7 +36,7 @@ def now_iso(minutes_ago: int = 0) -> str:
 
 
 class Fixture(unittest.TestCase):
-    """A main checkout `proj` with an origin, slots 02, 10, 1 and farmer-x beside it (not under ~/.hal), a dot
+    """A main checkout `proj` with an origin, worktrees 02, 10, 1 and farmer-x beside it (not under ~/.hal), a dot
     checkout `.deliver` and a prunable `gone`; the outside tools are mocked."""
 
     def setUp(self):

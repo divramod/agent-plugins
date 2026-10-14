@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Send a written shot to an agent, as hal2-nvim's shooter sends one: a new worktree or an existing session.
 
-  implement.py sessions --repo DIR                         the repo's live agent sessions (pane, slot, state, title)
-  implement.py send --repo DIR --shotfile NAME --number N  start an agent in the next free worktree slot with the shot
+  implement.py sessions --repo DIR                         the repo's live agent sessions (pane, worktree, state, title)
+  implement.py send --repo DIR --shotfile NAME --number N  start an agent in the next free worktree with the shot
                     [--pane %N|t:<id>]                       ... or type it into that existing session instead
                     [--global]                               a shot of the global shotfiles, carried out in DIR
                     [--model ID] [--effort LEVEL]            the session's model and effort (default opus medium)
@@ -10,7 +10,7 @@
 The prompt is hal2-nvim's shot template (`shot-template-single.md`: the repo's `.hal/util/shooter/config/nvim/`,
 then `~/.config/hal/util/shooter/nvim/`, then hal2-nvim's own `templates/`, else the copy below) filled with the
 shot; it is also written as a bullet file (`~/.config/hal/util/shooter/nvim/bullets/<repo>/...`). A new session gets
-it as its first prompt (create-worktree-session's create.py: the first slot without a session and without work), an existing one gets `@<bullet>` typed in
+it as its first prompt (create-worktree-session's create.py: the first worktree without a session and without work), an existing one gets `@<bullet>` typed in
 (`hal2-cli-agents send`). Then the shot is marked sent (`hal2-cli-shooter shots mark-sent --worktree <slot>`).
 
 The session runs the shot's plan as its coordinator (the prompt says so, also when a loaded template does not) at an
@@ -53,7 +53,7 @@ COORDINATOR = ("You are the plan's coordinator: you never do a step yourself; ea
                "`run` current.")
 DEFAULT_MODEL, DEFAULT_EFFORT = "opus", "medium"  # the user's defaults for new sessions (skills plan 0015's D15)
 READY = {"idle", "done", "sleeping"}  # states an agent takes new input in without interrupting work
-# A new session goes to the first slot without a session and without work (create-worktree-session's script).
+# A new session goes to the first worktree without a session and without work (create-worktree-session's script).
 CREATE = Path(__file__).resolve().parents[2] / "create-worktree-session" / "scripts" / "create.py"
 # The plan skill's reader of a session's live model and effort (its transcript's main chain).
 SESSION = Path(__file__).resolve().parents[2] / "plan" / "scripts"

@@ -58,18 +58,18 @@ LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
 
 
 class Subservant(unittest.TestCase):
-    """Skills plan 0013: a slot with plans/LEAD runs one step of its lead's plan and never lands."""
+    """Skills plan 0013: a worktree with plans/LEAD runs one step of its foreman's plan and never lands."""
 
     def test_a_marked_slot_idle_mid_step_is_idle_in_plan_even_without_a_plan(self):
         kind, why = lead.classify(agent(slot="31", lead=LEAD), "Step done.", time.time())
         self.assertEqual(kind, "idle-in-plan")
-        self.assertIn("subservant of slot 02 (plan 0149-hal9k step 7)", why)
+        self.assertIn("servant of worktree 02 (plan 0149-hal9k step 7)", why)
         self.assertEqual(lead.classify(agent(slot="31", lead=LEAD), "Should I?", time.time())[0], "asks")
         fresh = agent(slot="31", lead=LEAD, since=int(time.time() * 1000))
         self.assertIsNone(lead.classify(fresh, "Step done.", time.time()))
 
     def test_a_subservant_done_with_its_step_waits_for_its_lead_and_wakes_nobody(self):
-        # Review 1 finding 12: its report on origin/NN or its HEAD in origin/<lead>: no hourly wake.
+        # Review 1 finding 12: its report on origin/NN or its HEAD in origin/<foreman>: no hourly wake.
         done = agent(slot="31", lead=LEAD, step_done=True)
         self.assertIsNone(lead.classify(done, "Step 7 reported. Waiting for the lead?", time.time()))
         self.assertEqual(lead.classify(dict(done, state="blocked"), "", time.time())[0], "blocked")
@@ -115,7 +115,7 @@ class Transcript(unittest.TestCase):
 
 
 class StepDone(test_prune.MarkedSlots):
-    """Review 1 finding 12: lead_marker.step_done on real slots (lead 02, plan 0013-parallel-plans, step 4).
+    """Review 1 finding 12: lead_marker.step_done on real worktrees (foreman 02, plan 0013-parallel-plans, step 4).
     31: merged into origin/02 without a report; 32: not merged."""
 
     REPORT = "plans/0013-parallel-plans/reports/4.md"

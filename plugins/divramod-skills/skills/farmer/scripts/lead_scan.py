@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Which agent sessions of a repository need help, for the farmer skill's development lead.
+"""Which agent sessions of a repository need help, for the farmer skill's development foreman.
 
   lead_scan.py scan [--repo <dir>] [--json] [--all]
-      every agent session of the repository (worktree slots and main, the farmer's own
+      every agent session of the repository (worktrees and main, the farmer's own
       session excluded) that waits for someone: a question to the user, a dialog or
       permission prompt, a failed turn, a session idle inside an unfinished plan (not while
       its background tasks run: a coordinator waits on its subagents), a
-      context near its limit, a slot working without plans/CURRENT_PLAN; with the last thing it said. Stops already handled are
+      context near its limit, a worktree working without plans/CURRENT_PLAN; with the last thing it said. Stops already handled are
       left out (--all: shown too)
   lead_scan.py record <session-id> <since> <what> [--note <text>] [--repo <dir>]
       mark that stop handled (the next scans skip it until the session moves on)
 
 Reads hal2-cli-agents list --json and Claude Code's transcripts; writes only
-lead.jsonl in the farmer's state folder (roles/farmer/ of its slot). Exit 0 on success, 2 when a tool is missing.
+lead.jsonl in the farmer's state folder (roles/farmer/ of its worktree). Exit 0 on success, 2 when a tool is missing.
 """
 
 import argparse
@@ -30,7 +30,7 @@ import lead_marker
 import mtm_scan
 import roles
 
-DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer slot's roles/farmer/ (roles.state_dir)
+DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 PROJECTS = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude/projects"))
 MINUTE = 60
 BLOCKED_AFTER = 5 * MINUTE
@@ -114,12 +114,12 @@ def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
     if state == "failed":
         return "failed", "its turn failed (API error, limit or crash)"
     if state in ("done", "idle", "sleeping"):
-        if agent.get("lead") and agent.get("step_done"):  # a subservant done with its step waits for its lead
+        if agent.get("lead") and agent.get("step_done"):  # a servant done with its step waits for its foreman
             return None
         tail = said[-600:]
         if said.startswith("AskUserQuestion") or WAITS_FOR_USER.search(tail):
             return "asks", f"waits for an answer for {age // 60} min"
-        if (lead := agent.get("lead")) and age >= IDLE_IN_PLAN_AFTER:  # a subservant: its one step, never a landing
+        if (lead := agent.get("lead")) and age >= IDLE_IN_PLAN_AFTER:  # a servant: its one step, never a landing
             return "idle-in-plan", f"idle for {age // 60} min inside its step, {mtm_scan.subservant(lead)}"
         # A coordinator waiting on its subagents (skills plan 0016, D14) is not stopped.
         if agent.get("plan") and age >= IDLE_IN_PLAN_AFTER and not background(agent):
@@ -147,9 +147,9 @@ def handled(main: str, now: float | None = None) -> set[tuple[str, int]]:
 
 
 def with_marker(agent: dict, checkout: Path) -> dict:
-    """The agent with its checkout's CURRENT_PLAN, its subservant marker (`lead`, skills plan 0013) and whether that
-    subservant has finished its step (`step_done`: its report on origin/NN, or merged into origin/<lead>): an idle
-    subservant done with its step waits for its lead and wakes nobody."""
+    """The agent with its checkout's CURRENT_PLAN, its servant marker (`lead`, skills plan 0013) and whether that
+    servant has finished its step (`step_done`: its report on origin/NN, or merged into origin/<foreman>): an idle
+    servant done with its step waits for its foreman and wakes nobody."""
     plan_file = checkout / "plans/CURRENT_PLAN"
     lead = mtm_scan.lead_of(checkout)
     return {**agent, "current_plan": plan_file.read_text().strip() if plan_file.exists() else "", "lead": lead,

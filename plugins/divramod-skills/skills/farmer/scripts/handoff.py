@@ -1,5 +1,5 @@
 """The farmer's handoff before its clear (hal2 plan 0132): what the session knows goes into `handoff.md` in its state
-folder (`roles/farmer/` of the farmer slot, never a committed HANDOFF.md: the farmer commits nothing of its branch but
+folder (`roles/farmer/` of the farmer's worktree, never a committed HANDOFF.md: the farmer commits nothing of its branch but
 roles/farmer/ROLE.md and the folder's .gitignore), then the session starts hal2's clear-and-continue itself, which waits for the turn to end, types
 `/clear` and then `/farmer act`. `/farmer act` and `/farmer start` read handoff.md first.
 """

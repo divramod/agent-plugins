@@ -123,8 +123,8 @@ class TestCreate(unittest.TestCase):
     def test_from_starts_the_search_at_the_slot(self):
         out = self.run_create("--from", "30")
         self.assertEqual((out["slot"], out["skipped"]), ("30", []))
-        self.assertIn("--from needs a slot from 00 to 99", self.refused("--from", "100"))
-        self.assertIn("--from needs a slot from 00 to 99", self.refused("--from", "x"))
+        self.assertIn("--from needs a worktree from 00 to 99", self.refused("--from", "100"))
+        self.assertIn("--from needs a worktree from 00 to 99", self.refused("--from", "x"))
 
     def test_from_00_reaches_slot_00(self):
         """Plan 0270 (D13): the farmer's foremen start in the first free worktree from 00."""
@@ -144,7 +144,7 @@ class TestCreate(unittest.TestCase):
         self.assertFalse(self.log.exists() and "run" in self.log.read_text())
 
     def test_the_subservant_flags_are_gone(self):
-        # Skills plan 0016 (D12): a plan's steps run in subagents; no slot is marked plans/LEAD any more.
+        # Skills plan 0016 (D12): a plan's steps run in subagents; no worktree is marked plans/LEAD any more.
         for flag in ("--lead", "--base"):
             error = self.refused("--from", "30", flag, "x")
             self.assertIn(f"{flag} is gone", error)

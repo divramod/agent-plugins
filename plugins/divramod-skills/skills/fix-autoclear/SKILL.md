@@ -88,7 +88,7 @@ session), or the user continues by hand. Then watch the job log until `continued
 2. **Update this skill** whenever the analysis showed something it did not know or got wrong: the insider
    knowledge (new file, state, reason, flag, threshold), a step that was missing, or `evidence.py` (what it should
    have collected: add it, with its test). Keep the `<!-- names -->` block to real names. Run `$E selfcheck`: it
-   must print `ok`. Change the skill with the case in a hal2 slot and land it with the slot's `/mtm`, never a commit on a main checkout.
+   must print `ok`. Change the skill with the case in a hal2 worktree and land it with the worktree's `/mtm`, never a commit on a main checkout.
 3. A failure **class** that keeps coming back (a second case with the same cause area) gets a hal2 shot or plan
    that removes the class, not another patch: say so in the report.
 
@@ -111,7 +111,7 @@ clear). Keep this true: `$E selfcheck`.
    0181; `plan_guard.rs`'s open plan only goes to the log): the tool is denied once with "run /handoff now" (the
    command of the session's kind, `code/rust/libs/hal2-agents/src/autoclear/kind.rs`: the plain kind `/handoff`,
    `HANDOFF.md` or the current plan's own `plans/<plan>/handoff.md` (hal2 plan 0206: the one written last),
-   `/handoff c`; the role slot `farmer-<repo>` `/farmer handoff`, `roles/farmer/handoff.md`,
+   `/handoff c`; the role's worktree `farmer-<repo>` `/farmer handoff`, `roles/farmer/handoff.md`,
    `/farmer act`; agents.toml's `[[autoclear.kinds]]` overrides), the marker
    `<state>/agents/autoclear/<session>.guard` is written (stage `soft`) and the job is started detached with
    `--await-handoff`. After it, **hand-off tools pass** (`handoff_tool`: Read/Grep/Glob, the handoff skill,

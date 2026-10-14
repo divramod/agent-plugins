@@ -8,7 +8,7 @@ A task is **machine-run** when its lines are in the strict form:
 
 Commands run with `sh -c` in the main checkout; `farmer <args>` runs this skill's farmer.py (`farmer check flaky` and
 `farmer check orphans` run inside the tick's process, sharing its round). Act's keywords are
-`notify` (tell the user, batched), `delegate` (a servant fixes it, the failing check's output as evidence) and `wake`
+`notify` (tell the user, batched), `delegate` (a foreman fixes it, the failing check's output as evidence) and `wake`
 (the farmer's model decides). Anything else on those lines, any prose, makes the task the model's: it wakes the
 farmer with the task's text. So a task written before this form never runs a command by accident.
 
@@ -158,7 +158,7 @@ def plan_task(item: dict, ctx: dict, specs: dict | None = None, check=run_check,
 
 
 def flaky_open(main: str, slots: dict[str, dict]) -> list[str]:
-    """Ledger entries not back yet whose servant slot runs no plan any more."""
+    """Ledger entries not back yet whose foreman's worktree runs no plan any more."""
     import mtm_scan
     f = mtm_scan.state_dir(main) / "flaky.md"
     out = []
@@ -174,7 +174,7 @@ def flaky_open(main: str, slots: dict[str, dict]) -> list[str]:
 
 
 def orphans(top: str) -> list[dict]:
-    """mtm_scan's work-without-agent findings, without the slots that wait for the user."""
+    """mtm_scan's work-without-agent findings, without the worktrees that wait for the user."""
     import mtm_scan
     import tick
     snap = mtm_scan.snapshot(top, 24, fetch=False)

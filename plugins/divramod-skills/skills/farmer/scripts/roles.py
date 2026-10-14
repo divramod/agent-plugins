@@ -1,10 +1,10 @@
 """Where a role works and keeps its files (hal2's .adr/roles-folder.md, hal2 plan 0143).
 
-A role (the farmer, lord, i, chancellor, duke, king, pope, marshall) works in the worktree slot and branch
+A role (the farmer, lord, i, chancellor, duke, king, pope, marshall) works in the worktree and branch
 `<role>-<project>` of its repository (`farmer-hal2`), so two repositories' farmers never share a session name.
 `<project>` is the origin remote's repository name, else the main checkout's folder name (lowercase; other
 characters than letters, digits and `-` become `-`), as hal2_git::worktree::Layout computes it. The role file is
-`roles/<role>/ROLE.md` (committed) and every runtime file of the role lives beside it in the slot's
+`roles/<role>/ROLE.md` (committed) and every runtime file of the role lives beside it in the worktree's
 `roles/<role>/`, ignored by the folder's own `.gitignore` (GITIGNORE). The farmer's state folder is that folder;
 `FARMER_DIR` overrides it with `$FARMER_DIR/<main checkout's folder>` (tests, other machines).
 """
@@ -39,7 +39,7 @@ def main_checkout(repo: str | Path) -> Path:
 
 
 def project_of(text: str) -> str | None:
-    """A project name from a remote URL or a folder name: its last segment without `.git`, made a slot name part."""
+    """A project name from a remote URL or a folder name: its last segment without `.git`, made a worktree name part."""
     last = re.split(r"[/:]", text.strip().rstrip("/"))[-1]
     last = last[:-4] if last.endswith(".git") else last
     name = re.sub(r"[^a-z0-9-]", "-", last.lower()).strip("-")
@@ -62,13 +62,13 @@ def slot_dir(repo: str | Path, role: str = ROLE, home: Path | None = None) -> Pa
 
 
 def is_slot(top: str | Path, role: str = ROLE) -> bool:
-    """Whether the checkout `top` is the repository's slot of `role`."""
+    """Whether the checkout `top` is the repository's worktree of `role`."""
     return Path(top).name == slot_name(top, role)
 
 
 def state_dir(repo: str | Path, override: Path | None = None, role: str = ROLE) -> Path:
-    """The role's state folder: `$FARMER_DIR/<repo>` with an override, else `roles/<role>/` of the role's slot.
-    The slot folder itself is never created here (it would block `git worktree add`): without a slot the path is
+    """The role's state folder: `$FARMER_DIR/<repo>` with an override, else `roles/<role>/` of the role's worktree.
+    The worktree folder itself is never created here (it would block `git worktree add`): without a worktree the path is
     returned as it is, reading it finds nothing. A new role folder gets the GITIGNORE."""
     if override is not None:
         d = override / main_checkout(repo).name
@@ -84,6 +84,6 @@ def state_dir(repo: str | Path, override: Path | None = None, role: str = ROLE) 
 
 
 def is_farmer_label(slot: str) -> bool:
-    """Whether an action's or the agents list's slot label is the farmer's own slot (`farmer-<project>`, or the
+    """Whether an action's or the agents list's worktree label is the farmer's own worktree (`farmer-<project>`, or the
     unmigrated `farmer`)."""
     return slot == ROLE or slot.startswith(ROLE + "-")

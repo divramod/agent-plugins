@@ -24,7 +24,7 @@ INFO = {"free_gb": 400.0, "biggest": [(12.0, "03"), (3.0, "13")]}
 
 
 class Slots(Repo):
-    """The main checkout with landed slots 03, 13, 14 and others holding work, plus names prune never touches."""
+    """The main checkout with landed worktrees 03, 13, 14 and others holding work, plus names prune never touches."""
 
     def setUp(self):
         super().setUp()
@@ -160,7 +160,7 @@ class Act(Slots):
         self.assertIn("uncommitted", prune.act_on(str(self.main), "04", "clean", True)[1])
         self.assertIn("10-99", prune.act_on(str(self.main), "03", "remove", True)[1])
         self.assertIn("00-09", prune.act_on(str(self.main), "13", "clean", True)[1])
-        self.assertIn("no numbered slot", prune.act_on(str(self.main), "42", "remove", True)[1])
+        self.assertIn("no numbered worktree", prune.act_on(str(self.main), "42", "remove", True)[1])
 
     def test_clean_runs_the_cleanup_skill(self):
         (self.main / ".gitignore").write_text("target/\n")
@@ -208,8 +208,8 @@ class Act(Slots):
 
 
 class MarkedSlots(Slots):
-    """Skills plan 0013: a lead in slot 02 and its subservants' slots marked plans/LEAD, beside the unmarked ones.
-    31 and 33: their step merged into origin/02; 32: a commit origin/02 lacks; 12: a subservant below 30."""
+    """Skills plan 0013: a foreman in worktree 02 and its servants' worktrees marked plans/LEAD, beside the unmarked ones.
+    31 and 33: their step merged into origin/02; 32: a commit origin/02 lacks; 12: a servant below 30."""
 
     def setUp(self):
         super().setUp()
@@ -264,7 +264,7 @@ class Marked(MarkedSlots):
         self.assertIsNone(self.why(agents=[self.agent("13", 40)])["13"], "unmarked 10-99: 30 min, unchanged")
         busy = {**self.agent("31", 120), "state": "working"}
         self.assertIn("working", self.why(agents=[busy])["31"])
-        self.mark("31", age=10 * 60)  # the lead's `assign` reused it
+        self.mark("31", age=10 * 60)  # the foreman's `assign` reused it
         self.assertIn("plans/LEAD was written in the last 60 min", self.why()["31"])
         self.assertIn("ticket", self.why({"waiting": {"33"}})["33"])
         self.assertIn("build", self.why(build=lambda path: path.endswith("33"))["33"])
@@ -290,7 +290,7 @@ class Marked(MarkedSlots):
         actions = prune.plan({}, {"main": str(self.main), "now": NOW, "log": []}, found, INFO)
         remove = next(a for a in actions if a["kind"] == "remove")
         self.assertEqual(remove["argv"][-4:], ["remove", "31", "--repo", str(self.main)])
-        self.assertIn("subservant slot 31 (its work is in origin/02)", remove["text"])
+        self.assertIn("servant worktree 31 (its work is in origin/02)", remove["text"])
 
 
 class ActMarked(MarkedSlots):

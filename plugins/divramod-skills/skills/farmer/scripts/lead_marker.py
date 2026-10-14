@@ -1,8 +1,8 @@
-"""A parallel plan's subservant slot (skills plan 0013), as every farmer duty reads it.
+"""A parallel plan's servant worktree (skills plan 0013), as every farmer duty reads it.
 
-A slot whose worktree holds `plans/LEAD` (one line `<lead-slot> <plan> <step>`) runs one step of its lead's plan,
-never lands and is measured against its lead's branch `origin/<lead-slot>`, never main. A malformed marker still
-marks the slot (bad but marked: no landing, no restart by rule, the report names the broken marker); only a slot
+A worktree that holds `plans/LEAD` (one line `<foreman-worktree> <plan> <step>`) runs one step of its foreman's plan,
+never lands and is measured against its foreman's branch `origin/<foreman-worktree>`, never main. A malformed marker still
+marks the worktree (bad but marked: no landing, no restart by rule, the report names the broken marker); only a worktree
 without the file is unmarked. Used by mtm_scan, boss, lead_scan, trains, duties and prune.
 """
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 LEAD = Path("plans/LEAD")
 NUMBERED = re.compile(r"\d\d")
-IGNORED = (":!plans/LEAD", ":!plans/CURRENT_PLAN")  # a marked slot's runtime files, ignored or not
+IGNORED = (":!plans/LEAD", ":!plans/CURRENT_PLAN")  # a marked worktree's runtime files, ignored or not
 
 
 def git(path: str | Path, *args: str) -> str:
@@ -42,14 +42,14 @@ def marker(path: str | Path) -> dict | None:
         text = f"<unreadable: {e}>"
     parts = text.split()
     if len(parts) < 3 or not NUMBERED.fullmatch(parts[0]):
-        return {"bad": True, "text": text, "error": f"plans/LEAD is not `<lead-slot> <plan> <step>`: '{text}'"}
+        return {"bad": True, "text": text, "error": f"plans/LEAD is not `<foreman-worktree> <plan> <step>`: '{text}'"}
     return {"slot": parts[0], "plan": parts[1], "step": parts[2]}
 
 
 def describe(lead: dict) -> str:
     if lead.get("bad"):
-        return f"subservant with a broken marker ({lead['error']})"
-    return f"subservant of slot {lead['slot']} (plan {lead['plan']} step {lead['step']})"
+        return f"servant with a broken marker ({lead['error']})"
+    return f"servant of worktree {lead['slot']} (plan {lead['plan']} step {lead['step']})"
 
 
 def ref_exists(path: str | Path, ref: str) -> bool:
@@ -57,8 +57,8 @@ def ref_exists(path: str | Path, ref: str) -> bool:
 
 
 def unsaved_for_lead(path: str | Path, slot: str, lead: str) -> list[str]:
-    """What a subservant's slot holds that `lead` (origin/<lead-slot>) lacks: commits on HEAD, origin/NN or a side
-    branch, changes (plans/LEAD and plans/CURRENT_PLAN aside: they mark the slot, they are not work)."""
+    """What a servant's worktree holds that `lead` (origin/<foreman-worktree>) lacks: commits on HEAD, origin/NN or a side
+    branch, changes (plans/LEAD and plans/CURRENT_PLAN aside: they mark the worktree, they are not work)."""
     out = []
     for ref in ["HEAD", *([f"origin/{slot}"] if ref_exists(path, f"origin/{slot}") else []),
                 *git(path, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}-*").split()]:
@@ -71,26 +71,26 @@ def unsaved_for_lead(path: str | Path, slot: str, lead: str) -> list[str]:
 
 
 def missing(path: str | Path, slot: str, lead: dict, default: str) -> list[str]:
-    """What the marked slot holds that its lead's branch lacks; [] when all its work is there. A broken marker
-    names no lead: measured against `default` (origin's default branch), the marker's error first."""
+    """What the marked worktree holds that its foreman's branch lacks; [] when all its work is there. A broken marker
+    names no foreman: measured against `default` (origin's default branch), the marker's error first."""
     if lead.get("bad"):
         why = unsaved_for_lead(path, slot, default)
         return [lead["error"], *why] if why else []
     base = f"origin/{lead['slot']}"
     if not ref_exists(path, base):
-        return [f"its lead's branch {base} does not exist"]
+        return [f"its foreman's branch {base} does not exist"]
     return unsaved_for_lead(path, slot, base)
 
 
 def report_path(lead: dict) -> str:
     """The step's report as the removed `plan.py report` wrote it (skills plan 0013). Since skills plan 0016 nothing
-    writes one: a stale plans/LEAD means the lead takes the work over, or plans/LEAD is deleted."""
+    writes one: a stale plans/LEAD means the foreman takes the work over, or plans/LEAD is deleted."""
     return f"plans/{lead['plan']}/reports/{lead['step']}.md"
 
 
 def step_done(path: str | Path, slot: str, lead: dict) -> bool:
-    """The subservant has finished its step: the step's report is on origin/NN, or its HEAD is in origin/<lead>
-    with that report (the lead merged it; origin/NN may be gone). A fresh slot's HEAD is in origin/<lead> too, but
+    """The servant has finished its step: the step's report is on origin/NN, or its HEAD is in origin/<foreman>
+    with that report (the foreman merged it; origin/NN may be gone). A fresh worktree's HEAD is in origin/<foreman> too, but
     holds no report of its step yet, so it is not done. A broken marker is never done."""
     if lead.get("bad"):
         return False

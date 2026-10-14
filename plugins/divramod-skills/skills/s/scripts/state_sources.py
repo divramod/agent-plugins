@@ -55,7 +55,7 @@ def agents() -> dict[str, dict] | None:
 
 
 def queue(main: str) -> list[dict] | None:
-    """The merge queue: slot, worktree, position, holding, state per ticket; None when unknown."""
+    """The merge queue: `slot` (the worktree's name), `worktree`, position, holding, state per ticket; None when unknown."""
     raw = tool_json(["hal2-cli-git", "worktree", "queue", "--json"], main)
     if not isinstance(raw, dict) or not isinstance(raw.get("queue"), list):
         return None
@@ -84,12 +84,12 @@ def farmer_log(main: str) -> list[dict] | None:
 
 
 def asks(log: list[dict] | None) -> set[str]:
-    """Slots whose last `ask` has no answer."""
+    """Worktrees whose last `ask` has no answer."""
     return fl.logstate.waiting_for_user(log) if log and fl.logstate else set()
 
 
 def unacked(log: list[dict] | None, now: dt.datetime | None = None) -> dict[str, list[str]]:
-    """Ids of the farmer's instructions nobody acked yet, per slot (the last 12 hours)."""
+    """Ids of the farmer's instructions nobody acked yet, per worktree (the last 12 hours)."""
     now, out = now or dt.datetime.now(dt.timezone.utc), {}
     if fl.acks is None:
         return out

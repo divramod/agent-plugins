@@ -7,8 +7,8 @@
 
 The current plan (`plans/CURRENT_PLAN`) in the record format (its plan.md has front matter with a `type`): the
 handoff is the plan's committed `plans/<plan>/handoff.md` (form `record`), the decisions index is the plan's ledger
-`decisions.md`. A legacy plan, work without a plan and a subservant's slot (`plans/LEAD`: the plan's files are the
-lead's): the gitignored root `HANDOFF.md` with its own Decisions section (form `legacy`). `--stamp` changes nothing
+`decisions.md`. A legacy plan, work without a plan and a servant's worktree (`plans/LEAD`: the plan's files are the
+foreman's): the gitignored root `HANDOFF.md` with its own Decisions section (form `legacy`). `--stamp` changes nothing
 of a legacy handoff: its header line is written by hand.
 
 Exit 0 printed, 2 git missing.

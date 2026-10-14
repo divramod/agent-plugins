@@ -2,7 +2,7 @@
 """The farmer's deterministic side: what runs without a model (.adr/deterministic-first.md, plan 0007).
 
   farmer.py start-check [--repo <dir>] [--json]
-      may the farmer start here? The farmer slot, holding nothing but roles/farmer/ROLE.md changes, the
+      may the farmer start here? The farmer's worktree, holding nothing but roles/farmer/ROLE.md changes, the
       tools, a valid roles/farmer/ROLE.md; prints the loop's cron
   farmer.py tick [--repo <dir>] [--dry-run [--all-due]] [--json]
       one round as code: stay current (merge-from-main), the user's roles/farmer/ROLE.md edit, what is due,
@@ -11,11 +11,11 @@
       only) counts every opted-in duty and task due, to measure a full round. Ends with a `timing:` line: the
       seconds of the frame, each due item (planning and execution), delegations, wake, summary and the total
   farmer.py delegate --brief <file> --title <title> [--repo <dir>] [--dry-run] [--json]
-      hand a brief the woken farmer wrote to a servant (the same limit, slot choice, prompt and ledger as the tick's
+      hand a brief the woken farmer wrote to a foreman (the same limit, worktree choice, prompt and ledger as the tick's
       delegations); --dry-run prints the calls it would make
   farmer.py check task <name> | flaky | orphans [--repo <dir>]
       a task's Check (machine form, see tasks.py), or a built-in check for roles/farmer/ROLE.md tasks: flaky ledger
-      entries whose servant runs no plan, slots with work and no session; exit 0 fine, 1 with what is wrong
+      entries whose foreman runs no plan, worktrees with work and no session; exit 0 fine, 1 with what is wrong
   farmer.py wake [--done <seq>] [--repo <dir>] [--json]
       what the tick handed to the farmer session (wake.json: items that need judgment, relays, notices, failed
       delegations, each with the file to read for it); --done drops the items up to <seq> once handled
@@ -23,29 +23,29 @@
       the farmer's handoff before its clear (handoff.py): the path of handoff.md in the state folder (its sections
       when it is missing); --clear, once it is written, starts hal2's clear-and-continue (/clear, then /farmer act)
   farmer.py decision-check (--message <text> | <slot> --have <list>) [--repo <dir>] [--dry-run]
-      answer a servant's `decision check <slot>: I have these decisions: ...` (decision_check.py): the log's
-      `decision` entries for the slot that neither its list nor its checkout (HANDOFF.md, current plan, INTENT.md)
-      holds, with the user's words quoted, or "none missing"; exit 1 for an unknown slot. Logs the check (kind `decision-check`) unless --dry-run; superseded decisions never count
+      answer a foreman's `decision check <slot>: I have these decisions: ...` (decision_check.py): the log's
+      `decision` entries for the worktree that neither its list nor its checkout (HANDOFF.md, current plan, INTENT.md)
+      holds, with the user's words quoted, or "none missing"; exit 1 for an unknown worktree. Logs the check (kind `decision-check`) unless --dry-run; superseded decisions never count
   farmer.py decision list [--slot <slot>] [--all] | supersede <at>... --by <at> [--why <text>] [--dry-run]
       the user's current decisions in the log; mark ones a later decision replaced (decision_log.py)
   farmer.py timer install|remove|status [--repo <dir>] [--dry-run] [--json]
       the external timer that runs `tick` at the loop's cron (launchd on macOS, a systemd user timer on Linux;
       timer.py); install switches the mode to `timer`, remove back to `claude`
   farmer.py migrate [--role <role>] [--repo <dir>] [--dry-run] [--json]
-      move a role's slot `<role>` to `<role>-<project>` with its files in roles/<role>/ (migrate.py, hal2 plan 0143):
-      refuses while the timer is installed or a session sits in the slot; idempotent
+      move a role's worktree `<role>` to `<role>-<project>` with its files in roles/<role>/ (migrate.py, hal2 plan 0143):
+      refuses while the timer is installed or a session sits in the worktree; idempotent
   farmer.py question add --slot <slot|farmer> --text <Q form> [--waits <what>] | answer <n> --text <a> | drop <n> | list
       the farmer's own question store (questions.jsonl, questions.py); never from prose by hand
   farmer.py questions [a|answered|l|list] [--json] [--repo <dir>]
-      the one list of everyone's questions: the farmer's own, the log's open asks, each slot's store; no model call
+      the one list of everyone's questions: the farmer's own, the log's open asks, each worktree's store; no model call
   farmer.py mode [claude|timer] [--repo <dir>]
       who runs the rounds: the farmer's Claude session (`claude`, the default) or the external
       timer (`timer`). A tick without --dry-run runs only in timer mode, so the two never overlap.
 
-State: roles/farmer/ of the farmer slot farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, runs.jsonl, questions.jsonl, wake.json,
+State: roles/farmer/ of the farmer's worktree farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, runs.jsonl, questions.jsonl, wake.json,
 timer.json, tick.log, handoff.md, summaries/; its .gitignore ignores all but ROLE.md and itself.
 Exit 0 ok (also: another tick holds the lock, `busy`), 1 roles/farmer/ROLE.md invalid, 2 a tool missing,
-3 no roles/farmer/ROLE.md, 4 not the farmer slot (or one still named `farmer`: migrate first), a slot holding other work, or not in timer mode.
+3 no roles/farmer/ROLE.md, 4 not the farmer's worktree (or one still named `farmer`: migrate first), a worktree holding other work, or not in timer mode.
 """
 
 import argparse

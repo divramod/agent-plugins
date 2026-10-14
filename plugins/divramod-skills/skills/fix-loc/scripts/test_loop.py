@@ -127,7 +127,7 @@ class Loop(unittest.TestCase):
     def test_wait_while_the_servant_works(self):
         self.spawn(1_000)
         self.answer(agents=[{"project": str(self.repo), "slot": "01", "state": "working", "since": 1_000}])
-        self.assertEqual(loop.run_tick(self.repo, now=1_000 + 10 * tick.MINUTE)["reason"], "the servant is working")
+        self.assertEqual(loop.run_tick(self.repo, now=1_000 + 10 * tick.MINUTE)["reason"], "the foreman is working")
 
     def test_claim_names_the_plan(self):
         self.spawn(1_000)

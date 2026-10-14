@@ -20,7 +20,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Stay**: R6, R7, R8, R9 (a real failure is now a red job: its session reads `gh run view --log-failed` and
   reproduces it with `gate/main.sh <job>`).
 - **New**, the C cases below. A red job's cause in the runner, its image or the workflow is the ci duty's (one fix
-  for every slot, through a servant), never the slot's.
+  for every worktree, through a foreman), never the worktree's.
 
 ## C10 · A landing paused by the fastlane
 
@@ -78,7 +78,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Cause**: the one sccache server is spawned by whichever job compiles first, carries that job's
   `RUNNER_TRACKING_ID` and is killed by that runner instance's orphan cleanup when the job ends, while other
   instances compile through it.
-- **Remedy**: no code change in the slot: rerun only the red job(s) when the run has ended (`gh run rerun <id>
+- **Remedy**: no code change in the worktree: rerun only the red job(s) when the run has ended (`gh run rerun <id>
   --failed`). Until the fix lands every wake of the runner has the race again.
 - **Lasting fix**: plan 0152's next landing (05): the server as its own systemd unit before the runner instances,
   the wrapper unsets `RUNNER_TRACKING_ID` and retries a failed `sccache: error` compile with plain rustc.
@@ -86,7 +86,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 ## C6 · A candidate is pushed while another land run still ships
 
 - **Signature**: two `land` runs at once on GitHub: one past `merge` with `ship / ...` jobs running or queued, a newer
-  one of another slot started; the older landing released the queue at its merge.
+  one of another worktree started; the older landing released the queue at its merge.
 - **Occurrences**:
   - 2026-10-06 13:0x · 30's run #69 pushed while 04's run #68 (37444838079, attempt 2) shipped: deliver running,
     publish queued. The user: the 4th or 5th time today.
@@ -188,7 +188,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Remedy**: tell the holder it is the engine, not its code; let the task time out (or stop it), then rerun at
   once: the gates' `doctor --repair` restarts the engine. Never disable the test for it.
 - **Lasting fix**: shot plugin-docker-compose/4 (a test-e2e probes the engine when no container starts and repairs
-  once or fails fast). Waits for a free servant slot.
+  once or fails fast). Waits for a free foreman worktree.
 
 ## R1 · A failed landing holds the queue while its agent sleeps
 
@@ -235,13 +235,13 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Occurrences**:
   - 2026-10-02 16:41 (wt 08, caused by wt 00's build and wt 10's Linux Docker build).
   - 2026-10-02 23:39–01:02 (wt 12, after the benchmark resume).
-- **Remedy**: tell the busy slots to pause heavy work (the `pause` skill) until the landing ends, then let them
+- **Remedy**: tell the busy worktrees to pause heavy work (the `pause` skill) until the landing ends, then let them
   continue.
 - **Lasting fix**: none. The idea is a landing lock that every build script honours.
 
 ## R4 · Waiters lose their place: `reserve --max-wait 100m` outlives the shell's 2 h limit
 
-- **Signature**: the same slot is re-enqueued with a new seq, and its agent reports "reserve killed by the 2 h
+- **Signature**: the same worktree is re-enqueued with a new seq, and its agent reports "reserve killed by the 2 h
   limit".
 - **Cause**: while the queue is held, `reserve --max-wait 100m` sometimes did not exit at 100 min. The harness
   killed it at 2 h and the ticket was gone. 60-minute slices exit on time. This may be a hal2-cli-git bug: the
@@ -250,8 +250,8 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   - 2026-10-03 wt 01, 02 (twice), 09, 10 and 15.
   - 2026-10-03 ~12:40 · wt 12's reserve lost its ticket; wt 01's merge-to-main waited 1h48m and was killed; wt 15's whole landing killed at ~2 h (queue held `interrupted`).
   - 2026-10-04 ~01:30 · wt 01 and 10 (re-enqueued as seq 413/414): `reserve` returned "reserved" (queue_position 11) yet 01 dropped out and 21 got the turn; a new symptom of the same family. The boss's `front` at 00:42 may have been the trigger. Restored with `front 10 01`.
-  - 2026-10-04 01:25–03:54 · wt 06: reserve said reserved; after merge-from-main + push, merge-to-main --keep-reserved waited "8 landing(s) ahead" until the 2 h limit. Fix delegated to a servant (slot 21).
-- **Likely trigger**: the boss's own `front` reorder restarts a waiter's running --max-wait slice (wt 01 saw it twice). Move a slot at most once per slice; prefer 25m slices.
+  - 2026-10-04 01:25–03:54 · wt 06: reserve said reserved; after merge-from-main + push, merge-to-main --keep-reserved waited "8 landing(s) ahead" until the 2 h limit. Fix delegated to a foreman (worktree 21).
+- **Likely trigger**: the boss's own `front` reorder restarts a waiter's running --max-wait slice (wt 01 saw it twice). Move a worktree at most once per slice; prefer 25m slices.
 - **Remedy**: tell waiters to use `--max-wait 25m` slices and to run landings detached (nohup); move carriers forward with `front` sparingly.
 - **Lasting fix**: shot skill-mtm/6.
 
@@ -284,7 +284,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Occurrences**:
   - 2026-10-03: wt 11 (plan 0085, 13 commits) and wt 13 (plan 0102, 7 commits; its last landing failed
     2026-10-02 03:54).
-- **Remedy**: start a session in the slot (`hal2-cli-git worktree run <NN> --agent claude --detach --prompt
+- **Remedy**: start a session in the worktree (`hal2-cli-git worktree run <NN> --agent claude --detach --prompt
   "/handoff c"`), or ask the user when the plan looks abandoned.
 
 ## R8 · A system-wide stop paused a landing

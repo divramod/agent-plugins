@@ -190,5 +190,5 @@ def landings(run_json, main: str, since: float) -> list[dict]:
 
 
 def running_run(recent: list[dict], slot: str) -> dict | None:
-    """The slot's candidate under test, newest first."""
+    """The worktree's candidate under test, newest first."""
     return next((l for l in recent if l["slot"] == slot and l["outcome"] == "running"), None)

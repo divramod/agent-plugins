@@ -10,7 +10,7 @@ step 5; plan 0015's D10: before a clear the session wins, after it the plan wins
 The plan is the current one (`plans/CURRENT_PLAN`, where.py); `run: <model> <effort> <window>` is its coordinator's,
 the live values are session.py's (the plan skill's; --transcript and --session go to it). `action` is:
 
-- `ok`: nothing to do. No plan, a legacy plan or a subservant's slot (where.py's form `legacy`), no `run`, no
+- `ok`: nothing to do. No plan, a legacy plan or a servant's worktree (where.py's form `legacy`), no `run`, no
   difference, or only the window differs (the window is no launch flag).
 - `switch`: the model or the effort differs; `command` restarts the session at `run` with `/handoff c` as its first
   prompt. The switch is recorded under `$HANDOFF_ROOT/switches/<checkout>.json` (default `~/skills/handoff`) with the
@@ -78,7 +78,7 @@ def result(action: str, why: str, **fields) -> dict:
 def decide(root: Path, live: dict | None = None) -> dict:
     found, run, at = plan_state(root)
     if found["form"] != "record":
-        why = "no plan" if not found["plan"] else "a legacy plan or a subservant's slot: no `run` to restore"
+        why = "no plan" if not found["plan"] else "a legacy plan or a servant's worktree: no `run` to restore"
         return result("ok", why, plan=found["plan"], run=None)
     if not run:
         return result("ok", "the plan has no `run`: the session's values stand", plan=found["plan"], run=None)

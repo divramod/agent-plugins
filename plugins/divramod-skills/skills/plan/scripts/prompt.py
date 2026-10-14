@@ -56,7 +56,7 @@ def task_written(step_file: Path) -> bool:
 
 
 def repo_name(root: Path) -> str:
-    """The repository's name: its main checkout's folder (a slot `<repo>/30` is `<repo>`), else the root's."""
+    """The repository's name: its main checkout's folder (a worktree `<repo>/30` is `<repo>`), else the root's."""
     out = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=root,
                          capture_output=True, text=True)
     common = Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None

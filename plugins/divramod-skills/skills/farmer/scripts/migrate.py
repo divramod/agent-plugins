@@ -1,15 +1,15 @@
-"""`farmer.py migrate`: a role's slot `<role>` becomes `<role>-<project>`, its files `roles/<role>/` (hal2 plan 0143).
+"""`farmer.py migrate`: a role's worktree `<role>` becomes `<role>-<project>`, its files `roles/<role>/` (hal2 plan 0143).
 
-hal2's .adr/roles-folder.md: a role works in the slot and branch `<role>-<project>` and keeps its role file
-(`roles/<role>/ROLE.md`) and every runtime file in `roles/<role>/` of that slot. This moves a repository there:
+hal2's .adr/roles-folder.md: a role works in the worktree and branch `<role>-<project>` and keeps its role file
+(`roles/<role>/ROLE.md`) and every runtime file in `roles/<role>/` of that worktree. This moves a repository there:
 
-1. refuses while the role's timer is installed or an agent session sits in the slot (the farmer's handoff and
+1. refuses while the role's timer is installed or an agent session sits in the worktree (the farmer's handoff and
    `farmer.py timer remove` come first; only the user starts the new session);
-2. in the old slot: merges the default branch (it may carry the role file's move already), else moves the legacy
+2. in the old worktree: merges the default branch (it may carry the role file's move already), else moves the legacy
    `<ROLE>-ROLE.md` to `roles/<role>/ROLE.md` with the folder's .gitignore, and commits;
 3. `git worktree move` to `<role>-<project>`, `git branch -m`, pushes the new branch;
 4. the farmer's state from `~/skills/farmer/<repo>/` and the round summaries from `<main>/plans/farmer/` into the
-   slot's `roles/farmer/` (`summaries/`); a name already there is kept and reported, never overwritten.
+   worktree's `roles/farmer/` (`summaries/`); a name already there is kept and reported, never overwritten.
 
 Every step checks the state first, so a second run does what is left and nothing else. --dry-run prints the steps.
 """
@@ -23,7 +23,7 @@ import deliver
 import roles
 import timer
 
-GONE = {"ended"}  # agent states that hold no slot
+GONE = {"ended"}  # agent states that hold no worktree
 
 
 def git(cwd: Path, *args: str) -> tuple[int, str]:
@@ -64,7 +64,7 @@ class Migration:
                 out.append(f"the timer {t['label']} is installed: `farmer.py timer remove` first")
         busy = sessions_in([self.old, self.new])
         if busy:
-            out.append(f"an agent session sits in the slot: {', '.join(busy)}; stop it first (after its handoff)")
+            out.append(f"an agent session sits in the worktree: {', '.join(busy)}; stop it first (after its handoff)")
         return out
 
     def step(self, text: str, dry: bool, fn=None) -> None:
@@ -79,7 +79,7 @@ class Migration:
         return out
 
     def role_file(self, dry: bool) -> None:
-        """Merge the default branch into the old slot, then move a legacy role file that is still there."""
+        """Merge the default branch into the old worktree, then move a legacy role file that is still there."""
         ref = self.default_ref()
         if git(self.old, "remote")[1]:
             self.step(f"git fetch origin in {self.old}", dry, lambda: git(self.old, "fetch", "-q", "origin"))
@@ -167,7 +167,7 @@ class Migration:
             result["problems"] = problems + [str(e)]
             return 1, result | {"steps": self.steps, "notes": self.notes}
         if not self.old.exists() and not self.new.exists():
-            self.notes.append(f"no slot {self.old} or {self.new}: nothing to migrate")
+            self.notes.append(f"no worktree {self.old} or {self.new}: nothing to migrate")
         return (1 if problems else 0), result | {"steps": self.steps, "notes": self.notes}
 
 

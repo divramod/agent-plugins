@@ -1,7 +1,7 @@
 {
   "name": "divramod-subagent-context",
   "displayName": "Subagent Context",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "A Claude Code mod: a live pane of every subagent of the session with its model, effort, context fill, peak and compactions.",
   "author": {
     "name": "Arvid Petermann",

@@ -11,7 +11,7 @@ import re
 
 MINUTE = 60_000
 DAY = 24 * 60 * MINUTE
-DIALOG_LIMIT = 30 * MINUTE  # a dialog open this long blocks the servant
+DIALOG_LIMIT = 30 * MINUTE  # a dialog open this long blocks the foreman
 IDLE_LIMIT = 60 * MINUTE  # idle/done/sleeping this long without landing blocks it
 BLOCK_FOR = 7 * DAY
 GIVE_UP_FOR = 30 * DAY
@@ -21,7 +21,7 @@ PLAN_SLUG = re.compile(r"^\d{4}-[\w.-]+$")
 
 
 def servant_agent(agents, project, slot):
-    """The agent running in the servant's slot of `project`, or None."""
+    """The agent running in the foreman's worktree of `project`, or None."""
     for agent in agents:
         if agent.get("project") == project and agent.get("slot") == slot:
             return agent
@@ -29,7 +29,7 @@ def servant_agent(agents, project, slot):
 
 
 def holds_queue(queue, slot):
-    """The servant's merge-queue ticket when it holds the queue after a failure."""
+    """The foreman's merge-queue ticket when it holds the queue after a failure."""
     for ticket in queue:
         if ticket.get("slot") == slot and ticket.get("state") == "held":
             return ticket
@@ -37,9 +37,9 @@ def holds_queue(queue, slot):
 
 
 def decide(state, now_ms, *, project, agents, queue, landed, current_plan):
-    """{action, reason} for a running servant: wait | landed | blocked | paused (| plan to record).
+    """{action, reason} for a running foreman: wait | landed | blocked | paused (| plan to record).
 
-    `landed`: the default branch has the servant's plan with `Finished:`; `current_plan`: the servant's
+    `landed`: the default branch has the foreman's plan with `Finished:`; `current_plan`: the foreman's
     checkout's `plans/CURRENT_PLAN`.
     """
     servant = state["servant"]
@@ -51,19 +51,19 @@ def decide(state, now_ms, *, project, agents, queue, landed, current_plan):
     ticket = holds_queue(queue, servant["slot"])
     if ticket:
         reason = (ticket.get("hold") or {}).get("reason", "held")
-        return {**result, "action": "paused", "reason": f"the servant's landing holds the merge queue ({reason})"}
+        return {**result, "action": "paused", "reason": f"the foreman's landing holds the merge queue ({reason})"}
     agent = servant_agent(agents, project, servant["slot"])
     if agent is None:
         if now_ms - servant["spawned_ms"] < 5 * MINUTE:
-            return {**result, "reason": "the servant is starting"}
-        return {**result, "action": "blocked", "reason": "the servant's agent is gone and its plan has not landed"}
+            return {**result, "reason": "the foreman is starting"}
+        return {**result, "action": "blocked", "reason": "the foreman's agent is gone and its plan has not landed"}
     waited = now_ms - int(agent.get("since") or now_ms)
     agent_state = agent.get("state")
     if agent_state == "blocked" and waited > DIALOG_LIMIT:
         return {**result, "action": "blocked", "reason": f"a dialog waits for {waited // MINUTE} min"}
     if agent_state in ("idle", "done", "sleeping", "ended", "failed") and waited > IDLE_LIMIT:
-        return {**result, "action": "blocked", "reason": f"the servant is {agent_state} for {waited // MINUTE} min"}
-    return {**result, "reason": f"the servant is {agent_state}"}
+        return {**result, "action": "blocked", "reason": f"the foreman is {agent_state} for {waited // MINUTE} min"}
+    return {**result, "reason": f"the foreman is {agent_state}"}
 
 
 def next_unit(units, state, now_ms):

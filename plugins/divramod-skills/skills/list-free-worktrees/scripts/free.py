@@ -3,10 +3,10 @@
 
   free.py [--repo DIR] [--all]
 
-A worktree slot is free when an agent session runs in it, none of its agents is busy (working, starting,
+A worktree is free when an agent session runs in it, none of its agents is busy (working, starting,
 blocked) and it holds no work: plans/CURRENT_PLAN names nothing, no uncommitted changes, no commits not merged
 into main, no landing of it running, waiting or holding the merge queue. Being behind main is fine (/mfm).
---all lists every worktree slot with the reason it is not free. Prints JSON. Exit 2 when a hal2 CLI is missing.
+--all lists every worktree with the reason it is not free. Prints JSON. Exit 2 when a hal2 CLI is missing.
 """
 import json
 import shutil

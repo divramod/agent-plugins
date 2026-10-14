@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# The farmer skill: after every landing, main flows into the farmer slot, so the farmer reads the
+# The farmer skill: after every landing, main flows into the farmer's worktree, so the farmer reads the
 # latest main right away. Never fails a delivery: a merge that cannot happen now waits for the
 # farmer's next round (it merges main every round too).
 set -uo pipefail
-# The farmer works in the slot and branch farmer-<project> (hal2 .adr/roles-folder.md): <project> is origin's
+# The farmer works in the worktree and branch farmer-<project> (hal2 .adr/roles-folder.md): <project> is origin's
 # repository name, else the main checkout's folder, lowercase, other characters than [a-z0-9-] as "-".
 project() {
   local url name

@@ -145,7 +145,7 @@ class Joined(Base):
 
     def test_one_list_sorted_by_slot_then_number(self):
         _, out, _ = self.call("questions")
-        self.assertTrue(out.startswith("6 open questions in 5 slots\n\n"), out)
+        self.assertTrue(out.startswith("6 open questions in 5 worktrees\n\n"), out)
         slots = re.findall(r"^\*\*(\S+)\*\*", out, re.M)
         self.assertEqual(slots, ["02", "05", "05", "10", "farmer", "main"])
         self.assertIn("**05** (the farmer's list)\nQ1: Land it now?", out)
@@ -158,16 +158,16 @@ class Joined(Base):
     def test_modes_and_nothing_open(self):
         questions.close(self.folder, 1, "answered", "yes")
         _, out, _ = self.call("questions", "a")
-        self.assertTrue(out.startswith("1 answered question in 1 slot\n"), out)
+        self.assertTrue(out.startswith("1 answered question in 1 worktree\n"), out)
         self.assertIn("Answer (", out)
         _, out, _ = self.call("questions", "l")
-        self.assertTrue(out.startswith("6 questions in 5 slots, 5 open\n"), out)
+        self.assertTrue(out.startswith("6 questions in 5 worktrees, 5 open\n"), out)
         (self.dir / "slots" / "05" / "QUESTIONS.md").unlink()
         (self.main / "QUESTIONS.md").unlink()
         (self.folder / "log.jsonl").unlink()
         questions.close(self.folder, 2, "dropped")
         self.assertEqual(self.call("questions")[1], "no open questions\n")
-        self.assertEqual(self.call("questions", "a")[1].split("\n")[0], "1 answered question in 1 slot")
+        self.assertEqual(self.call("questions", "a")[1].split("\n")[0], "1 answered question in 1 worktree")
 
     def test_json_and_an_unreadable_store_is_named(self):
         (self.dir / "slots" / "02" / "QUESTIONS.md").write_text("## Q1 broken\n")

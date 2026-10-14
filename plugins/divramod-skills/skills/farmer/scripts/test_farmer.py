@@ -37,7 +37,7 @@ def git(cwd, *args):
 
 
 class Repo(unittest.TestCase):
-    """A main checkout `hal2` with an origin `hal2.git` and the farmer slot (a worktree and branch `farmer-hal2`)."""
+    """A main checkout `hal2` with an origin `hal2.git` and the farmer's worktree (a worktree and branch `farmer-hal2`)."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -69,7 +69,7 @@ class Repo(unittest.TestCase):
 
 class Slot(Repo):
     def test_only_the_farmer_slot_with_nothing_but_its_role(self):
-        self.assertIn("not the farmer slot", tick.slot_problem(str(self.main)))
+        self.assertIn("not the farmer's worktree", tick.slot_problem(str(self.main)))
         self.assertIsNone(tick.slot_problem(str(self.slot)))
         (self.slot / tick.ROLE).write_text(ROLE + "\nedited\n")
         self.assertIsNone(tick.slot_problem(str(self.slot)))
@@ -169,7 +169,7 @@ class Round(Repo):
             self.assertIn("hal2/summaries/2026-10-03/", busy["summary"])
 
     def test_every_file_a_round_writes_in_the_slot_is_ignored_but_the_role_files(self):
-        """Without FARMER_DIR the state lives in the slot's roles/farmer/: a round leaves `git status` clean (its
+        """Without FARMER_DIR the state lives in the worktree's roles/farmer/: a round leaves `git status` clean (its
         new roles/farmer/.gitignore committed with the role file, everything else ignored)."""
         snap = {"now": NOW.timestamp(), "queue": [], "findings": [], "landings": [], "worktrees": [],
                 "load": {"load1": 1.0, "cores": 8}}

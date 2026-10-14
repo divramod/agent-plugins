@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Start an agent session in the repository's first free and clean worktree slot.
+"""Start an agent session in the repository's first free and clean worktree.
 
   create.py [--repo DIR] [--agent claude|codex|opencode] [--model ID] [--effort LEVEL] [--tmux] [--prompt TEXT] [--exact]
             [--from NN] [--min-free-gb 50]
 
-The slot, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
+The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
 names nothing, no uncommitted changes, no commits not on main, no landing in the merge queue (behind main is
 fine: the first prompt runs /mfm). The agent starts detached through `hal2-cli-git worktree run <NN> --detach`, in
 a hal2 terminal host (`--tmux`: a window of hal-<repo>), with a new session whose first prompt runs /mfm, then the
 given prompt (`--exact`: the prompt as given, without /mfm). `--model` and `--effort` go to the agent's process
 (saved nowhere). Prints JSON: slot, pane, worktree, the attach command, the model and effort asked for (null: the
-agent's default) and the slots skipped for their work. Exit 2 when a hal2 CLI is missing, 1 when no slot is left.
+agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 1 when no worktree is left.
 
-`--from NN` starts the search at slot NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30). A missing worktree is
+`--from NN` starts the search at worktree NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30). A missing worktree is
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 """
 import json
@@ -62,7 +62,7 @@ def slot_of(name: str) -> str | None:
 
 
 def taken(repo: Path) -> set[str]:
-    """Slots a session holds: a live agent, a live terminal host of the worktree, a window of hal-<repo>."""
+    """Worktrees a session holds: a live agent, a live terminal host of the worktree, a window of hal-<repo>."""
     agents = json.loads(run("hal2-cli-agents", "list", "--json"))
     agents = agents if isinstance(agents, list) else agents.get("agents", [])
     slots = {a.get("slot") for a in agents if a.get("state") not in GONE and a.get("project")
@@ -102,7 +102,7 @@ def choose(repo: Path, first: int = 1) -> tuple[str, list[dict], dict | None]:
         if why is None:
             return slot, skipped, worktrees.get(slot)
         skipped.append({"slot": slot, "why": why})
-    die(f"no free and clean slot from {first:02d} to 99")
+    die(f"no free and clean worktree from {first:02d} to 99")
 
 
 def free_gb(repo: Path) -> float:
@@ -115,7 +115,7 @@ def prepare(repo: Path, entry: dict | None, min_gb: float) -> None:
     """Before the start: free disk for a new worktree (hal2's `worktree run` creates it)."""
     if entry is None and free_gb(repo) < min_gb:
         needed = ("%f" % min_gb).rstrip("0").rstrip(".")
-        die(f"only {free_gb(repo):.0f} GB free, a new worktree needs {needed} (--min-free-gb): prune a slot first")
+        die(f"only {free_gb(repo):.0f} GB free, a new worktree needs {needed} (--min-free-gb): prune a worktree first")
 
 
 def start(repo: Path, slot: str, argv: list[str], prompt: str) -> dict:
@@ -160,10 +160,10 @@ def main(argv: list[str]) -> int:
     repo = main_checkout(Path(arg(argv, "--repo") or ".").expanduser().resolve())
     first = arg(argv, "--from") or "1"
     if not first.isdigit() or not 0 <= int(first) <= 99:
-        die(f"--from needs a slot from 00 to 99, not '{first}'")
+        die(f"--from needs a worktree from 00 to 99, not '{first}'")
     for gone in ("--lead", "--base"):
         if gone in argv:
-            die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in subservant slots")
+            die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in servant worktrees")
     slot, skipped, entry = choose(repo, int(first))
     prepare(repo, entry, float(arg(argv, "--min-free-gb") or 50))
     report = start(repo, slot, argv, first_prompt(arg(argv, "--prompt"), "--exact" in argv))

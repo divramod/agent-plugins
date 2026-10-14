@@ -84,7 +84,7 @@ def waits_cell(row: dict) -> str:
 
 
 def wt_cell(row: dict, nested: bool) -> str:
-    """The slot's name: bold for the checkout the script runs in, `↳ ` before a servant under its foreman's row."""
+    """The worktree's name: bold for the checkout the script runs in, `↳ ` before a servant under its foreman's row."""
     return ("↳ " if nested else "") + (f"**{row['wt']}**" if row.get("own") else row["wt"])
 
 
@@ -122,7 +122,7 @@ def head_text(data: dict) -> str:
 
 
 def line(data: dict) -> str:
-    """`<default>: <sha> <age> ago <subject>; queue: <holder and waiters | empty>; open CI runs: <n (slots) | none>`."""
+    """`<default>: <sha> <age> ago <subject>; queue: <holder and waiters | empty>; open CI runs: <n (worktrees) | none>`."""
     parts = [f"{data['default']}: {head_text(data)}".rstrip(": ")]
     for label, text in (("queue", queue_text(data["queue"])), ("open CI runs", runs_text(data["runs"], data["rows"]))):
         if text:

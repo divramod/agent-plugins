@@ -79,7 +79,7 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(self.run_context(env=env)["raw_percent"], 20.0)
 
     def test_window_from_the_running_claude_process_model(self):
-        # hal2 slot 43: started with `--model opus[1m]` while settings.json said `opus`, it read 49.8% at 10.6% of 1M.
+        # hal2 worktree 43: started with `--model opus[1m]` while settings.json said `opus`, it read 49.8% at 10.6% of 1M.
         self.transcript(assistant(0, cache_read=106_000))
         (self.home / ".claude" / "settings.json").write_text(json.dumps({"model": "opus"}))
         self.fake_ps("900 800 /bin/zsh -c python3 context.py",

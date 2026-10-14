@@ -6,25 +6,25 @@
       the waiters, the machine's load, every worktree with work not on main and
       no ticket, the failing tests of the recent landings (repeat offenders are
       flaky candidates), and findings: what the boss should act on, most urgent first
-  scan.py record <kind> <slot> <what> [--note <text>]
+  scan.py record <kind> <worktree> <what> [--note <text>]
       append what the boss did to log.jsonl (the next scans show it)
   scan.py pause|resume [--repo <dir>] [--note <why>]
       set or clear the boss's queue pause flag (sessions are told by the boss)
   scan.py summary [--repo <dir>] [--notes <text>]
       scan, then write the round's summary (queue, landings, worktrees, findings, the
       boss's actions and notes) to summaries/<day>/<HHMM>.md and latest.md in the farmer's state
-      folder (roles/farmer/ of its slot, ignored by the role folder's .gitignore)
-  scan.py priority <slot>... [--note <why>] | priority --clear | priority --done <slot>
-      the slots the user wants landed first: hal2 orders the queue (`hal2-cli-git worktree
-      queue order`: listed slots first, each place reserved, the holder never preempted);
+      folder (roles/farmer/ of its worktree, ignored by the role folder's .gitignore)
+  scan.py priority <worktree>... [--note <why>] | priority --clear | priority --done <worktree>
+      the worktrees the user wants landed first: hal2 orders the queue (`hal2-cli-git worktree
+      queue order`: listed worktrees first, each place reserved, the holder never preempted);
       priority.json keeps the user's request and why (findings name them first); --done takes
-      a landed slot off it (hal2 drops it from its order when its turn ends)
+      a landed worktree off it (hal2 drops it from its order when its turn ends)
   scan.py status [--json]
       the priority, the pause flag, the last scan, the actions of the last 6 h
 
 Reads hal2 (hal2-cli-git worktree queue, hal2-cli-agents list), git and the recent
 landings: GitHub's merge-to-main.yml and land.yml runs (gh) where the default branch has either (mtm_ci.py),
-else `hal2-cli-git worktree landings`; writes only the farmer's state folder (roles/farmer/ of its slot). Exit 0 on success,
+else `hal2-cli-git worktree landings`; writes only the farmer's state folder (roles/farmer/ of its worktree). Exit 0 on success,
 2 when a tool is missing.
 """
 
@@ -44,14 +44,14 @@ import roles
 
 import mtm_ci
 
-DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer slot's roles/farmer/ (roles.state_dir)
+DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer worktree's roles/farmer/ (roles.state_dir)
 TOOLS = ("hal2-cli-git", "hal2-cli-agents", "git")
 
 MINUTE = 60
 HELD_IDLE_AFTER = 15 * MINUTE  # a failed landing nobody reruns
 ACTIVE_TOO_LONG = 60 * MINUTE  # a landing running this long is suspect
 IDLE_WITH_WORK_AFTER = 30 * MINUTE  # finished work nobody queues
-RESERVATION_WAITS_AFTER = 60 * MINUTE  # the queue waits at the front for a reserved slot without progress
+RESERVATION_WAITS_AFTER = 60 * MINUTE  # the queue waits at the front for a reserved worktree without progress
 LOAD_PER_CORE_HIGH = 2.0  # load average per core that breaks timing tests
 BUSY = {"working", "starting"}
 WORKING_TASKS = {"shell", "subagent", "workflow"}  # background tasks that mean a session still works
@@ -144,9 +144,9 @@ def worktrees(main: str) -> list[dict]:
 
 
 def lead_of(path: str | Path) -> dict | None:
-    """A parallel plan's subservant marker (skills plan 0013): <worktree>/plans/LEAD, one line `<lead-slot> <plan>
+    """A parallel plan's servant marker (skills plan 0013): <worktree>/plans/LEAD, one line `<foreman-worktree> <plan>
     <step>`, as {slot, plan, step}; a broken one as {bad: True, error, text} (still marked); None without one. A
-    marked slot never lands."""
+    marked worktree never lands."""
     return lead_marker.marker(path)
 
 
@@ -155,7 +155,7 @@ def subservant(lead: dict) -> str:
 
 
 def fetch_leads(main: str, paths: list[str]) -> None:
-    """The lead branches of the marked worktrees, fresh: a subservant's work is measured against origin/<lead>."""
+    """The foreman branches of the marked worktrees, fresh: a servant's work is measured against origin/<foreman>."""
     leads = {lead["slot"] for p in paths if (lead := lead_of(p)) and not lead.get("bad")}
     for slot in sorted(leads):
         run(["git", "fetch", "--quiet", "origin", f"+refs/heads/{slot}:refs/remotes/origin/{slot}"], main)
@@ -198,7 +198,7 @@ def landings_summary(landings: list[dict], since: float) -> tuple[list[dict], di
 
 
 def reservation_waits(head: dict, w: dict, now: float) -> dict | None:
-    """The queue waits at the front for a reserved slot that does not come: reserved over an hour ago, its slot
+    """The queue waits at the front for a reserved worktree that does not come: reserved over an hour ago, its worktree
     without an agent or with one not busy for an hour. The boss tells the user; it never releases a reservation."""
     since = parse_time((head.get("reserved") or {}).get("since"))
     if since is None or now - since < RESERVATION_WAITS_AFTER:
@@ -208,14 +208,14 @@ def reservation_waits(head: dict, w: dict, now: float) -> dict | None:
         return None
     idle = f" for {w.get('agent_idle_seconds', 0) // MINUTE} min" if agent else ""
     return {"kind": "reservation-waits", "slot": head["slot"], "seq": head.get("seq"),
-            "why": f"the queue waits at the front for slot {head['slot']}'s reservation since "
+            "why": f"the queue waits at the front for worktree {head['slot']}'s reservation since "
                    f"{int((now - since) // MINUTE)} min ({head['reserved'].get('by')}), its agent is "
                    f"{agent or 'none'}{idle}"}
 
 
 def holder_works(w: dict, snap: dict) -> bool:
     """The reserved queue's holder is not idle (hal2 plan 0169, the incident of 2026-10-06: `reserved-idle` made
-    slot 05 land in the middle of its measurement turn): its agent is busy or was within HELD_IDLE_AFTER, runs a
+    worktree 05 land in the middle of its measurement turn): its agent is busy or was within HELD_IDLE_AFTER, runs a
     background shell, subagent or workflow, or a landing-workflow run (merge-to-main.yml or land.yml: a dispatch of it,
     a landing that ships) is unfinished."""
     agent = w.get("agent_state")
@@ -231,8 +231,8 @@ def fastlane_owned(t: dict) -> bool:
 
 
 def orphaned_subservant(w: dict) -> dict:
-    """A marked slot without a session whose work its lead's branch lacks: restarted only with /handoff c, never
-    /mtm (boss.orphan); a slot whose work is all in origin/<lead> is done (prune removes it), never restarted."""
+    """A marked worktree without a session whose work its foreman's branch lacks: restarted only with /handoff c, never
+    /mtm (boss.orphan); a worktree whose work is all in origin/<foreman> is done (prune removes it), never restarted."""
     return {"kind": "work-without-agent", "slot": w["slot"], "lead": w["lead"],
             "why": f"{subservant(w['lead'])}: {'; '.join(w['missing'])}, no agent session"}
 
@@ -241,7 +241,7 @@ def findings(snap: dict) -> list[dict]:
     """What the boss acts on, most urgent first."""
     out, now = [], snap["now"]
     queue, by_slot = snap["queue"], {w["slot"]: w for w in snap["worktrees"]}
-    # A subservant never lands (plans/LEAD): its ticket wakes the farmer, the landing findings skip it.
+    # A servant never lands (plans/LEAD): its ticket wakes the farmer, the landing findings skip it.
     marked = {s: w["lead"] for s, w in by_slot.items() if w.get("lead")}
     head = queue[0] if queue and queue[0]["slot"] not in marked and not fastlane_owned(queue[0]) else None
     for slot in (snap.get("priority") or {}).get("slots", []):
@@ -256,8 +256,8 @@ def findings(snap: dict) -> list[dict]:
     for i, t in enumerate(queue):
         if lead := marked.get(t["slot"]):
             out.append({"kind": "subservant-holds", "slot": t["slot"], "seq": t.get("seq"), "lead": lead,
-                        "why": f"{subservant(lead)} has a merge-queue ticket (#{i}, {t['state']}): a subservant "
-                               f"never lands, its lead{'' if lead.get('bad') else ' in slot ' + lead['slot']} "
+                        "why": f"{subservant(lead)} has a merge-queue ticket (#{i}, {t['state']}): a servant "
+                               f"never lands, its foreman{'' if lead.get('bad') else ' in worktree ' + lead['slot']} "
                                f"merges it"})
     if head and head.get("awaiting_slot"):
         if f := reservation_waits(head, by_slot.get(head["slot"], {}), now):
@@ -296,10 +296,10 @@ def findings(snap: dict) -> list[dict]:
     for name, t in sorted(snap["tests"].items(), key=lambda kv: -kv[1]["failures"]):
         if t["failures"] >= 2 or len(t["slots"]) >= 2:
             out.append({"kind": "flaky-candidate", "slot": ",".join(t["slots"]),
-                        "why": f"{name} failed {t['failures']}x in {len(t['slots'])} slot(s)", "test": name})
+                        "why": f"{name} failed {t['failures']}x in {len(t['slots'])} worktree(s)", "test": name})
     queued = {t["slot"] for t in queue}
     for w in snap["worktrees"]:
-        if w.get("lead"):  # a subservant: measured against its lead's branch, never main
+        if w.get("lead"):  # a servant: measured against its foreman's branch, never main
             if w.get("missing") and w["slot"] not in queued and w.get("agent_state") is None:
                 out.append(orphaned_subservant(w))
             continue
@@ -319,8 +319,8 @@ def findings(snap: dict) -> list[dict]:
 
 
 def worktree_entry(w: dict, a: dict, default: str, now: float) -> dict:
-    """One worktree of the snapshot: its work not on main, its plan, its agent; a marked slot (plans/LEAD) also
-    `missing`, what its lead's branch lacks (lead_marker.missing), which alone decides whether it has work left."""
+    """One worktree of the snapshot: its work not on main, its plan, its agent; a marked worktree (plans/LEAD) also
+    `missing`, what its foreman's branch lacks (lead_marker.missing), which alone decides whether it has work left."""
     path, slot = w["path"], Path(w["path"]).name
     plan_file = Path(path) / "plans/CURRENT_PLAN"
     since = (a.get("since") or 0) / 1000
@@ -367,7 +367,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True) -> dict:
             "active_seconds": int(now - (landing_start(t.get("landing")) or now)),
         })
     own = run(["git", "rev-parse", "--show-toplevel"], repo).strip()
-    # hal2's own checkouts (.deliver, .bench) and the farmer's slot are left out
+    # hal2's own checkouts (.deliver, .bench) and the farmer's worktree are left out
     listed = [w for w in worktrees(main) if not Path(w["path"]).name.startswith(".") and w["path"] != own]
     if fetch:
         fetch_leads(main, [w["path"] for w in listed])
@@ -388,7 +388,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True) -> dict:
 
 
 def state_dir(main: str) -> Path:
-    """The farmer's state folder: roles/farmer/ of its slot, or FARMER_DIR's (roles.state_dir)."""
+    """The farmer's state folder: roles/farmer/ of its worktree, or FARMER_DIR's (roles.state_dir)."""
     return roles.state_dir(main, DATA)
 
 
@@ -418,7 +418,7 @@ def log(main: str, entry: dict) -> None:
 def priority(main: str, slots: list[str], note: str = "", clear: bool = False, done: str = "") -> int:
     """The user's landing order: hal2 orders the queue (`worktree queue order`), priority.json keeps the request.
 
-    `done` only takes a landed slot off priority.json: hal2 drops it from its own order when its turn ends."""
+    `done` only takes a landed worktree off priority.json: hal2 drops it from its own order when its turn ends."""
     f = state_dir(main) / "priority.json"
     if done:
         kept = json.loads(f.read_text()) if f.exists() else {"slots": [], "note": ""}
@@ -470,7 +470,7 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     if notes:
         lines += ["", notes.strip()]
     if lead:
-        lines += ["", "## Development lead", "", lead.strip()]
+        lines += ["", "## Development foreman", "", lead.strip()]
     lines += ["", "## Landings since the last summary", ""]
     lines += [f"- {l['slot']} {l['outcome']}" + (f": {l['task']}" if l["task"] else "")
               + (f" ({', '.join(l['tests'])})" if l["tests"] else "")
@@ -484,7 +484,7 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     lines += ["", "## Actions", ""]
     lines += [f"- {e['at'][11:16]} {e['kind']} {e['slot']}: {e['what']}" + (f" ({e['note']})" if e.get("note") else "")
               for e in ({**{k: "" for k in LOG_FIELDS}, **a} for a in actions)] or ["- none"]
-    lines += ["", "## Worktrees", "", "| slot | not on main | agent | plan |", "|---|---|---|---|"]
+    lines += ["", "## Worktrees", "", "| worktree | not on main | agent | plan |", "|---|---|---|---|"]
     lines += [f"| {w['slot']} | {w['ahead']} | {w.get('agent_state') or '-'} | {w.get('plan') or '-'} |"
               for w in snap["worktrees"] if w["ahead"] or w.get("plan")]
     return "\n".join(lines) + "\n"
@@ -536,13 +536,13 @@ def main(argv: list[str]) -> int:
     pr.add_argument("slots", nargs="*")
     pr.add_argument("--note", default="")
     pr.add_argument("--clear", action="store_true")
-    pr.add_argument("--done", default="", metavar="SLOT", help="take a landed slot off priority.json")
+    pr.add_argument("--done", default="", metavar="SLOT", help="take a landed worktree off priority.json")
     pr.add_argument("--repo", default=os.getcwd())
     sm = sub.add_parser("summary")
     sm.add_argument("--repo", default=os.getcwd())
     sm.add_argument("--hours", type=float, default=24)
     sm.add_argument("--notes", default="")
-    sm.add_argument("--lead", default="", help="the development lead's part of the round")
+    sm.add_argument("--lead", default="", help="the development foreman's part of the round")
     st = sub.add_parser("status")
     st.add_argument("--repo", default=os.getcwd())
     st.add_argument("--json", action="store_true")
@@ -561,7 +561,7 @@ def main(argv: list[str]) -> int:
             print_text(snap)
     elif args.cmd == "priority":
         if not (args.slots or args.clear or args.done) or (args.clear and args.slots):
-            p.error("priority takes slots, --clear or --done <slot>")
+            p.error("priority takes worktrees, --clear or --done <worktree>")
         return priority(main_dir, args.slots, args.note, args.clear, args.done)
     elif args.cmd == "summary":
         snap = snapshot(args.repo, args.hours)

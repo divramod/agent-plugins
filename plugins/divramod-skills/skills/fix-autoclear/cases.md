@@ -40,7 +40,7 @@ Newest first. One case per root cause; a recurrence adds a line under its case. 
 
 ## 2026-10-07 · sessions the guard never covered: a queue ticket, no open plan, never idle (hal2 wt 02, 05, farmer)
 
-- **Signature**: no failed job at all. A session far over the threshold (the farmer's slot at 55 %, a carrier at
+- **Signature**: no failed job at all. A session far over the threshold (the farmer's worktree at 55 %, a carrier at
   49 %) whose `guard.log` lines read `pass (a landing)` or `pass (no plan with steps left)`; or a job `waiting` with
   the message `waiting for the landing` for hours (global shot 12: a train's carrier with a waiting reserve); or a
   finished `Landing: auto` plan whose `/mtm` the guard locked out (shot 11); or a refusal `no-open-plan`; or a

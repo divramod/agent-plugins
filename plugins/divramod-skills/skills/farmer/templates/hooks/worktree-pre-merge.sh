@@ -4,7 +4,7 @@
 # Runs in the worktree being landed, after main was merged in and the gates passed. The farmer
 # branch may only change those two files; anything else is not merged (it would skip the gates).
 set -euo pipefail
-# The farmer works in the slot and branch farmer-<project> (hal2 .adr/roles-folder.md): <project> is origin's
+# The farmer works in the worktree and branch farmer-<project> (hal2 .adr/roles-folder.md): <project> is origin's
 # repository name, else the main checkout's folder, lowercase, other characters than [a-z0-9-] as "-".
 project() {
   local url name

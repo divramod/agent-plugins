@@ -176,23 +176,23 @@ has no repository to start a worktree in).
   ```bash
   python3 $S/implement.py send --repo <repo dir> --shotfile <name> --number <n>
   ```
-  create-worktree-session's `create.py` starts Claude in the repository's first slot without a session and without
+  create-worktree-session's `create.py` starts Claude in the repository's first worktree without a session and without
   work (created when missing, its setup run) with the shot as its first prompt, at the user's defaults `opus` and
   `medium` effort (`--model <m> --effort <e>` when the user names others for the shot). The JSON names the `slot`, `pane` and `remote_control` (the
   Remote Control name `<repo>-<slot>`, so the user finds the new session in the Claude app). Say:
-  `Sent to a new worktree: slot <NN>, in the app as <remote_control>.`
+  `Sent to a new worktree: <NN>, in the app as <remote_control>.`
 - **A session named: that session.** List the repository's live sessions:
   ```bash
   python3 $S/implement.py sessions --repo <repo dir>
   ```
   Each has `pane_id`, `slot` (`main`, `01`, ...), `state`, `title`, `plan` and `context_percent`. Match the answer by
-  slot (`03`, `three`, `main`) or by words of its plan or title. One match:
+  worktree (`03`, `three`, `main`) or by words of its plan or title. One match:
   `python3 $S/implement.py send --repo <repo dir> --shotfile <name> --number <n> --pane <pane_id>` types
   `@<bullet>` into it; a Claude session whose model or effort differ from the shot's (or cannot be read) is
-  restarted at them first with the shot as its first prompt (`switched` in the JSON): say so. No or several matches: list them in plain text, one line each (`A. slot 03, plan 0094 ...,
+  restarted at them first with the shot as its first prompt (`switched` in the JSON): say so. No or several matches: list them in plain text, one line each (`A. worktree 03, plan 0094 ...,
   done`), offer `new worktree` too, and take the next answer. A session in state `blocked` (waiting for a
   permission or an answer) is never typed into: the text would answer its dialog; say so and offer a new worktree.
-  `working` is fine (the agent queues the input), but say so: `Sent to slot 03; it is still working, it reads the
+  `working` is fine (the agent queues the input), but say so: `Sent to worktree 03; it is still working, it reads the
   shot when done.`
 - The shot stays written even when the send fails; say what failed and go on with the next item.
 - A repository outside a folder Claude Code trusts (not below `~/a`) starts its new session on Claude Code's
@@ -204,12 +204,12 @@ One table in paper order, one row per item, so the user can cross the items off 
 
 | # | Item | Result | Shotfile | Shot |
 |---|---|---|---|---|
-| 1 | Tabs: sort alphabetically btn | written, sent to slot 05 | app-macos-components | 6 |
+| 1 | Tabs: sort alphabetically btn | written, sent to worktree 05 | app-macos-components | 6 |
 | 2 | buy coffee filters | done on paper | – | – |
 | 3 | Inter agent message board | written | hal2:plugin-agents | 29 |
 
 - **#**: the item's number on the paper (the `Item <i>` of the walk); **Item**: the note as written, shortened.
-- **Result**: `written`, `written, sent to slot <NN>` / `... sent to <slot>'s session`, `skipped`, `done on paper`,
+- **Result**: `written`, `written, sent to worktree <NN>` / `... sent to <slot>'s session`, `skipped`, `done on paper`,
   `merged into <shotfile> shot <n>`, or `not walked through` (after a stop).
 - **Shotfile** and **Shot**: where the shot now is, the shotfile's name (`<repo>:` before it when not the current
   repo, `global:` for a global one) and its number. An item that became two shots gets both, in the same order in

@@ -4,7 +4,7 @@ Newest first. There is one case per failure class and cause; a recurrence adds a
 **Occurrences**. The **signature** is what `scan.py scan --json` and the transcript show. **Fix plan** is one of:
 
 - `none`;
-- `running (<slot>, brief <path>)`;
+- `running (<worktree>, brief <path>)`;
 - `landed <plan> <date>`;
 - `n/a` (not fixable in hal2).
 

@@ -12,7 +12,7 @@ merge, the setup tasks and the hook where the repo still has them, the push; a r
 
 | Call | Does |
 |---|---|
-| `/mfm [<slot>]` | merge the default branch into the current worktree (or hal slot `<slot>`) |
+| `/mfm [<NN>]` | merge the default branch into the current worktree (or worktree `<NN>`) |
 | `/mfm h`, `/mfm help` | print this table and stop |
 
 ## Run

@@ -156,7 +156,7 @@ class Q(unittest.TestCase):
 
 
 class FarmerSlot(unittest.TestCase):
-    """In the farmer's own slot `farmer-<repo>` /q is the farmer's joined list (plan 0268, D14)."""
+    """In the farmer's own worktree `farmer-<repo>` /q is the farmer's joined list (plan 0268, D14)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -179,7 +179,7 @@ class FarmerSlot(unittest.TestCase):
     def test_the_farmer_slot_prints_the_joined_list(self):
         out = self.run_q()
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertTrue(out.stdout.startswith("2 open questions in 2 slots\n"), out.stdout)
+        self.assertTrue(out.stdout.startswith("2 open questions in 2 worktrees\n"), out.stdout)
         self.assertIn("**05** (the farmer's list)\nQ1: Land it?\nWaits for: the landing", out.stdout)
         self.assertIn("**main** (QUESTIONS.md)\nQ2: \"Own store?\"", out.stdout)
         self.assertEqual(json.loads(self.run_q("--json").stdout)["open"], 2)

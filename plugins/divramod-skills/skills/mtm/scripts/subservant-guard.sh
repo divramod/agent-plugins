@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Refuse a landing in a former subservant slot (skills plan 0013; subservant
-# sessions are gone since plan 0016, the guard stays while a slot holds one, plan
+# Refuse a landing in a former servant's worktree (skills plan 0013; servant
+# sessions are gone since plan 0016, the guard stays while a worktree holds one, plan
 # 0015 D12): the worktree holds plans/LEAD (`<lead-slot> <plan> <step>`).
 # Usage: subservant-guard.sh [<dir>|<slot>]   (default: the current directory)
 #   <dir>  any directory inside the worktree to check;
 #   <slot> a worktree's name when no such directory exists here (31, main, a named
-#          slot such as farmer-hal2): resolved through `hal2-cli-git worktree list
+#          worktree such as farmer-hal2): resolved through `hal2-cli-git worktree list
 #          --json` of the current repo, else by folder name through `git worktree
 #          list --porcelain` (`main`: the main checkout).
-# Exit 1 naming the lead there, 0 silently elsewhere; 2 when git is missing;
+# Exit 1 naming the foreman there, 0 silently elsewhere; 2 when git is missing;
 # 3 when <slot> names no worktree of the current repo.
 set -euo pipefail
 command -v git >/dev/null 2>&1 || { echo "subservant-guard.sh: git is missing: run install-prerequisites.sh" >&2; exit 2; }
@@ -38,6 +38,6 @@ root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")
 marker="$root/plans/LEAD"
 [ -f "$marker" ] || exit 0
 read -r lead plan step _ < "$marker" || true
-echo "mtm: this slot is a subservant of slot ${lead:-?} (plan ${plan:-?} step ${step:-?}, plans/LEAD): it never lands." >&2
-echo "It holds a stale plans/LEAD of the lead in slot ${lead:-?}: the lead takes the work over, or delete plans/LEAD." >&2
+echo "mtm: this worktree is a servant of worktree ${lead:-?} (plan ${plan:-?} step ${step:-?}, plans/LEAD): it never lands." >&2
+echo "It holds a stale plans/LEAD of the foreman in worktree ${lead:-?}: the foreman takes the work over, or delete plans/LEAD." >&2
 exit 1

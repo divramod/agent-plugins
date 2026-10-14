@@ -35,14 +35,14 @@ class Lead(unittest.TestCase):
         self.assertEqual(kinds(self.plan(waiting)), [("wake", "idle-in-plan", "04")])
 
     def test_a_subservant_stopped_mid_step_hands_its_step_to_the_lead_never_lands(self):
-        # Skills plan 0013: a slot with plans/LEAD never lands; skills plan 0016: `plan.py report` is gone, so the text
-        # says what plan.py's refusal says (the lead takes the work over, or plans/LEAD is deleted).
+        # Skills plan 0013: a worktree with plans/LEAD never lands; skills plan 0016: `plan.py report` is gone, so the text
+        # says what plan.py's refusal says (the foreman takes the work over, or plans/LEAD is deleted).
         lead = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
         going = helper("idle-in-plan", "Tests written.\n\nNext I'll run the gate.", slot="31", lead=lead)
         planned = self.plan(going)
         self.assertEqual(kinds(planned), [("send", "idle-in-plan", "31"), ("run", "handled", "31")])
         text = planned[0]["text"]
-        for part in ("step 7 of plan 0149-hal9k", "slot 02", "the lead in slot 02 takes the work over",
+        for part in ("step 7 of plan 0149-hal9k", "worktree 02", "the foreman in worktree 02 takes the work over",
                      "delete plans/LEAD", "never land"):
             self.assertIn(part, text)
         self.assertNotIn("plan.py report", text)

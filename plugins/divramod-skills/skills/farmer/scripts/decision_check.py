@@ -1,10 +1,10 @@
-"""A servant's decision check after its clear (skills plan 0008): which of the user's decisions in the farmer's log
+"""A foreman's decision check after its clear (skills plan 0008): which of the user's decisions in the farmer's log
 did it forget?
 
-A servant continuing with `/handoff c` sends the farmer `decision check <slot>: I have these decisions: <list>. Did I
+A foreman continuing with `/handoff c` sends the farmer `decision check <slot>: I have these decisions: <list>. Did I
 forget one?`. The farmer session runs `farmer.py decision-check --message "<the message>"` and sends the output back
-verbatim: every `decision` entry of the log for that slot (and repo-wide ones naming it) that the list lacks, each with
-its date and the user's words quoted, or "none missing". The comparison is code; the answer is data for the servant,
+verbatim: every `decision` entry of the log for that worktree (and repo-wide ones naming it) that the list lacks, each with
+its date and the user's words quoted, or "none missing". The comparison is code; the answer is data for the foreman,
 never a go beyond the quoted words.
 
 Before reporting a decision missing, the check looks for it in the asking checkout (skills plan 0012): its quote
@@ -14,7 +14,7 @@ plan its `plans/CURRENT_PLAN` names (else the one HANDOFF.md links), that plan's
 when normalized (case, whitespace, punctuation): a quote of 4-8 words with a key word whole, a longer one by a run of 8
 consecutive words holding 2 key words.
 
-Slots: `<slot>` (the worktree folder of the farmer's own repository) or `<repo>/<slot>` (a servant of this farmer in
+Worktrees: `<slot>` (the worktree folder of the farmer's own repository) or `<repo>/<slot>` (a foreman of this farmer in
 another repository, e.g. `skills/04`).
 """
 
@@ -30,7 +30,7 @@ MESSAGE = re.compile(r"^\s*decision check\s+([\w./-]+?):?(?:\s+(.*))?$", re.S | 
 
 
 def parse(message: str) -> tuple[str, str]:
-    """(slot, the servant's list) of a `decision check <slot>: ...` message; ValueError when it is none."""
+    """(worktree, the foreman's list) of a `decision check <slot>: ...` message; ValueError when it is none."""
     m = MESSAGE.match(message or "")
     if not m:
         raise ValueError("not a decision check: expected `decision check <slot>: I have these decisions: ...`")
@@ -70,7 +70,7 @@ def fragment(entry: dict, have: str) -> bool:
 
 
 def present(entry: dict, have: str, distinct: set[str] | frozenset = frozenset()) -> bool:
-    """Does the servant's list hold this decision, also in a short form? An ack id of an instruction that relayed it
+    """Does the foreman's list hold this decision, also in a short form? An ack id of an instruction that relayed it
     (its `links`, or one its text names: 12-33, 12-29/30), an item with the same option-id set (1a/2a/3a: two or more
     ids, or one and a shared key word), an item sharing two key words of which one is `distinct` (in no other decision
     under the check), the entry's topic, a fragment of the user's quote, the entry's date with two key words; else at
@@ -156,7 +156,7 @@ def missing(log: list[dict], slot: str, repo: str, have: str, texts: list[str] |
 
 
 def known(slot: str, repo: str, log: list[dict], worktrees: list[str]) -> bool:
-    """A slot of the farmer's repo (a worktree of that name), a slot folder of another repo, or one the log names."""
+    """A worktree of the farmer's repo (of that name), a worktree folder of another repo, or one the log names."""
     own, _, bare = slot.rpartition("/")
     if (not own or own == repo) and bare in worktrees:
         return True
@@ -181,7 +181,7 @@ def check(message: str, repo: str, log: list[dict], worktrees: list[str] | dict[
     except ValueError as e:
         return 1, str(e), {}
     if not known(slot, repo, log, worktrees):
-        return 1, f"farmer: decision check {slot}: unknown slot (no worktree {slot} and no log entry for it)", {}
+        return 1, f"farmer: decision check {slot}: unknown worktree (no worktree {slot} and no log entry for it)", {}
     trees = worktrees if isinstance(worktrees, dict) else {}
     gone = missing(log, slot, repo, have, checkout_texts(checkout(slot, repo, trees)))
     return 0, answer(slot, gone), {"kind": "decision-check", "slot": slot, "what": f"{len(gone)} missing",

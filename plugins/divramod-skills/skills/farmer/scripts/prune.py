@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-"""The farmer's prune duty (hal2 plan 0143 step 8; the user, 2026-10-06): landed worktree slots cleaned or deleted.
+"""The farmer's prune duty (hal2 plan 0143 step 8; the user, 2026-10-06): landed worktrees cleaned or deleted.
 
   prune.py scan [--repo <dir>] [--json]
-      every numbered slot 00-99 with whether it is free to prune, and why not
+      every numbered worktree 00-99 with whether it is free to prune, and why not
   prune.py clean <NN> [--repo <dir>] [--dry-run]
-      a slot 00-09: checked again, then its build artifacts deleted (the cleanup skill's `delete`)
+      a worktree 00-09: checked again, then its build artifacts deleted (the cleanup skill's `delete`)
   prune.py sizes [--repo <dir>]
       the free disk and the biggest worktrees (du over every worktree: minutes) into disk.json in the farmer's state
       folder; the tick starts it in the background and reports it the next round (plan 0011)
   prune.py remove <NN> [--repo <dir>] [--dry-run]
-      a slot 10-99: checked again, its idle session stopped by signal (delete-worktree-session's stop.py through
+      a worktree 10-99: checked again, its idle session stopped by signal (delete-worktree-session's stop.py through
       `hal2-cli-agents stop`, never a typed `/exit`; a draft or background tasks leave it running), then
       `hal2-cli-git worktree remove NN --remote`; a
-      subservant's slot 30-99 (marked, below): fetched and checked again, `hal2-cli-git worktree remove NN --force`
-      (its branch is not on main by design), then `git push origin --delete NN` once origin/NN is in origin/<lead>
+      servant's worktree 30-99 (marked, below): fetched and checked again, `hal2-cli-git worktree remove NN --force`
+      (its branch is not on main by design), then `git push origin --delete NN` once origin/NN is in origin/<foreman>
 
-A slot is free when nothing in it is unsaved: no commit (its branch or a side branch `NN-*`) that origin's default
+A worktree is free when nothing in it is unsaved: no commit (its branch or a side branch `NN-*`) that origin's default
 branch lacks, no change, no plans/CURRENT_PLAN, no merge queue ticket or boss pause, no busy agent (working,
 starting, blocked), no session active in the last 30 minutes (10-99), no build running in it (cleanup's `busy`)
-and no open question to the user in the farmer's log. Never main, a role slot or a name that is not two digits.
-A slot marked `plans/LEAD` (`<lead-slot> <plan> <step>`: a parallel plan's subservant, skills plan 0013) is measured
-against its lead's branch instead, never main: a marked slot 30-99 is free when HEAD, origin/NN and every side branch
-`NN-*` are in origin/<lead>, nothing is uncommitted (the ignored LEAD and CURRENT_PLAN aside), no ticket, boss pause,
+and no open question to the user in the farmer's log. Never main, a role worktree or a name that is not two digits.
+A worktree marked `plans/LEAD` (`<foreman-worktree> <plan> <step>`: a parallel plan's servant, skills plan 0013) is measured
+against its foreman's branch instead, never main: a marked worktree 30-99 is free when HEAD, origin/NN and every side branch
+`NN-*` are in origin/<foreman>, nothing is uncommitted (the ignored LEAD and CURRENT_PLAN aside), no ticket, boss pause,
 open question or busy agent, no session active and no LEAD written in the last hour, and no build runs. A marked
-slot below 30 is never pruned.
-The tick (`handler`) plans a `clean` per landing (keyed on the slot's HEAD) for 00-09, one `remove` per round for
+worktree below 30 is never pruned.
+The tick (`handler`) plans a `clean` per landing (keyed on the worktree's HEAD) for 00-09, one `remove` per round for
 10-99, and every 6 hours the free disk and the biggest worktrees for the round summary, a notice under 100 GB free:
 measured by a detached `prune.py sizes` (never inside a round) and reported by the round after it finished.
-Exit 0 done or skipped (the slot is no longer free: prints why), 1 failed (the tick then wakes the farmer), 2 a
+Exit 0 done or skipped (the worktree is no longer free: prints why), 1 failed (the tick then wakes the farmer), 2 a
 tool missing.
 """
 
@@ -56,8 +56,8 @@ NUMBERED = re.compile(r"\d\d")
 BUSY = {"working", "starting", "blocked"}
 GONE = {"ended", "failed"}
 QUIET = 30 * 60  # a 10-99 session active more recently is left alone
-SUBSERVANT_QUIET = 3600  # a marked 30-99 slot: the lead may reuse it with its warm build cache meanwhile
-SUBSERVANTS_FROM = 30  # subservants work only in slots 30-99 (the user, skills plan 0013)
+SUBSERVANT_QUIET = 3600  # a marked 30-99 worktree: the foreman may reuse it with its warm build cache meanwhile
+SUBSERVANTS_FROM = 30  # servants work only in worktrees 30-99 (the user, skills plan 0013)
 LEAD = lead_marker.LEAD
 LOW_DISK_GB = 100
 SIZES_EVERY = 6 * 3600  # du over every worktree takes minutes
@@ -72,7 +72,7 @@ def git(path: str, *args: str) -> str:
 
 
 def unsaved(path: str, slot: str, base: str) -> list[str]:
-    """What the slot holds that `base` (origin's default branch) lacks: commits on HEAD or a side branch, changes."""
+    """What the worktree holds that `base` (origin's default branch) lacks: commits on HEAD or a side branch, changes."""
     out = []
     ahead = git(path, "rev-list", "--count", f"{base}..HEAD")
     if ahead and ahead != "0":
@@ -90,8 +90,8 @@ def unsaved(path: str, slot: str, base: str) -> list[str]:
 
 
 def marker(path: str) -> dict | None:
-    """lead_marker's plans/LEAD with `at`, its mtime: the lead's `plan.py assign` rewrites it when it reuses the
-    slot. A malformed marker is {bad: True, error, text}: still marked, never pruned."""
+    """lead_marker's plans/LEAD with `at`, its mtime: the foreman's `plan.py assign` rewrites it when it reuses the
+    worktree. A malformed marker is {bad: True, error, text}: still marked, never pruned."""
     lead = lead_marker.marker(path)
     if lead is None:
         return None
@@ -122,7 +122,7 @@ def sessions(agents: list[dict], path: str) -> list[dict]:
 
 
 def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=build_running) -> str | None:
-    """Why the slot `w` (a worktree: path, slot) may not be pruned now, None when it may."""
+    """Why the worktree `w` (path, `slot`) may not be pruned now, None when it may."""
     slot, path = w["slot"], w["path"]
     lead = marker(path)
     if lead is not None:
@@ -145,15 +145,15 @@ def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=build_r
 
 
 def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict], now_ms: float, build) -> str | None:
-    """`refusal` for a slot marked plans/LEAD: its work belongs in origin/<lead>, never on main."""
+    """`refusal` for a worktree marked plans/LEAD: its work belongs in origin/<foreman>, never on main."""
     slot, path = w["slot"], w["path"]
     if lead.get("bad"):
         return lead["error"]
     if int(slot) < SUBSERVANTS_FROM:
-        return f"a subservant's slot below {SUBSERVANTS_FROM} (lead {lead['slot']}) is never pruned"
+        return f"a servant's worktree below {SUBSERVANTS_FROM} (foreman {lead['slot']}) is never pruned"
     base = f"origin/{lead['slot']}"
     if not ref_exists(path, base):
-        return f"its lead's branch {base} does not exist"
+        return f"its foreman's branch {base} does not exist"
     why = unsaved_for_lead(path, slot, base)
     if why:
         return "; ".join(why)
@@ -174,7 +174,7 @@ def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict], now_m
 
 
 def slots(main: str) -> list[dict]:
-    """The repository's numbered worktree slots (path, slot, head)."""
+    """The repository's numbered worktrees (path, `slot`, head)."""
     out = []
     for w in mtm_scan.worktrees(main):
         name = Path(w["path"]).name
@@ -281,12 +281,12 @@ def plan(item: dict, ctx: dict, found: list[dict] | None = None, info: dict | No
         if int(w["slot"]) < 10:
             out.append(act("prune", "clean", "run", w["slot"], key=f"prune:clean:{w['slot']}:{w['head']}",
                            window=30 * 24 * 3600, argv=me + ["clean", w["slot"], "--repo", main],
-                           text=f"clean landed slot {w['slot']}'s build artifacts", on_fail=[failed(w, "clean")]))
+                           text=f"clean landed worktree {w['slot']}'s build artifacts", on_fail=[failed(w, "clean")]))
         elif not removed:
             removed = True
             lead = marker(w["path"])
-            text = (f"remove subservant slot {w['slot']} (its work is in origin/{lead['slot']}) with origin/{w['slot']}"
-                    if lead else f"remove landed slot {w['slot']} with its branch (origin/{w['slot']} once merged)")
+            text = (f"remove servant worktree {w['slot']} (its work is in origin/{lead['slot']}) with origin/{w['slot']}"
+                    if lead else f"remove landed worktree {w['slot']} with its branch (origin/{w['slot']} once merged)")
             out.append(act("prune", "remove", "run", w["slot"], key=f"prune:remove:{w['slot']}:{w['head']}",
                            window=3600, argv=me + ["remove", w["slot"], "--repo", main], text=text,
                            on_fail=[failed(w, "remove")]))
@@ -316,7 +316,7 @@ def stop(main: str, pane: str) -> str | None:
 
 
 def end_sessions(main: str, path: str, slot: str, dry: bool) -> str | None:
-    """End every resting session in the slot by signal; a draft or running background tasks leave it running."""
+    """End every resting session in the worktree by signal; a draft or running background tasks leave it running."""
     for a in sessions(live(main)[1], path):
         pane = a["pane_id"]
         if dry:
@@ -331,12 +331,12 @@ def end_sessions(main: str, path: str, slot: str, dry: bool) -> str | None:
 def act_on(main: str, slot: str, what: str, dry: bool) -> tuple[int, str]:
     w = next((x for x in slots(main) if x["slot"] == slot), None)
     if w is None:
-        return 1, f"no numbered slot {slot} in {main}"
+        return 1, f"no numbered worktree {slot} in {main}"
     if (what == "clean") != (int(slot) < 10):
-        return 1, f"{what} is for slots {'00-09' if what == 'clean' else '10-99'}"
+        return 1, f"{what} is for worktrees {'00-09' if what == 'clean' else '10-99'}"
     lead = marker(w["path"])
     if lead and not lead.get("bad") and what == "remove" and not dry:
-        tick.git(main, "fetch", "--quiet", "--prune", "origin")  # checked again against the lead's newest branch
+        tick.git(main, "fetch", "--quiet", "--prune", "origin")  # checked again against the foreman's newest branch
     ctx, agents = live(main)
     why = refusal(w, ctx, agents, time.time() * 1000)
     if why:
@@ -358,8 +358,8 @@ def act_on(main: str, slot: str, what: str, dry: bool) -> tuple[int, str]:
 
 
 def remove_subservant(main: str, w: dict, lead_slot: str, dry: bool) -> tuple[int, str]:
-    """A free subservant's slot: `--force` (its branch is not on main by design), then origin/NN deleted once it is
-    in origin/<lead> (hal2's `--remote` only deletes a branch origin's default branch contains)."""
+    """A free servant's worktree: `--force` (its branch is not on main by design), then origin/NN deleted once it is
+    in origin/<foreman> (hal2's `--remote` only deletes a branch origin's default branch contains)."""
     slot, base = w["slot"], f"origin/{lead_slot}"
     remote = ref_exists(main, f"origin/{slot}")
     argv = ["hal2-cli-git", "worktree", "remove", slot, "--force"]
@@ -392,13 +392,13 @@ def main(argv: list[str]) -> int:
         ctx, agents = live(main_dir)
         found = scan(main_dir, ctx, agents)
         print(json.dumps(found, indent=1) if args.json else
-              "\n".join(f"{w['slot']}: {w['why'] or 'free'}" for w in found) or "no numbered slots")
+              "\n".join(f"{w['slot']}: {w['why'] or 'free'}" for w in found) or "no numbered worktrees")
         return 0
     if args.cmd == "sizes":
         measure(main_dir)
         return 0
     if not args.slot or not NUMBERED.fullmatch(args.slot):
-        print("prune.py: give a two-digit slot (00-99)", file=sys.stderr)
+        print("prune.py: give a two-digit worktree (00-99)", file=sys.stderr)
         return 1
     code, text = act_on(main_dir, args.slot, args.cmd, args.dry_run)
     print(text)
