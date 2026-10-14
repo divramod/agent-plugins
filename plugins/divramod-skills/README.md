@@ -25,7 +25,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
   - [check-agent-starts.py](scripts/check-agent-starts.py): no skill script starts an agent session or types `/exit`.
   - [gen-aliases.py](scripts/gen-aliases.py): writes the shortcut skills from `aliases.json`.
   - [install-skills.py](scripts/install-skills.py), [link-skills.sh](scripts/link-skills.sh): link every skill into
-    `~/.claude/skills` and `~/.agents/skills` (a local install instead of the plugin).
+    `~/.claude/skills` and `~/.agents/skills` (a local install instead of the plugin); install-skills.py: a clash only
+    warns (exit 0), `--check` exits 1 naming each unlinked skill, `--quiet` prints only changes.
 - `skills/<name>/`: one skill each, its `SKILL.md` (what the agent reads), its `scripts/` (with tests), templates and
   references.
 

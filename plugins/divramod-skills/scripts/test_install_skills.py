@@ -51,17 +51,51 @@ class InstallSkillsTest(unittest.TestCase):
 
         code, _, err = self.run_install()
 
-        self.assertEqual(code, 1)  # the clash is reported
+        self.assertEqual(code, 0)  # the clash only warns
         self.assertFalse((self.target / "grill-me").is_symlink())
         self.assertTrue((self.target / "tell").is_symlink())
         self.assertTrue((self.target / "beta").is_dir() and not (self.target / "beta").is_symlink())
-        self.assertIn("skip", err)
+        self.assertIn("warning", err)
 
     def test_dry_run_changes_nothing(self):
         code, out, _ = self.run_install("--dry-run")
         self.assertEqual(code, 0)
         self.assertIn("link", out)
         self.assertFalse(self.target.exists())
+
+    def test_new_skill_is_linked_and_removed_one_unlinked(self):
+        self.run_install()
+        (self.repo / "skills" / "gamma").mkdir()
+        (self.repo / "skills" / "gamma" / "SKILL.md").write_text("---\nname: gamma\n---\n")
+        (self.repo / "skills" / "beta" / "SKILL.md").unlink()
+        self.run_install()
+        self.assertTrue((self.target / "gamma").is_symlink())
+        self.assertFalse((self.target / "beta").is_symlink())
+
+    def test_second_apply_changes_nothing_and_quiet_prints_nothing(self):
+        self.run_install()
+        code, out, err = self.run_install("--quiet")
+        self.assertEqual((code, out, err), (0, "", ""))
+
+    def test_check_exits_1_on_missing_and_0_when_linked(self):
+        code, out, _ = self.run_install("--check")
+        self.assertEqual(code, 1)
+        self.assertIn("missing", out)
+        self.assertFalse(self.target.exists())  # changed nothing
+        self.run_install()
+        code, out, _ = self.run_install("--check")
+        self.assertEqual(code, 0)
+        self.assertIn("all 2 skills linked", out)
+
+    def test_check_names_clash_and_stale(self):
+        self.run_install()
+        (self.target / "alpha").unlink()
+        (self.target / "alpha").mkdir()
+        (self.target / "gone").symlink_to(self.repo / "skills" / "old")
+        code, out, _ = self.run_install("--check")
+        self.assertEqual(code, 1)
+        self.assertIn("clash", out)
+        self.assertIn("stale", out)
 
 
 if __name__ == "__main__":
