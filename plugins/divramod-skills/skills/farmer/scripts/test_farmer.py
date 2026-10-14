@@ -12,11 +12,12 @@ from unittest import mock
 import due
 import mtm_scan
 import farmer
+import role_cli
 import tick
 
 ROLE = """---
 duties:
-  mtm: "*/15 * * * *"
+  lead: "*/15 * * * *"
 servant_limit: 2
 notify: every-round
 ---
@@ -91,9 +92,9 @@ class Slot(Repo):
 
 class Round(Repo):
     def test_due_items_get_their_handler_or_a_wake_and_end_with_ran(self):
-        handlers = {"duty:mtm": lambda item, ctx: [tick.act("mtm", "front", "record", "07", text="x")]}
+        handlers = {"duty:lead": lambda item, ctx: [tick.act("lead", "front", "record", "07", text="x")]}
         rnd = tick.plan_round(str(self.slot), handlers, NOW)
-        self.assertEqual([i["name"] for i in rnd["due"]], ["duty:mtm", "task:probe"])
+        self.assertEqual([i["name"] for i in rnd["due"]], ["duty:lead", "task:probe"])
         self.assertEqual([(a["kind"], a["do"]) for a in rnd["actions"]],
                          [("front", "record"), ("ran", "ran"), ("no-handler", "wake"), ("ran", "ran")])
 
@@ -111,21 +112,21 @@ class Round(Repo):
     def test_a_round_times_each_due_item_and_all_due_counts_every_item(self):
         # plan 0011: a slow tick shows in tick.log where its time went; --all-due measures a full round.
         rnd = tick.plan_round(str(self.slot), {}, NOW)
-        self.assertEqual([i["name"] for i in rnd["due"]], ["duty:mtm", "task:probe"])
+        self.assertEqual([i["name"] for i in rnd["due"]], ["duty:lead", "task:probe"])
         with mock.patch.object(tick, "sh", wraps=tick.sh):
             r = tick.run(str(self.slot), True, {}, NOW, all_due=True)
         names = [i["name"] for i in r["due"]]
-        self.assertTrue(set(names) >= {"duty:mtm", "task:probe"})
+        self.assertTrue(set(names) >= {"duty:lead", "task:probe"})
         self.assertEqual([n for n in r["timing"] if n.startswith(("duty:", "task:"))], names)
         self.assertEqual(list(r["timing"])[:2], ["frame", "context"])
         self.assertEqual(list(r["timing"])[-1], "total")
         self.assertTrue(all(a.get("item") for a in r["planned"][1:] if a["kind"] not in ("role-add", "role-commit")))
         line = tick.timing_line(r["timing"])
-        self.assertRegex(line, r"^timing: frame \d+\.\ds, context \d+\.\ds, duty:mtm \d+\.\ds, .*total \d+\.\ds$")
+        self.assertRegex(line, r"^timing: frame \d+\.\ds, context \d+\.\ds, duty:lead \d+\.\ds, .*total \d+\.\ds$")
 
     def test_all_due_is_refused_outside_a_dry_run(self):
-        with mock.patch.object(farmer, "mode", return_value="timer"), \
-                mock.patch.object(farmer.shutil, "which", return_value="/bin/x"):
+        with mock.patch.object(role_cli, "mode", return_value="timer"), \
+                mock.patch.object(role_cli.shutil, "which", return_value="/bin/x"):
             self.assertEqual(farmer.run_tick(str(self.slot), False, False, all_due=True), 4)
 
     def run_round(self, mfm_exit=0):
@@ -144,7 +145,7 @@ class Round(Repo):
         r = self.run_round()
         last = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=self.slot, capture_output=True, text=True)
         self.assertEqual(last.stdout.strip(), "farmer-role: the user's change")
-        self.assertEqual(set(due.last_runs(str(self.slot))), {"duty:mtm", "task:probe"})
+        self.assertEqual(set(due.last_runs(str(self.slot))), {"duty:lead", "task:probe"})
         self.assertEqual([a["kind"] for a in r["wake"]], ["no-handler", "no-handler"])
         self.assertTrue(all(e["by"] == "tick" for e in self.log()))
         self.assertEqual([e["kind"] for e in self.log()][:3], ["stay-current", "role-add", "role-commit"])
@@ -160,7 +161,7 @@ class Round(Repo):
         snap = {"now": NOW.timestamp(), "queue": [], "findings": [], "landings": [], "worktrees": [],
                 "load": {"load1": 1.0, "cores": 8}}
         with mock.patch.object(mtm_scan, "snapshot", return_value=snap):
-            quiet = {"done": [tick.act("mtm", "ran", "ran", name="duty:mtm")]}
+            quiet = {"done": [tick.act("lead", "ran", "ran", name="duty:lead")]}
             tick.summarize(str(self.main), str(self.slot), quiet)
             self.assertTrue(quiet["summary"].endswith("hal2/summaries/latest.md"))
             self.assertIn("quiet", Path(quiet["summary"]).read_text())
@@ -212,7 +213,7 @@ class Cli(Repo):
     def call(self, *argv):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()), \
-                mock.patch.object(farmer.shutil, "which", return_value="/bin/x"):
+                mock.patch.object(role_cli.shutil, "which", return_value="/bin/x"):
             code = farmer.main([*argv, "--repo", str(self.slot)])
         return code, buf.getvalue()
 

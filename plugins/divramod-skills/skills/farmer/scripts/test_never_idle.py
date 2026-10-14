@@ -35,7 +35,7 @@ def need(kind, why):
 
 
 def ctx(log):
-    return {"top": "/x/farmer", "main": "/x/hal2", "now": NOW, "log": log, "duties": {"mtm", "lead", "watch"},
+    return {"top": "/x/farmer", "main": "/x/hal2", "now": NOW, "log": log, "duties": {"ci", "lead", "watch"},
             "panes": {"12": "t:12"}, "agents_by_pane": {}, "landing": set()}
 
 

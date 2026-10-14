@@ -1,0 +1,69 @@
+# The wagon master's role folder (roles/wagon-master/ of the field wagon-master-<repo>), every file by its kind
+# (hal2's .adr/role-folder-formats.md): `hal2-cli-roles check <folder> --manifest <this file>`. The train state is
+# written by scripts/train_state.py, the message board by scripts/board.py; the other files are the round frame's
+# (the farmer skill's scripts): its log.jsonl lines are legacy ones (no `schema`, local time without an offset),
+# declared as the record allows for legacy files (rule 3): they pass counted, are never rewritten and leave by
+# rotation and retention.
+schema = 1
+role = "wagon-master"
+
+[[files]]
+path = "train.jsonl"
+kind = "event-log"
+schema = "schemas/train.schema.json"
+description = "The train state: one line per change of a wagon train (scripts/train_state.py)."
+
+[[files]]
+path = "board.jsonl"
+kind = "event-log"
+schema = "schemas/board.schema.json"
+description = "The message board: one line per ready ticket, train, landing, message and ack (scripts/board.py), the farm view's feed. Append-only, one write per line; pruned only by whole lines from its start when it passes 2 MB (down to 1 MB, by rename under board.lock), so a follower that finds the file smaller starts again at its first line."
+
+[[files]]
+path = "train-landing.log"
+kind = "text-log"
+description = "The output of the train's landing (hal2-cli-git worktree merge-to-main --json), rewritten by every start."
+
+[[files]]
+path = "log.jsonl"
+kind = "event-log"
+description = "The frame's round log (the farmer skill's scripts): legacy lines without schema, at in local time."
+
+[[files]]
+path = "runs.jsonl"
+kind = "keyed-log"
+key = "name"
+
+[[files]]
+path = "mode"
+kind = "scalar"
+values = ["claude", "timer"]
+
+[[files]]
+path = "*.lock"
+kind = "lock"
+description = "tick.lock (the round) and board.lock (the board's writers), held with flock."
+
+[[files]]
+path = "tick.log*"
+kind = "text-log"
+
+[[files]]
+path = "*.json"
+kind = "snapshot"
+description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json."
+
+[[files]]
+path = "summaries/**"
+kind = "record"
+type = "Round Summary"
+
+[[files]]
+path = "handoff.md"
+kind = "record"
+type = "Role Handoff"
+
+[[files]]
+path = "flaky.md"
+kind = "record"
+type = "Ledger"

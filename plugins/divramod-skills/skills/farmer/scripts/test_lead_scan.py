@@ -63,7 +63,7 @@ class Subservant(unittest.TestCase):
     def test_a_marked_slot_idle_mid_step_is_idle_in_plan_even_without_a_plan(self):
         kind, why = lead.classify(agent(slot="31", lead=LEAD), "Step done.", time.time())
         self.assertEqual(kind, "idle-in-plan")
-        self.assertIn("servant of worktree 02 (plan 0149-hal9k step 7)", why)
+        self.assertIn("servant of field 02's plan 0149-hal9k (step 7)", why)
         self.assertEqual(lead.classify(agent(slot="31", lead=LEAD), "Should I?", time.time())[0], "asks")
         fresh = agent(slot="31", lead=LEAD, since=int(time.time() * 1000))
         self.assertIsNone(lead.classify(fresh, "Step done.", time.time()))
@@ -92,6 +92,7 @@ class Subservant(unittest.TestCase):
                     mock.patch.object(lead, "PROJECTS", Path(d) / "projects"):
                 got = lead.scan(d, False)["needs_help"]
         self.assertEqual([(h["slot"], h["kind"], h["lead"]) for h in got], [("31", "idle-in-plan", LEAD)])
+        self.assertEqual(got[0]["lead_state"]["state"], "unknown")  # no foreman field to read: never "stale"
 
 
 class Transcript(unittest.TestCase):

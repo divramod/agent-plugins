@@ -1,10 +1,14 @@
-"""The merge-to-main boss's rules as code (subskills/merge-to-main-boss, plan 0007 step 2).
+"""The merge-to-main boss's rules as code (subskills/merge-to-main-boss, plan 0007 step 2), the wagon master's duty
+`mtm` since hal2 plan 0294 (the farmer skill's until then).
 
 `plan(snap, ctx)` turns mtm_scan's snapshot into planned actions (see tick.py): what a rule settles is done by code,
 messages are templates, and what needs judgment (a merge train, what an idle worktree waits for, an unclear flaky test,
 a long landing) becomes a `wake` item with the finding as evidence. Keys and windows go to tick.fresh, which drops
 what an earlier round did and what concerns a worktree waiting for the user. Every action carries a `key`; a key already in
-the farmer's log within its window is not done again, so a quiet queue gives a quiet round.
+the role's log within its window is not done again, so a quiet queue gives a quiet round.
+
+State (flaky.md, last-scan.json, the scan's paused.json and priority.json) is the folder of the role the round runs
+for: `ctx["wiring"]`'s, the wagon master's without one, never the farmer's.
 """
 
 import datetime as dt
@@ -12,11 +16,13 @@ import json
 import sys
 from pathlib import Path
 
+import farmer_frame
 import mtm_scan
+import transplant_mark
 from tick import act
 
-HERE = Path(__file__).resolve().parent
-BOSS = "farmer (merge-to-main boss)"
+ROLE = "wagon-master"  # whose state folder and name, when the round's ctx names no wiring
+BOSS = ROLE + " (merge-to-main boss)"
 REWAKE = dt.timedelta(hours=1)  # the same judgment item wakes the model at most hourly
 ORPHAN = dt.timedelta(hours=3)
 JUDGE = ("active-long", "work-not-queued", "long-queue", "paused")
@@ -41,6 +47,10 @@ def when(entry: dict) -> dt.datetime:
     return dt.datetime.fromisoformat(entry["at"])
 
 
+def role_of(ctx: dict) -> str:
+    return ctx["wiring"].role if ctx.get("wiring") else ROLE
+
+
 def has_handoff(checkout: Path, plan: str) -> bool:
     """Is there a handoff `/handoff c` can continue from: the current plan's own, or the checkout's root file?"""
     own = checkout / "plans" / plan / "handoff.md" if plan and "/" not in plan else None
@@ -53,6 +63,7 @@ class Planner:
         self.wt = {w["slot"]: w for w in snap["worktrees"]}
         self.queue = snap["queue"]
         self.out: list[dict] = []
+        self.told: set[str] = set()
 
     def add(self, kind: str, do: str, slot: str = "-", window: dt.timedelta | None = None, **fields) -> None:
         if window:
@@ -67,19 +78,21 @@ class Planner:
 
     def priority(self, f: dict) -> None:
         """hal2 orders the queue and keeps a listed worktree's place (`worktree queue order`, set by adapt-merge-queue or
-        `/farmer first`): the tick never re-ranks, it only takes a landed worktree off priority.json and tells the user."""
+        the role's `first`): the tick never re-ranks, it only takes a landed worktree off priority.json and tells the
+        user. The run has a key (D22: every action carries one), fresh every hour like its notice."""
         slot = f["slot"]
         landed = any(x["slot"] == slot and x["outcome"] == "landed" for x in self.snap["landings"])
         if landed and not self.ticket(slot) and not self.wt.get(slot, {}).get("ahead"):
-            self.add("priority-done", "run", slot, argv=[sys.executable, str(HERE / "mtm_scan.py"), "priority",
-                                                          "--done", slot, "--repo", self.ctx["main"]],
-                     text=f"priority {slot} landed: done")
-            self.add("priority-done", "notify", slot, text=f"farmer: your priority worktree {slot} has landed",
+            role = role_of(self.ctx)
+            self.add("priority-done", "run", slot, dt.timedelta(hours=1), key=f"priority-off:{slot}",
+                     argv=[sys.executable, str(farmer_frame.SCRIPTS / "mtm_scan.py"), "priority", "--done", slot,
+                           "--repo", self.ctx["main"], "--role", role], text=f"priority {slot} landed: done")
+            self.add("priority-done", "notify", slot, text=f"{role}: your priority worktree {slot} has landed",
                      key=f"priority-done:{slot}", window=dt.timedelta(hours=1))
 
     def reservation(self, f: dict) -> None:
         """The queue waits at the front for a reservation without progress: the user decides, nothing is released."""
-        self.add(f["kind"], "notify", f["slot"], text=f"farmer: {f['why']}",
+        self.add(f["kind"], "notify", f["slot"], text=f"{role_of(self.ctx)}: {f['why']}",
                  key=f"reservation-waits:{f['slot']}:{f.get('seq')}", window=dt.timedelta(hours=6))
 
     def held(self, f: dict) -> None:
@@ -123,7 +136,7 @@ class Planner:
 
     def flaky(self, f: dict) -> None:
         test = f["test"]
-        flaky_md = mtm_scan.state_dir(self.ctx["main"]) / "flaky.md"
+        flaky_md = mtm_scan.state_dir(self.ctx["main"], role_of(self.ctx)) / "flaky.md"
         if flaky_md.exists() and test in flaky_md.read_text():
             return
         load = any(test in x["tests"] and x["load_hint"] for x in self.snap["landings"])
@@ -136,22 +149,39 @@ class Planner:
                      evidence=f)
 
     def subservant(self, f: dict) -> None:
-        """A parallel plan's servant (plans/LEAD) never lands: its merge-queue ticket wakes the farmer, the worktree
-        never gets the /mtm text and is never released by rule."""
+        """A parallel plan's servant (plans/LEAD) never lands: its merge-queue ticket wakes the wagon master, the
+        worktree never gets the /mtm text and is never released by rule."""
         lead = f.get("lead") or self.wt.get(f["slot"], {}).get("lead")
         why = f["why"] if f["kind"] == "subservant-holds" else f"{mtm_scan.subservant(lead)}: {f['why']}"
         self.add("subservant-holds", "wake", f["slot"], REWAKE, key=f"subservant-holds:{f['slot']}", text=why,
                  evidence={**f, "lead": lead})
 
+    def stale_transplant(self, mark: transplant_mark.Mark) -> None:
+        """An open transplant past an hour: one `send` to the farmer, keyed by the transplant (from, to, prepared),
+        so the frame sends it once and not every round; both of its fields give the same key, planned once."""
+        if not mark.stale or mark.key in self.told:
+            return
+        self.told.add(mark.key)
+        farmer = mtm_scan.roles.slot_name(self.ctx["main"])
+        self.add("transplant-stale", "send", farmer, dt.timedelta(days=7), key=mark.key,
+                 pane=self.ctx.get("panes", {}).get(farmer), text=mark.report())
+
     def orphan(self, f: dict) -> None:
         """Orphaned work with a handoff (the plan's plans/<plan>/handoff.md, hal2 plan 0206, or the root HANDOFF.md)
-        gets a session with /handoff c, else the farmer is woken. A servant's
+        gets a session with /handoff c, else the wagon master is woken. A servant's
         (plans/LEAD) restart is the same /handoff c, which continues its one step; never /mtm. A servant whose work
         is all in its foreman's branch (no `missing`) is done: never restarted. One with a broken marker wakes the
-        farmer: its foreman is unknown."""
+        wagon master: its foreman is unknown. A field in an open transplant (hal2 plan 0286: the source or the target of
+        one `prepared` or `driven`, D29) is no orphan however old the transplant: it drives the field, so never a
+        `/handoff c` or a wake (a driven source's work has moved). One older than an hour is told to the farmer
+        once instead (`stale_transplant`)."""
         slot, w = f["slot"], self.wt.get(f["slot"], {})
         lead = w.get("lead") or f.get("lead")
         if lead and not w.get("missing"):
+            return
+        mark = transplant_mark.of(slot, w.get("path", ""), self.ctx.get("transplants", []), self.now)
+        if mark:
+            self.stale_transplant(mark)
             return
         if lead and lead.get("bad"):
             self.add("orphan", "wake", slot, REWAKE, key=f"orphan:{slot}", text=f"orphaned work: {f['why']}",
@@ -195,8 +225,11 @@ def plan(snap: dict, ctx: dict) -> list[dict]:
 
 
 def handler(item: dict, ctx: dict) -> list[dict]:
-    """duty:mtm: scan (no fetch in a dry run), keep the scan for /farmer status, plan."""
-    snap = mtm_scan.snapshot(ctx["top"], 24, fetch=not ctx["dry"])
+    """duty:mtm: scan (no fetch in a dry run), keep the scan for the role's status, plan."""
+    role = role_of(ctx)
+    snap = mtm_scan.snapshot(ctx["top"], 24, fetch=not ctx["dry"], role=role)
+    if any(f["kind"] == "work-without-agent" for f in snap["findings"]):  # the transplants matter to an orphan only
+        ctx = {**ctx, "transplants": transplant_mark.history(ctx["main"])}
     if not ctx["dry"]:
-        (mtm_scan.state_dir(ctx["main"]) / "last-scan.json").write_text(json.dumps(snap, indent=1))
+        (mtm_scan.state_dir(ctx["main"], role) / "last-scan.json").write_text(json.dumps(snap, indent=1))
     return plan(snap, ctx)

@@ -37,7 +37,25 @@ class Messages(unittest.TestCase):
         after = {"queue": [ticket("18", 0, True)], "priority": {"slots": ["18"]}}
         out = adapt.messages({"queue": []}, after, "", lambda w: w == "/w/18")
         self.assertEqual(out[0]["kind"], "land")
-        self.assertTrue(out[0]["text"].startswith("merge-to-main boss: land now."), out[0]["text"])
+        self.assertEqual(out[0]["text"], "merge-to-main boss: land now. The user put worktree 18 at place 1 of 1 in "
+                         "the merge queue: run /mtm now, it takes this reserved place and lands when its turn "
+                         "comes. What is committed lands; unfinished steps land after it.")
+
+    def test_on_a_farm_with_a_wagon_master_its_boss_says_land_now(self):
+        after = {"queue": [ticket("18", 0, True)], "priority": {"slots": ["18"]}}
+        out = adapt.messages({"queue": []}, after, "", lambda w: True, lambda: adapt.roles.WAGON_MASTER_BOSS)
+        self.assertEqual(out[0]["kind"], "land")
+        self.assertTrue(out[0]["text"].startswith("wagon-master (merge-to-main boss): land now. The user put worktree "
+                                                  "18 at place 1 of 1"), out[0]["text"])
+        self.assertIn("run /mtm now, it reports your work ready at this reserved place and the wagon master's next "
+                      "train lands it.", out[0]["text"])
+
+    def test_the_boss_is_asked_only_for_a_slot_told_to_land(self):
+        def never():
+            raise AssertionError("no slot lands: nobody asks who the boss is")
+        after = {"queue": [ticket("18", 0, True), ticket("12", reserved=True)], "priority": {"slots": ["18", "12"]}}
+        out = adapt.messages({"queue": []}, after, "", lambda w: False, never)
+        self.assertEqual([m["kind"] for m in out], ["reserved", "place"])
 
     def test_an_unlisted_slot_moved_back_and_a_dropped_reservation_are_told(self):
         before = {"queue": [ticket("15"), ticket("18", 0, True)], "priority": {"slots": ["18"]}}

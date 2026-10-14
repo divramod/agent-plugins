@@ -17,6 +17,9 @@ writes its handoff.md and starts hal2's clear-and-continue, which types `/clear`
 wake.json's `handoff` ({"at", "session"}) holds every other wake back meanwhile; the farmer pane's new session id
 ends it (that counts as the wake), and one not done within `HANDOFF_TIMEOUT` falls back to a plain `/clear` and
 `/farmer act`.
+
+Another role (hal2 plan 0294) is woken the same way with its `roles.Wiring`: its own commands (`wiring.act`,
+`wiring.handoff`), its own state folder and log, the instructions and subskills of its own skill folder.
 """
 
 import datetime as dt
@@ -26,53 +29,53 @@ from pathlib import Path
 
 import deliver
 import mtm_scan
+import roles
 
-SKILL = Path(__file__).resolve().parents[1]
 KINDS = ("wake", "relay", "notify")
-SUBSKILLS = {"mtm": "merge-to-main-boss", "lead": "development-lead", "ci": "ci", "watch": "sanity-watch",
-             "autoclear": "fix-autoclear", "trains": "merge-train"}
-ACT = "/farmer act"
-HANDOFF = "/farmer handoff"
+SKILL, SUBSKILLS = roles.FARMER.skill, roles.FARMER.subskills  # the farmer's, as ACT and HANDOFF
+ACT, HANDOFF = roles.FARMER.act, roles.FARMER.handoff
 CLEAR_AT = 40  # context percent from which a wake asks for the handoff and its clear: a call re-reads the context
 HANDOFF_TIMEOUT = dt.timedelta(minutes=15)  # a handoff not done by then falls back to a plain /clear
 CLEARED = 60  # seconds to wait for the cleared session
 REWAKE = dt.timedelta(hours=1)  # a wake the session never acted on is repeated
 
 
-def wake_file(main: str) -> Path:
-    return mtm_scan.state_dir(main) / "wake.json"
+def wake_file(main: str, wiring: roles.Wiring = roles.FARMER) -> Path:
+    return mtm_scan.state_dir(main, wiring.role) / "wake.json"
 
 
-def instructions(duty: str, kind: str) -> str:
+def instructions(duty: str, kind: str, wiring: roles.Wiring = roles.FARMER) -> str:
     """The one file the woken session reads for an item: `instructions/<duty>.<kind>.md`, else
-    `instructions/<duty>.md`, else its duty's subskill, else SKILL.md."""
-    for own in (SKILL / "instructions" / f"{duty}.{kind}.md", SKILL / "instructions" / f"{duty}.md",
-                SKILL / "subskills" / SUBSKILLS.get(duty, "-") / "SUBSKILL.md"):
+    `instructions/<duty>.md`, else its duty's subskill, else SKILL.md, all of the role's skill folder."""
+    skill = wiring.skill
+    for own in (skill / "instructions" / f"{duty}.{kind}.md", skill / "instructions" / f"{duty}.md",
+                skill / "subskills" / wiring.subskills.get(duty, "-") / "SUBSKILL.md"):
         if own.exists():
             return str(own)
-    return str(SKILL / "SKILL.md")
+    return str(skill / "SKILL.md")
 
 
-def items(out: dict) -> list[dict]:
+def items(out: dict, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
     """The round's items for the model: wake, relay and notify actions, and delegations that failed."""
     found = [a for k in KINDS for a in out.get(k, [])]
-    found += [{"duty": "farmer", "kind": "delegate-failed", "slot": d.get("slot") or "-", "do": "wake",
+    found += [{"duty": wiring.role, "kind": "delegate-failed", "slot": d.get("slot") or "-", "do": "wake",
                "text": f"delegation failed: {d.get('title') or d.get('key')}", "evidence": d}
               for d in out.get("delegations", []) if d.get("state") == "error"]
     keep = ("duty", "kind", "slot", "do", "text", "evidence", "brief", "why", "key")
-    return [{**{k: a[k] for k in keep if k in a}, "instructions": instructions(a["duty"], a["kind"])} for a in found]
+    return [{**{k: a[k] for k in keep if k in a}, "instructions": instructions(a["duty"], a["kind"], wiring)}
+            for a in found]
 
 
-def read(main: str) -> dict:
-    f = wake_file(main)
+def read(main: str, wiring: roles.Wiring = roles.FARMER) -> dict:
+    f = wake_file(main, wiring)
     try:
         return json.loads(f.read_text()) if f.exists() else {"woken_at": None, "items": []}
     except json.JSONDecodeError:
         return {"woken_at": None, "items": []}
 
 
-def write(main: str, data: dict) -> None:
-    f = wake_file(main)
+def write(main: str, data: dict, wiring: roles.Wiring = roles.FARMER) -> None:
+    f = wake_file(main, wiring)
     if not data["items"]:
         f.unlink(missing_ok=True)
         return
@@ -82,7 +85,7 @@ def write(main: str, data: dict) -> None:
 
 
 def farmer_pane(top: str) -> str | None:
-    """The pane of the agent whose checkout is the farmer's worktree."""
+    """The pane of the agent whose checkout is the role's worktree `top` (the farmer's, or another role's)."""
     code, text = deliver.cli("list", "--json")
     try:
         data = json.loads(text) if code == 0 else []
@@ -108,45 +111,48 @@ def plain_clear(pane: str, before: dict, sleep=time.sleep) -> str | None:
     return "the cleared session did not come back"
 
 
-def log_wake(main: str, kind: str, what: str) -> None:
-    mtm_scan.log(main, {"kind": kind, "slot": "farmer", "what": what, "note": "", "by": "tick", "do": "wake"})
+def log_wake(main: str, kind: str, what: str, wiring: roles.Wiring = roles.FARMER) -> None:
+    mtm_scan.log(main, {"kind": kind, "slot": wiring.role, "what": what, "note": "", "by": "tick", "do": "wake"},
+                 wiring.role)
 
 
-def pending_handoff(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.sleep) -> tuple[str | None, bool]:
+def pending_handoff(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.sleep,
+                    wiring: roles.Wiring = roles.FARMER) -> tuple[str | None, bool]:
     """A handoff under way: (why no wake now, woken). Its new session counts as the wake (the clear-and-continue
     job typed /farmer act); past HANDOFF_TIMEOUT the plain /clear and /farmer act."""
-    pending, a = data["handoff"], deliver.agent(pane) or {}
+    pending, a, act = data["handoff"], deliver.agent(pane) or {}, wiring.act
     if a.get("session_id") and a["session_id"] != pending.get("session"):
         del data["handoff"]
-        log_wake(main, "handoff-done", f"handed off: session {a['session_id']} got {ACT}")
+        log_wake(main, "handoff-done", f"handed off: session {a['session_id']} got {act}", wiring)
         return None, True
     if now - dt.datetime.fromisoformat(pending["at"]) < HANDOFF_TIMEOUT:
         return "handoff under way", False
     del data["handoff"]
-    log_wake(main, "handoff-timeout", f"no handoff since {pending['at']}: plain /clear, then {ACT}")
-    why = plain_clear(pane, a, sleep) or deliver.send(pane, ACT)
+    log_wake(main, "handoff-timeout", f"no handoff since {pending['at']}: plain /clear, then {act}", wiring)
+    why = plain_clear(pane, a, sleep) or deliver.send(pane, act)
     return why, not why
 
 
-def wake_session(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.sleep) -> tuple[str | None, bool]:
-    """Wake the farmer session: (why not, woken). A large context gets the handoff request instead of the wake."""
+def wake_session(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.sleep,
+                 wiring: roles.Wiring = roles.FARMER) -> tuple[str | None, bool]:
+    """Wake the role's session: (why not, woken). A large context gets the handoff request instead of the wake."""
     if data.get("handoff"):
-        return pending_handoff(pane, main, data, now, sleep)
+        return pending_handoff(pane, main, data, now, sleep, wiring)
     a = deliver.agent(pane) or {}
     if (a.get("context_percent") or 0) < CLEAR_AT:
-        why = deliver.send(pane, ACT)
+        why = deliver.send(pane, wiring.act)
         return why, not why
-    why = deliver.send(pane, HANDOFF)
+    why = deliver.send(pane, wiring.handoff)
     if not why:
         data["handoff"] = {"at": now.isoformat(timespec="seconds"), "session": a.get("session_id")}
-        log_wake(main, "handoff", f"{HANDOFF}: context {a.get('context_percent')}%")
+        log_wake(main, "handoff", f"{wiring.handoff}: context {a.get('context_percent')}%", wiring)
     return why or "handoff asked", False
 
 
-def hand_over(top: str, main: str, out: dict, now: dt.datetime) -> dict:
-    """Add the round's items to wake.json and wake the farmer session when it holds a batch it was not woken for.
+def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> dict:
+    """Add the round's items to wake.json and wake the role's session when it holds a batch it was not woken for.
     Returns {"items": n new, "pending": n in the file, "woken": bool, "why": refusal}."""
-    data, new = read(main), items(out)
+    data, new = read(main, wiring), items(out, wiring)
     seq = max((i["seq"] for i in data["items"]), default=0)
     for i in new:
         seq += 1
@@ -157,22 +163,23 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime) -> dict:
     stale = data.get("woken_at") and now - dt.datetime.fromisoformat(data["woken_at"]) > REWAKE
     if data["items"] and (not data.get("woken_at") or stale or data.get("handoff")):
         pane = farmer_pane(top)
-        why, woken = wake_session(pane, main, data, now) if pane else ("no farmer session", False)
+        why, woken = (wake_session(pane, main, data, now, wiring=wiring) if pane
+                      else (f"no {wiring.role} session", False))
         if why:
             result["why"] = why
         if woken:
             data["woken_at"], result["woken"] = now.isoformat(timespec="seconds"), True
-            log_wake(main, "wake", f"{ACT}: {len(data['items'])} items")
-    write(main, data)
+            log_wake(main, "wake", f"{wiring.act}: {len(data['items'])} items", wiring)
+    write(main, data, wiring)
     return result
 
 
-def done(main: str, upto: int) -> int:
+def done(main: str, upto: int, wiring: roles.Wiring = roles.FARMER) -> int:
     """Drop the items the woken session handled (seq ≤ upto); a later batch is woken for by the next tick.
     Returns the items left."""
-    data = read(main)
+    data = read(main, wiring)
     data["items"] = [i for i in data["items"] if i["seq"] > upto]
     data["woken_at"] = None
     data.pop("handoff", None)
-    write(main, data)
+    write(main, data, wiring)
     return len(data["items"])

@@ -3,12 +3,16 @@
 A worktree that holds `plans/LEAD` (one line `<foreman-worktree> <plan> <step>`) runs one step of its foreman's plan,
 never lands and is measured against its foreman's branch `origin/<foreman-worktree>`, never main. A malformed marker still
 marks the worktree (bad but marked: no landing, no restart by rule, the report names the broken marker); only a worktree
-without the file is unmarked. Used by mtm_scan, boss, lead_scan, trains, duties and prune.
+without the file is unmarked. A marker is "stale" only by `state` (its foreman's plan done or gone, or its field
+without session and unmerged work); a running servant's is in use. Used by mtm_scan, boss, lead_scan, trains, duties and prune.
 """
 
 import re
 import subprocess
 from pathlib import Path
+
+IN_USE, STALE, UNKNOWN = "in-use", "stale", "unknown"
+GONE = {"ended", "failed"}  # an agent state that is no session any more
 
 LEAD = Path("plans/LEAD")
 NUMBERED = re.compile(r"\d\d")
@@ -47,9 +51,10 @@ def marker(path: str | Path) -> dict | None:
 
 
 def describe(lead: dict) -> str:
+    """What the marker is: a servant of the foreman's plan (a running one is in use, never "stale": see state)."""
     if lead.get("bad"):
         return f"servant with a broken marker ({lead['error']})"
-    return f"servant of worktree {lead['slot']} (plan {lead['plan']} step {lead['step']})"
+    return f"servant of field {lead['slot']}'s plan {lead['plan']} (step {lead['step']})"
 
 
 def ref_exists(path: str | Path, ref: str) -> bool:
@@ -84,7 +89,7 @@ def missing(path: str | Path, slot: str, lead: dict, default: str) -> list[str]:
 
 def report_path(lead: dict) -> str:
     """The step's report as the removed `plan.py report` wrote it (skills plan 0013). Since skills plan 0016 nothing
-    writes one: a stale plans/LEAD means the foreman takes the work over, or plans/LEAD is deleted."""
+    writes one: a servant's step is done when its work is in the foreman's branch (see `missing`)."""
     return f"plans/{lead['plan']}/reports/{lead['step']}.md"
 
 
@@ -99,3 +104,120 @@ def step_done(path: str | Path, slot: str, lead: dict) -> bool:
         return True
     return ok(path, "merge-base", "--is-ancestor", "HEAD", f"origin/{lead['slot']}") \
         and ok(path, "cat-file", "-e", f"HEAD:{report}")
+
+
+# --- Is the marker in use? A servant of a running masterplan holds one (the user allowed it, plan 0294 D25).
+
+def read(path: str | Path, *args: str) -> str | None:
+    """git's stdout, None when git fails (unlike `git`, an empty answer and an unreadable one differ)."""
+    try:
+        p = subprocess.run(["git", *args], cwd=path, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return p.stdout.rstrip("\n") if p.returncode == 0 else None
+
+
+def default_ref(path: str | Path) -> str:
+    """origin's default branch as `origin/<name>`, `origin/main` when it cannot be read."""
+    return git(path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD") or "origin/main"
+
+
+def statuses(text: str) -> list[str] | None:
+    """The Status cells of a plan.md's step table (header with the columns Step and Status); None without one."""
+    rows, col = [], None
+    for line in text.splitlines():
+        if not line.lstrip().startswith("|"):
+            if col is not None:
+                break
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if col is None:
+            low = [c.lower() for c in cells]
+            if "step" in low and "status" in low:
+                col = low.index("status")
+        elif not all(set(c) <= set("-: ") for c in cells) and col < len(cells):
+            rows.append(cells[col])
+    return rows or None
+
+
+def foreman_over(foreman: Path, lead: dict) -> tuple[bool | None, str]:
+    """(a) The foreman's plan is done or gone: True; open: False; None when the foreman's field or its plan.md cannot
+    be read (a missing field is unknown, never "gone")."""
+    slot, plan = lead["slot"], lead["plan"]
+    if not (foreman / ".git").exists():
+        return None, f"field {slot} is not readable"
+    folder, flat = foreman / "plans" / plan / "plan.md", foreman / "plans" / f"{plan}.md"
+    f = folder if folder.is_file() else flat
+    if not f.is_file():
+        return True, f"plan {plan} is gone from field {slot}"
+    try:
+        cells = statuses(f.read_text())
+    except OSError:
+        cells = None
+    if cells is None:
+        return None, f"the step table of plan {plan} in field {slot} cannot be read"
+    if all(c.lower().lstrip("*_ ").startswith("done") for c in cells):
+        return True, f"plan {plan} of field {slot} is done"
+    return False, f"plan {plan} of field {slot} is open"
+
+
+def unmerged(path: str | Path, slot: str, default: str) -> tuple[bool | None, list[str]]:
+    """What the field holds that the default branch lacks (commits on HEAD or a side branch NN-*, uncommitted changes;
+    plans/LEAD and plans/CURRENT_PLAN aside): (True, what), (False, []), or (None, []) when it cannot be read."""
+    if read(path, "rev-parse", "--verify", "--quiet", f"{default}^{{commit}}") in (None, ""):
+        return None, []
+    out, unread = [], False
+    refs = (read(path, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}-*") or "").split()
+    for ref in ["HEAD", *refs]:
+        n = read(path, "rev-list", "--count", f"{default}..{ref}")
+        unread |= n is None
+        if n not in (None, "0"):
+            out.append(f"{ref}: {n} commit(s) not on {default}")
+    changes = read(path, "status", "--porcelain", "--untracked-files=all", "--", ".", *IGNORED)
+    unread |= changes is None
+    if changes:
+        out.append("uncommitted changes")
+    return (True, out) if out else (None if unread else False, [])
+
+
+def session_in(path: str | Path, agents: list[dict] | None) -> bool | None:
+    """An agent session runs in the field (from `hal2-cli-agents list --json`); None without a list."""
+    if agents is None:
+        return None
+    here = Path(path).resolve()
+    return any(a.get("checkout") and Path(a["checkout"]).resolve() == here and a.get("state") not in GONE
+               for a in agents)
+
+
+def state(path: str | Path, lead: dict, agents: list[dict] | None, default: str,
+          foreman: str | Path | None = None) -> dict:
+    """Is the marker of the field `path` in use? {state, reason}. The rule (plan 0294 D25), per fact true, false or
+    unreadable: it is stale only when (a) the foreman it names has no plan any more or that plan is done, or (b) its
+    own field has no agent session and no unmerged work. Both false: a servant's marker in use. Otherwise, and
+    whenever a fact cannot be read (the foreman's field missing, no session list), unknown, never stale. A broken
+    marker names no foreman: unknown."""
+    if lead.get("bad"):
+        return {"state": UNKNOWN, "reason": "the marker is broken, it names no foreman"}
+    a, a_why = foreman_over(Path(foreman) if foreman else Path(path).resolve().parent / lead["slot"], lead)
+    if a:
+        return {"state": STALE, "reason": a_why}
+    slot = Path(path).resolve().name
+    session, (work, what) = session_in(path, agents), unmerged(path, slot, default)
+    if session is False and work is False:
+        return {"state": STALE, "reason": "its field has no agent session and no unmerged work"}
+    if a is False and (session or work):
+        return {"state": IN_USE, "reason": f"{a_why}; " + (
+            "an agent session runs in the field" if session else "the field holds " + "; ".join(what))}
+    unread = [w for w, x in ((a_why, a), ("the agent list is missing", session), (f"{default} or git cannot be read", work))
+              if x is None]
+    return {"state": UNKNOWN, "reason": "cannot tell: " + "; ".join(unread)}
+
+
+def say(lead: dict, st: dict) -> str:
+    """The marker in words, by its state: in use as a servant, never "stale"; stale with its reason."""
+    what = describe(lead)
+    if st["state"] == STALE:
+        return f"stale plans/LEAD of {what}: {st['reason']}"
+    if st["state"] == IN_USE:
+        return f"{what}, in use ({st['reason']})"
+    return f"{what}, whether it is in use is unknown ({st['reason']})"

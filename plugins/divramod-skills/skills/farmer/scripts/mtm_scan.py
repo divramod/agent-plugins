@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One snapshot of a repository's road to main, for the farmer skill's merge-to-main boss.
+"""One snapshot of a repository's road to main, for the merge-to-main boss (the wagon master skill's `boss.py`).
 
   scan.py scan [--repo <dir>] [--hours 24] [--json]
       the merge queue (holder, its process, its agent, attempts, why it failed),
@@ -25,7 +25,7 @@
 Reads hal2 (hal2-cli-git worktree queue, hal2-cli-agents list), git and the recent
 landings: GitHub's merge-to-main.yml and land.yml runs (gh) where the default branch has either (mtm_ci.py),
 else `hal2-cli-git worktree landings`; writes only the farmer's state folder (roles/farmer/ of its worktree). Exit 0 on success,
-2 when a tool is missing.
+2 when a tool is missing. Every command takes `--role <role>` (hal2 plan 0294): that role's state folder and log.
 """
 
 import argparse
@@ -262,7 +262,10 @@ def findings(snap: dict) -> list[dict]:
     if head and head.get("awaiting_slot"):
         if f := reservation_waits(head, by_slot.get(head["slot"], {}), now):
             out.append(f)
-    if head and head["state"] == "held":
+    # A role's own worktree (the wagon master's, the carrier of every train) is held by its train: the engine's to move.
+    # Nor is a leaving ticket anyone's to wake or release (`waits_for`, hal2 plan 0263 D129): it ended and goes by
+    # itself once no run of its worktree goes.
+    if head and head["state"] == "held" and not roles.role_of(head["slot"]) and not head.get("waits_for"):
         age = now - (parse_time(head.get("enqueued")) or now)
         agent = by_slot.get(head["slot"], {}).get("agent_state")
         hold = head.get("hold") or {}
@@ -289,7 +292,9 @@ def findings(snap: dict) -> list[dict]:
                     "why": f"load {snap['load']['load1']:.0f} on {snap['load']['cores']} cores during a landing",
                     "busy_slots": [w["slot"] for w in snap["worktrees"]
                                    if w.get("agent_state") in BUSY and w["slot"] != head["slot"]]})
-    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked and not fastlane_owned(t)]
+    # A hitched worktree and a standing train wait for nobody's turn (hal2 plan 0294): the train engine's, no waiters.
+    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked and not fastlane_owned(t)
+               and not t.get("ready") and not t.get("train")]
     for t in waiting:
         if not t.get("process_alive") and not t.get("parked") and not t.get("reserved"):
             out.append({"kind": "waiter-gone", "slot": t["slot"], "why": "ticket without a live reserve process"})
@@ -336,7 +341,7 @@ def worktree_entry(w: dict, a: dict, default: str, now: float) -> dict:
     }
 
 
-def snapshot(repo: str, hours: float, fetch: bool = True) -> dict:
+def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE) -> dict:
     now = time.time()
     main = main_checkout(repo)
     default = (run(["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], main).strip()
@@ -364,32 +369,36 @@ def snapshot(repo: str, hours: float, fetch: bool = True) -> dict:
             "process_alive": pid_alive(t.get("pid")), "parked": bool(t.get("parked_until")),
             "fastlane": t.get("fastlane"), "paused_by": t.get("paused_by"), "kept_by": t.get("kept_by"),
             "reserved": t.get("reserved"), "awaiting_slot": bool(t.get("reserved")) and not t.get("pid"),
+            "ready": t.get("ready"),  # hitched (`worktree queue ready`): no process waits for it, by design
+            "train": t.get("train"),  # a carrier's mark: a standing train's ticket has no process either
+            "waits_for": t.get("waits_for"),  # leaving: it ended and stays held until its worktree's runs have
             "active_seconds": int(now - (landing_start(t.get("landing")) or now)),
         })
     own = run(["git", "rev-parse", "--show-toplevel"], repo).strip()
-    # hal2's own checkouts (.deliver, .bench) and the farmer's worktree are left out
-    listed = [w for w in worktrees(main) if not Path(w["path"]).name.startswith(".") and w["path"] != own]
+    # hal2's own checkouts (.deliver, .bench) and every role's field (the caller's own, the farmer's, ...) are left out
+    listed = [w for w in worktrees(main) if not Path(w["path"]).name.startswith(".") and w["path"] != own
+              and not roles.role_of(Path(w["path"]).name)]
     if fetch:
         fetch_leads(main, [w["path"] for w in listed])
     wts = [worktree_entry(w, by_checkout.get(w["path"], {}), default, now) for w in listed]
     load1 = os.getloadavg()[0]
     cores = os.cpu_count() or 1
-    pause_file = state_dir(main) / "paused.json"
+    pause_file = state_dir(main, role) / "paused.json"
     snap = {
         "now": now, "repo": main, "default": default, "ci": ci, "runs_unfinished": unfinished, "queue": queue, "worktrees": wts,
         "landings": recent, "tests": tests,
         "load": {"load1": load1, "cores": cores, "per_core": round(load1 / cores, 2)},
         "paused": json.loads(pause_file.read_text()) if pause_file.exists() else None,
-        "priority": json.loads(prio.read_text()) if (prio := state_dir(main) / "priority.json").exists() else None,
+        "priority": json.loads(prio.read_text()) if (prio := state_dir(main, role) / "priority.json").exists() else None,
         "queue_order": q_raw.get("priority"),
     }
     snap["findings"] = findings(snap)
     return snap
 
 
-def state_dir(main: str) -> Path:
-    """The farmer's state folder: roles/farmer/ of its worktree, or FARMER_DIR's (roles.state_dir)."""
-    return roles.state_dir(main, DATA)
+def state_dir(main: str, role: str = roles.ROLE) -> Path:
+    """The role's (the farmer's) state folder: roles/<role>/ of its worktree, or FARMER_DIR's (roles.state_dir)."""
+    return roles.state_dir(main, DATA, role)
 
 
 LOG_FIELDS = ("kind", "slot", "what", "note")
@@ -409,17 +418,18 @@ def entries(path: Path) -> list[dict]:
     return out
 
 
-def log(main: str, entry: dict) -> None:
+def log(main: str, entry: dict, role: str = roles.ROLE) -> None:
     entry = {"at": dt.datetime.now().isoformat(timespec="seconds"), **{k: "" for k in LOG_FIELDS}, **entry}
-    with (state_dir(main) / "log.jsonl").open("a") as f:
+    with (state_dir(main, role) / "log.jsonl").open("a") as f:
         f.write(json.dumps(entry) + "\n")
 
 
-def priority(main: str, slots: list[str], note: str = "", clear: bool = False, done: str = "") -> int:
+def priority(main: str, slots: list[str], note: str = "", clear: bool = False, done: str = "",
+             role: str = roles.ROLE) -> int:
     """The user's landing order: hal2 orders the queue (`worktree queue order`), priority.json keeps the request.
 
     `done` only takes a landed worktree off priority.json: hal2 drops it from its own order when its turn ends."""
-    f = state_dir(main) / "priority.json"
+    f = state_dir(main, role) / "priority.json"
     if done:
         kept = json.loads(f.read_text()) if f.exists() else {"slots": [], "note": ""}
         kept["slots"] = [s for s in kept["slots"] if s != done]
@@ -427,7 +437,7 @@ def priority(main: str, slots: list[str], note: str = "", clear: bool = False, d
             f.write_text(json.dumps(kept))
         else:
             f.unlink(missing_ok=True)
-        log(main, {"kind": "priority", "slot": done, "what": "done", "note": ""})
+        log(main, {"kind": "priority", "slot": done, "what": "done", "note": ""}, role)
     else:
         args = ["hal2-cli-git", "worktree", "queue", "order", *(["--clear"] if clear else slots), "--json"]
         try:
@@ -444,26 +454,27 @@ def priority(main: str, slots: list[str], note: str = "", clear: bool = False, d
         else:
             f.write_text(json.dumps({"slots": order, "note": note}))
         log(main, {"kind": "priority", "slot": ",".join(order or slots), "what": "cleared" if clear else "set",
-                   "note": note})
+                   "note": note}, role)
     print(f.read_text() if f.exists() else "no priority")
     return 0
 
 
-def summary_dir(main: str) -> Path:
-    """The round summaries: summaries/ in the state folder (ignored with the rest of roles/farmer/)."""
-    d = state_dir(main) / "summaries"
+def summary_dir(main: str, role: str = roles.ROLE) -> Path:
+    """The round summaries: summaries/ in the state folder (ignored with the rest of roles/<role>/)."""
+    d = state_dir(main, role) / "summaries"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def actions_since(main: str, since: float) -> list[dict]:
-    return [e for e in entries(state_dir(main) / "log.jsonl") if dt.datetime.fromisoformat(e["at"]).timestamp() >= since]
+def actions_since(main: str, since: float, role: str = roles.ROLE) -> list[dict]:
+    return [e for e in entries(state_dir(main, role) / "log.jsonl") if dt.datetime.fromisoformat(e["at"]).timestamp() >= since]
 
 
-def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes: str, lead: str = "") -> str:
+def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes: str, lead: str = "",
+                   role: str = roles.ROLE) -> str:
     at = dt.datetime.fromtimestamp(snap["now"]).strftime("%Y-%m-%d %H:%M")
     head = snap["queue"][0] if snap["queue"] else None
-    lines = [f"# farmer {at}", ""]
+    lines = [f"# {role} {at}", ""]
     lines.append(f"Load {snap['load']['load1']:.1f} on {snap['load']['cores']} cores. "
                  + (f"Queue head: {head['slot']} {head['state']}." if head else "Queue empty.")
                  + (f" Paused: {snap['paused'].get('note', '')}." if snap.get("paused") else ""))
@@ -476,9 +487,9 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
               + (f" ({', '.join(l['tests'])})" if l["tests"] else "")
               + (f" {l['url']}" if l.get("url") else "") for l in landings] or ["- none"]
     lines += ["", "## Queue", ""]
-    lines += [f"{i}. {t['slot']} {t['state']}" + (f" ({(t.get('hold') or {}).get('reason')}, attempt "
-              f"{(t.get('hold') or {}).get('attempts')})" if t.get("hold") else "")
-              for i, t in enumerate(snap["queue"])] or ["empty"]
+    lines += [f"{i}. {t['slot']} {t['state']}" + (f" (leaving: {t['waits_for']})" if t.get("waits_for") else
+              f" ({(t.get('hold') or {}).get('reason')}, attempt {(t.get('hold') or {}).get('attempts')})"
+              if t.get("hold") else "") for i, t in enumerate(snap["queue"])] or ["empty"]
     lines += ["", "## Findings", ""]
     lines += [f"- {f['kind']} {f['slot']}: {f['why']}" for f in snap["findings"]] or ["- none"]
     lines += ["", "## Actions", ""]
@@ -490,12 +501,12 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     return "\n".join(lines) + "\n"
 
 
-def write_summary(main: str, snap: dict, notes: str, lead: str = "") -> Path:
-    d = summary_dir(main)
+def write_summary(main: str, snap: dict, notes: str, lead: str = "", role: str = roles.ROLE) -> Path:
+    d = summary_dir(main, role)
     latest = d / "latest.md"
     since = latest.stat().st_mtime if latest.exists() else snap["now"] - 3600
     landings = [l for l in snap["landings"] if (l.get("started") or landing_start(l["id"]) or 0) >= since]
-    text = render_summary(snap, actions_since(main, since), landings, notes, lead)
+    text = render_summary(snap, actions_since(main, since, role), landings, notes, lead, role)
     stamp = dt.datetime.fromtimestamp(snap["now"])
     day = d / stamp.strftime("%Y-%m-%d")
     day.mkdir(exist_ok=True)
@@ -546,7 +557,10 @@ def main(argv: list[str]) -> int:
     st = sub.add_parser("status")
     st.add_argument("--repo", default=os.getcwd())
     st.add_argument("--json", action="store_true")
+    for x in sub.choices.values():
+        x.add_argument("--role", default=roles.ROLE, choices=roles.ROLES, help="whose state folder (the farmer's)")
     args = p.parse_args(argv)
+    role = args.role
 
     missing = [t for t in TOOLS if not shutil.which(t)]
     if missing:
@@ -554,30 +568,30 @@ def main(argv: list[str]) -> int:
         return 2
     main_dir = main_checkout(args.repo)
     if args.cmd == "scan":
-        snap = snapshot(args.repo, args.hours)
-        (state_dir(main_dir) / "last-scan.json").write_text(json.dumps(snap, indent=1))
+        snap = snapshot(args.repo, args.hours, role=role)
+        (state_dir(main_dir, role) / "last-scan.json").write_text(json.dumps(snap, indent=1))
         print(json.dumps(snap, indent=1) if args.json else "", end="\n" if args.json else "")
         if not args.json:
             print_text(snap)
     elif args.cmd == "priority":
         if not (args.slots or args.clear or args.done) or (args.clear and args.slots):
             p.error("priority takes worktrees, --clear or --done <worktree>")
-        return priority(main_dir, args.slots, args.note, args.clear, args.done)
+        return priority(main_dir, args.slots, args.note, args.clear, args.done, role)
     elif args.cmd == "summary":
-        snap = snapshot(args.repo, args.hours)
-        (state_dir(main_dir) / "last-scan.json").write_text(json.dumps(snap, indent=1))
-        print(write_summary(main_dir, snap, args.notes, args.lead))
+        snap = snapshot(args.repo, args.hours, role=role)
+        (state_dir(main_dir, role) / "last-scan.json").write_text(json.dumps(snap, indent=1))
+        print(write_summary(main_dir, snap, args.notes, args.lead, role))
     elif args.cmd == "record":
-        log(main_dir, {"kind": args.kind, "slot": args.slot, "what": args.what, "note": args.note})
+        log(main_dir, {"kind": args.kind, "slot": args.slot, "what": args.what, "note": args.note}, role)
     elif args.cmd == "pause":
-        (state_dir(main_dir) / "paused.json").write_text(
+        (state_dir(main_dir, role) / "paused.json").write_text(
             json.dumps({"since": dt.datetime.now().isoformat(timespec="seconds"), "note": args.note}))
-        log(main_dir, {"kind": "pause", "slot": "", "what": "paused", "note": args.note})
+        log(main_dir, {"kind": "pause", "slot": "", "what": "paused", "note": args.note}, role)
     elif args.cmd == "resume":
-        (state_dir(main_dir) / "paused.json").unlink(missing_ok=True)
-        log(main_dir, {"kind": "pause", "slot": "", "what": "resumed", "note": args.note})
+        (state_dir(main_dir, role) / "paused.json").unlink(missing_ok=True)
+        log(main_dir, {"kind": "pause", "slot": "", "what": "resumed", "note": args.note}, role)
     elif args.cmd == "status":
-        d = state_dir(main_dir)
+        d = state_dir(main_dir, role)
         cutoff = dt.datetime.now() - dt.timedelta(hours=6)
         recent = [e for e in entries(d / "log.jsonl") if dt.datetime.fromisoformat(e["at"]) >= cutoff]
         last = d / "last-scan.json"

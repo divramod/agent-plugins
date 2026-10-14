@@ -414,7 +414,10 @@ time limit ended, or exit 5 `interrupted`, its process gone and not the user, is
    queue. Where mtm would ask the user (the attempts limit, a cause you cannot fix), a plan's landing asks
    nothing: push a notification (`PushNotification`, e.g. "plan 0063: landing holds the merge queue, needs you")
    and stop with the report; the failed landing keeps holding the queue until the user acts. A successful landing
-   only reports.
+   only reports. In a repository with a working wagon master (mtm's `scripts/wagon-master.sh` prints `yes`, its
+   check before step 1) this `/mtm` hitches instead of landing: the work is reported ready, the session ends its
+   turn, and the plan's end (the after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the wagon
+   master's "in the barn".
 
 ## Finish a step
 

@@ -146,14 +146,16 @@ def handled(main: str, now: float | None = None) -> set[tuple[str, int]]:
     return out
 
 
-def with_marker(agent: dict, checkout: Path) -> dict:
+def with_marker(agent: dict, checkout: Path, agents: list[dict] | None = None, default: str = "origin/main") -> dict:
     """The agent with its checkout's CURRENT_PLAN, its servant marker (`lead`, skills plan 0013) and whether that
     servant has finished its step (`step_done`: its report on origin/NN, or merged into origin/<foreman>): an idle
-    servant done with its step waits for its foreman and wakes nobody."""
+    servant done with its step waits for its foreman and wakes nobody. `lead_state` says whether the marker is in use
+    or stale (lead_marker.state, from the session list `agents`): a running servant's marker is never stale."""
     plan_file = checkout / "plans/CURRENT_PLAN"
     lead = mtm_scan.lead_of(checkout)
     return {**agent, "current_plan": plan_file.read_text().strip() if plan_file.exists() else "", "lead": lead,
-            "step_done": bool(lead) and lead_marker.step_done(checkout, checkout.name, lead)}
+            "step_done": bool(lead) and lead_marker.step_done(checkout, checkout.name, lead),
+            "lead_state": lead_marker.state(checkout, lead, agents, default) if lead else None}
 
 
 def scan(repo: str, show_all: bool) -> dict:
@@ -161,12 +163,12 @@ def scan(repo: str, show_all: bool) -> dict:
     agents = run_json(["hal2-cli-agents", "list", "--json"]) or []
     agents = agents.get("list", []) if isinstance(agents, dict) else agents
     own, done = os.environ.get("CLAUDE_CODE_SESSION_ID"), handled(main, now)
-    out = []
+    default, out = lead_marker.default_ref(main), []
     for a in agents:
         if a.get("project") != main or not a.get("session_id") or a.get("session_id") == own:
             continue
         checkout = Path(a.get("checkout") or a.get("cwd") or "/nonexistent")
-        a = with_marker(a, checkout)
+        a = with_marker(a, checkout, agents, default)
         said = last_assistant_text(transcript(a.get("cwd") or a.get("checkout") or "", a["session_id"]))
         hit = classify(a, said, now)
         if not hit:
@@ -177,7 +179,8 @@ def scan(repo: str, show_all: bool) -> dict:
         out.append({
             "kind": hit[0], "why": hit[1], "slot": a.get("slot"), "pane": a.get("pane_id"),
             "session": a["session_id"], "since": int(a.get("since") or 0), "state": a.get("state"),
-            "plan": a.get("plan"), "lead": a["lead"], "context_percent": a.get("context_percent"),
+            "plan": a.get("plan"), "lead": a["lead"], "lead_state": a["lead_state"],
+            "context_percent": a.get("context_percent"),
             "handled": key in done, "said": said[-1200:],
         })
     order = {"blocked": 0, "asks": 1, "failed": 2, "idle-in-plan": 3, "context-high": 4, "no-plan": 5}

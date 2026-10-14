@@ -1,12 +1,13 @@
-# farmer › merge-to-main-boss
+# wagon-master › merge-to-main-boss
 
-The duty `mtm` of the [farmer](../../SKILL.md): every worktree's finished work lands on the default branch soon, in
+The duty `mtm` of the [wagon master](../../SKILL.md) (the farmer's until hal2 plan 0294): every worktree's finished work lands on the default branch soon, in
 any order (the user, 2026-10-03). Throughput beats order and retries: a test that fails only under load is disabled
-and the work lands. Its rule-based part runs as code in the farmer's tick (`boss.py` over `mtm_scan.py`: wake failed
+and the work lands. Its rule-based part runs as code in the wagon master's tick (`boss.py` over `mtm_scan.py`: wake failed
 landings and release held queues, landed priority worktrees done (hal2 keeps the order), a reservation waiting at the front
 reported to the user, pause heavy work under load and send go after it, waiter-gone,
-orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) restarted, flaky tests delegated). What needs judgment wakes the farmer session with
-[instructions/mtm.md](../../instructions/mtm.md), which links the procedures below. Why landings fail:
+orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) restarted, flaky tests reported to the farmer). What needs judgment wakes the wagon master's session with
+[instructions/mtm.md](../../instructions/mtm.md), which links the procedures below; the trains are the duty `trains`'
+([merge-train](../merge-train/SUBSKILL.md)). Why landings fail:
 [reasons.md](reasons.md).
 
 **Through CI** (the default branch has `.github/workflows/merge-to-main.yml` or `land.yml`, its name before plan
@@ -20,8 +21,9 @@ like the ones cancelled with it): the scan reads the run `failed` at once, also 
 that job as the row's task (the cancelled jobs only stopped), and its landing has returned `gate_failed` by then.
 Never cancel such a run again (`gh run cancel`): its own step did, and a second request seems to end its last jobs,
 the parks, unrun. A run that ended `cancelled` without such a job is a pause's or a hand's cancel, as before. While a CI landing's run is tested its process lives, so its reservation is not idle. Load
-pauses and flaky disabling are rarely needed (the gates do not run on the Mac). The farmer's own branch `farmer-<repo>`
-lands like any worktree's (an ordinary `/mtm` of the farmer's worktree), its per-round mfm stays.
+pauses and flaky disabling are rarely needed (the gates do not run on the Mac). The farmer's branch `farmer-<repo>` lands
+like any worktree's (an ordinary `/mtm` of the farmer's worktree), its per-round mfm stays; the wagon master's own field lands
+its trains and nothing else.
 
 **The fastlane** (`/mtm-fastlane`, hal2 docs/ci-fastlane.md) is the user's own landing, never the boss's: the farmer
 never starts one. `queue --json` shows its ticket with `fastlane` (`phase`, `since`, `run`, `gate_base`) and the
@@ -35,13 +37,13 @@ fastlane's release. The scan leaves both out of its stuck-holder findings (no `h
    - in the holder's branch, by telling its session to do it, when only that landing is blocked;
    - through [a foreman](#a-fix-several-landings-need) when several worktrees hit it.
 2. Mark it:
-   - Swift Testing: `.disabled("flaky under landing load <date>, farmer merge-to-main boss")`;
+   - Swift Testing: `.disabled("flaky under landing load <date>, merge-to-main boss")`;
    - XCTest: `throw XCTSkip(...)`;
    - Rust: `#[ignore = "..."]`;
    - TS: `it.skip`.
 
    Keep the test code itself.
-3. Add a line to `roles/farmer/flaky.md` in the farmer's worktree: date, test, file, worktree, what the failure looked
+3. Add a line to `roles/wagon-master/flaky.md` in the wagon master's field: date, test, file, worktree, what the failure looked
    like, where it was disabled.
 4. File one shot to bring it back load-proof (budget scaled by load, or out of the landing's gate):
    `hal2-cli-shooter shots create` in the repository's shotfile for tests, or the `create-shot` skill.
@@ -49,36 +51,27 @@ fastlane's release. The scan leaves both out of its stuck-holder findings (no `h
 ## A fix several landings need
 
 A failure that blocks several landings (a flaky test in R2, a broken gate script, a missing gitignore, a lint rule
-all worktrees trip on) gets a foreman: [Delegate a fix](../../reference.md#delegate-a-fix), marked urgent in its brief.
+all worktrees trip on) gets a foreman, which the farmer starts ([Delegate a fix](../../../farmer/reference.md#delegate-a-fix)): send the
+farmer the brief's points in one line, marked urgent.
 
 1. **Faster:** when the queue head's session can make the fix in its own landing, it rides along. Tell that session
    the change, or hand it a patch from `pending/`. No extra gate run is needed.
-2. Otherwise start a foreman and put it first: `$B priority <slot> --note "<why>"` (hal2 reserves its place at
+2. Otherwise the farmer starts a foreman; put its field first: `python3 $K/farmer/scripts/mtm_scan.py priority <slot> --note "<why>" --role wagon-master` (hal2 reserves its place at
    the front, also before its `reserve` runs).
-3. When nothing should land before the fix (several landings fail on it), pause: `$B pause --note "<why>"`. Tell the
-   waiters to hold their reruns until the fix has landed, then `$B resume` and tell everyone "go: /mfm before your
+3. When nothing should land before the fix (several landings fail on it), pause: `python3 $K/farmer/scripts/mtm_scan.py pause --note "<why>" --role wagon-master`. Tell the
+   waiters to hold their reruns until the fix has landed, then `mtm_scan.py resume --role wagon-master` and tell everyone "go: /mfm before your
    next landing attempt".
-4. The farmer never edits a file itself: not in its worktree, and not in the main checkout, where landings merge.
+4. The wagon master never edits a file itself except its own role files: not another field's crop, and not the main
+   checkout, where landings merge (the yard job's drop of files that have landed is the code's, nothing else).
 
 ## Merge trains
 
-Everything waiting behind the current run lands as one: the gates run once instead of once per branch. Forming the
-train at every round is the farmer's duty (the user, 2026-10-06: "its a duty of the farmer to always create the merge
-train for all the queued worktrees behind the current run"). The duty `trains` does this as code
-([merge-train](../merge-train/SUBSKILL.md)); by hand it goes like this:
-
-1. Candidates are all waiting worktrees with commits, in queue order, whose trial merge is clean or conflicts only in
-   append-only docs and generated files (`python3 $S/trains.py plan --repo <main>` runs it; by hand `git merge-tree
-   --write-tree --name-only <carrier> <branch>`). A servant's worktree (`plans/LEAD`) never rides.
-2. The **carrier** is the queue's holder while its candidate is not pushed (a plain reservation, a priority worktree
-   included), else the first waiter; never a landing that runs. Tell it: `git fetch && git merge --no-ff <other
-   branch>`, one at a time in queue order. It runs its quick checks and lands as usual.
-3. Tell each **passenger**: "your branch rides in <carrier>'s landing; wait. After it lands run /mfm; your
-   `/mtm` then lands what is left (plan steps checked after the landing), probably nothing". Its ticket stays,
-   because its follow-up landing is quick.
-4. No maximum. A waiter that conflicts elsewhere is left out, named, and lands alone. A train whose landing fails
-   on a passenger's change splits again: the carrier resets its merge with `git reset --hard ORIG_HEAD`, but only
-   before it lands.
+Everything ready behind the current run lands as one train: the gates run once instead of once per branch. The duty
+`trains` forms and lands it as code, in the wagon master's own field ([merge-train](../merge-train/SUBSKILL.md)); a
+foreman reports its work ready with the hitch (`hal2-cli-git worktree queue ready`) instead of waiting in the queue.
+Judgment cases (which car broke a red train, a flaky gate) are [instructions/trains.md](../../instructions/trains.md)'s.
+A waiter that did not hitch (a landing its session started itself) waits for its own turn: the boss never merges it
+into a train.
 
 ## Review and okays
 
@@ -115,12 +108,11 @@ You never decide product questions, secrets, deploys to production, or anything 
 
 These go to the user as proposals. Each would make landings faster:
 
-1. `hal2-cli-git worktree queue pause|resume` and `queue order`. The pause flag here only holds by agreement.
-2. A landing lock that `build.sh`, `cargo` wrappers and Docker builds honour, so other worktrees wait during a
+1. A landing lock that `build.sh`, `cargo` wrappers and Docker builds honour, so other worktrees wait during a
    landing's gates (R3).
-3. Speculative gates: the next waiter runs its gates on `main + head's branch` while the head lands, so its turn
+2. Speculative gates: the next train runs its gates on `main + head's branch` while the head lands, so its turn
    only re-checks.
-4. Load-scaled budgets in Swift (as Rust's `testing::budgets` holds the median on a busy machine), so R2 ends.
-5. Waiters that keep their place: `--max-wait` honoured while the head is held (R4).
-6. The plan skill's landing rule asks the boss instead of stopping with the queue held at night (R1).
-7. A `hal2-cli-git` merge-train command that lands several branches in one landing.
+3. Load-scaled budgets in Swift (as Rust's `testing::budgets` holds the median on a busy machine), so R2 ends.
+4. The plan skill's landing rule asks the boss instead of stopping with the queue held at night (R1).
+5. A `merge-to-main` that may outlive its starter (`--detach`, or the landing inside the daemon), so the train's
+   landing needs no wrapper process, and a `queue train --clear` that also releases a failed hold.

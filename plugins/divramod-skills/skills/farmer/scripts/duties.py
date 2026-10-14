@@ -12,6 +12,7 @@ from pathlib import Path
 
 import ci_scan
 import delegation
+import lead_marker
 import lead_scan
 import pr_scan
 from tick import act
@@ -37,11 +38,17 @@ TEXT = {
                       "<shotfile>/<n>/<title-slug>, or a short kebab-case task name (global CLAUDE.md).",
     "context-high": LEAD + ": your context is at {percent}%. Run /handoff now; hal2's autoclear continues you.",
     "continue": LEAD + ": you stopped mid-plan ({plan}). Continue the plan to its end.",
-    # A former servant (a stale plans/LEAD, skills plan 0013) never lands; since skills plan 0016 a plan's steps
-    # run in subagents and `plan.py report` is gone: the foreman takes the work over, or plans/LEAD is deleted.
-    "continue-step": LEAD + ": you stopped mid-step {step} of plan {plan} and hold a stale plans/LEAD of the foreman in "
-                            "worktree {slot}: never land and never edit plan.md; commit your work on your branch, then "
-                            "the foreman in worktree {slot} takes the work over, or delete plans/LEAD.",
+    # A servant (plans/LEAD, skills plan 0013) never lands; since skills plan 0016 a plan's steps run in subagents and
+    # `plan.py report` is gone. A marker is stale only by lead_marker.state (plan 0294 D25): its foreman's plan done or
+    # gone, or its field without session and unmerged work. A running servant's marker is in use: said as what it is,
+    # with no advice to delete it; one whose state is unknown is worded the same way.
+    "continue-step": LEAD + ": you are a servant of field {slot}'s plan {plan} and stopped mid-step {step}: never "
+                            "land and never edit plan.md; commit your work on your branch, carry on with your step "
+                            "and tell the foreman in field {slot} when it is done.",
+    "continue-step-stale": LEAD + ": you stopped mid-step {step} of plan {plan} and hold a stale plans/LEAD of the "
+                                  "foreman in field {slot} ({reason}): never land and never edit plan.md; commit "
+                                  "your work on your branch, then the foreman in field {slot} takes the work over, or "
+                                  "delete plans/LEAD.",
     "failed": "Your last turn failed ({why}). Check git status and your last tool result, then continue.",
     "resume": "Your last response was cut off ({error}). Check git status and the result of your last tool call, "
               "then continue where you stopped.",
@@ -80,7 +87,9 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
             if not lead:
                 text = TEXT["continue"].format(plan=n.get("plan") or "your plan")
             elif not lead.get("bad"):  # a broken marker names no step: the farmer judges it (a wake)
-                text = TEXT["continue-step"].format(**lead)
+                st = n.get("lead_state") or {}
+                text = TEXT["continue-step-stale" if st.get("state") == lead_marker.STALE else "continue-step"].format(
+                    **lead, reason=st.get("reason", ""))
         elif kind == "failed" and "watch" not in ctx.get("duties", ()):
             text = TEXT["failed"].format(why=n.get("why", "failed"))
         if text is None:

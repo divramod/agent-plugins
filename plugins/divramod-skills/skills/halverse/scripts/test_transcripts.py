@@ -108,14 +108,15 @@ class GeneratedPrompts(unittest.TestCase):
         for raw in ("Run /mfm (merge-from-main) first, then:\n\nbrief text", "Run /mfm first, then:\nbrief",
                     "/mfm, then you are a servant", "You are a SUBSERVANT of the demo repo", "You are the milestone servant",
                     "farmer [01-7] (merge-to-main boss): go: /continue", "owner (merge train): you carry on",
-                    "merge-to-main boss: land now", "Coordinator (plan 0082): your second step",
+                    "merge-to-main boss: land now", "wagon-master [07-1] (wagon train): your crop is in the barn",
+                    "wagon-master (merge-to-main boss): land now", "Coordinator (plan 0082): your second step",
                     "hal2 stopped this turn: context at 35%", "hal2 resumed this session: x", "# Post watch digest (headless)",
                     "<!-- IMPORTANT: output the file -->"):
             self.assertTrue(transcripts.is_generated(raw), raw)
 
     def test_the_users_own_words_are_not_generated(self):
         for raw in ("Run the tests first, then tell me", "you are right, and the farmer should know", "farmer, please look",
-                    "i asked the owner: what now", "hal2 is slow today", "Run /mfm", "/mfm"):
+                    "i asked the owner: what now", "wagon-master is slow today", "hal2 is slow today", "Run /mfm", "/mfm"):
             self.assertFalse(transcripts.is_generated(raw), raw)
 
     def test_a_generated_prompt_is_not_a_message_a_typed_one_beside_it_is(self):

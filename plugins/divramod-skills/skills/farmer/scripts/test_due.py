@@ -5,7 +5,7 @@ import due
 
 ROLE = """---
 duties:
-  mtm: "*/15 * * * *"
+  lead: "*/15 * * * *"
   ci: "0 * * * *"
 servant_limit: 5
 notify: every-round
@@ -61,7 +61,7 @@ class Role(unittest.TestCase):
     def test_only_what_is_opted_in(self):
         items, settings, problems = due.schedule(ROLE)
         self.assertEqual(problems, [])
-        self.assertEqual(items, {"duty:mtm": "*/15 * * * *", "duty:ci": "0 * * * *",
+        self.assertEqual(items, {"duty:lead": "*/15 * * * *", "duty:ci": "0 * * * *",
                                  "task:n8n stays up": "*/15 * * * *", "task:Disabled tests come back": "7 9 * * *"})
         self.assertEqual(settings, {"servant_limit": 5, "notify": "every-round", "servant_model": "opus",
                                     "servant_effort": "medium"})

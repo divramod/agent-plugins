@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import io
 import json
 import shutil
@@ -9,6 +10,8 @@ from pathlib import Path
 from unittest import mock
 
 import farmer
+import role_cli
+import roles
 import tick
 import timer
 from test_farmer import Repo
@@ -37,6 +40,15 @@ class Cron(unittest.TestCase):
         service, t = timer.systemd("hal2", "/w/farmer", Path("/s"), "7-59/15 * * * *")
         self.assertIn("OnCalendar=*-*-* *:07,22,37,52:00", t)
         self.assertIn("tick --repo /w/farmer", service)
+        self.assertNotIn("KillMode", service, "the farmer's unit is as it was")
+
+    def test_a_role_that_carries_keeps_what_its_tick_started(self):
+        """Plan 0294, D24: the wagon master's tick starts the train's landing detached; systemd's default would
+        kill it with the unit's control group when the tick ends."""
+        carrier = dataclasses.replace(roles.FARMER, role="wagon-master", carries=lambda main: False)
+        service, _ = timer.systemd("hal2", "/w/wagon-master", Path("/s"), "2-59/5 * * * *", carrier)
+        self.assertIn("[Service]\nType=oneshot\nKillMode=process\nWorkingDirectory=/w/wagon-master\n", service)
+        self.assertIn("Description=wagon-master tick for hal2", service)
 
 
 class Install(Repo):
@@ -51,7 +63,7 @@ class Install(Repo):
         for p in (mock.patch.object(timer.Path, "home", return_value=self.home),
                   mock.patch.object(timer, "run", run), mock.patch.object(timer.platform, "system",
                                                                           return_value="Darwin"),
-                  mock.patch.object(farmer.shutil, "which", return_value="/bin/x")):
+                  mock.patch.object(role_cli.shutil, "which", return_value="/bin/x")):
             p.start()
             self.addCleanup(p.stop)
 
@@ -78,7 +90,7 @@ class Install(Repo):
         farmer.follow_cron(str(self.slot))
         self.assertEqual(len(self.cmds), n)
         (self.slot / tick.ROLE).write_text((self.slot / tick.ROLE).read_text()
-                                                 .replace('mtm: "*/15', 'mtm: "*/5'))
+                                                 .replace('lead: "*/15', 'lead: "*/5'))
         with contextlib.redirect_stdout(io.StringIO()):
             farmer.follow_cron(str(self.slot))
         self.assertEqual(timer.installed(farmer.state(str(self.slot)))["cron"], "2-59/5 * * * *")

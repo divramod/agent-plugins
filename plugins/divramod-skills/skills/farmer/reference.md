@@ -12,7 +12,7 @@ role folder hal2's [roles-folder](https://github.com/divramod/hal2/blob/main/.ad
 every round. A change counts from the next round, without waiting for a landing.
 
 - **Front matter: settings, all required.**
-  - `duties`: maps each duty it opts in to to its cron (`mtm: "*/15 * * * *"`). A duty left out does not run.
+  - `duties`: maps each duty it opts in to to its cron (`lead: "*/15 * * * *"`). A duty left out does not run.
   - `servant_limit`: `auto` (the default: a new foreman only while load1 per core is below 0.8, at most one more
     per round) or a number, how many farmer-started foremen may run at once. Each foreman is a plan's coordinator
     whose subagents build and test on this Mac at the same time (skills plan 0016), so one foreman loads the machine
@@ -67,7 +67,7 @@ gh calls; `--json` carries them as `timing` and `gh`. `farmer.py tick --dry-run 
 
 What keeps a round short:
 
-- **Each CI run read once per round** (`gh_runs.py`): the boss's snapshot, trains, the orphans check, the summary and
+- **Each CI run read once per round** (`gh_runs.py`): the ci duty, the orphans check, the summary and
   ci_scan share every `gh run list` and each run's `gh run view --json jobs`; a completed run's jobs stay on disk
   (`cache/run-jobs/<id>.json`, 7 days), a running run's are read again next round; uncached runs are read in
   parallel.
@@ -94,7 +94,7 @@ The farmer branch `farmer-<repo>` is main plus the user's `roles/farmer/ROLE.md`
   templates (logged). Until they have landed, the farmer's commits only reach main when the user lands them.
 - **The `sync` duty** (opt-in, `role_sync.py`): when main's `roles/farmer/ROLE.md` differs from the farmer branch's, one
   foreman is told directly, without a plan: `/mfm`, then `git merge --no-edit farmer-<repo>`, then `/mtm` (the boss's "land
-  now"). One sync at a time; the next round's stay-current brings the new main back into the farmer branch. It needs no hooks.
+  now"; where the farm has a wagon master that `/mtm` hitches and the train lands it). One sync at a time; the next round's stay-current brings the new main back into the farmer branch. It needs no hooks.
 
 ## The log
 

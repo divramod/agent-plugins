@@ -9,6 +9,7 @@ from unittest import mock
 import delegation
 import due
 import role_sync
+import roles
 import tick
 
 NOW = dt.datetime(2026, 10, 6, 10, 0)
@@ -26,10 +27,21 @@ class Plan(unittest.TestCase):
     def test_a_difference_is_one_direct_instruction_keyed_by_the_farmer_head(self):
         [a] = role_sync.plan_sync({}, CTX, {"differs": True, "sha": "abc"}, {})
         self.assertEqual((a["do"], a["duty"], a["key"]), ("delegate", "sync", "sync:abc"))
-        self.assertIn("land now", a["prompt"])
+        self.assertTrue(a["prompt"].startswith("merge-to-main boss: land now. You are a foreman"), a["prompt"])
         self.assertLess(a["prompt"].index("/mfm"), a["prompt"].index("git merge --no-edit {farmer_slot}"))
         self.assertLess(a["prompt"].index("git merge --no-edit {farmer_slot}"), a["prompt"].index("/mtm"))
         self.assertNotIn("/plan new", a["prompt"])
+
+    def test_a_farm_with_a_wagon_master_hears_the_go_in_its_boss_s_name(self):
+        with mock.patch.object(roles, "boss", return_value=roles.WAGON_MASTER_BOSS) as boss:
+            [a] = role_sync.plan_sync({}, CTX, {"differs": True, "sha": "abc"}, {})
+        boss.assert_called_once_with(CTX["main"])
+        self.assertTrue(a["prompt"].startswith("wagon-master (merge-to-main boss): land now. You are a foreman"),
+                        a["prompt"])
+        self.assertIn("3. /mtm", a["prompt"])
+        with mock.patch.object(roles, "boss") as boss:  # nothing to sync: nobody is asked
+            self.assertEqual(role_sync.plan_sync({}, CTX, {"differs": False, "sha": "abc"}, {}), [])
+        boss.assert_not_called()
 
     def test_one_sync_at_a_time(self):
         for state in ("running", "waiting"):

@@ -2,7 +2,6 @@ import datetime as dt
 import unittest
 
 import mtm_ci
-import trains
 
 
 def run(rid, branch, status="completed", conclusion="success", at="2026-10-05T06:00:00Z"):
@@ -202,17 +201,6 @@ class MtmCiTest(unittest.TestCase):
         same = [run(1, "land/03", status="in_progress", conclusion="")]
         self.assertEqual(mtm_ci.unfinished(lambda args, cwd: same, "/m"), 1)
         self.assertEqual(len(mtm_ci.landings(lambda args, cwd: same if args[2] == "list" else {"jobs": []}, "/m", 0)), 1)
-
-    def test_a_carriers_red_run_after_the_train_wakes_the_farmer(self):
-        at = dt.datetime(2026, 10, 5, 8, 0)
-        train = {"train:07+03": {"carrier": "07", "passengers": ["03"], "at": at.isoformat()}}
-        later = {"slot": "07", "id": "9", "task": "linux / rust-test", "url": "u", "started": at.timestamp() + 60}
-        before = dict(later, id="8", started=at.timestamp() - 60)
-        self.assertEqual(trains.failures(train, [], [before]), [])
-        out = trains.failures(train, [], [before, later])
-        self.assertEqual([(a["kind"], a["slot"], a["key"]) for a in out],
-                         [("train-failed", "07", "train:07+03:failed:run9")])
-        self.assertIn("linux / rust-test", out[0]["text"])
 
 
 if __name__ == "__main__":

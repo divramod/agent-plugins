@@ -8,7 +8,7 @@ from unittest import mock
 import migrate
 import roles
 
-ROLE = "---\nduties:\n  mtm: \"*/15 * * * *\"\nservant_limit: 2\nnotify: every-round\n---\n"
+ROLE = "---\nduties:\n  lead: \"*/15 * * * *\"\nservant_limit: 2\nnotify: every-round\n---\n"
 
 
 def git(cwd, *args):

@@ -8,7 +8,7 @@ NOW = dt.datetime(2026, 10, 3, 10, 0)
 
 
 def ctx(**kw):
-    return {"top": "/x/farmer", "main": "/x/hal2", "now": NOW, "log": [], "duties": {"mtm", "lead"},
+    return {"top": "/x/farmer", "main": "/x/hal2", "now": NOW, "log": [], "duties": {"ci", "lead"},
             "panes": {"04": "%4", "05": "%5"}, "agents_by_pane": {}, "landing": set(), **kw}
 
 
@@ -34,22 +34,35 @@ class Lead(unittest.TestCase):
         waiting = helper("idle-in-plan", "Next I'll continue once the queue returns.")
         self.assertEqual(kinds(self.plan(waiting)), [("wake", "idle-in-plan", "04")])
 
-    def test_a_subservant_stopped_mid_step_hands_its_step_to_the_lead_never_lands(self):
-        # Skills plan 0013: a worktree with plans/LEAD never lands; skills plan 0016: `plan.py report` is gone, so the text
-        # says what plan.py's refusal says (the foreman takes the work over, or plans/LEAD is deleted).
+    def test_a_servant_stopped_mid_step_is_told_to_carry_on_never_that_its_marker_is_stale(self):
+        # Skills plan 0013: a worktree with plans/LEAD never lands; plan 0294 D25: a running servant's marker is in use,
+        # named as what it is, with no advice to delete it (also when its state is unknown).
         lead = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
-        going = helper("idle-in-plan", "Tests written.\n\nNext I'll run the gate.", slot="31", lead=lead)
-        planned = self.plan(going)
-        self.assertEqual(kinds(planned), [("send", "idle-in-plan", "31"), ("run", "handled", "31")])
-        text = planned[0]["text"]
-        for part in ("step 7 of plan 0149-hal9k", "worktree 02", "the foreman in worktree 02 takes the work over",
-                     "delete plans/LEAD", "never land"):
-            self.assertIn(part, text)
-        self.assertNotIn("plan.py report", text)
-        self.assertNotIn("/mtm", text)
-        self.assertNotIn("plan to its end", text)
+        in_use = {"state": "in-use", "reason": "plan 0149-hal9k of field 02 is open; an agent session runs in the field"}
+        for state in (in_use, {"state": "unknown", "reason": "cannot tell: field 02 is not readable"}, None):
+            going = helper("idle-in-plan", "Tests written.\n\nNext I'll run the gate.", slot="31", lead=lead,
+                           lead_state=state)
+            planned = self.plan(going)
+            self.assertEqual(kinds(planned), [("send", "idle-in-plan", "31"), ("run", "handled", "31")])
+            text = planned[0]["text"]
+            for part in ("servant of field 02's plan 0149-hal9k", "mid-step 7", "tell the foreman in field 02",
+                         "never land"):
+                self.assertIn(part, text)
+            for part in ("stale", "delete", "plan.py report", "/mtm", "plan to its end"):
+                self.assertNotIn(part, text)
         waiting = helper("idle-in-plan", "Next I'll continue once the lead answers.", slot="31", lead=lead)
         self.assertEqual(kinds(self.plan(waiting)), [("wake", "idle-in-plan", "31")])
+
+    def test_a_stale_marker_keeps_the_old_text_with_its_reason(self):
+        lead = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
+        stale = {"state": "stale", "reason": "plan 0149-hal9k of field 02 is done"}
+        going = helper("idle-in-plan", "Tests written.\n\nNext I'll run the gate.", slot="31", lead=lead,
+                       lead_state=stale)
+        text = self.plan(going)[0]["text"]
+        for part in ("stale plans/LEAD of the foreman in field 02 (plan 0149-hal9k of field 02 is done)",
+                     "mid-step 7 of plan 0149-hal9k", "the foreman in field 02 takes the work over",
+                     "delete plans/LEAD", "never land"):
+            self.assertIn(part, text)
 
     def test_a_subservant_with_a_broken_marker_is_judged_never_told_to_continue_the_plan(self):
         # Review 1 finding 10: bad but marked, no step to continue.

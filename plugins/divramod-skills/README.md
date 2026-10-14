@@ -1,6 +1,6 @@
 # skills
 
-The agent skills plugin `divramod-skills` (Claude Code, Codex and other Agent Skills harnesses): planning, handoff, landing, the farmer and summaries.
+The agent skills plugin `divramod-skills` (Claude Code, Codex and other Agent Skills harnesses): planning, handoff, landing, the farmer, the wagon master and summaries.
 
 Imported from the skills repository by plan 0233 (its `import.sh`); published to
 [divramod/divramod-claude-code-plugins](https://github.com/divramod/divramod-claude-code-plugins) as
@@ -40,7 +40,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [create-shot](skills/create-shot/SKILL.md), [shoot](skills/shoot/SKILL.md) | write a shot, list and send open shots |
 | [create-worktree-session](skills/create-worktree-session/SKILL.md), [delete-worktree-session](skills/delete-worktree-session/SKILL.md) | start or stop an agent session in a worktree |
 | [digest-todolist-picture](skills/digest-todolist-picture/SKILL.md) | turns a photo of a to-do list into shots |
-| [farmer](skills/farmer/SKILL.md) | the repository's helper session: landings, CI, unsticking sessions |
+| [farmer](skills/farmer/SKILL.md) | the repository's helper session: CI, unsticking sessions, servants for fixes |
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
 | [fix-loc](skills/fix-loc/SKILL.md) | the loop that brings files under 300 code lines |
 | [grill](skills/grill/SKILL.md) | questions a plan until every branch is decided |
@@ -53,6 +53,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [s](skills/s/SKILL.md) | prints the state of every worktree as one table, the session's own row marked (`scripts/state.py`, `state_sources.py`, `state_table.py`, `farmer_link.py`) |
 | [sanity-watch](skills/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [tell](skills/tell/SKILL.md) | summarizes a URL, file or topic into a note |
+| [wagon-master](skills/wagon-master/SKILL.md) | the third base role: brings the foremen's ready wagons through the merge queue into the barn as wagon trains, with its own field, timer, message board and yard job; the farmer's frame (`farmer/scripts`) runs its rounds; its scripts: `wagon_master.py`, `trains.py`, `trial.py`, `engine.py`, `train_state.py`, `board.py` (`list`, `sync`), `yard.py`, `yard_rules.py`, `yard_report.py`, `boss.py` |
 
 ## Rules
 

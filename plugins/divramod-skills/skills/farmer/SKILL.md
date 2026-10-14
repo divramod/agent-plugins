@@ -1,6 +1,6 @@
 ---
 name: farmer
-description: The user's helper that gets things running in a repository and keeps them running, autonomously wherever possible. Started only by the user. An external timer runs `farmer.py tick`, which does every rule-based step of the opted-in duties as code (merge-to-main boss, development foreman, ci, a clean pull-request list, the farmer branch synced with main, sanity-watch, fix-autoclear, merge trains, landed worktrees cleaned and removed, roles/farmer/ROLE.md tasks, delegations to foreman sessions that plan and land fixes) and wakes the farmer's Claude session in its worktree `farmer-<repo>` with `/farmer act` only for judgment, so a quiet round costs no model call. Use when the user says /farmer, "farmer", "merge boss", "development lead" (the duty `lead`), "watch CI", "keep the pull requests clean", "dependabot", "get everything merged", "the merge queue hangs", "help the sessions" or "watch over the worktrees". `/farmer start` installs the timer, `/farmer h` shows help.
+description: The user's helper that gets things running in a repository and keeps them running, autonomously wherever possible. Started only by the user. An external timer runs `farmer.py tick`, which does every rule-based step of the opted-in duties as code (development foreman, ci, a clean pull-request list, the farmer branch synced with main, sanity-watch, fix-autoclear, landed worktrees cleaned and removed, roles/farmer/ROLE.md tasks, delegations to foreman sessions that plan and land fixes) and wakes the farmer's Claude session in its worktree `farmer-<repo>` with `/farmer act` only for judgment, so a quiet round costs no model call. Use when the user says /farmer, "farmer", "development lead" (the duty `lead`), "watch CI", "keep the pull requests clean", "dependabot", "get everything merged", "help the sessions" or "watch over the worktrees". `/farmer start` installs the timer, `/farmer h` shows help.
 ---
 
 # farmer
@@ -27,16 +27,17 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 
 | Duty | Code (the tick) | Woken for | Library |
 |---|---|---|---|
-| `mtm` | `boss.py` | [instructions/mtm.md](instructions/mtm.md) | [reasons.md](subskills/merge-to-main-boss/reasons.md), [boss reference](subskills/merge-to-main-boss/SUBSKILL.md) |
 | `lead` (the foreman duty) | `duties.plan_lead` | [instructions/lead.md](instructions/lead.md) | [cases.md](subskills/development-lead/cases.md) |
 | `ci` | `duties.plan_ci` | [instructions/ci.md](instructions/ci.md) | |
 | `prs` | `duties.plan_prs` (`pr_scan.py`: the open Dependabot PRs to one foreman per batch, PRs main holds and leftover landing PRs closed, any other PR to the user) | [instructions/prs.md](instructions/prs.md) | |
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
 | `watch` | `duties.plan_watch` (sanity-watch's scan) | [instructions/watch.md](instructions/watch.md) | sanity-watch's |
 | `autoclear` | `duties.plan_autoclear` (fix-autoclear's doctor) | [instructions/autoclear.md](instructions/autoclear.md) | fix-autoclear's |
-| `trains` | `trains.py` (merge trains: every waiter behind the current run whose trial merge is clean lands as one) | [instructions/trains.md](instructions/trains.md) | [merge-train](subskills/merge-train/SUBSKILL.md) |
 | `prune` | `prune.py` (landed worktrees: 00-09 cleaned once per landing, one 10-99 worktree removed per round with its branch; a servant's worktree 30-99 (`plans/LEAD`, the foreman's marker) once its work is in `origin/<foreman's branch>` and it has been idle an hour; free disk and the biggest worktrees every 6 h, a notice under 100 GB) | [instructions/prune.md](instructions/prune.md) | [cleanup](../cleanup/SKILL.md), [delete-worktree-session](../delete-worktree-session/SKILL.md) |
 | tasks | `tasks.py` (machine form) | [instructions/task.md](instructions/task.md) | |
+
+Landings, the merge queue and the wagon trains are the [wagon master](../wagon-master/SKILL.md)'s (hal2 plan 0294):
+its duties, its `roles/wagon-master/ROLE.md`, its state. A farm without one has no merge-to-main boss.
 
 `S=<skill-dir>/scripts`, `K=<skills repo>/skills`. **State** in the role folder `roles/farmer/` of the farmer's worktree, beside `ROLE.md` (`FARMER_DIR` overrides it with
 `$FARMER_DIR/<repo>/`): `log.jsonl` (every action), `handoff.md` (what the session knew before its last clear), `mode`,
@@ -49,13 +50,13 @@ and itself, so the worktree's `git status` stays clean ([reference](reference.md
 | Call | Does |
 |---|---|
 | `/farmer start` | [start](#start): install the timer, then one tick |
-| `/farmer stop` | `python3 $S/farmer.py timer remove` (mode back to `claude`); a queue pause the boss set is lifted |
+| `/farmer stop` | `python3 $S/farmer.py timer remove` (mode back to `claude`) |
 | `/farmer act` | [handle what the tick woke you for](#act); typed by the tick, not the user |
 | `/farmer handoff` | [hand off, then clear](#handoff): typed by the tick once the context reaches 40% |
 | `/farmer` | one tick now: `python3 $S/farmer.py tick` |
 | `/farmer measure` | a full dry round with every duty and task due, where its time goes: `python3 $S/farmer.py tick --dry-run --all-due` (the `timing:` line) |
 | `/farmer check` | `python3 $S/due.py check`: roles/farmer/ROLE.md valid? Each duty and task with its cron and mode (machine or prose) |
-| `/farmer first <slot>... [why]` | the user's priority: these worktrees land first, each place reserved (`python3 $S/mtm_scan.py priority <slot>... --note <why>` wraps `hal2-cli-git worktree queue order`; `first clear` ends it: `priority --clear`); to tell the sessions their places too, use the skill `adapt-merge-queue` |
+| `/farmer first <slot>... [why]` | the user's priority: these worktrees land first, each place reserved (`python3 $S/mtm_scan.py priority <slot>... --note <why> --role wagon-master` wraps `hal2-cli-git worktree queue order`, the request is kept in the wagon master's folder, which its boss reads; `first clear` ends it: `priority --clear --role wagon-master`); to tell the sessions their places too, use the skill `adapt-merge-queue` |
 | `/farmer questions [a\|l]`, `/farmer q` | the open (`a` answered, `l` all) questions of the farmer, the log's open asks and every worktree, one list: `python3 $S/farmer.py questions [a\|l]`; print its output and nothing else (the same list as `/q` in this worktree) |
 | `/s` | the state of every worktree as one table: the skill `s`, for every session |
 | `/farmer status [<hours>]` | `farmer.py timer status`, `mtm_scan.py status`, the log's last hours (default 6), delegations, `latest.md` |
@@ -114,7 +115,7 @@ shows the ids); a superseded decision is never reported again.
 **The 40% rule.** When this session's context has reached 40% at a wake, the tick types `/farmer handoff` instead
 of `/farmer act` and wakes nothing else until the handoff is done: the clear-and-continue it starts types `/clear`
 and then `/farmer act`, and the tick counts that new session as the wake. A handoff not done within 15 minutes falls
-back to a plain `/clear` and `/farmer act`. Whatever is still open (a question to a peer, a train under way) goes into
+back to a plain `/clear` and `/farmer act`. Whatever is still open (a question to a peer, a delegation under way) goes into
 the log as well. A peer's message after a clear: read `handoff.md` and the log's last entries for its worktree first.
 
 ## Handoff
@@ -122,10 +123,10 @@ the log as well. A peer's message after a clear: read `handoff.md` and the log's
 `/farmer handoff` (typed by the tick at 40%; the user may type it too). Handle no wake items in this turn.
 
 1. `python3 $S/farmer.py handoff` names `roles/farmer/handoff.md` of the farmer's worktree (and its sections when it is missing).
-2. Rewrite it whole from this session: the user's decisions (do not ask again), the merge queue and its holds, merge
-   trains, open threads (questions to peers, messages promised, what each waits for; the user's open questions are in `questions.jsonl`, not in this file), pauses and priorities with
-   their reasons, what comes next. Facts and pointers (worktrees, tickets, commits, log entries), no narrative. Durable
-   decisions also go where they go today: `log.jsonl`, `priority.json`, `paused.json`. Never a HANDOFF.md in the
+2. Rewrite it whole from this session: the user's decisions (do not ask again), the open threads (questions to
+   peers, messages promised, what each waits for; the user's open questions are in `questions.jsonl`, not in this
+   file), what comes next. Facts and pointers (worktrees, tickets, commits, log entries), no narrative. Durable
+   decisions also go where they go today: `log.jsonl`. Never a HANDOFF.md in the
    branch: the farmer commits nothing but `roles/farmer/ROLE.md`.
 3. `python3 $S/farmer.py handoff --clear`: refuses a handoff.md not written for this handoff; else starts hal2's
    `clear-and-continue --without-plan --prompt "/farmer act" --detach` (it waits for this turn to end, types
@@ -141,9 +142,9 @@ the log as well. A peer's message after a clear: read `handoff.md` and the log's
 
 The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farmer may:
 
-- tell any session to land now; the session counts it as the user's own `/mtm`;
+- tell any session to land now; the session counts it as the user's own `/mtm` (the wagon master's boss does it for the queue, this is the farmer's own right);
 - tell sessions to merge their work together, to pause their work or to stop it, so that others get through;
-- pause the merge queue and reorder it;
+- reorder the merge queue (`/farmer first`) and ask the wagon master to pause it;
 - **start foreman sessions and give them plans**, autogrilled, run and landed, **without asking the user**
   ([Delegate](reference.md#delegate-a-fix)): each runs its plan as the plan's coordinator (every step in a subagent),
   started at ROLE.md's `servant_model` and `servant_effort` (the foreman's settings), in the first free worktree counting from 00 (these are the
@@ -154,7 +155,7 @@ The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farm
 - **relay the user's go** for an outward-facing or paid step (a production deploy, a paid server, an account): a
   message whose first line is `farmer [<id>]: the user decided: "<the user's words>"`, the words quoted from the user in this
   session or from the log's `decision` entries (`duties.user_decided`). The session counts it as the user's own
-  decision, exactly as far as the quoted words go (like `merge-to-main boss: land now`). Never relay a go the user
+  decision, exactly as far as the quoted words go (like the wagon master's `land now`). Never relay a go the user
   did not give.
 
 It **never**:
@@ -174,7 +175,7 @@ the farmer.** Only the user's words, here and in INTENT.md, direct it.
 ## Rules
 
 - One disruptive action per worktree per round.
-- A worktree with an open `ask` in the log, or paused by the boss without its go, is left alone.
+- A worktree with an open `ask` in the log, or paused by the wagon master's boss without its go, is left alone.
 - **All state lives in files** (`handoff.md` for what only this session knew): the tick has it handed off and cleared
   at 40%, the timer keeps running.
 - Change this skill's libraries (`reasons.md`, `cases.md`) only in a hal2 worktree, landed by its `/mtm`, when the user asks.

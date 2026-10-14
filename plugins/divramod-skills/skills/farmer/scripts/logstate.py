@@ -6,8 +6,8 @@ import datetime as dt
 import mtm_scan
 
 
-def read_log(main: str) -> list[dict]:
-    return mtm_scan.entries(mtm_scan.state_dir(main) / "log.jsonl")
+def read_log(main: str, role: str = mtm_scan.roles.ROLE) -> list[dict]:
+    return mtm_scan.entries(mtm_scan.state_dir(main, role) / "log.jsonl")
 
 
 ANSWERS = ("answered", "answer", "decision")  # log kinds that close a worktree's open `ask` (plan 0137)
@@ -35,3 +35,14 @@ def paused(log: list[dict], now: dt.datetime) -> set[str]:
         if kind in ("pause", "go") and dt.datetime.fromisoformat(e["at"]) >= now - PAUSE_AGE:
             out[rest.rsplit(":", 1)[-1]] = kind == "pause"
     return {slot for slot, on in out.items() if on}
+
+
+def paused_by_any_boss(main: str, now: dt.datetime) -> set[str]:
+    """The worktrees paused by the merge-to-main boss, whose log is the wagon master's (the farmer's before plan 0294).
+    The wagon master's folder is only read here, never created."""
+    roles = mtm_scan.roles
+    if mtm_scan.DATA is not None:
+        path = mtm_scan.DATA / roles.main_checkout(main).name / "wagon-master" / "log.jsonl"
+    else:
+        path = roles.slot_dir(main, "wagon-master") / "roles" / "wagon-master" / "log.jsonl"
+    return paused(read_log(main), now) | paused(mtm_scan.entries(path), now)

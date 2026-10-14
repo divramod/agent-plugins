@@ -252,7 +252,7 @@ class Subservants(unittest.TestCase):
               "missing": ["HEAD: 2 commit(s) not in origin/02"]}]
         f = scan.findings(snap(worktrees=w))
         self.assertEqual([(x["kind"], x["slot"], x["lead"]) for x in f], [("work-without-agent", "31", LEAD)])
-        self.assertIn("servant of worktree 02 (plan 0149-hal9k step 7): HEAD: 2 commit(s) not in origin/02", f[0]["why"])
+        self.assertIn("servant of field 02's plan 0149-hal9k (step 7): HEAD: 2 commit(s) not in origin/02", f[0]["why"])
         merged = [dict(w[0], missing=[])]  # review 1 finding 3: ahead of main, but all of it in origin/02
         self.assertEqual(scan.findings(snap(worktrees=merged)), [])
 
@@ -345,6 +345,104 @@ class Priority(unittest.TestCase):
         rc, argv = self.order(clear=True, stdout=json.dumps({"queue": [], "priority": None}))
         self.assertEqual((rc, argv[-2:]), (0, ["--clear", "--json"]))
         self.assertFalse(self.file.exists())
+
+
+class Roles(unittest.TestCase):
+    """Hal2 plan 0294 step 5: the scan serves the wagon master's boss too. A hitched ticket (`worktree queue ready`,
+    no process by design) is no gone waiter, a role's field is no worktree with work to land, and the command line
+    writes the folder of the role it is told."""
+
+    READY = {"at": "2026-10-13T10:00:00Z", "head": "a" * 40, "by": "hal2/07"}
+
+    def scan(self, d, queue, wts):
+        from pathlib import Path
+        from unittest import mock
+        answers = lambda args, cwd=None: {"queue": queue} if args[:3] == ["hal2-cli-git", "worktree", "queue"] else None
+        with mock.patch.object(scan, "run", return_value=""), mock.patch.object(scan, "run_json", answers), \
+                mock.patch.object(scan, "worktrees", return_value=wts), \
+                mock.patch.object(scan, "unmerged", return_value=3), \
+                mock.patch.object(scan.mtm_ci, "ci_mode", return_value=False), \
+                mock.patch.object(scan, "state_dir", return_value=Path(d) / "state"):
+            return scan.snapshot(d, 24, fetch=False)
+
+    def test_a_hitched_ticket_is_not_a_gone_waiter(self):
+        import tempfile
+        q = [{"slot": "12", "state": "active", "pid": 0}, {"slot": "07", "state": "waiting", "pid": 0},
+             {"slot": "09", "state": "waiting", "pid": 0, "ready": self.READY}]
+        with tempfile.TemporaryDirectory() as d:
+            got = self.scan(d, q, [])
+        self.assertEqual([t["ready"] for t in got["queue"]], [None, None, self.READY])
+        self.assertEqual([(f["kind"], f["slot"]) for f in got["findings"] if f["kind"] == "waiter-gone"],
+                         [("waiter-gone", "07")])
+
+    def test_a_standing_train_and_the_hitched_are_no_waiters_and_a_role_s_hold_is_its_own(self):
+        # Hal2 plan 0294 step 6: the wagon master's field carries every train; its ticket and the cars' have no
+        # process by design, and its red train's hold is the train engine's to move, never released by the boss.
+        import tempfile
+        train = {"carrier": "wagon-master-hal2", "cars": [{"field": "07"}, {"field": "09"}, {"field": "11"}]}
+        q = [{"slot": "wagon-master-hal2", "state": "waiting", "pid": 0, "train": train}]
+        q += [{"slot": s, "state": "waiting", "pid": 0, "ready": self.READY} for s in ("07", "09", "11")]
+        with tempfile.TemporaryDirectory() as d:
+            got = self.scan(d, q, [])
+            self.assertEqual((got["queue"][0]["train"], got["queue"][1]["train"]), (train, None))
+            self.assertEqual(got["findings"], [], "no waiter-gone, no long-queue")
+            q[0].update(state="held", train=None, hold={"reason": "failed", "step": "gate", "attempts": 1})
+            self.assertEqual(self.scan(d, q, [])["findings"], [])
+            q[0]["slot"] = "12"
+            self.assertEqual([f["kind"] for f in self.scan(d, q, [])["findings"]], ["held-idle"])
+
+    def test_a_leaving_ticket_is_nobody_s_to_wake_or_release_and_no_waiter(self):
+        # Hal2 plan 0263 D129 (in the barn since e754fa577): a head's ticket that ended stays held, `waits_for` says
+        # for which run of its worktree, and goes by itself. Its hold reads like a reservation or the failure it had.
+        import tempfile
+        why = "run 9 of hal2/12 is still queued or in progress"
+        left = {"slot": "12", "state": "held", "pid": 0, "enqueued": "2026-10-03T02:33:17Z", "waits_for": why,
+                "hold": {"reason": "reserved", "message": "ended; held until its worktree's runs have ended"}}
+        q = [left] + [{"slot": s, "state": "waiting", "pid": 0, "ready": self.READY} for s in ("07", "09", "11")]
+        wts = [{"path": "/x/12", "branch": "12"}]
+        with tempfile.TemporaryDirectory() as d:
+            got = self.scan(d, q, wts)
+            self.assertEqual([t["waits_for"] for t in got["queue"]], [why, None, None, None])
+            self.assertEqual(got["findings"], [], "no reserved-idle, no waiter-gone, no long-queue")
+            left["hold"] = {"reason": "failed", "step": "gate", "attempts": 2}
+            self.assertNotIn("held-idle", [f["kind"] for f in self.scan(d, q, wts)["findings"]])
+            self.assertIn("0. 12 held (leaving: run 9 of hal2/12 is still queued or in progress)",
+                          scan.render_summary(got, [], [], ""))
+            for hold, kind in (({"reason": "reserved"}, "reserved-idle"), (left["hold"], "held-idle")):
+                held = [dict(left, hold=hold, waits_for=None)] + q[1:]
+                self.assertIn(kind, [f["kind"] for f in self.scan(d, held, wts)["findings"]], "the same ticket, held")
+
+    def test_a_role_s_field_is_left_out_of_the_worktrees(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            names = ("04", "farmer-hal2", "wagon-master-hal2", "farmer")
+            for n in names:
+                (Path(d) / n).mkdir()
+            got = self.scan(d, [], [{"path": str(Path(d) / n), "branch": n} for n in names])
+        self.assertEqual([w["slot"] for w in got["worktrees"]], ["04"])
+        self.assertEqual([f["slot"] for f in got["findings"]], ["04"], "only the numbered field has work to land")
+
+    def test_the_command_line_writes_the_folder_of_the_role_it_is_told(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(scan, "DATA", Path(d) / "state"), \
+                mock.patch.object(scan.shutil, "which", return_value="/bin/x"), mock.patch("sys.stdout"):
+            repo, wm = str(Path(d) / "hal2"), scan.state_dir(str(Path(d) / "hal2"), "wagon-master")
+            Path(repo).mkdir()
+            farmers = scan.state_dir(repo)
+            (wm / "priority.json").write_text(json.dumps({"slots": ["07", "09"], "note": "n"}))
+            for argv in (["pause", "--note", "ci is down"], ["record", "train", "07", "formed"],
+                         ["priority", "--done", "07"]):
+                self.assertEqual(scan.main([*argv, "--repo", repo, "--role", "wagon-master"]), 0, argv)
+            self.assertEqual(json.loads((wm / "paused.json").read_text())["note"], "ci is down")
+            self.assertEqual(json.loads((wm / "priority.json").read_text())["slots"], ["09"])
+            self.assertEqual([e["kind"] for e in scan.entries(wm / "log.jsonl")], ["pause", "train", "priority"])
+            self.assertEqual(sorted(f.name for f in farmers.iterdir()), ["wagon-master"], "nothing of the farmer's")
+            self.assertEqual(scan.main(["record", "lead", "07", "told", "--repo", repo]), 0)
+            self.assertEqual([e["kind"] for e in scan.entries(farmers / "log.jsonl")], ["lead"], "the default")
 
 
 class SubservantWork(test_prune.MarkedSlots):

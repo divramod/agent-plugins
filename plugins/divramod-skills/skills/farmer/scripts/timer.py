@@ -6,6 +6,9 @@ removing it `claude`, so a tick and the Claude loop never both run. `timer.json`
 installed cron; a tick reinstalls when roles/farmer/ROLE.md changed the loop's cron.
 
 The tick's output goes to `tick.log` in the state folder (rotated at 1 MB to `tick.log.1`).
+
+Another role's timer (hal2 plan 0294) is the same with its `roles.Wiring`: the label `local.<role>.<repo>`, its
+own CLI's `tick` and its own state folder; without one every function is the farmer's.
 """
 
 import json
@@ -16,13 +19,14 @@ import sys
 from pathlib import Path
 
 import due
+import roles
 
-FARMER = Path(__file__).resolve().parent / "farmer.py"
+FARMER = roles.FARMER.cli
 LOG_MAX = 1 << 20
 
 
-def label(repo_name: str) -> str:
-    return f"local.farmer.{repo_name}"
+def label(repo_name: str, wiring: roles.Wiring = roles.FARMER) -> str:
+    return f"local.{wiring.role}.{repo_name}"
 
 
 def minutes(cron: str) -> list[int]:
@@ -33,8 +37,8 @@ def minutes(cron: str) -> list[int]:
     return sorted(due.parse_field(fields[0], 0, 59))
 
 
-def argv(top: str) -> list[str]:
-    return [sys.executable, str(FARMER), "tick", "--repo", top]
+def argv(top: str, wiring: roles.Wiring = roles.FARMER) -> list[str]:
+    return [sys.executable, str(wiring.cli), "tick", "--repo", top]
 
 
 def env() -> dict[str, str]:
@@ -42,14 +46,14 @@ def env() -> dict[str, str]:
     return {k: os.environ[k] for k in ("PATH", "FARMER_DIR") if k in os.environ}
 
 
-def plist(name: str, top: str, state: Path, cron: str) -> str:
+def plist(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = roles.FARMER) -> str:
     def s(x):
         return f"<string>{x}</string>"
     times = "".join(f"<dict><key>Minute</key><integer>{m}</integer></dict>" for m in minutes(cron))
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
-            f'<plist version="1.0"><dict><key>Label</key>{s(label(name))}'
-            f'<key>ProgramArguments</key><array>{"".join(s(a) for a in argv(top))}</array>'
+            f'<plist version="1.0"><dict><key>Label</key>{s(label(name, wiring))}'
+            f'<key>ProgramArguments</key><array>{"".join(s(a) for a in argv(top, wiring))}</array>'
             f'<key>WorkingDirectory</key>{s(top)}'
             f'<key>EnvironmentVariables</key><dict>{"".join(f"<key>{k}</key>{s(v)}" for k, v in env().items())}</dict>'
             f'<key>StartCalendarInterval</key><array>{times}</array>'
@@ -57,21 +61,26 @@ def plist(name: str, top: str, state: Path, cron: str) -> str:
             '</dict></plist>\n')
 
 
-def systemd(name: str, top: str, state: Path, cron: str) -> tuple[str, str]:
-    mins = ",".join(f"{m:02d}" for m in minutes(cron))
-    service = (f"[Unit]\nDescription=farmer tick for {name}\n\n[Service]\nType=oneshot\nWorkingDirectory={top}\n"
-               + "".join(f"Environment={k}={v}\n" for k, v in env().items()) + f"ExecStart={' '.join(argv(top))}\n"
+def systemd(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = roles.FARMER) -> tuple[str, str]:
+    mins, what = ",".join(f"{m:02d}" for m in minutes(cron)), f"{wiring.role} tick for {name}"
+    # A role whose tick leaves a process behind (the wagon master's detached landing, plan 0294 D24) must not lose
+    # it to systemd's default, which kills the unit's whole control group when the tick ends.
+    keep = "KillMode=process\n" if wiring.carries else ""
+    service = (f"[Unit]\nDescription={what}\n\n[Service]\nType=oneshot\n{keep}WorkingDirectory={top}\n"
+               + "".join(f"Environment={k}={v}\n" for k, v in env().items())
+               + f"ExecStart={' '.join(argv(top, wiring))}\n"
                f"StandardOutput=append:{state / 'tick.log'}\nStandardError=append:{state / 'tick.log'}\n")
-    timer = (f"[Unit]\nDescription=farmer tick for {name}\n\n[Timer]\nOnCalendar=*-*-* *:{mins}:00\n"
+    timer = (f"[Unit]\nDescription={what}\n\n[Timer]\nOnCalendar=*-*-* *:{mins}:00\n"
              "Persistent=false\n\n[Install]\nWantedBy=timers.target\n")
     return service, timer
 
 
-def files(name: str) -> list[Path]:
+def files(name: str, wiring: roles.Wiring = roles.FARMER) -> list[Path]:
+    unit = label(name, wiring)
     if platform.system() == "Darwin":
-        return [Path.home() / "Library/LaunchAgents" / f"{label(name)}.plist"]
+        return [Path.home() / "Library/LaunchAgents" / f"{unit}.plist"]
     d = Path.home() / ".config/systemd/user"
-    return [d / f"{label(name)}.service", d / f"{label(name)}.timer"]
+    return [d / f"{unit}.service", d / f"{unit}.timer"]
 
 
 def run(cmd: list[str]) -> tuple[int, str]:
@@ -79,17 +88,17 @@ def run(cmd: list[str]) -> tuple[int, str]:
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
-def install(name: str, top: str, state: Path, cron: str, dry: bool = False) -> list[list[str]]:
+def install(name: str, top: str, state: Path, cron: str, dry: bool = False,
+            wiring: roles.Wiring = roles.FARMER) -> list[list[str]]:
     """Write the timer for `cron` and load it; returns the commands (only planned when `dry`)."""
-    paths = files(name)
+    paths, unit = files(name, wiring), label(name, wiring)
     if platform.system() == "Darwin":
         domain = f"gui/{os.getuid()}"
-        contents = [plist(name, top, state, cron)]
-        cmds = [["launchctl", "bootout", f"{domain}/{label(name)}"], ["launchctl", "bootstrap", domain, str(paths[0])]]
+        contents = [plist(name, top, state, cron, wiring)]
+        cmds = [["launchctl", "bootout", f"{domain}/{unit}"], ["launchctl", "bootstrap", domain, str(paths[0])]]
     else:
-        contents = list(systemd(name, top, state, cron))
-        cmds = [["systemctl", "--user", "daemon-reload"],
-                ["systemctl", "--user", "enable", "--now", f"{label(name)}.timer"]]
+        contents = list(systemd(name, top, state, cron, wiring))
+        cmds = [["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "enable", "--now", f"{unit}.timer"]]
     if dry:
         return cmds
     for path, text in zip(paths, contents):
@@ -99,21 +108,21 @@ def install(name: str, top: str, state: Path, cron: str, dry: bool = False) -> l
         code, out = run(cmd)
         if code and not (i == 0 and platform.system() == "Darwin"):  # bootout of a timer not loaded fails: fine
             raise RuntimeError(f"{' '.join(cmd)}: {out}")
-    (state / "timer.json").write_text(json.dumps({"cron": cron, "label": label(name)}) + "\n")
+    (state / "timer.json").write_text(json.dumps({"cron": cron, "label": unit}) + "\n")
     (state / "mode").write_text("timer\n")
     return cmds
 
 
-def remove(name: str, state: Path, dry: bool = False) -> list[list[str]]:
+def remove(name: str, state: Path, dry: bool = False, wiring: roles.Wiring = roles.FARMER) -> list[list[str]]:
     if platform.system() == "Darwin":
-        cmds = [["launchctl", "bootout", f"gui/{os.getuid()}/{label(name)}"]]
+        cmds = [["launchctl", "bootout", f"gui/{os.getuid()}/{label(name, wiring)}"]]
     else:
-        cmds = [["systemctl", "--user", "disable", "--now", f"{label(name)}.timer"]]
+        cmds = [["systemctl", "--user", "disable", "--now", f"{label(name, wiring)}.timer"]]
     if dry:
         return cmds
     for cmd in cmds:
         run(cmd)  # not loaded: nothing to stop
-    for path in files(name):
+    for path in files(name, wiring):
         path.unlink(missing_ok=True)
     (state / "timer.json").unlink(missing_ok=True)
     (state / "mode").write_text("claude\n")
@@ -128,13 +137,14 @@ def installed(state: Path) -> dict:
         return {}
 
 
-def status(name: str, state: Path) -> dict:
+def status(name: str, state: Path, wiring: roles.Wiring = roles.FARMER) -> dict:
+    unit = label(name, wiring)
     if platform.system() == "Darwin":
-        code, _ = run(["launchctl", "print", f"gui/{os.getuid()}/{label(name)}"])
+        code, _ = run(["launchctl", "print", f"gui/{os.getuid()}/{unit}"])
     else:
-        code, _ = run(["systemctl", "--user", "is-active", "--quiet", f"{label(name)}.timer"])
-    return {"label": label(name), "loaded": code == 0, **installed(state),
-            "files": [str(p) for p in files(name) if p.exists()]}
+        code, _ = run(["systemctl", "--user", "is-active", "--quiet", f"{unit}.timer"])
+    return {"label": unit, "loaded": code == 0, **installed(state),
+            "files": [str(p) for p in files(name, wiring) if p.exists()]}
 
 
 def rotate(state: Path) -> None:

@@ -50,187 +50,59 @@ Exit 0 ok (also: another tick holds the lock, `busy`), 1 roles/farmer/ROLE.md in
 
 import argparse
 import datetime
-import fcntl
 import json
 import os
-import shutil
 import sys
 from pathlib import Path
 
-import boss
 import decision_check
 import decision_log
 import delegation
 import due
 import duties
+import role_cli
 import role_sync
 import roles
-import handoff
 import migrate
 import prune
 import questions
 import tasks
 import tick
-import timer
-import trains
-import wake
 
-HERE = Path(__file__).resolve().parent
-TOOLS = ("git", "gh", "hal2-cli-git", "hal2-cli-agents")
-MODES = ("claude", "timer")
+WIRING = roles.FARMER  # the role these rounds run for, passed to every call of the frame (hal2 plan 0294)
+MODES = role_cli.MODES
 HANDLERS: dict = {  # "duty:<name>" / "task:<name>" → (item, ctx) → planned actions
-    "duty:mtm": boss.handler,
     "duty:lead": duties.plan_lead,
     "duty:ci": duties.plan_ci,
     "duty:prs": duties.plan_prs,
     "duty:sync": role_sync.plan_sync,
     "duty:watch": duties.plan_watch,
     "duty:autoclear": duties.plan_autoclear,
-    "duty:trains": trains.handler,
     "duty:prune": prune.handler,
     "task:*": tasks.plan_task,
 }
 
 
+# The commands every role's CLI has live in role_cli.py (the wagon master's wagon_master.py calls the same ones):
+# these are the farmer's, under their old names.
 def state(repo: str) -> Path:
-    return roles.state_dir(repo, due.DATA)
+    return role_cli.state(repo, WIRING)
 
 
 def mode(repo: str) -> str:
-    f = state(repo) / "mode"
-    text = f.read_text().strip() if f.exists() else ""
-    return text if text in MODES else "claude"
+    return role_cli.mode(repo, WIRING)
 
 
 def start_check(repo: str) -> tuple[int, dict]:
-    missing = [t for t in TOOLS if not shutil.which(t)]
-    if missing:
-        return 2, {"ok": False, "problems": [f"missing {', '.join(missing)}: run {HERE}/install-prerequisites.sh"]}
-    problem = tick.slot_problem(repo)
-    if problem:
-        return 4, {"ok": False, "problems": [problem]}
-    top = tick.git(repo, "rev-parse", "--show-toplevel")
-    role = Path(top) / tick.ROLE
-    if not role.exists():
-        return 3, {"ok": False, "problems": [f"no {role}: nothing is opted in (template: templates/ROLE.md)"]}
-    items, settings, problems = due.schedule(role.read_text())
-    if problems:
-        return 1, {"ok": False, "problems": problems}
-    return 0, {"ok": True, "loop_cron": due.loop_cron(items), "settings": settings, "mode": mode(top),
-               "items": sorted(items)}
-
-
-def print_round(r: dict) -> None:
-    head = "dry run" if r["dry"] else "round"
-    if r.get("problem"):
-        print(f"farmer tick ({head}): {r['problem']}")
-        return
-    print(f"farmer tick ({head}): {len(r.get('due', []))} due"
-          + (f": {', '.join(i['name'] for i in r['due'])}" if r.get("due") else ""))
-    for a in r["planned"]:
-        what = a.get("text") or " ".join(a.get("argv", [])) or a.get("name", "")
-        print(f"- {a['do']:6} {a['duty']}/{a['kind']} {a['slot']}: {what}")
-    for key in ("relay", "delegate", "wake", "notify"):
-        if r.get(key):
-            print(f"{key}: " + "; ".join(a.get("text", "") for a in r[key]))
-    if r.get("woke"):
-        w = r["woke"]
-        print(f"wake: {w['pending']} pending" + (", farmer woken" if w["woken"] else f" ({w['why']})" if w.get("why")
-                                                 else ""))
-    if r.get("summary"):
-        print(f"summary: {r['summary']}")
-    if r.get("timing"):
-        print(tick.timing_line(r["timing"], r.get("gh")))
+    return role_cli.start_check(repo, WIRING)
 
 
 def run_tick(repo: str, dry: bool, as_json: bool, all_due: bool = False) -> int:
-    missing = [t for t in TOOLS if not shutil.which(t)]
-    if missing:
-        print(f"farmer.py: missing {', '.join(missing)}; run {HERE}/install-prerequisites.sh", file=sys.stderr)
-        return 2
-    if not dry and mode(repo) != "timer":
-        print("farmer.py: mode is `claude` (the farmer's Claude loop runs the rounds); a tick runs only in timer mode "
-              "(`farmer.py mode timer`), or use --dry-run", file=sys.stderr)
-        return 4
-    if all_due and not dry:
-        print("farmer.py: --all-due only measures: use it with --dry-run", file=sys.stderr)
-        return 4
-    with (state(repo) / "tick.lock").open("w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print("busy: another tick runs")
-            return 0
-        timer.rotate(state(repo))
-        r = tick.run(repo, dry, HANDLERS, all_due=all_due)
-        if not dry and not r.get("problem"):
-            follow_cron(repo)
-    print(json.dumps(r, indent=1, default=str) if as_json else "", end="")
-    if not as_json:
-        print_round(r)
-    return 4 if r.get("problem") else 0
+    return role_cli.run_tick(repo, dry, as_json, HANDLERS, WIRING, all_due)
 
 
 def follow_cron(repo: str) -> None:
-    """Reinstall the timer when roles/farmer/ROLE.md changed the loop's cron."""
-    code, check = start_check(repo)
-    st = state(repo)
-    if code == 0 and timer.installed(st).get("cron") not in (None, check["loop_cron"]):
-        timer.install(due.repo_name(repo), tick.git(repo, "rev-parse", "--show-toplevel"), st, check["loop_cron"])
-        print(f"timer: loop cron now {check['loop_cron']}")
-
-
-def run_timer(args) -> int:
-    st, name = state(args.repo), due.repo_name(args.repo)
-    if args.action == "status":
-        r = timer.status(name, st) | {"mode": mode(args.repo)}
-        print(json.dumps(r, indent=1) if args.json else
-              f"{r['label']}: {'loaded' if r['loaded'] else 'not loaded'}, cron {r.get('cron', '-')}, mode {r['mode']}")
-        return 0
-    if args.action == "remove":
-        cmds = timer.remove(name, st, args.dry_run)
-    else:
-        code, check = start_check(args.repo)
-        if code:
-            print("\n".join(f"- {x}" for x in check["problems"]), file=sys.stderr)
-            return code
-        top = tick.git(args.repo, "rev-parse", "--show-toplevel")
-        try:
-            cmds = timer.install(name, top, st, check["loop_cron"], args.dry_run)
-        except (RuntimeError, ValueError) as e:
-            print(f"farmer.py: {e}", file=sys.stderr)
-            return 2
-    print("\n".join(" ".join(c) for c in cmds) if args.dry_run else f"{args.action}: mode {mode(args.repo)}")
-    return 0
-
-
-def run_wake(args) -> int:
-    main = tick.mtm_scan.main_checkout(args.repo)
-    if args.done is not None:
-        print(f"{wake.done(main, args.done)} items left")
-        return 0
-    data = wake.read(main)
-    if handoff.path(main).exists() and not args.json:
-        print(f"read first: {handoff.path(main)}")
-    if args.json:
-        print(json.dumps(data, indent=1))
-        return 0
-    for i in data["items"]:
-        print(f"{i['seq']:3} {i['do']:6} {i['duty']}/{i['kind']} {i['slot']}: {i.get('text', '')}\n"
-              f"    read {i['instructions']}")
-    print(f"{len(data['items'])} items" + (f", woken {data['woken_at']}" if data.get("woken_at") else ""))
-    return 0
-
-
-def run_handoff(args) -> int:
-    main = tick.mtm_scan.main_checkout(args.repo)
-    if not args.clear:
-        print(handoff.show(main))
-        return 0
-    top = tick.git(args.repo, "rev-parse", "--show-toplevel") or args.repo
-    code, what = handoff.clear(top, main, datetime.datetime.now())
-    print(what)
-    return code
+    role_cli.follow_cron(repo, WIRING)
 
 
 def run_delegate(args) -> int:
@@ -309,14 +181,10 @@ def main(argv: list[str]) -> int:
     args = parser().parse_args(argv)
 
     if args.cmd == "start-check":
-        code, result = start_check(args.repo)
-        print(json.dumps(result, indent=1) if args.json else
-              (f"ok: loop cron `{result['loop_cron']}`, mode {result['mode']}" if result["ok"] else
-               "\n".join(f"- {x}" for x in result["problems"])))
-        return code
+        return role_cli.print_start_check(*start_check(args.repo), args.json)
     if args.cmd == "mode":
         if args.set:
-            (state(args.repo) / "mode").write_text(args.set + "\n")
+            role_cli.set_mode(args.repo, WIRING, args.set)
         print(mode(args.repo))
         return 0
     if args.cmd == "check":
@@ -327,11 +195,11 @@ def main(argv: list[str]) -> int:
     if args.cmd == "delegate":
         return run_delegate(args)
     if args.cmd == "wake":
-        return run_wake(args)
+        return role_cli.run_wake(args, WIRING)
     if args.cmd == "handoff":
-        return run_handoff(args)
+        return role_cli.run_handoff(args, WIRING)
     if args.cmd == "timer":
-        return run_timer(args)
+        return role_cli.run_timer(args, WIRING)
     if args.cmd == "migrate":
         return migrate.run(args)
     if args.cmd in ("question", "questions"):

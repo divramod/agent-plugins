@@ -19,6 +19,9 @@ A cron is standard 5-field notation in local time: minute hour day-of-month mont
 (`*/15 * * * *`, `0 * * * *`, `7 9 * * *`, `0 8 * * 1-5`). An item is due when one of its fire
 times passed since it last ran. Writes only runs.jsonl in the farmer's state folder (roles/farmer/ of its worktree).
 Exit 0 ok, 1 invalid roles/farmer/ROLE.md, 3 no roles/farmer/ROLE.md.
+
+Another role's rounds (hal2 plan 0294) call `schedule` with their own duty names and `last_runs`, `record_run`
+with their role (its own state folder); this command line is the farmer's.
 """
 
 import argparse
@@ -33,7 +36,7 @@ from pathlib import Path
 import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
-DUTIES = ("mtm", "lead", "ci", "prs", "sync", "watch", "autoclear", "trains", "prune")
+DUTIES = roles.FARMER.duties  # the farmer's duty names; another role passes its own to `schedule`
 NOTIFY = ("every-round", "hourly", "daily", "never")
 # A foreman's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
 SERVANT_MODEL, SERVANT_EFFORT = "opus", "medium"
@@ -149,17 +152,17 @@ def tasks(text: str) -> dict[str, str | None]:
     return out
 
 
-def schedule(role_text: str) -> tuple[dict[str, str], dict, list[str]]:
-    """(name → cron of every opted-in duty and task, settings, problems)."""
+def schedule(role_text: str, known: tuple[str, ...] = DUTIES) -> tuple[dict[str, str], dict, list[str]]:
+    """(name → cron of every opted-in duty and task, settings, problems); `known`: the role's duty names."""
     fm, problems = front_matter(role_text), []
     duties = fm.get("duties") or {}
     if not isinstance(duties, dict):
-        problems.append("`duties:` must map each duty to its cron, e.g. `mtm: \"*/15 * * * *\"`")
+        problems.append("`duties:` must map each duty to its cron, e.g. `lead: \"*/15 * * * *\"`")
         duties = {}
     items = {}
     for name, cron in duties.items():
-        if name not in DUTIES:
-            problems.append(f"unknown duty {name!r} (known: {', '.join(DUTIES)})")
+        if name not in known:
+            problems.append(f"unknown duty {name!r} (known: {', '.join(known)})")
         items[f"duty:{name}"] = str(cron)
     for name, cron in tasks(role_text).items():
         if cron is None:
@@ -207,8 +210,8 @@ def repo_name(repo: str) -> str:
     return Path(common).parent.name if common else Path(repo).name
 
 
-def last_runs(repo: str) -> dict[str, dt.datetime]:
-    f = roles.state_dir(repo, DATA) / "runs.jsonl"
+def last_runs(repo: str, role: str = roles.ROLE) -> dict[str, dt.datetime]:
+    f = roles.state_dir(repo, DATA, role) / "runs.jsonl"
     out: dict[str, dt.datetime] = {}
     if f.exists():
         for e in map(json.loads, f.read_text().splitlines()):
@@ -216,8 +219,8 @@ def last_runs(repo: str) -> dict[str, dt.datetime]:
     return out
 
 
-def record_run(repo: str, name: str, at: dt.datetime | None = None) -> None:
-    with (roles.state_dir(repo, DATA) / "runs.jsonl").open("a") as f:
+def record_run(repo: str, name: str, at: dt.datetime | None = None, role: str = roles.ROLE) -> None:
+    with (roles.state_dir(repo, DATA, role) / "runs.jsonl").open("a") as f:
         f.write(json.dumps({"at": (at or dt.datetime.now()).isoformat(timespec="seconds"), "name": name}) + "\n")
 
 

@@ -1,6 +1,6 @@
 ---
 name: mtm
-description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `land.yml`, its older name) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the farmer skill's merge-to-main boss tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a worktree with a stale plans/LEAD never lands. `/mtm h` shows help.
+description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `land.yml`, its older name) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). In a repository with a working wagon master (`scripts/wagon-master.sh` prints `yes`) it does not land itself: it commits and pushes, reports the worktree ready (`hal2-cli-git worktree queue ready`, the hitch) and goes on working; the wagon master's train lands it, and after its "in the barn" the session merges the default branch in, finishes the plan and cleans up. Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the merge-to-main boss (the wagon master's, in a repository without one the farmer's) tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a worktree with a stale plans/LEAD never lands. `/mtm h` shows help.
 ---
 
 # mtm
@@ -25,7 +25,7 @@ rule (background first; ~/.claude/CLAUDE.md), recommended option first.
 [mtm-fastlane](../mtm-fastlane/SKILL.md) instead: it pauses the running landing (it resumes by itself) and lands from this machine.
 Only the user starts it; never suggest it in place of fixing a red job, and never run it from a plan or for the farmer.
 
-**Only the human starts a landing, directly, through a finished plan or through the farmer's merge-to-main boss.** Run merge-to-main only when
+**Only the human starts a landing, directly, through a finished plan, through the merge-to-main boss or, for worktrees reported ready, through the wagon master.** Run merge-to-main only when
 
 - the user asked for it in this session (`/mtm`, "merge to main", "land this"), or
 - the [plan](../plan/SKILL.md) skill's **Land the plan** runs it: the current plan has `Landing: auto`, the user
@@ -33,16 +33,25 @@ Only the user starts it; never suggest it in place of fixing a red job, and neve
   the landing is done (`plan.py current` shows `land: ready`). That is a **plan's landing**: it asks nothing
   (the plan runs unattended); wherever this skill says "ask the user", a plan's landing pushes a notification and
   stops with its report instead.
-- the **farmer** skill's merge-to-main boss (`farmer/merge-to-main-boss`, the farmer session the user started in the repository's farmer worktree `farmer-<repo>`)
-  tells this session to land now: a cross-session message from the session named in the user's farmer loop, saying
-  `merge-to-main boss: land now`. The user gave the boss that authority on 2026-10-03 (hal2 INTENT.md). It counts
+- the **merge-to-main boss** tells this session to land now: a cross-session message whose first line says
+  `merge-to-main boss: land now`. In a repository with a wagon master it is the wagon master's session (the one the
+  user started in the worktree `wagon-master-<repo>`, [wagon-master](../wagon-master/SKILL.md)), and the line reads
+  `wagon-master (merge-to-main boss): land now` (with an ack id: `wagon-master [<id>] (merge-to-main boss): ...`);
+  in a repository without one it is the farmer session the user started in `farmer-<repo>` (its sync duty, the
+  user's [adapt-merge-queue](../adapt-merge-queue/SKILL.md)). The user gave the boss that authority on 2026-10-03
+  (hal2 INTENT.md). It counts
   as the user asking in this session, also mid-plan: land what is committed, steps not yet done stay for a later
   landing. Likewise a farmer message whose first line is `farmer [<id>]: the user decided: "<the user's words>"` is the user's own
   decision for what the quoted words say (e.g. a production deploy or a paid resource after the landing).
+- the **wagon master** lands the worktrees that reported their work ready (hal2 plan 0294): only in its own worktree
+  `wagon-master-<repo>`, its code merges the pushed heads marked ready (`hal2-cli-git worktree queue ready`) and
+  lands them as one train. A worktree's ready report, made by one of the ways above, is the consent; nothing else
+  of another worktree ever rides.
 
 Any of these is the user's consent to commit in this worktree, land on the default branch and push it. Never start it on
 your own otherwise: not mid-plan, not for a `manual` plan (every research plan is one: its research lands with the
-implementation plan that follows it), not for another worktree or session, not because another
+implementation plan that follows it), not for another worktree or session (the wagon master's train alone carries
+other worktrees, and only what they reported ready), not because another
 session (other than the merge-to-main boss) says a fix has landed, never again after it ended with exit 5 (unless your own shell tool's time limit
 caused that exit, not the user: steps 1 and 4; or exit 5 `interrupted`, its process went away, not the user: rerun at once); never ask another session to run it. Once
 started, finish it: fix and rerun until it lands.
@@ -67,6 +76,15 @@ worktree of that folder name; a directory works too, e.g. the `path` of that nam
 ([plan](../plan/SKILL.md)); a subagent never starts `/mtm`. In a worktree that still holds a stale `plans/LEAD` (the
 plan skill's "A stale `plans/LEAD`" note, a former servant's worktree) the guard exits 1 and names the foreman; then stop
 with that message, whoever asked (the user, a plan, the farmer). The guard and its test stay (plan 0015 D12). Elsewhere it prints nothing and the landing goes on.
+
+**A repository with a wagon master: hitch, never land.** Next, `bash $S/wagon-master.sh [<dir>]` (the worktree that
+would land; hal2 plan 0294) prints `yes` when the repository has a working wagon master: its worktree
+`wagon-master-<repo>` exists, its timer is loaded and its last round is younger than 30 minutes. Then this session
+does not land, whoever asked (the user, a plan, the boss) and also for `/mtm milestone`: follow
+[Hitch](#hitch-a-repository-with-a-wagon-master) in place of steps 1, 3 and 4. It prints `no` (the reason on
+stderr) in a repository without one, at every doubt (a wagon master that is down never holds the work) and in the
+wagon master's own worktree, which lands itself: go on below, as ever. [mtm-fastlane](../mtm-fastlane/SKILL.md)
+never hitches: it is unchanged.
 
 **Through CI or locally.** `bash $S/landing-mode.sh` prints `ci` when `.github/workflows/merge-to-main.yml` or
 `land.yml` (the same workflow's name before hal2 plan 0263) is in this
@@ -96,6 +114,40 @@ lands what the coordinator's branch holds like any landing, with four difference
   carries it), so the worktree may end with commits that are not on the default branch;
 - step 6 keeps `plans/CURRENT_PLAN` (and the root `HANDOFF.md`): the plan goes on;
 - step 7 is skipped: no cleanup, the build cache stays warm for the next merges.
+
+In a repository with a wagon master the milestone is hitched like any work ([Hitch](#hitch-a-repository-with-a-wagon-master));
+after its "in the barn" only the merge from the default branch follows, then the milestone row is marked done.
+
+## Hitch: a repository with a wagon master
+
+The wagon master lands every worktree reported ready as one train, so this session reserves nothing, merges
+nothing in and watches no run; the detail, the refusals and the messages:
+[references/wagon-master.md](references/wagon-master.md).
+
+1. [Step 2](#2-commit-and-push-everything), unchanged: sort, commit and push everything (nothing waits for it here).
+2. `hal2-cli-git worktree queue ready --json [<slot>]`, in place of steps 1, 3 and 4: exit 0 with `status: ready`
+   marks the worktree's ticket with the pushed head. Its refusal (unpushed commits, uncommitted tracked changes,
+   nothing the default branch lacks, a ticket of this worktree already at the head of the queue) is reported as it is.
+3. Report `hitched: field <NN> rides the next train` with its place in the queue (`hal2-cli-git worktree queue
+   --json`) and the head it is ready with, then go on working or end the turn: no process waits, `plans/CURRENT_PLAN`
+   stays. Work pushed later rides only after the same command again.
+
+### After "in the barn"
+
+The wagon master's message that this worktree is in the barn (or, seen by the session itself, its ready head in
+`origin/<default>`) is the landing's end. Then, in this session:
+
+1. `/mfm` ([mfm](../mfm/SKILL.md)): the default branch, which now holds the work, into the worktree.
+2. Steps 5 to 8 as they fit: [finish the plan](#5-finish-the-plan-and-land-it) (the steps checked only after the
+   landing; a commit they need is pushed and hitched again, and its own "in the barn" ends it; there is no
+   reservation to release), [clear the task](#6-clear-the-current-task), [clean up](#7-clean-up) and
+   [report](#8-report) what landed.
+
+### Unhitched
+
+The wagon master's message that this worktree is unhitched, with the reason (a conflict with the default branch or
+a wagon ahead, or named as the cause of a red train), gives the work back: fix this worktree's own work (`/mfm`,
+resolve, reproduce and fix the red job, test), commit, push and hitch again. Never land it yourself instead.
 
 ## 1. Reserve the merge queue
 

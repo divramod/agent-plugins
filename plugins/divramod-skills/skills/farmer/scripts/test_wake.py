@@ -70,11 +70,11 @@ class Wake(Repo):
         self.assertEqual(sum(e["kind"] == "wake" for e in self.log()), 2)
 
     def test_relays_and_failed_delegations_are_handed_over(self):
-        relay = tick.act("mtm", "front", "relay", "07", text="land now", why="not typed: agent is working")
+        relay = tick.act("lead", "done", "relay", "07", text="land now", why="not typed: agent is working")
         failed = {"key": "flaky:t", "state": "error", "title": "disable t", "error": "create.py failed"}
         self.over({"relay": [relay], "delegations": [failed, {"state": "running"}]})
         items = wake.read(self.main)["items"]
-        self.assertEqual([(i["do"], i["kind"]) for i in items], [("relay", "front"), ("wake", "delegate-failed")])
+        self.assertEqual([(i["do"], i["kind"]) for i in items], [("relay", "done"), ("wake", "delegate-failed")])
         self.assertEqual(items[1]["evidence"]["error"], "create.py failed")
         self.assertEqual(items[1]["instructions"], wake.instructions("farmer", "delegate-failed"))
 
@@ -151,7 +151,7 @@ class Handoff(Repo):
 
 class Instructions(unittest.TestCase):
     def test_every_duty_has_its_instructions(self):
-        for duty in ("mtm", "lead", "ci", "watch", "autoclear", "task", "frame", "farmer"):
+        for duty in ("lead", "ci", "watch", "autoclear", "task", "frame", "farmer"):
             self.assertTrue(wake.instructions(duty, "any").endswith(f"instructions/{duty}.md"), duty)
 
 
@@ -169,19 +169,19 @@ class Ticks(Repo):
 
     def test_quiet_then_judgment(self):
         sent = []
-        quiet = {"duty:mtm": lambda i, c: [tick.act("mtm", "front", "record", "07", text="x")],
+        quiet = {"duty:lead": lambda i, c: [tick.act("lead", "front", "record", "07", text="x")],
                  "task:*": lambda i, c: []}
         r = self.round(quiet, sent)
         self.assertEqual((r["woke"]["pending"], sent), (0, []))
         self.assertFalse(wake.wake_file(str(self.main)).exists())
-        r = self.round({"duty:mtm": lambda i, c: [judgment()], "task:*": lambda i, c: []}, sent,
+        r = self.round({"duty:lead": lambda i, c: [judgment()], "task:*": lambda i, c: []}, sent,
                        NOW + dt.timedelta(minutes=15))
         self.assertEqual((r["woke"]["woken"], sent), (True, [("%9", "/farmer act")]))
         self.assertEqual(r["wake"][0]["kind"], "question")
 
     def test_a_dry_run_lists_the_items_and_wakes_nobody(self):
         with mock.patch.object(wake.deliver, "send") as send:
-            r = tick.run(str(self.slot), True, {"duty:mtm": lambda i, c: [judgment()]}, NOW)
+            r = tick.run(str(self.slot), True, {"duty:lead": lambda i, c: [judgment()]}, NOW)
         send.assert_not_called()
         self.assertEqual([i["kind"] for i in r["wake_items"]], ["question", "no-handler"])
         self.assertFalse(wake.wake_file(str(self.main)).exists())

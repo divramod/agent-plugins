@@ -2,6 +2,9 @@
 folder (`roles/farmer/` of the farmer's worktree, never a committed HANDOFF.md: the farmer commits nothing of its branch but
 roles/farmer/ROLE.md and the folder's .gitignore), then the session starts hal2's clear-and-continue itself, which waits for the turn to end, types
 `/clear` and then `/farmer act`. `/farmer act` and `/farmer start` read handoff.md first.
+
+Another role's handoff (hal2 plan 0294) is the same with its `roles.Wiring`: handoff.md in its own state folder,
+its own session cleared and continued with its own act command.
 """
 
 import datetime as dt
@@ -10,6 +13,7 @@ from pathlib import Path
 
 import deliver
 import mtm_scan
+import roles
 import wake
 
 TEMPLATE = """# farmer handoff (<repo>, <date time>)
@@ -28,52 +32,53 @@ TEMPLATE = """# farmer handoff (<repo>, <date time>)
 """
 
 
-def path(main: str) -> Path:
+def path(main: str, wiring: roles.Wiring = roles.FARMER) -> Path:
     """handoff.md; the owner skill's `owner-handoff.md` becomes it once."""
-    d = mtm_scan.state_dir(main)
+    d = mtm_scan.state_dir(main, wiring.role)
     new, old = d / "handoff.md", d / "owner-handoff.md"
     if old.exists() and not new.exists():
         old.rename(new)
     return new
 
 
-def show(main: str) -> str:
-    f = path(main)
+def show(main: str, wiring: roles.Wiring = roles.FARMER) -> str:
+    f = path(main, wiring)
     if f.exists():
         return f"handoff: {f}"
-    return f"handoff: {f} (missing: write it with these sections)\n\n{TEMPLATE}"
+    template = TEMPLATE.replace("# farmer handoff", f"# {wiring.role} handoff", 1)
+    return f"handoff: {f} (missing: write it with these sections)\n\n{template}"
 
 
-def fresh(main: str, now: dt.datetime) -> str | None:
+def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> str | None:
     """None when handoff.md was written for this handoff (after the pending one was asked for, else within
     HANDOFF_TIMEOUT), else why not."""
-    f = path(main)
+    f = path(main, wiring)
     if not f.exists():
         return f"{f} is missing: write it first"
     written = dt.datetime.fromtimestamp(f.stat().st_mtime)
-    pending = wake.read(main).get("handoff")
+    pending = wake.read(main, wiring).get("handoff")
     since = dt.datetime.fromisoformat(pending["at"]) if pending else now - wake.HANDOFF_TIMEOUT
     return None if written >= since else f"{f} is older than this handoff ({since:%H:%M}): write it first"
 
 
-def clear(top: str, main: str, now: dt.datetime) -> tuple[int, str]:
-    """Start the clear-and-continue of the farmer session once handoff.md is written: (exit code, what happened)."""
-    why = fresh(main, now)
+def clear(top: str, main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> tuple[int, str]:
+    """Start the clear-and-continue of the role's session once handoff.md is written: (exit code, what happened)."""
+    why, role = fresh(main, now, wiring), wiring.role
     if why:
         return 1, why
     pane = wake.farmer_pane(top)
     if not pane:
-        return 1, "no farmer session"
+        return 1, f"no {role} session"
     session = (deliver.agent(pane) or {}).get("session_id")
-    args = ["clear-and-continue", "--pane", pane, "--prompt", wake.ACT, "--without-plan", "--detach", "--json"]
+    args = ["clear-and-continue", "--pane", pane, "--prompt", wiring.act, "--without-plan", "--detach", "--json"]
     code, out = deliver.cli(*args, *(["--session", session] if session else []))
     try:
         result = json.loads(out)
     except json.JSONDecodeError:
         result = {"status": "error", "message": out.strip() or f"exit {code}"}
     started = code == 0 or result.get("reason") == "already-running"
-    what = (f"clear-and-continue started: /clear, then {wake.ACT}" if started else
+    what = (f"clear-and-continue started: /clear, then {wiring.act}" if started else
             f"clear-and-continue refused: {result.get('reason') or result.get('message') or code}")
-    mtm_scan.log(main, {"kind": "handoff-clear", "slot": "farmer", "what": what, "note": "", "by": "farmer",
-                        "do": "wake"})
+    mtm_scan.log(main, {"kind": "handoff-clear", "slot": role, "what": what, "note": "", "by": role, "do": "wake"},
+                 role)
     return (0 if started else 1), what

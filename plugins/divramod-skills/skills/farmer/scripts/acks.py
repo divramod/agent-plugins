@@ -14,6 +14,9 @@ The tick stamps every templated send (`stamp_send`) and plans the follow-up (`pl
 instruction is sent once more; still none ACK_AFTER later, the farmer is woken (`no-ack`) with the screen; a
 `refused` ack always wakes it. `started` stops the clock, `done` closes the instruction. State: the log's `ask-ack`,
 `ack` and `ack-resend:<id>` entries.
+
+Another role (hal2 plan 0294) stamps with its own name and keeps its own log: `--role <role>` here, `role` in
+`stamp`, `stamped_id` and `stamp_send` (`wagon-master [<id>]: ...`, replies to the wagon-master session).
 """
 
 import argparse
@@ -26,12 +29,17 @@ import sys
 import decision_log
 import deliver
 import mtm_scan
+import roles
 
 ACK_AFTER = dt.timedelta(minutes=10)
 STATUSES = ("started", "done", "refused")
-REPLY = "Reply `ack {id}: started|done|refused <why>` by SendMessage to the farmer session."
-FARMER = re.compile(r"^farmer(?: \[[^\]]+\])?(?=( \([^)]*\))?: )")
-STAMPED = re.compile(r"^farmer \[([^\]]+)\]")
+REPLY_TO = "Reply `ack {id}: started|done|refused <why>` by SendMessage to the {role} session."
+REPLY = REPLY_TO.replace("{role}", roles.ROLE)  # the farmer's
+
+
+def head(role: str) -> re.Pattern:
+    """A message's sender on its first line: `<role>`, `<role> [<id>]`, each before an optional ` (<duty>)` and `: `."""
+    return re.compile(rf"^{re.escape(role)}(?: \[[^\]]+\])?(?=( \([^)]*\))?: )")
 
 
 def next_id(log: list[dict], slot: str) -> str:
@@ -39,15 +47,16 @@ def next_id(log: list[dict], slot: str) -> str:
     return f"{slot}-{1 + sum(1 for e in log if e.get('kind') == 'ask-ack' and e.get('slot') == slot)}"
 
 
-def stamp(text: str, ack_id: str) -> str:
-    """The id on the first line (`farmer [<id>]: ...`, a role kept: `farmer [<id>] (lead): ...`), the reply asked
-    for on the last."""
-    body = FARMER.sub(f"farmer [{ack_id}]", text, count=1) if FARMER.match(text) else f"farmer [{ack_id}]: {text}"
-    return f"{body}\n{REPLY.format(id=ack_id)}"
+def stamp(text: str, ack_id: str, role: str = roles.ROLE) -> str:
+    """The id on the first line (`farmer [<id>]: ...`, a duty kept: `farmer [<id>] (lead): ...`), the reply asked
+    for on the last; `role` is the sending role."""
+    sender = head(role)
+    body = sender.sub(f"{role} [{ack_id}]", text, count=1) if sender.match(text) else f"{role} [{ack_id}]: {text}"
+    return f"{body}\n{REPLY_TO.format(id=ack_id, role=role)}"
 
 
-def stamped_id(text: str) -> str | None:
-    m = STAMPED.match(text or "")
+def stamped_id(text: str, role: str = roles.ROLE) -> str | None:
+    m = re.match(rf"^{re.escape(role)} \[([^\]]+)\]", text or "")
     return m.group(1) if m else None
 
 
@@ -56,13 +65,13 @@ def ask_entry(slot: str, ack_id: str, text: str, pane: str | None, by: str) -> d
             "text": text, "pane": pane or "", "by": by}
 
 
-def stamp_send(a: dict, main: str) -> None:
+def stamp_send(a: dict, main: str, role: str = roles.ROLE) -> None:
     """Give a planned send its id and log the `ask-ack` (tick.execute, before it types). Re-sends keep theirs."""
     if a.get("ack_id"):
         return
-    ack_id = next_id(mtm_scan.entries(mtm_scan.state_dir(main) / "log.jsonl"), a["slot"])
-    a.update(ack_id=ack_id, text=stamp(a["text"], ack_id))
-    mtm_scan.log(main, ask_entry(a["slot"], ack_id, a["text"], a.get("pane"), "tick"))
+    ack_id = next_id(mtm_scan.entries(mtm_scan.state_dir(main, role) / "log.jsonl"), a["slot"])
+    a.update(ack_id=ack_id, text=stamp(a["text"], ack_id, role))
+    mtm_scan.log(main, ask_entry(a["slot"], ack_id, a["text"], a.get("pane"), "tick"), role)
 
 
 def instructions(log: list[dict]) -> dict[str, dict]:
@@ -118,10 +127,11 @@ def main(argv: list[str]) -> int:
     op = sub.add_parser("open")
     for s in (ins, ack, op):
         s.add_argument("--repo", default=os.getcwd())
+        s.add_argument("--role", default=roles.ROLE, choices=roles.ROLES)
         s.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
-    main_dir = mtm_scan.main_checkout(args.repo)
-    log = mtm_scan.entries(mtm_scan.state_dir(main_dir) / "log.jsonl")
+    main_dir, role = mtm_scan.main_checkout(args.repo), args.role
+    log = mtm_scan.entries(mtm_scan.state_dir(main_dir, role) / "log.jsonl")
     if args.cmd == "instruct":
         try:
             relays = [decision_log.find(log, d)["id"] for d in args.decision]
@@ -129,16 +139,16 @@ def main(argv: list[str]) -> int:
             print(f"acks.py instruct --decision {e}", file=sys.stderr)
             return 1
         ack_id = next_id(log, args.slot)
-        text = stamp(args.text, ack_id)
-        mtm_scan.log(main_dir, ask_entry(args.slot, ack_id, text, None, "farmer"))
+        text = stamp(args.text, ack_id, role)
+        mtm_scan.log(main_dir, ask_entry(args.slot, ack_id, text, None, role), role)
         for d in relays:
             mtm_scan.log(main_dir, {"kind": "decision-link", "slot": args.slot, "what": f"{d} relayed as {ack_id}",
-                                    "note": "", "decision": d, "ack": ack_id, "by": "farmer"})
+                                    "note": "", "decision": d, "ack": ack_id, "by": role}, role)
         print(json.dumps({"id": ack_id, "text": text}) if args.json else text)
     elif args.cmd == "ack":
         known = instructions(log).get(args.id)
         mtm_scan.log(main_dir, {"kind": "ack", "slot": (known or {}).get("slot", ""), "what": args.status,
-                                "note": " ".join(args.why), "id": args.id, "by": "farmer"})
+                                "note": " ".join(args.why), "id": args.id, "by": role}, role)
         if not known:
             print(f"acks.py: no instruction {args.id} in the log (recorded anyway)", file=sys.stderr)
     else:

@@ -15,6 +15,10 @@ place; one still working: keep working, the place waits), each other worktree th
 whose reservation went. It sends nothing: the caller does (SendMessage).
 --instruct stamps every message with the farmer's ack id (acks.py instruct: the farmer session). Exit 2 when
 hal2-cli-git is missing, 1 when hal2 refuses the order.
+
+A `land` message is the boss's go (`<boss>: land now`): on a farm with a working wagon master (hal2 plan 0294; the
+farmer skill's roles.boss asks the mtm skill's wagon-master.sh) it is sent in the wagon master's boss's name and says
+that /mtm reports the work ready for the next train; on a farm without one it is the line as ever.
 """
 import argparse
 import json
@@ -24,8 +28,15 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-ACKS = Path(__file__).resolve().parents[2] / "farmer" / "scripts" / "acks.py"
-BOSS = "merge-to-main boss"
+FARMER = Path(__file__).resolve().parents[2] / "farmer" / "scripts"
+ACKS = FARMER / "acks.py"
+sys.path.insert(0, str(FARMER))
+import roles  # noqa: E402  (the farmer skill's: who says `land now`)
+
+BOSS = roles.BOSS
+LANDS = {roles.BOSS: "it takes this reserved place and lands when its turn comes. What is committed lands",
+         roles.WAGON_MASTER_BOSS: "it reports your work ready at this reserved place and the wagon master's next "
+                                  "train lands it. What is committed and pushed lands"}
 
 
 def die(message: str, code: int = 1) -> NoReturn:
@@ -71,8 +82,9 @@ def default_branch(main: Path) -> str:
     return r.stdout.strip().removeprefix("origin/") or "main"
 
 
-def messages(before: dict, after: dict, note: str, is_finished) -> list[dict]:
-    """What each affected worktree hears: places are 1-based, place 1 is the front."""
+def messages(before: dict, after: dict, note: str, is_finished, boss=lambda: BOSS) -> list[dict]:
+    """What each affected worktree hears: places are 1-based, place 1 is the front. `boss()` names who says `land
+    now` (roles.boss), asked only when a worktree is told to land."""
     old = [t["slot"] for t in before.get("queue", [])]
     new = after.get("queue", [])
     listed = (after.get("priority") or {}).get("slots", [])
@@ -83,15 +95,17 @@ def messages(before: dict, after: dict, note: str, is_finished) -> list[dict]:
         if slot in listed:
             pure = bool(t.get("reserved")) and not t.get("pid")
             if pure and is_finished(t["worktree"]):
-                kind, text = "land", (f"{BOSS}: land now. The user put worktree {slot} at {of}{why}: run /mtm now, it "
-                                      "takes this reserved place and lands when its turn comes. What is committed "
-                                      "lands; unfinished steps land after it.")
+                who = boss()
+                kind, text = "land", (f"{who}: land now. The user put worktree {slot} at {of}{why}: run /mtm now, "
+                                      f"{LANDS[who]}; unfinished steps land after it.")
             elif pure:
                 kind, text = "reserved", (f"farmer: the user reserved {of} for worktree {slot}{why}. Keep working: your "
-                                          "plan's landing (/mtm at its end) takes this place, and at the front the "
-                                          "queue waits for you.")
+                                          "plan's end (/mtm) takes this place. It lands there, and at the front the "
+                                          "queue waits for you; where the farm has a wagon master it reports your "
+                                          "work ready at this place and the next wagon train brings it in.")
             else:
-                kind, text = "place", f"farmer: the user moved your landing to {of}{why}."
+                kind, text = "place", (f"farmer: the user moved your landing to {of}{why}. Where the farm has a wagon "
+                                  "master, a ready wagon keeps this place in the next train's order.")
         elif slot in old and place > old.index(slot) + 1:
             kind, text = "moved", (f"farmer: the user's merge-queue priority moved your landing back to {of} "
                                    f"(was place {old.index(slot) + 1}); it lands when its turn comes.")
@@ -151,7 +165,7 @@ def main(argv: list[str]) -> int:
     before = queue(main_dir)
     after = queue(main_dir, order)
     default = default_branch(main_dir)
-    sent = messages(before, after, args.note, lambda w: finished(w, default))
+    sent = messages(before, after, args.note, lambda w: finished(w, default), lambda: roles.boss(main_dir))
     if args.instruct:
         sent = [instruct(main_dir, m) for m in sent]
     if args.json:
