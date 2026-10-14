@@ -34,6 +34,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [adapt-merge-queue](skills/adapt-merge-queue/SKILL.md) | reorders hal2's merge queue and reserves places |
 | [adr](skills/adr/SKILL.md) | writes and finds decision records in hal2's record format |
 | [c](skills/c/SKILL.md), [h](skills/h/SKILL.md) | shortcuts: `/handoff continue`, `/handoff` |
+| [ci-analyzer](skills/ci-analyzer/SKILL.md) | finds CI waste and bottlenecks in the last runs and ranks them |
 | [cleanup](skills/cleanup/SKILL.md) | deletes a worktree's build artifacts |
 | [continue](skills/continue/SKILL.md), [pause](skills/pause/SKILL.md) | pause a session's work and pick it up again |
 | [continue-all-agent-work](skills/continue-all-agent-work/SKILL.md), [stop-all-agent-work](skills/stop-all-agent-work/SKILL.md) | stop every session for a quiet machine, and undo it |
