@@ -276,6 +276,9 @@ class PlanTest(unittest.TestCase):
         self.assertIn(f"\n# UAT {info['slug'][:4]}: plugin-plan 3 tabs\n", text)
         self.assertIn("\nshotfile: plugin-plan\n", text)
         self.assertNotIn("Shotfile:", text, "the typed form: the envelope holds the header")
+        open_line = next(line for line in text.splitlines() if line.startswith("Open:"))
+        self.assertIn("hal9k://", open_line)
+        self.assertNotIn("hal2://", text, "hal9k:// is the registered scheme (record uat-steps-give-hal9k-links)")
         self.assertEqual(info["uat_checks"], ["U1"])
         uat.write_text(text + "\n## U2 Second\nSteps:\n1. x\n\nExpected: y\n")
         self.assertEqual(self.plan("uat", "--shotfile", "other")["uat_checks"], ["U1", "U2"])  # never overwritten

@@ -46,8 +46,9 @@ checks the user runs by hand on the default branch after the landing (`hal2-cli-
 goes there: derive the checks from the goal, each step's done-when and the diff (new panes, commands, keys, deep
 links), drop what the plan's tests and your own verification already proved, keep what needs eyes and hands (layout,
 feel, real data, other devices), riskiest first (`Priority: p1` = what the goal promises), at most about 10, each
-with `Open:` (a hal2:// deep link) or `Run:` (a command) when one exists, steps and the expected result; tag checks
-that should come back with later plans of the feature `regression`. Ids (`U1`, `U2`, ...) are never reused.
+with `Open:` (a `hal9k://` deep link) or `Run:` (a command) when one exists, steps and the expected result; tag checks
+that should come back with later plans of the feature `regression`. A check of hal9k-desktop gives every step the `hal9k://`
+link of its page (record `uat-steps-give-hal9k-links`, routes in `docs/hal9k-links.md`). Ids (`U1`, `U2`, ...) are never reused.
 Never write a verdict into a checkout or commit one: `uat set` queues it in hal2's state root, and the next landing
 from that machine appends it to the plan's committed `uat-results.jsonl` and regenerates `plans/uats.md` in its
 candidate (hal2 plan 0214 step 12); a failed check becomes a shot in the plan's feature shotfile (the `shotfile`

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hal2-mcp": {
+      "command": "hal2-cli-mcp",
+      "args": ["mcp"]
+    }
+  }
+}

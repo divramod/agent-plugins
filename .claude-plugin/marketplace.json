@@ -17,6 +17,12 @@
       "source": "./plugins/divramod-subagent-context",
       "description": "A Claude Code mod: a live pane of every subagent of the session with its model, effort, context fill, peak and compactions.",
       "category": "productivity"
+    },
+    {
+      "name": "hal2-mcp",
+      "source": "./plugins/hal2-mcp",
+      "description": "The hal2-cli-mcp MCP server for Claude Code: hal2's MCP management as tools (list, show, install, remove, on, off and more).",
+      "category": "productivity"
     }
   ]
 }

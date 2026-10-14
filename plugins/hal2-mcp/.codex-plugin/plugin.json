@@ -1,0 +1,21 @@
+{
+  "name": "hal2-mcp",
+  "version": "0.1.0",
+  "description": "The hal2-cli-mcp MCP server for Codex: hal2's MCP management as tools.",
+  "author": {
+    "name": "Arvid Petermann",
+    "url": "https://github.com/divramod"
+  },
+  "homepage": "https://github.com/divramod/divramod-claude-code-plugins/tree/main/plugins/hal2-mcp",
+  "repository": "https://github.com/divramod/divramod-claude-code-plugins",
+  "license": "MIT",
+  "keywords": ["mcp", "hal2", "mcp-server"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "hal2 MCP",
+    "shortDescription": "hal2's MCP management as an MCP server.",
+    "developerName": "Arvid Petermann",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/divramod/divramod-claude-code-plugins/tree/main/plugins/hal2-mcp"
+  }
+}

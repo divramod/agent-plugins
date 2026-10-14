@@ -5,6 +5,7 @@ divramod's Claude Code plugins, one marketplace: agent skills and live panes for
 | Plugin | What it is |
 |---|---|
 | [divramod-skills](plugins/divramod-skills) | The agent skills: plans, grills, handoffs, landings, research, summaries of anything (`/divramod-skills:<skill>`). Also a Codex plugin. |
+| [hal2-mcp](plugins/hal2-mcp) | The `hal2-cli-mcp` MCP server (needs the binary on `PATH`). Also a Codex plugin. |
 | [divramod-subagent-context](plugins/divramod-subagent-context) | A mod: a live pane of every subagent of the session with its model, effort, context fill, peak and compactions. |
 
 ## Install
@@ -13,10 +14,11 @@ divramod's Claude Code plugins, one marketplace: agent skills and live panes for
 claude plugin marketplace add divramod/divramod-claude-code-plugins
 claude plugin install divramod-skills@divramod-claude-code-plugins
 claude plugin install divramod-subagent-context@divramod-claude-code-plugins
+claude plugin install hal2-mcp@divramod-claude-code-plugins
 ```
 
 In a session the same works as `/plugin marketplace add divramod/divramod-claude-code-plugins`, then `/plugin`.
-Codex finds its marketplace in `.agents/plugins/marketplace.json` (the skills only) when this repository is added
+Codex finds its marketplace in `.agents/plugins/marketplace.json` (the skills and hal2-mcp) when this repository is added
 as a Codex marketplace.
 
 ## Update
@@ -27,6 +29,7 @@ An installed plugin updates when its version changes:
 claude plugin marketplace update divramod-claude-code-plugins
 claude plugin update divramod-skills@divramod-claude-code-plugins
 claude plugin update divramod-subagent-context@divramod-claude-code-plugins
+claude plugin update hal2-mcp@divramod-claude-code-plugins
 ```
 
 Restart Claude Code afterwards, or turn on auto-update for this marketplace in `/plugin` under Marketplaces.
