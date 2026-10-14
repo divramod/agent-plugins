@@ -1,5 +1,6 @@
 {
   "h": {"skill": "handoff", "args": ""},
   "c": {"skill": "handoff", "args": "continue"},
-  "hv": {"skill": "halverse", "args": ""}
+  "hv": {"skill": "halverse", "args": ""},
+  "daily": {"skill": "daybook", "args": ""}
 }

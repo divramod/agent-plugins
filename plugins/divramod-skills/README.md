@@ -15,8 +15,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 
 - [.claude-plugin/plugin.json](.claude-plugin/plugin.json): the Claude Code manifest, every skill listed; its
   `version` is the plugin's ([.codex-plugin/plugin.json](.codex-plugin/plugin.json) keeps the same name and version).
-- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`), `c` (`/handoff continue`) and `hv` (`/halverse`), generated into
-  `skills/h`, `skills/c` and `skills/hv` by `scripts/gen-aliases.py`.
+- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`), `c` (`/handoff continue`), `hv` (`/halverse`) and `daily` (`/daybook`), generated into
+  `skills/h`, `skills/c`, `skills/hv` and `skills/daily` by `scripts/gen-aliases.py`.
 - [docs/selfimprovement/common/](docs/selfimprovement/common/): notes on agent mistakes the skills guard against.
 - [LICENSE](LICENSE): MIT.
 - `scripts/`: the plugin's own checks and installers, each with its `test_*.py`.
@@ -41,6 +41,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [continue-all-agent-work](skills/continue-all-agent-work/SKILL.md), [stop-all-agent-work](skills/stop-all-agent-work/SKILL.md) | stop every session for a quiet machine, and undo it |
 | [create-shot](skills/create-shot/SKILL.md), [shoot](skills/shoot/SKILL.md) | write a shot, list and send open shots |
 | [create-worktree-session](skills/create-worktree-session/SKILL.md), [delete-worktree-session](skills/delete-worktree-session/SKILL.md) | start or stop an agent session in a worktree |
+| [daybook](skills/daybook/SKILL.md), [daily](skills/daily/SKILL.md) | the farm's daily chores, open ones carried on, with its plans and watches (`scripts/daybook.py`; format in its [README](skills/daybook/README.md)); `/daily` is the alias |
 | [digest-todolist-picture](skills/digest-todolist-picture/SKILL.md) | turns a photo of a to-do list into shots |
 | [farmer](skills/farmer/SKILL.md) | the repository's helper session: CI, unsticking sessions, servants for fixes |
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |

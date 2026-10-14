@@ -1,0 +1,29 @@
+# Watches of /js-daily: checks an agent session repeats (CronCreate) until `until` holds.
+# A session's cron jobs end with the session, so /js-daily sets every active one up again.
+watches:
+- active: true
+  cron: 0 0,3,6,9,12,15,18,21 * * *
+  every: alle 3 h zur vollen Stunde
+  id: replies
+  prompt: 'Watch replies (daily/watches.yaml), read-only, never send anything. Find every answer to Arvid''s applications
+    since the last run (`newer_than:1d`, ignore what the CRM already holds). Search `newer_than:1d -from:me (Bewerbung
+    OR "your application" OR Vorstellungsgespräch)`; nothing new: answer in one line "keine neuen Antworten (Stand
+    <time>)" and do nothing else. Each new answer: read it, tell Arvid in German who wrote and what they want, add
+    a to-do (`daily_todo.py add ...`). The watch keeps running.'
+  title: Antworten auf meine Bewerbungen (E-Mail)
+  until: the job search ends; Arvid stops it
+- active: false
+  cron: 0 0,3,6,9,12,15,18,21 * * *
+  every: alle 3 h zur vollen Stunde
+  id: example-reply
+  prompt: 'Watch example-reply (daily/watches.yaml), read-only. Search Gmail: `from:example.com after:2026/10/12`.'
+  title: Antwort von Example auf die E-Mail vom 12.10.
+  until: superseded 2026-10-14 by replies
+- active: true
+  cron: '*/30 9-17 * * 1-5'
+  every: alle 30 min werktags
+  id: profile
+  prompt: "Watch profile (daily/watches.yaml), read-only: open the profile page once; still restricted = the text\
+    \ contains \"Ihr Profil verstößt\"; free: tell Arvid.\tDone."
+  title: Profil wieder frei? (Sperrhinweis, Antwort auf den Einspruch)
+  until: the profile is free
