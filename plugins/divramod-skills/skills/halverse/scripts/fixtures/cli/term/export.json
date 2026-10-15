@@ -1,0 +1,63 @@
+{
+  "file": "voiceink-import.json",
+  "vocabulary": 59,
+  "replacements": 9,
+  "problems": [
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 81,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    }
+  ]
+}

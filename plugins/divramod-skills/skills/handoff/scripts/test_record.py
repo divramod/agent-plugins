@@ -109,6 +109,30 @@ class RecordHandoffTest(unittest.TestCase):
         self.assertIn("\nbranch: main\n", text)
         self.assertEqual(self.checked(), "ok")
 
+    @unless_brief_refused
+    def test_stamp_keeps_the_masterplan_and_row_of_a_plan_of_one_under_the_heading(self):
+        self.run_in(sys.executable, str(PLAN), "new", "Masterplan farm", "--masterplan")
+        out = self.run_in(sys.executable, str(PLAN), "new", "tools", "--parent", "1").stdout
+        handoff = (self.repo / json.loads(out)["path"]).parent / "handoff.md"
+        line = "Row 1 of [masterplan 0001](../0001-masterplan-farm/plan.md)"
+        self.assertEqual(self.script("where.py", "--stamp").stdout.strip(), "plans/0002-tools/handoff.md")
+        self.assertEqual(handoff.read_text().split("\n---\n", 1)[1].splitlines()[1:5],
+                         ["# Handoff of plan 0002", "", line + ".", ""])
+        self.assertEqual(self.checked(), "ok")
+        # /handoff rewrote the body: the line is back, once; a stale row is corrected, the writer's words stay
+        text = handoff.read_text()
+        handoff.write_text(text.replace(line + ".\n\n", ""))
+        self.script("where.py", "--stamp")
+        self.assertEqual(handoff.read_text(), text)
+        handoff.write_text(text.replace(line + ".", line.replace("Row 1", "Row 9") + ", run by field 09's foreman."))
+        self.script("where.py", "--stamp")
+        self.script("where.py", "--stamp")
+        self.assertEqual(handoff.read_text().count("[masterplan 0001]"), 1)
+        self.assertIn(f"\n\n{line}, run by field 09's foreman.\n\n## Next\n", handoff.read_text())
+        (self.repo / "plans" / "CURRENT_PLAN").write_text("0001-masterplan-farm\n")  # the masterplan's own: no line
+        self.assertEqual(self.script("where.py", "--stamp").stdout.strip(), "plans/0001-masterplan-farm/handoff.md")
+        self.assertNotIn("Row ", (self.repo / "plans" / "0001-masterplan-farm" / "handoff.md").read_text())
+
     def test_since_reads_the_plans_handoff_and_its_at(self):
         self.new_plan()
         self.commit_all("the plan")

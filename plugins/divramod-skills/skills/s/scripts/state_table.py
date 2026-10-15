@@ -30,7 +30,8 @@ def steps_cell(row: dict) -> str:
 
 
 def run_phrase(run: dict) -> str:
-    """`check run queued`, `check run running`, `land run running`: a land run is a `land/` branch or a landing workflow."""
+    """`check run queued`, `check run running`, `land run running`: a land run is a `land/` branch or a landing workflow
+    (`dev-merge-to-main`, before plan 0349 D52 `merge-to-main`, before plan 0263 `land`)."""
     branch, workflow = run.get("branch") or "", (run.get("workflow") or "").lower()
     kind = "land" if branch.startswith("land/") or "land" in workflow or "merge-to-main" in workflow else "check"
     return f"{kind} run {'queued' if run.get('status') in QUEUED else 'running'}"

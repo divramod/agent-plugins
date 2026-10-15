@@ -3,7 +3,10 @@
 
   where.py [--json]     the handoff's path below the repository root (--json: file, form, plan, decisions, questions)
   where.py --stamp      the same, after writing a missing `plans/<plan>/handoff.md` from the plan skill's template
-                        and setting its `updated`, `branch`, `at` (the short sha of HEAD) and `status`
+                        and setting its `updated`, `branch`, `at` (the short sha of HEAD) and `status`; the handoff of
+                        a plan of a masterplan also gets, under its heading, the line `Row <n> of [masterplan
+                        <NNNN>](../<slug>/plan.md)` (hal2 plan 0275 step 5): written when missing, its row and link
+                        kept current, the words after the link left as they are
 
 The current plan (`plans/CURRENT_PLAN`) in the record format (its plan.md has front matter with a `type`): the
 handoff is the plan's committed `plans/<plan>/handoff.md` (form `record`), the decisions index is the plan's ledger
@@ -17,6 +20,7 @@ Exit 0 printed, 2 git missing.
 import argparse
 import datetime as dt
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -27,8 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "plan" / "scripts")
 import checker  # noqa: E402  (the plan skill's)
 import envelope  # noqa: E402
 import folder  # noqa: E402
+import masterplan  # noqa: E402
 
 ROOT_FILE = "HANDOFF.md"
+MASTER_LINE = re.compile(r"^Row \S+ of \[masterplan \d{4}\]\(\.\./[^)\s]+/plan\.md\)")
 
 
 def git(root: Path | None, *args: str) -> str:
@@ -54,8 +60,39 @@ def locate(root: Path) -> dict:
             "questions": rel("questions.md") if plan else "plans/questions.md"}
 
 
+def masterplan_line(plan: Path) -> str | None:
+    """`Row <n> of [masterplan <NNNN>](../<slug>/plan.md)` for a plan of a masterplan: the row that links the plan
+    at `plan` there. None for any other plan, and when this checkout holds no such masterplan or row."""
+    parent = masterplan.parent_of(plan.read_text())
+    row = masterplan.row_of(plan, parent) if parent is not None else None
+    if row is None:
+        return None
+    home = masterplan.find(plan.parent.parent, parent).parent.name
+    return f"Row {row} of [masterplan {parent:04d}](../{home}/plan.md)"
+
+
+def with_masterplan_line(text: str, line: str) -> str:
+    """A handoff's text with `line` between its heading and its first section: a line that starts with such a link
+    is replaced up to the link's end (the words after it are the writer's and stay), else `line` is written as a
+    paragraph of its own."""
+    front, body = envelope.split(text)
+    lines = body.split("\n")
+    h1 = next((i for i, found in enumerate(lines) if found.startswith("# ")), None)
+    if h1 is None:
+        return text
+    end = next((i for i in range(h1 + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    for i in range(h1 + 1, end):
+        if found := MASTER_LINE.match(lines[i]):
+            lines[i] = line + lines[i][found.end():]
+            break
+    else:
+        lines[h1 + 1:h1 + 1] = ["", line + "."]
+    return text[:len(text) - len(body)] + "\n".join(lines)
+
+
 def stamp(root: Path, where: dict) -> None:
-    """A record handoff exists and says when, on which branch and at which commit it was written."""
+    """A record handoff exists and says when, on which branch and at which commit it was written; the handoff of a
+    plan of a masterplan names its row there."""
     if where["form"] != "record":
         return
     plan = root / where["plan"]
@@ -68,6 +105,8 @@ def stamp(root: Path, where: dict) -> None:
                        ("at", envelope.quote(git(root, "rev-parse", "--short", "HEAD") or "none")),
                        ("status", "closed" if closed else "open")):
         text = envelope.set_key(text, key, value)
+    if line := masterplan_line(plan):
+        text = with_masterplan_line(text, line)
     path.write_text(text)
 
 

@@ -1,13 +1,16 @@
 """Plan names are short (the global record plan-names-are-short): the slug after a plan's number has at most four
-words; a research plan's `research-` does not count. `plan.py new` refuses a longer title, `plan.py check` reports a
-longer slug of a plan that has not landed (its plan file is not on the default branch; without one, only the current
-plan counts). Landed plans keep their names."""
+words; a research plan's `research-` and a masterplan's marker (masterplan.py) name the plan's kind and do not count.
+`plan.py new` refuses a longer title, `plan.py check` reports a longer slug of a plan that has not landed (its plan
+file is not on the default branch; without one, only the current plan counts). Landed plans keep their names."""
 import re
 import subprocess
 from pathlib import Path
 
+import masterplan
+
 MAX_WORDS = 4
 RESEARCH = "research"
+KINDS = (RESEARCH, masterplan.MARKER)
 NUMBER = re.compile(r"^\d{4}-")
 RULE = "plan-names-are-short"
 
@@ -18,10 +21,10 @@ class NameTooLong(Exception):
 
 def words(name: str, numbered: bool = False) -> list[str]:
     """The words of a title, or of a slug with its number (`numbered`: `0293-brief-and-sprout`); a leading
-    `research` does not count."""
+    `research` or masterplan marker does not count."""
     found = re.sub(r"[^a-z0-9]+", "-", NUMBER.sub("", name.lower()) if numbered else name.lower()).strip("-").split("-")
     found = [w for w in found if w]
-    return found[1:] if found[:1] == [RESEARCH] else found
+    return found[1:] if found[:1] and found[0] in KINDS else found
 
 
 def too_long(name: str, numbered: bool = False) -> bool:

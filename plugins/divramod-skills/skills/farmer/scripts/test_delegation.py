@@ -26,10 +26,13 @@ class Ledger(unittest.TestCase):
         self.calls = []
 
         self.free = []
+        self.transplants = None  # the records `worktree transplants --json` prints; None: a CLI without the command
         self.live = {"model": "claude-opus-5-5", "effort": "medium"}  # what session.py reads in a reused session
 
         def call(argv, cwd):
             self.calls.append(argv)
+            if argv[:3] == ["hal2-cli-git", "worktree", "transplants"]:
+                return (0, json.dumps({"transplants": self.transplants})) if self.transplants is not None else (2, "")
             if argv[:2] == delegation.FREE:
                 return 0, json.dumps({"worktrees": self.free})
             if argv[:2] == delegation.SESSION:
@@ -145,6 +148,49 @@ class Delegation(Ledger):
         delegation.delegate(flaky(), MAIN, 5, False, NOW)
         busy = {"18": {"plan": "0120-fix-t", "ahead": 2}}
         self.assertEqual(delegation.follow_up(MAIN, busy, 5, False, NOW + dt.timedelta(hours=2)), [])
+
+    def moved(self, minutes=5, state="arrived"):
+        """A transplant of slot 18 to 09 driven `minutes` after the servant started, in the record's UTC form."""
+        driven = (NOW.astimezone() + dt.timedelta(minutes=minutes)).astimezone(dt.timezone.utc).isoformat()
+        return {"id": "t1", "from": "18", "to": "09", "state": state, "driven": driven}
+
+    def test_a_transplanted_servant_runs_on_in_the_target_not_landed(self):
+        """Plan 0286 D26: the old field has no plan and no commits ahead, but its foreman moved to 09."""
+        delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        self.transplants = [self.moved()]
+        later = NOW + dt.timedelta(hours=2)
+        done = delegation.follow_up(MAIN, {"18": {"plan": "", "ahead": 0}}, 5, False, later)
+        self.assertEqual([(d["key"], d["state"], d["slot"], d["from"]) for d in done],
+                         [("flaky:t", "running", "09", "18")])
+        self.assertEqual([c for c in self.calls if c[:len(delegation.STOP)] == delegation.STOP], [])
+        held = delegation.ledger(MAIN)["flaky:t"]
+        self.assertEqual((held["state"], held["slot"], held["from"], held["title"]),
+                         ("running", "09", "18", "disable the load-flaky test t"))
+        log = [json.loads(x) for x in (self.tmp / "hal2" / "log.jsonl").read_text().splitlines()]
+        self.assertEqual([(e["kind"], e["slot"]) for e in log], [("delegate", "18"), ("transplant", "09")])
+        # the next round reads the target: its plan keeps it running; later, the target landing is a landing
+        self.assertEqual(delegation.follow_up(MAIN, {"09": {"plan": "0120-x", "ahead": 1}}, 5, False, later), [])
+        done = delegation.follow_up(MAIN, {"09": {"plan": "", "ahead": 0}}, 5, False, later + dt.timedelta(hours=2))
+        self.assertEqual([(d["state"], d["slot"]) for d in done], [("landed", "09")])
+        self.assertIn(delegation.STOP + ["09", "--repo", MAIN], self.calls)
+
+    def test_a_dry_round_reports_the_move_and_writes_nothing(self):
+        delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        self.transplants = [self.moved()]
+        done = delegation.follow_up(MAIN, {}, 5, True, NOW + dt.timedelta(hours=2))
+        self.assertEqual([d["slot"] for d in done], ["09"])
+        self.assertEqual(delegation.ledger(MAIN)["flaky:t"]["slot"], "18")
+
+    def test_a_landed_field_is_recorded_landed_as_before(self):
+        delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        for transplants in (None, [], [self.moved(-30)], [self.moved(5, "prepared")], [dict(self.moved(), **{"from": "07"})]):
+            self.transplants = transplants
+            done = delegation.follow_up(MAIN, {"18": {"plan": "", "ahead": 0}}, 5, True, NOW + dt.timedelta(hours=2))
+            self.assertEqual([(d["state"], d["slot"]) for d in done], [("landed", "18")], transplants)
+        self.transplants = None
+        done = delegation.follow_up(MAIN, {"18": {"plan": "", "ahead": 0}}, 5, False, NOW + dt.timedelta(hours=2))
+        self.assertEqual(delegation.ledger(MAIN)["flaky:t"]["state"], "landed")
+        self.assertIn(delegation.STOP + ["18", "--repo", MAIN], self.calls)
 
 
 class ServantSlots(Ledger):

@@ -14,8 +14,10 @@ HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a forema
 
 In a parallel plan's servant worktree (skills plan 0013: `plans/LEAD` holds `<lead-slot> <plan> <step>`) it adds
 `lead` ({slot, plan, step}) to the JSON and a `foreman:` line to the text: `/handoff c` there continues that one step
-only, never the plan and never a landing. A malformed marker still marks the worktree: `lead` is {bad: true, error,
-text} and the text says `foreman: broken marker ...`.
+only, never the plan and never a landing. A masterplan's servant (hal2 plan 0275 D26: the marker names the masterplan
+and its row) continues the plan of that row instead: `lead` gains `row_plan`, the plan the row links (null when this
+checkout's copy names none). A malformed marker still marks the worktree: `lead` is {bad: true, error, text} and the
+text says `foreman: broken marker ...`.
 
 `--check` validates HANDOFF.md's Decisions section after /handoff wrote it: the section exists (`- none` when the
 work holds no user decision) and every line is `- <YYYY-MM-DD> "<the user's words>" (<who relayed it>) · home: <plan |
@@ -198,13 +200,24 @@ def lead_of(root: Path) -> dict | None:
     parts = text.split()
     if len(parts) < 3 or not re.fullmatch(r"\d\d", parts[0]):
         return {"bad": True, "text": text, "error": f"plans/LEAD is not `<lead-slot> <plan> <step>`: '{text}'"}
-    return {"slot": parts[0], "plan": parts[1], "step": parts[2]}
+    lead, kind = {"slot": parts[0], "plan": parts[1], "step": parts[2]}, where.masterplan
+    master = root / "plans" / parts[1] / kind.MAIN
+    # the slug says "may be a masterplan"; where this checkout holds the plan, its front matter decides
+    if kind.has_marker(parts[1]) and (not master.is_file() or kind.of(master)):
+        rows = kind.rows(kind.read(master)) if master.is_file() else []
+        lead["row_plan"] = next((r["plan"] for r in rows if r["number"] == parts[2]), None)
+    return lead
 
 
 def lead_line(lead: dict) -> str:
     if lead.get("bad"):
         return (f"foreman: broken marker ({lead['error']}): still a servant, never the plan, never a landing; ask "
                 "the foreman to rewrite plans/LEAD")
+    if "row_plan" in lead:
+        plan = lead["row_plan"] or "which this checkout's copy of the masterplan does not name"
+        return (f"foreman: worktree {lead['slot']}, masterplan {lead['plan']}, row {lead['step']}: a servant, "
+                f"continue the plan of that row, {plan}, each of its steps in a hand (never another row, never a "
+                "Status cell, never a landing)")
     return (f"foreman: worktree {lead['slot']}, plan {lead['plan']}, step {lead['step']}: a servant, continue that one "
             "step only (never the plan, never a landing)")
 

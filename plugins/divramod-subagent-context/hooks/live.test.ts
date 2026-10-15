@@ -8,8 +8,9 @@ const entry = (name: string) => ({ name, kind: 'file' as const, size: 10, mtimeM
 const file = (pid: number, name: string, cwd: string) => JSON.stringify({ pid, sessionId: `S${pid}`, cwd, name, kind: 'interactive', status: 'idle', startedAt: 0 })
 const DIR = '/h/.claude/sessions'
 
-// Three session files (pid 13's process is gone), the pane open or closed, and every process the mod starts recorded;
-// with `hold` a process waits until `free()` lets it go.
+// Three session files (pid 13's process is gone), the pane open or closed, and every process the mod starts recorded
+// (`plans`: the masterplan's `hal2-cli-plans`, which follows a refresh on the plans tab; `runs`: every other one); with
+// `hold` a process waits until `free()` lets it go.
 const world = ($: Engine, on: On, hold = false) => {
   const clock = mock.clock(on)
   mock.env(on, { HOME: '/h' })
@@ -19,10 +20,11 @@ const world = ($: Engine, on: On, hold = false) => {
     [`${DIR}/13.json`]: file(13, 'gone', '/w/worktree/hal2/05'),
     '/w/worktree/hal2/03/plans/CURRENT_PLAN': '0222-publish\n',
   }
-  const state = { up: false, runs: [] as (readonly string[])[], lists: 0, waiting: [] as (() => void)[] }
+  const state = { up: false, runs: [] as (readonly string[])[], plans: [] as (readonly string[])[], lists: 0, waiting: [] as (() => void)[] }
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.usage', () => ({ value: { context: { window: 1_000_000 } } as never }))
   on('session.id', () => ({ value: 'S11' }))
+  on('session.cwd', () => ({ value: '/w/worktree/hal2/03' }))
   on('command.register', () => ({ value: undefined as never }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -40,7 +42,8 @@ const world = ($: Engine, on: On, hold = false) => {
     return { value: files[e.path]! }
   })
   on('process.run', async (_$, e) => {
-    state.runs.push(e.argv)
+    const seen = e.argv[0] === 'hal2-cli-plans' ? state.plans : state.runs
+    seen.push(e.argv)
     if (hold) await new Promise<void>(done => state.waiting.push(done))
     return { value: { exitCode: e.argv.at(-1) === '13' ? 1 : 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -72,6 +75,7 @@ test('with several session files every started process names exactly one pid', a
     expect(pids(argv)).toHaveLength(1)
   }
   expect(state.runs.map(argv => pids(argv)[0]).sort()).toEqual(['11', '12', '13'])
+  expect(state.plans).toEqual([])
 })
 
 test('a refresh that still waits for its process starts no second one: not by a tick, not by a tab switch', async ($, on) => {
@@ -84,12 +88,13 @@ test('a refresh that still waits for its process starts no second one: not by a 
   await clock.advance(PACE)
   await clock.advance(PACE)
   expect(state.runs).toHaveLength(1)
-  expect(state.lists).toBe(1)
+  expect([state.lists, state.plans.length]).toEqual([1, 0])
   await free()
-  expect(state.runs).toHaveLength(3)
+  // The masterplan follows the refresh in its turn, once: the pane shows the plans tab by now.
+  expect([state.runs.length, state.plans.length]).toEqual([3, 1])
   // Once it has ended, the next tick refreshes again.
   await clock.advance(PACE)
-  expect(state.runs).toHaveLength(6)
+  expect([state.runs.length, state.plans.length]).toEqual([6, 2])
   await ui.unmount()
 })
 
@@ -116,6 +121,8 @@ test('a tick with the pane closed, or on the subagents or jobs tab, starts no pr
   state.up = false
   await clock.advance(2 * PACE)
   expect([state.runs.length, state.lists]).toEqual([9, 3])
+  // The masterplan was never asked: the plans tab never showed.
+  expect(state.plans).toEqual([])
   await ui.unmount()
 })
 

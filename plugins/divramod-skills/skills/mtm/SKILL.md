@@ -1,6 +1,6 @@
 ---
 name: mtm
-description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `land.yml`, its older name) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). In a repository with a working wagon master (`scripts/wagon-master.sh` prints `yes`) it does not land itself: it commits and pushes, reports the worktree ready (`hal2-cli-git worktree queue ready`, the hitch) and goes on working; the wagon master's train lands it, and after its "in the barn" the session merges the default branch in, finishes the plan and cleans up. Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the merge-to-main boss (the wagon master's, in a repository without one the farmer's) tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a worktree with a stale plans/LEAD never lands. `/mtm h` shows help.
+description: merge-to-main — land the current git worktree's branch on the default branch (main, master, ...) in any repository, so several worktrees can work in parallel. Commits and pushes all work first (gitignores junk, never commits secrets, asks about unclear files). In a repository with `.github/workflows/merge-to-main.yml` (or `dev-merge-to-main.yml`, its newer name, or `land.yml`, its older one) it lands through GitHub Actions: hal2-cli-git takes the worktree's turn in the merge queue, merges the default branch in, pushes the candidate to `land/<slot>` with the landing's pull request and waits until that workflow has tested it and fast-forwarded the default branch; on a red job it reads the log, reproduces it with `gate/main.sh <job>`, fixes, commits and lands again until the PR is merged. Elsewhere it reserves the merge queue, merges the default branch in, runs the repo's local gates, lands one --no-ff merge commit and pushes, fixing conflicts and failing gates itself while its failed landing holds the queue. Either way it resets the worktree to the new default branch and deletes the side branches it merged (e.g. 07-ui), keeps the queue reserved to finish the current plan (steps checked only after the landing), lands that too and only then releases it, so the worktree ends with nothing that is not on the default branch, then deletes its build artifacts (the cleanup skill, `.hal/cleanup`) and ends with what landed (the plan and its steps, or the shot). In a repository with a working wagon master (`scripts/wagon-master.sh` prints `yes`) it does not land itself: it commits and pushes, reports the worktree ready (`hal2-cli-git worktree queue ready`, the hitch) and goes on working; the wagon master's train lands it, and after its "in the barn" the session merges the default branch in, finishes the plan and cleans up. Only ever started by the user in this session, by the plan skill when a plan the user started (`Landing: auto`) has finished its last step, or when the merge-to-main boss (the wagon master's, in a repository without one the farmer's) tells the session to land now. Use when the user says /mtm, "merge to main", "land this worktree" or "ship it to main". `/mtm milestone` lands a parallel plan's milestone row (queue released, CURRENT_PLAN kept, no cleanup); a landing runs only in a plan's coordinator session, never in a subagent, and a servant's field (plans/LEAD) never lands. `/mtm h` shows help.
 ---
 
 # mtm
@@ -73,9 +73,11 @@ you") before asking. A landing that went through only reports.
 worktree), the worktree for `/mtm <slot>` (a bare worktree name such as `31` resolves through `git worktree list` to the
 worktree of that folder name; a directory works too, e.g. the `path` of that name in
 `hal2-cli-git worktree list --json`; exit 3: no such worktree, report it). A plan's steps run in subagents of the coordinator, which does the landing itself
-([plan](../plan/SKILL.md)); a subagent never starts `/mtm`. In a worktree that still holds a stale `plans/LEAD` (the
-plan skill's "A stale `plans/LEAD`" note, a former servant's worktree) the guard exits 1 and names the foreman; then stop
-with that message, whoever asked (the user, a plan, the farmer). The guard and its test stay (plan 0015 D12). Elsewhere it prints nothing and the landing goes on.
+([plan](../plan/SKILL.md)); a subagent never starts `/mtm`. In a servant's field (it holds its foreman's marker
+`plans/LEAD`: the plan skill's [Work as a servant](../plan/SKILL.md#work-as-a-servant)) the guard exits 1,
+names the foreman and says what the servant does instead (commit, push, report: the foreman merges its branch, marks
+the steps and brings the work in); then stop with that message, whoever asked (the user, a plan, the farmer), and
+never delete the marker. The guard and its test stay (plan 0015 D12). Elsewhere it prints nothing and the landing goes on.
 
 **A repository with a wagon master: hitch, never land.** Next, `bash $S/wagon-master.sh [<dir>]` (the worktree that
 would land; hal2 plan 0294) prints `yes` when the repository has a working wagon master: its worktree
@@ -86,15 +88,16 @@ stderr) in a repository without one, at every doubt (a wagon master that is down
 wagon master's own worktree, which lands itself: go on below, as ever. [mtm-fastlane](../mtm-fastlane/SKILL.md)
 never hitches: it is unchanged.
 
-**Through CI or locally.** `bash $S/landing-mode.sh` prints `ci` when `.github/workflows/merge-to-main.yml` or
-`land.yml` (the same workflow's name before hal2 plan 0263) is in this
+**Through CI or locally.** `bash $S/landing-mode.sh` prints `ci` when `.github/workflows/dev-merge-to-main.yml`,
+`merge-to-main.yml` (its name before hal2 plan 0349) or `land.yml` (before plan 0263) is in this
 worktree's `HEAD` or in origin's default branch: the landing then runs through GitHub Actions; read
 [references/ci.md](references/ci.md) and follow it in place of steps 1, 3 and 4 (steps 2 and 5 to 8 stay). First
-`bash $S/check-landing-cli.sh`: exit 8 means the installed hal2-cli-git does not know `merge-to-main.yml` and would
+`bash $S/check-landing-cli.sh`: exit 8 means the installed hal2-cli-git does not know the repository's newest name
+(`dev-merge-to-main.yml` or `merge-to-main.yml`) and would
 land this worktree as a plain merge, untested: nothing lands, stop and tell the user what it printed; the same
 guard stands in front of every `merge-to-main` of that page. Before it
-lands, it reserves the queue and `bash $S/land-runs.sh` waits until no `merge-to-main.yml` or `land.yml` run is
-unfinished (`gh run list --workflow <file>` for both, queued runs too), again before a rerun with a new candidate
+lands, it reserves the queue and `bash $S/land-runs.sh` waits until no run of any of the three names is
+unfinished (`gh run list --workflow <file>` for each, queued runs too), again before a rerun with a new candidate
 (exit 3 or 4), never before an
 exit-6 rerun ([references/ci.md](references/ci.md#land)). Otherwise
 the steps below land locally.
@@ -291,6 +294,17 @@ and lands before anything else, so no commit is left behind on the worktree bran
    `... (plan <NNNN> step <n>)`, no context check, no handoff); when it fails, fix it (commit) or, when you cannot,
    leave the step open and say so in the report. Steps that need more work than a check stay open: the plan goes
    on after this `/mtm`.
+
+   **A masterplan** (`plan.py current` says `masterplan` true, or `parent` and `row` for a plan of one; hal2 plan
+   0275). The `plan.py status <n> done` that finishes a plan's last step ticks that plan's row in the masterplan
+   itself (`tick` in its JSON: the masterplan, the row, `masterplan_finished`); never type that tick, name the row in
+   the report, and the masterplan's `plan.md` goes into the step's commit. `tick_skipped` says why a row was not
+   ticked (the masterplan's folder is not in this checkout, no row links the plan, a row's cells are not its
+   header's): put that right first, else the rule `masterplan-rows` stops the finish landing. The landing may have
+   carried more than the current plan (a wagon of several plans, a servant's plan this foreman brings in): `python3
+   <plan-skill-dir>/scripts/plan.py masterplan --json` lists under `after_landing` every plan of the masterplan
+   whose open steps are all after-landing steps, with those steps. Finish each of them as above, the current plan
+   first, the others with `--plan <plan>` (each step's done-when stands in that plan's table), one commit per step.
 2. Anything else still uncommitted in the worktree: [step 2](#2-commit-and-push-everything) (commit, push).
 3. `git log --oneline <default>..HEAD` lists what is not landed yet:
    - commits: push, back to [step 4](#4-land) **without `--keep-reserved`** (`merge-to-main` takes the
@@ -312,22 +326,32 @@ gitignored). First keep **What landed** for the report's last lines (step 8), si
 - a shot (`<shotfile>/<n>[/<title-slug>]`) or a task name: that name;
 - missing or empty: nothing.
 
-Then delete the file when the landed work is finished:
+Then the plan skill says what the file holds from now on, as code: never delete or write it by hand. A field that
+does not carry on with the masterplan (it ran one plan of it and is done) says so with `plan.py leave --release`, in
+place of the call below or after it: the file is deleted and the field counts as free again (hal2 plan 0275 D36).
 
-- it names a shot (`<shotfile>/<n>/<title-slug>`) or a task name: the work has landed, delete it;
-- it names a plan (`<NNNN>-<slug>`): delete it when every step is done (`python3 <plan-skill-dir>/scripts/plan.py
-  current` shows `done` equal to `total`, the `plan` skill next to this one); a plan with open steps keeps it;
-- missing or empty: nothing to do.
+```bash
+python3 <plan-skill-dir>/scripts/plan.py leave    # {was, current, action, line}
+```
 
-When it was deleted, delete the root `HANDOFF.md` too (the session state of the finished work), unless git tracks
-it. A plan's own `plans/<plan>/handoff.md` is a committed record of the plan folder and stays: `plan.py status`
-closed it with the plan's last step.
+- `deleted`: the landed work is finished and the file is gone: it named a shot (`<shotfile>/<n>/<title-slug>`) or a
+  task name, or a plan with every step done that belongs to no unfinished masterplan (a masterplan's last plan too),
+  or `--release` freed the field;
+- `masterplan`: the plan is finished and its masterplan is not: the file names the masterplan now. The field goes on
+  with the masterplan's next plan (`/handoff c` takes it up) and step 7 does not clean it (hal2 plan 0275 D14);
+- `kept`: a plan with open steps, or a masterplan with open rows: the work goes on;
+- `none`: the file was missing or named nothing (an empty one is deleted).
+
+Keep its `line` for the report (step 8). Only when the action is `deleted`, delete the root `HANDOFF.md` too (the
+session state of the finished work), unless git tracks it. A plan's own `plans/<plan>/handoff.md` is a committed
+record of the plan folder and stays: `plan.py status` closed it with the plan's last step.
 
 ## 7. Clean up
 
 Run `bash <skill-dir>/scripts/after-landing.sh` in the worktree (no question). It acts only when the worktree is fully
-landed (`git log <default>..HEAD` empty, no change) and its plan is finished (step 6 deleted `plans/CURRENT_PLAN`), in
-a numbered worktree 00-99, and runs the [cleanup](../cleanup/SKILL.md) skill's `busy` then `delete` there: the build
+landed (`git log <default>..HEAD` empty, no change) and its plan is finished (step 6's `leave` deleted
+`plans/CURRENT_PLAN`; a file that names a masterplan skips it too and says so: the field keeps its builds for its
+next plan), in a numbered worktree 00-99, and runs the [cleanup](../cleanup/SKILL.md) skill's `busy` then `delete` there: the build
 artifacts the repo's `.hal/cleanup` lists go (generic build folders without the file), what it marks `!` stays (e.g.
 fetched dependencies). It prints `status: cleaned`, `skipped` (with why: after a stop, a cancel, a held queue,
 commits left over or an open plan the rerun would rebuild everything) or `busy` (a build or test still runs: name the
@@ -341,7 +365,7 @@ successful merge and a finished plan"). Note the space freed and any `unknown` r
 One short block: the queue released (or, after a stop, cancel or release, that it no longer holds it), commits landed (`commits`, of every landing of this `/mtm`) and the merge commit(s) (`git -C <main checkout> log --oneline -2`), the plan steps finished after the landing (and any left open, with why),
 `git log --oneline <default>..HEAD` empty and the worktree clean (say so; if not, what is left and why),
 `pushed`, the `tasks` that ran (row and verb; skip `unchanged` and `cached` ones, say how many were cached) and the `hooks`, `warnings` (a failed install, deploy or
-`main-post-commit` hook does not undo the landing: show its output; an allowed failure is a warning, not a fix), whether `plans/CURRENT_PLAN` was deleted (and what it named) and `HANDOFF.md` with it, the cleanup (space freed, or why it was skipped; `unknown` rows to add to `.hal/cleanup`; the farmer told, from 10-99), what was gitignored (secrets named), unclear files and what was decided, conflicts resolved, fixes
+`main-post-commit` hook does not undo the landing: show its output; an allowed failure is a warning, not a fix), what `plan.py leave` did with `plans/CURRENT_PLAN` (what it named, what it names now; `HANDOFF.md` deleted with it), a masterplan's row a finished plan ticked, the cleanup (space freed, or why it was skipped; `unknown` rows to add to `.hal/cleanup`; the farmer told, from 10-99), what was gitignored (secrets named), unclear files and what was decided, conflicts resolved, fixes
 committed. the side branches the landing deleted (`branches_deleted`) and those it kept because they are not merged
 (`branches_kept`: say so, they are left for the user). The worktree now equals the new default branch, without build artifacts, and is ready for the next task. End the report with
 the durations table from the result's `steps` (after a failure or stop too, when it has them): a markdown table
@@ -359,4 +383,5 @@ When the work landed (step 4 exited 0), the very last lines of the message, afte
 
 one line per step of the plan's table, `✓` when done, `○ ... (open)` otherwise; for a shot or a task one line,
 `**Shot <shotfile>/<n>/<title-slug>**` or `**Task <name>**`. Nothing when `CURRENT_PLAN` was missing, and never
-after a stop, a cancel or a queue left held.
+after a stop, a cancel or a queue left held. After them, as the report's last line, the `line` of step 6's `plan.py
+leave` (e.g. that the file names the masterplan now).

@@ -22,6 +22,8 @@ export type World = {
   // The sessions the tabs show now, and their replacement.
   get: () => Promise<readonly SessionRow[]>
   set: (rows: SessionRow[]) => Promise<unknown>
+  // What follows a refresh inside its turn (the masterplan, load.ts): it has ended before the next refresh may start.
+  after?: () => Promise<unknown>
 }
 
 // The command that checks one pid: `kill -0` sends nothing (signal 0), it only asks whether the pid exists. Never a
@@ -36,7 +38,8 @@ export async function alive(w: Pick<World, 'run'>, pid: number) {
 }
 
 // The live sessions of this machine: each `<config>/sessions/<pid>.json` whose process still runs, one check per pid
-// and one at a time, with the plan its folder names. A file or a plan that cannot be read is left out, never an error.
+// and one at a time, with the plan its folder names and the foreman its `plans/LEAD` names. A file or a plan that
+// cannot be read is left out, never an error.
 export async function loadSessions(w: World, config: string, session: string) {
   const dir = `${config}/sessions`
   const out: SessionRow[] = []
@@ -44,7 +47,8 @@ export async function loadSessions(w: World, config: string, session: string) {
     if (f.kind !== 'file' || !/^\d+\.json$/.test(f.name)) continue
     const s = parse(String(await w.read(`${dir}/${f.name}`).catch(() => '')))
     if (!s || !(await alive(w, s.pid))) continue
-    out.push({ ...s, plan: planOf(String(await w.read(`${s.cwd}/plans/CURRENT_PLAN`).catch(() => ''))), here: s.id === session })
+    const plan = planOf(String(await w.read(`${s.cwd}/plans/CURRENT_PLAN`).catch(() => '')))
+    out.push({ ...s, plan, lead: planOf(String(await w.read(`${s.cwd}/plans/LEAD`).catch(() => ''))), here: s.id === session })
   }
   return out
 }
@@ -61,6 +65,7 @@ export const sessionCheck = () => {
     try {
       const next = await loadSessions(w, await w.config(), await w.session())
       if (JSON.stringify(next) !== JSON.stringify(await w.get())) await w.set(next)
+      await w.after?.()
     } catch {
     } finally {
       running = false

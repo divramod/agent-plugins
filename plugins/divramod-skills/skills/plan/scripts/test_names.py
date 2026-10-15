@@ -27,6 +27,11 @@ class WordsTest(unittest.TestCase):
         self.assertEqual(names.words("Research: plugin runtimes"), ["plugin", "runtimes"])
         self.assertEqual(names.words("researcher view"), ["researcher", "view"])
 
+    def test_a_masterplans_marker_does_not_count(self):
+        self.assertEqual(names.words("0274-masterplan-halverse-plugin", True), ["halverse", "plugin"])
+        self.assertEqual(names.words("Masterplan one two three four"), ["one", "two", "three", "four"])
+        self.assertEqual(names.words("the masterplan view"), ["the", "masterplan", "view"])
+
     def test_four_words_pass_five_fail(self):
         self.assertFalse(names.too_long("one two three four"))
         self.assertTrue(names.too_long("one two three four five"))

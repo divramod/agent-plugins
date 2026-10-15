@@ -1,12 +1,14 @@
 import { atom, read, update } from 'claude-code'
 import type { AgentInfo, EngineInterface, Register, TurnStepInput, TurnUsage } from 'claude-code'
 
-import type { JobRow, SessionRow, SubagentRow, TableState, Tab } from '../types'
+import type { JobRow, RollUp, SessionRow, SubagentRow, TableState, Tab } from '../types'
 import { LIMIT, type File, idOf, metaOf, rowOf } from './backfill'
 import { adopt, fill, mark, record } from './rows'
 import { DAYS, parse, serialize } from './store'
 import { agentsGrid, asTable, plansGrid } from './sessions'
 import { CHECK_MS, PACE, type World, sessionCheck } from './live'
+import { type Io, afterRefresh } from './load'
+import { groupsOf } from './masterplan'
 import { jobsGrid, merge, stepType } from './jobs'
 import { bodyOf } from './tabs'
 import { type Filter, isClose, isState, order, stepOf, tabOf, shown, step } from './grid'
@@ -57,6 +59,10 @@ async function stepJobs($: EngineInterface, dir: 'prev' | 'next') {
 // The pane's top-level tab and the sessions of this machine the Plans and Agents tabs list (reloaded every 30 seconds, live.ts).
 const tab = atom({ plugin: 'divramod-subagent-context', key: 'tab' } as const, 'subagents' as Tab)
 const sessions = atom({ plugin: 'divramod-subagent-context', key: 'sessions' } as const, [] as SessionRow[])
+// The plans tab's group "masterplan" (the CLI's roll-up of this session's folder, null when there is none) and the
+// folder it was asked for; the "servants" group is cut from the sessions and this folder.
+const masterplan = atom({ plugin: 'divramod-subagent-context', key: 'masterplan' } as const, null as RollUp | null)
+const home = atom({ plugin: 'divramod-subagent-context', key: 'home' } as const, '')
 // The plans and agents tables' own sort, widths and cursor (the subagents' is `view`).
 const plansView = atom({ plugin: 'divramod-subagent-context', key: 'plansView' } as const, null as TableState | null)
 const agentsView = atom({ plugin: 'divramod-subagent-context', key: 'agentsView' } as const, null as TableState | null)
@@ -74,6 +80,18 @@ async function snapshot($: EngineInterface, e: { background_tasks?: Parameters<t
 
 const configDir = async ($: EngineInterface) => (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
 
+// What follows a refresh of the sessions (load.ts), as closures over `$`: this session's folder and, only while the
+// pane is open on the plans tab (plan 0275 D18), the masterplan.
+const ioOf = ($: EngineInterface): Io => ({
+  cwd: () => $.session.cwd(),
+  run: (argv, init) => $.process.run(argv, init),
+  shown: async () => (await read($, tab)) === 'plans' && (await $.ui.panes()).some(p => p.id === PANE),
+  home: () => read($, home),
+  setHome: cwd => update($, home, () => cwd),
+  get: () => read($, masterplan),
+  set: plan => update($, masterplan, () => plan),
+})
+
 // The session check (live.ts): the first refresh at the start, then only on an open Plans or Agents tab. `$` stays in
 // this file, so the check gets what it needs as functions.
 const check = sessionCheck()
@@ -87,6 +105,7 @@ const world = ($: EngineInterface): World => ({
   tab: () => read($, tab),
   get: () => read($, sessions),
   set: next => update($, sessions, () => next),
+  after: () => afterRefresh(ioOf($)),
 })
 const refresh = ($: EngineInterface) => check.refresh(world($))
 const tick = ($: EngineInterface) => check.tick(world($))
@@ -338,11 +357,12 @@ export const register: Register = (on, options) => {
     const found = await read($, sessions)
     const tabJobs = await read($, jobs)
     const now = current === 'subagents' ? 0 : await $.clock.now()
+    const groups = current === 'plans' ? groupsOf(found, await read($, home), await read($, masterplan), now) : []
     const other = current === 'subagents' ? undefined : bodyOf(current, found, tabJobs, await read($, jobType), { plans: await read($, plansView), agents: await read($, agentsView), jobs: await read($, jobsView) }, await read($, epoch), now)
     const table = tableProps(list, l, await read($, view), await read($, epoch))
     const client = !Client ? undefined : other ? <Client key={`${current}-table`} module="./table-view.tsx" props={other.table} flexGrow={1} /> : <Client key="table" module="./table-view.tsx" props={table} flexGrow={1} />
     // The body is as tall as the pane the surface gave it, so the table grows and shrinks with the window.
-    const data: PaneData = { focused: e.props.isFocused, version: await versionOf($), current, found, jobs: tabJobs, list, l, table: client, other, height: e.props.scroll?.bodyRows, room: Math.max(1, (e.viewport?.rows ?? 24) - 5), columns: e.props.bodyColumns ?? e.viewport?.columns ?? 0 }
+    const data: PaneData = { focused: e.props.isFocused, version: await versionOf($), current, found, jobs: tabJobs, list, l, table: client, other, groups, height: e.props.scroll?.bodyRows, room: Math.max(1, (e.viewport?.rows ?? 24) - 5), columns: e.props.bodyColumns ?? e.viewport?.columns ?? 0 }
     return paneView(el, data, { show: t => show($, t), press: k => press($, l, k), pressSessions: k => pressSessions($, k, current as Exclude<Tab, 'subagents'>), stepJobs: d => stepJobs($, d), close: () => $.ui.close({ id: PANE }) })
   })
 

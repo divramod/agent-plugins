@@ -36,7 +36,7 @@ class PlanTest(unittest.TestCase):
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, cwd=self.root)
 
     def plan(self, *args) -> dict:
         result = self.run_plan(*args)
@@ -421,7 +421,7 @@ echo '{{"slug": "0002-next", "path": "{self.folder}/0002-next/plan.md"}}'
     def run_plan(self, *args) -> subprocess.CompletedProcess:
         env = {"PATH": f"{self.bin}:/usr/bin:/bin"}
         return subprocess.run([sys.executable, str(SCRIPT), "-g", "--global-root", str(self.folder), *args],
-                              capture_output=True, text=True, env=env)
+                              capture_output=True, text=True, env=env, cwd=self.folder)
 
     def plan(self, *args):
         result = self.run_plan(*args)

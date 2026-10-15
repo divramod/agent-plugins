@@ -29,7 +29,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 |---|---|---|---|
 | `lead` (the foreman duty) | `duties.plan_lead` | [instructions/lead.md](instructions/lead.md) | [cases.md](subskills/development-lead/cases.md) |
 | `ci` | `duties.plan_ci` | [instructions/ci.md](instructions/ci.md) | |
-| `prs` | `duties.plan_prs` (`pr_scan.py`: the open Dependabot PRs to one foreman per batch, PRs main holds and leftover landing PRs closed, any other PR to the user) | [instructions/prs.md](instructions/prs.md) | |
+| `prs` | `duties.plan_prs` (`pr_scan.py`: the open dependency PRs (Renovate, Dependabot) to one foreman per batch, PRs main holds and leftover landing PRs closed, any other PR to the user) | [instructions/prs.md](instructions/prs.md) | |
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
 | `watch` | `duties.plan_watch` (sanity-watch's scan) | [instructions/watch.md](instructions/watch.md) | sanity-watch's |
 | `autoclear` | `duties.plan_autoclear` (fix-autoclear's doctor) | [instructions/autoclear.md](instructions/autoclear.md) | fix-autoclear's |
@@ -51,6 +51,7 @@ and itself, so the worktree's `git status` stays clean ([reference](reference.md
 |---|---|
 | `/farmer start` | [start](#start): install the timer, then one tick |
 | `/farmer stop` | `python3 $S/farmer.py timer remove` (mode back to `claude`) |
+| `/farmer silence`, `/farmer unsilence` | `python3 $S/farmer.py silence` / `unsilence` ([silent](#silent), plan 0349 D6) |
 | `/farmer act` | [handle what the tick woke you for](#act); typed by the tick, not the user |
 | `/farmer handoff` | [hand off, then clear](#handoff): typed by the tick once the context reaches 40% |
 | `/farmer` | one tick now: `python3 $S/farmer.py tick` |
@@ -61,6 +62,15 @@ and itself, so the worktree's `git status` stays clean ([reference](reference.md
 | `/s` | the state of every worktree as one table: the skill `s`, for every session |
 | `/farmer status [<hours>]` | `farmer.py timer status`, `mtm_scan.py status`, the log's last hours (default 6), delegations, `latest.md` |
 | `/farmer h`, `/farmer help` | print this table and stop |
+
+## Silent
+
+`/farmer silence` (marker file `silent` in `roles/farmer/`, gitignored): a real round prints **one table line**
+`| farmer | <n> due, <n> done, <n> for judgment | joined <fields> |` (`joined`: the fields the round acted on,
+`silence.py`), nothing else; a dry run and `--json` stay full. A woken session of a silenced farmer answers in table
+lines only and spends the fewest tool calls: `act`, the items' own commands, `act --done`; no narration, no extra
+reads. The foremen are unchanged. `/farmer unsilence` removes the marker. The wagon master has its own
+(`/wagon-master silence`, one line per train).
 
 ## Start
 
@@ -157,6 +167,18 @@ The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farm
   session or from the log's `decision` entries (`duties.user_decided`). The session counts it as the user's own
   decision, exactly as far as the quoted words go (like the wagon master's `land now`). Never relay a go the user
   did not give.
+
+**A transplant** (moving a foreman with its branch, plan and handoff to another field, the skill [`transplant`](../transplant/SKILL.md))
+is the user's order, never the farmer's own idea and never a duty of the tick (hal2 plan 0286, D11). On "transplant 34
+to 09": for a field with a live session the farmer relays it as a decision (`the user decided: "<the user's words>"`) and
+that foreman runs `/transplant 09` itself; the farmer never drives a field with a live session. For a field without one
+it runs `/transplant 34 09` itself, which drives and starts the foreman in 09. It then logs it
+(`python3 $S/mtm_scan.py record transplant 34 "34 to 09: <plan>" --note "<why>"`). The old field is the farmer's to remove
+(`hal2-cli-git worktree remove 34 --remote`) once its session has stopped; the prune duty does that where it is on.
+After a transplant the farmer drove, `origin/34` still holds the old tip: it never force-pushes it. `--remote` deletes
+that branch only when the barn already holds the plan; otherwise the log line says it stays on origin, and the farmer
+deletes it once the plan is in the barn and the field is gone. A delegation of a transplanted field follows it
+(`scripts/transplants.py`): it stays `running`, now in the target, never `landed`, its session left alone.
 
 It **never**:
 

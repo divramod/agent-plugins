@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "invalid-draft",
+    "message": "the draft is refused: `terms` names no term; `definition` line 2 reads as a heading",
+    "detail": {
+      "reasons": [
+        {
+          "field": "terms",
+          "reason": "names no term"
+        },
+        {
+          "field": "definition",
+          "reason": "line 2 reads as a heading"
+        }
+      ]
+    }
+  }
+}

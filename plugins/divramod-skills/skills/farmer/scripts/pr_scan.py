@@ -3,8 +3,8 @@
 
   pr_scan.py scan [--repo <dir>] [--json]
       every open pull request by kind, and findings:
-        dependabot   the open Dependabot PRs, as one batch (one foreman applies them all)
-        superseded   a Dependabot PR main already holds (merging it changes nothing): closed by the tick
+        dependabot   the open dependency PRs (Renovate's, Dependabot's), as one batch (one foreman applies them all)
+        superseded   a dependency PR main already holds (merging it changes nothing): closed by the tick
         land-stale   a landing's PR (land/<slot>) whose worktree has no ticket in the merge queue for a day;
                      `ahead` says how many commits the worktree still holds beyond main
         other        any other open PR (a person's, an app's): the user's to decide
@@ -27,11 +27,16 @@ from ci_scan import main_checkout, parse_time, run, run_json
 FIELDS = "number,title,author,headRefName,headRefOid,createdAt,updatedAt,url,isDraft"
 STALE = 24 * 3600  # a landing PR without a queue ticket this long is left over
 LAND = re.compile(r"land/(.+)")
+# The dependency bots (plan 0349 D51): Renovate (dev-dependabot-updates.yml, as the App hal9k-app or the Renovate
+# App) and Dependabot, by branch prefix or author; their PRs are one kind, still named `dependabot` (the held keys).
+BOT_HEADS = ("dependabot/", "renovate/")
+BOT_LOGINS = ("app/dependabot", "dependabot[bot]", "dependabot", "app/hal9k-app", "hal9k-app[bot]", "app/renovate",
+              "renovate[bot]")
 
 
 def kind_of(pr: dict) -> str:
     head, login = pr.get("headRefName") or "", (pr.get("author") or {}).get("login") or ""
-    if head.startswith("dependabot/") or login in ("app/dependabot", "dependabot[bot]", "dependabot"):
+    if head.startswith(BOT_HEADS) or login in BOT_LOGINS:
         return "dependabot"
     return "landing" if LAND.fullmatch(head) else "other"
 
@@ -42,7 +47,7 @@ def brief_pr(pr: dict) -> dict:
 
 
 def findings(prs: list[dict], queued: set[str], superseded: set[int], ahead: dict[str, int], now: float) -> list[dict]:
-    """The findings of the open PRs. `queued`: worktrees with a merge-queue ticket; `superseded`: Dependabot PRs main
+    """The findings of the open PRs. `queued`: worktrees with a merge-queue ticket; `superseded`: dependency PRs main
     already holds; `ahead`: commits each worktree holds beyond main (absent: no such worktree)."""
     out, deps = [], []
     for pr in sorted(prs, key=lambda p: p["number"]):
@@ -63,7 +68,7 @@ def findings(prs: list[dict], queued: set[str], superseded: set[int], ahead: dic
     if deps:
         nums = ", ".join(f"#{d['number']}" for d in deps)
         out.insert(0, {"kind": "dependabot", "prs": deps, "numbers": [d["number"] for d in deps],
-                       "why": f"{len(deps)} open Dependabot PR(s): {nums}"})
+                       "why": f"{len(deps)} open dependency PR(s): {nums}"})
     return out
 
 

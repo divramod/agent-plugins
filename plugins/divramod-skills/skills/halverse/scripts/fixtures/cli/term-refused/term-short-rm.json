@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "no-short-form",
+    "message": "the glossary has no short form zz",
+    "detail": {}
+  }
+}

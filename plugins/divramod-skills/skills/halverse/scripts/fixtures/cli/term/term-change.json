@@ -1,0 +1,354 @@
+{
+  "dry_run": false,
+  "written": true,
+  "files": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "path": "GLOSSARY.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": null,
+          "line": 71,
+          "last": 71,
+          "lines": [
+            "A ship made fast at its berth, bow and stern."
+          ]
+        }
+      ]
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "path": "GLOSSARY.de.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": "de",
+          "line": 53,
+          "last": 53,
+          "lines": [
+            "Ein Schiff, das an seinem Liegeplatz an Bug und Heck festgemacht ist."
+          ]
+        }
+      ]
+    }
+  ],
+  "backup": "state/backups/20261013T220304489111Z",
+  "check": {
+    "errors": 3,
+    "notes": 16
+  },
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 43,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term logbook is untranslated in German (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 91,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term unloading is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 133,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term tally is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 138,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term stowplan is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": 68,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": 83,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": 82,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 32,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term hail all ships is untranslated in German (the ontology's line 32), Dutch (the ontology's line 32), Portuguese (the ontology's line 32): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term anchor is untranslated in German (the ontology's line 53), Dutch (the ontology's line 53), Portuguese (the ontology's line 53): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 81,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": 67,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    }
+  ],
+  "recovered": [],
+  "unrecovered": [],
+  "voiceink": {
+    "state": "nothing-to-add",
+    "report": {
+      "plan": {
+        "vocabulary": {
+          "added": [],
+          "present": [
+            "pilot",
+            "Lotse",
+            "skipper",
+            "shipmaster",
+            "Schiffer",
+            "deckhand",
+            "cargo",
+            "freight",
+            "Fracht",
+            "logbook",
+            "Logbuch",
+            "knot",
+            "Knoten",
+            "knüpfen",
+            "kappen",
+            "KRT",
+            "Kursprotokoll",
+            "drill",
+            "drillen",
+            "self drill",
+            "selbst drillen",
+            "QA9",
+            "lashing",
+            "tie-up",
+            "Festmachen",
+            "harbour",
+            "Hafen",
+            "berth",
+            "slip",
+            "Liegeplatz",
+            "dock",
+            "unloading",
+            "landfall",
+            "Anlandung",
+            "anlanden",
+            "ash",
+            "run the blockade",
+            "durchbrechen",
+            "lock gate",
+            "Schleusentor",
+            "TOP7",
+            "tally",
+            "Zählliste",
+            "stowplan",
+            "tugboat",
+            "tie",
+            "cut loose",
+            "anchor",
+            "sign off",
+            "resume",
+            "Frachtgut",
+            "seaverse",
+            "skippers",
+            "PortMap",
+            "chart.js",
+            "ROUTES.md",
+            "portmap9",
+            "Quay Code",
+            "Tidewell",
+            "berths"
+          ],
+          "refused": []
+        },
+        "replacements": {
+          "added": [],
+          "extended": [],
+          "present": [
+            {
+              "word": "seaverse",
+              "heard": [
+                "seeverse",
+                "sea verse"
+              ]
+            },
+            {
+              "word": "skippers",
+              "heard": [
+                "skip hers",
+                "skippars"
+              ]
+            },
+            {
+              "word": "PortMap",
+              "heard": [
+                "port map"
+              ]
+            },
+            {
+              "word": "chart.js",
+              "heard": [
+                "chartjs",
+                "chart js"
+              ]
+            },
+            {
+              "word": "portmap9",
+              "heard": [
+                "how map nine"
+              ]
+            },
+            {
+              "word": "Quay Code",
+              "heard": [
+                "key code"
+              ]
+            },
+            {
+              "word": "berth",
+              "heard": [
+                "birth place"
+              ]
+            },
+            {
+              "word": "berths",
+              "heard": [
+                "birth places"
+              ]
+            },
+            {
+              "word": "lashing",
+              "heard": [
+                "lash in",
+                "lasching"
+              ]
+            }
+          ],
+          "refused": [
+            {
+              "word": "portmap9",
+              "heard": "port map nine",
+              "reason": "overlap",
+              "detail": "overlaps port map of PortMap"
+            },
+            {
+              "word": "portmap9",
+              "heard": "port map 9",
+              "reason": "overlap",
+              "detail": "overlaps port map of PortMap"
+            }
+          ]
+        }
+      },
+      "changed": false,
+      "backup": null
+    },
+    "message": null
+  },
+  "remarks": []
+}

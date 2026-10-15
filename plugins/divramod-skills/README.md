@@ -29,6 +29,16 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
     warns (exit 0), `--check` exits 1 naming each unlinked skill, `--quiet` prints only changes.
 - `skills/<name>/`: one skill each, its `SKILL.md` (what the agent reads), its `scripts/` (with tests), templates and
   references.
+  - `skills/halverse/scripts/`: [halverse.py](skills/halverse/scripts/halverse.py) is the command line (its parser:
+    `halverse_args.py`). [cli.py](skills/halverse/scripts/cli.py) makes every call of `hal2-cli-halverse --json` (a
+    term's document on its stdin, the CLI's error object for the caller); on it `sources.py` (the terms and the
+    ontology as data), `ontology.py`, `check.py` (`/hv check`), `prompt.py` (the correction prompt) and
+    [term.py](skills/halverse/scripts/term.py) (`/hv add|change|retire|short`: the fit, the dry run with its proposal
+    number, the one writing call that needs that number, the short forms) with `term_report.py` (the lines per file,
+    the report, VoiceInk's state) and `term_errors.py` (an advice per error code). `voiceink.py` calls
+    `hal2-cli-voiceink` (sync, status, restore, export); `learn.py` and `transcripts.py` count the user's own prompts
+    by `pairs.json`. The tests run on `fake_cli.py`, a fake CLI printing `fixtures/cli/` (`contract/`, `sources/`,
+    `term/`, `term-refused/`, the answers recorded by its `make.sh` from the built CLIs; `documents/` the terms).
 
 | Skill | What it does |
 |---|---|
@@ -43,11 +53,11 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [create-worktree-session](skills/create-worktree-session/SKILL.md), [delete-worktree-session](skills/delete-worktree-session/SKILL.md) | start or stop an agent session in a worktree |
 | [daybook](skills/daybook/SKILL.md), [daily](skills/daily/SKILL.md) | the farm's daily chores, open ones carried on, with its plans and watches (`scripts/daybook.py`; format in its [README](skills/daybook/README.md)); `/daily` is the alias |
 | [digest-todolist-picture](skills/digest-todolist-picture/SKILL.md) | turns a photo of a to-do list into shots |
-| [farmer](skills/farmer/SKILL.md) | the repository's helper session: CI, unsticking sessions, servants for fixes |
+| [farmer](skills/farmer/SKILL.md) | the repository's helper session: CI, unsticking sessions, servants for fixes; `silence` / `unsilence` (`scripts/silence.py`, also the wagon master's): one table line per round with a joined column |
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
 | [fix-loc](skills/fix-loc/SKILL.md) | the loop that brings files under 300 code lines |
 | [grill](skills/grill/SKILL.md) | questions a plan until every branch is decided |
-| [halverse](skills/halverse/SKILL.md) | shows the user's ontology, counts old words against farm words and syncs the words into VoiceInk (`/hv`) |
+| [halverse](skills/halverse/SKILL.md) | `/hv`: shows the ontology (`ontology`), checks the halverse files (`check`), adds, changes and retires a term in four languages (`add`, `change`, `retire`), sets short forms (`short`), counts old words against farm words (`learn`), syncs VoiceInk, prints its correction prompt and writes its import file (`voiceink [status\|restore\|prompt\|export]`) |
 | [handoff](skills/handoff/SKILL.md) | writes the handoff before a clear and continues from it |
 | [list-free-worktrees](skills/list-free-worktrees/SKILL.md) | lists the idle worktree sessions |
 | [mfm](skills/mfm/SKILL.md), [mtm](skills/mtm/SKILL.md), [mtm-fastlane](skills/mtm-fastlane/SKILL.md) | merge from main, land on main, land without CI |
@@ -56,7 +66,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [s](skills/s/SKILL.md) | prints the state of every worktree as one table, the session's own row marked (`scripts/state.py`, `state_sources.py`, `state_table.py`, `farmer_link.py`) |
 | [sanity-watch](skills/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [tell](skills/tell/SKILL.md) | summarizes a URL, file or topic into a note |
-| [wagon-master](skills/wagon-master/SKILL.md) | the third base role: brings the foremen's ready wagons through the merge queue into the barn as wagon trains, with its own field, timer, message board and yard job; the farmer's frame (`farmer/scripts`) runs its rounds; its scripts: `wagon_master.py`, `trains.py`, `trial.py`, `engine.py`, `train_state.py`, `board.py` (`list`, `sync`), `yard.py`, `yard_rules.py`, `yard_report.py`, `boss.py` |
+| [transplant](skills/transplant/SKILL.md) | moves a foreman with its branch, plan and handoff to another field; only the user starts it (`.adr/transplant-by-command.md`) |
+| [wagon-master](skills/wagon-master/SKILL.md) | the third base role: brings the foremen's ready wagons through the merge queue into the barn as wagon trains, with its own field, timer, message board and yard job; the farmer's frame (`farmer/scripts`) runs its rounds; its scripts: `wagon_master.py`, `trains.py`, `trial.py`, `stack_red.py` (a red stack-test after the merge), `engine.py`, `train_state.py`, `board.py` (`list`, `sync`), `yard.py`, `yard_rules.py`, `yard_report.py`, `boss.py` |
 
 ## Rules
 

@@ -25,6 +25,18 @@ Install it (more in that repository's README):
 - **Close**: `q` while the pane has the keyboard, the `close` button, or `ctrl+x x`.
 - **Tabs**: subagents (`s`), plans (`p`), agents (`a`) and jobs (`b`); sort by a header, drag a border to resize,
   `h` / `l` switch the filter, `j` / `k` move a row.
+- **Plans tab, two groups above its list** (plan 0275), each only where it has rows:
+  - **The masterplan** of this session's folder: one line `<crop glyph> <number> · 2/17 plans · 19/147+ steps`, then a
+    row per plan with its number, the plan, the field it runs in (`-` when none), its steps `done/total`, its status
+    (`done`, `running`, `next`, `draft`, `blocked`) and its Needs. It needs hal2: the mod runs `hal2-cli-plans
+    masterplan --repo <folder> --json` (3 s timeout) once per reload of the sessions, only while the pane is open and
+    shows the plans tab; without the binary, an older one or a folder with no masterplan the group is absent.
+  - **Servants of this field**: the sessions of this repository whose `plans/LEAD` (`<foreman's field> <plan> <step>`)
+    names this session's field, with the plan they do, the step, that step's status, the plan's `done/total`, their
+    state and age. For a servant of a masterplan (the marker names the masterplan's slug and the row) the step and the
+    numbers come from the same JSON, no second process, and the masterplan group shows its field in the row; any other
+    marker, or no hal2, gives the marker's plan and step with the two status cells empty. The mod never reads a plan's
+    step table.
 - **Remembered rows**: kept in `~/.claude/divramod-subagent-context/rows-<folder>.json` (300 rows, 14 days) so a
   `/clear` keeps them.
 - **Options** (`/plugin`, the mod's configuration): `window` (`auto`, `200k`, `1m`), `warn_percent` (30),
@@ -45,7 +57,11 @@ Install it (more in that repository's README):
     row from its steps and its transcript.
   - [sessions.ts](hooks/sessions.ts), [jobs.ts](hooks/jobs.ts): the plans, agents and jobs tabs' rows.
   - [live.ts](hooks/live.ts) (its test [live.test.ts](hooks/live.test.ts)): the session check behind the plans and
-    agents tabs: one `kill -0` per pid, one refresh at a time, every 30 s and only while the pane shows one of the two.
+    agents tabs: one `kill -0` per pid, one refresh at a time, every 30 s and only while the pane shows one of the two;
+    each session's row with its `plans/CURRENT_PLAN` and `plans/LEAD`.
+  - [load.ts](hooks/load.ts) (its test [load.test.ts](hooks/load.test.ts)): what follows each refresh inside its turn,
+    through closures over `$` that register.tsx hands it: this session's folder and, only on an open plans tab, the
+    masterplan's one process; [masterplan.ts](hooks/masterplan.ts): the roll-up's parse and the two groups' rows, pure.
   - [store.ts](hooks/store.ts): the remembered rows.
   - [testkit.ts](hooks/testkit.ts): what the tests share.
 - [types/index.d.ts](types/index.d.ts): the mod's own types; [tsconfig.json](tsconfig.json) extends the engine's

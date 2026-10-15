@@ -6,7 +6,7 @@ so the merge queue (`<home>/.hal/git/worktree/hal2/.merge-queue`) lie inside tha
 integration tests (`HOME`, `HAL2_HOME`, `HAL2_STATE_DIR`): this machine's queue, GitHub, a timer and a session are
 never touched, and no landing is started.
 
-Skipped without the built binary (the gate job `claude-code-plugins-test` builds no Rust, and the published plugin
+Skipped without the built binary (the gate job `agents-test` builds no Rust, and the published plugin
 has no Cargo workspace beside it) and with one that predates the hitch and the train mark.
 """
 

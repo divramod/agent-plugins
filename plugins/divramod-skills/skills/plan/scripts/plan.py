@@ -12,6 +12,7 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
 `format` says which).
 
   plan.py new "<title>" [--goal "<goal>"] [--research] [--no-current] [--fetch] [--seed <seedbag>#<n>]
+              [--masterplan | --parent <n>]
                                                            create the next plan from the template (`run`: the
                                                            session's live values, else the template's); its number
                                                            is unique across all worktrees and branches
@@ -25,7 +26,13 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
                                                            grows from that seed: Context line `- Seed: ... (<title>)`
                                                            (seed.py), the seed marked sent through hal2-cli-shooter;
                                                            the JSON's `seed` says `marked` or why not (never fails
-                                                           `new`); a bad value fails first; no --seed: no Seed line
+                                                           `new`); a bad value fails first; no --seed: no Seed line;
+                                                           --masterplan: a masterplan (masterplan.py), slug
+                                                           <NNNN>-masterplan-<slug>, templates/masterplan.md (an
+                                                           empty table of plans, `landing: manual`, its `crop`
+                                                           picked); --parent <n>: a plan of masterplan <n>: its
+                                                           `parent`, the masterplan linked first under Context and
+                                                           a `draft` row for it in the masterplan's table
   plan.py current                                          print the current plan as JSON
   plan.py list                                             print every plan as JSON
   plan.py use <slug-or-number>                             make a plan current
@@ -94,9 +101,28 @@ ready steps run as parallel subagents (`prompt`), never in other sessions (plan 
   plan.py assign <step> <who> [--force]                    who: lead, subagent or user (`slot NN` is refused: run
                                                            the step as a subagent); sets Who and `running` (a step
                                                            not ready only with --force)
-A cell holds a literal `|` written `\\|`. A worktree still holding a former servant's plans/LEAD (`<lead-slot> <plan>
-<step>`, `lead` in the JSON) refuses new, status, assign, grilled, landing, uat, scaffold, run and migrate: plan.md
-is the foreman's (also with --root <foreman's checkout> when the current directory is in a marked worktree).
+A cell holds a literal `|` written `\\|`. A servant's field holds plans/LEAD (`<foreman's field> <plan> <step>`; of a
+masterplan's servant `<foreman's field> <the masterplan> <its row>`; `lead` in the JSON) and refuses new, status,
+assign, grilled, landing, uat, scaffold, run, migrate and leave: plan.md is the foreman's, who marks the steps (also
+with --root <foreman's checkout> when the current directory is in a marked field). Reading works there.
+
+A masterplan's rows are plans, no steps (masterplan.py): its open rows are not sized, `status <n> next` writes no step
+file, `prompt` and `uat` refuse and name the row's plan; `ready`, `assign` and `status` work as on any parallel plan.
+  plan.py masterplan [--plan <ref>] [--json]               the masterplan the plan is, or is a plan of: its roll-up
+                                                           from `hal2-cli-plans masterplan <slug> --json`
+                                                           (masterplan_view.py: $HAL2_CLI_PLANS, else on PATH);
+                                                           without it the masterplan's own rows and one line, exit 0;
+                                                           `after_landing`: its plans whose open steps are all
+                                                           checked after the landing (masterplan_keep.py)
+A plan of a masterplan that turns done ticks its row there (`status`, also with --plan; `tick` in the JSON), and the
+tick is taken back when a step reopens (masterplan_keep.py); `tick_skipped` says why a row was not held (the
+masterplan's folder is not in this checkout, no row links the plan, a row's cells are not its header's).
+  plan.py leave [--release]                                after a bring in: plans/CURRENT_PLAN names the finished
+                                                           plan's unfinished masterplan, else it is deleted (also
+                                                           when it named a shot or a task); a plan with open steps
+                                                           keeps it; --release: the field does not carry on with
+                                                           the masterplan, the file is deleted; prints {was,
+                                                           current, action, line}
 
 Run from anywhere inside the repo, or pass --root. Prints JSON on stdout; exits 1 with a message on stderr.
 
@@ -104,7 +130,8 @@ The JSON's `landing` is the plan's `Landing:` line (auto|manual; none for a glob
 `after_landing` says its done-when starts with "after the landing" (or the older "after the user's `/mtm`"), `next`
 is the first open step to run before the landing (an after-landing step only when no other is open), `land` is
 `ready` when no open step must run before the landing (`wait` otherwise; `manual`, `none` from `landing`), and
-`problems` lists after-landing steps followed by steps that are not.
+`problems` lists after-landing steps followed by steps that are not. `masterplan` is true for a masterplan (`crop`:
+its crop), `parent` the number of the plan the front matter names and `row` that masterplan's row for this plan.
 """
 import argparse
 import datetime as dt
@@ -121,6 +148,9 @@ import checker
 import context
 import envelope
 import folder
+import masterplan
+import masterplan_keep
+import masterplan_view
 import names
 import parallel
 import plan_number
@@ -128,6 +158,8 @@ import prompt as step_prompt
 import seed
 import session
 import sizing
+import table
+from table import join_row, split_row
 
 PLANS = Path("plans")
 POINTER = "CURRENT_PLAN"
@@ -254,28 +286,12 @@ def set_current(root: Path, path: Path) -> None:
     (root / PLANS / POINTER).write_text(slug_of(path) + "\n")
 
 
-def split_row(line: str) -> list[str]:
-    """A table row's cells; `\\|` inside a cell is a literal `|`, not a column border."""
-    cells = re.split(r"(?<!\\)\|", line.strip())
-    if cells and not cells[0].strip():
-        cells = cells[1:]
-    if cells and not cells[-1].strip():
-        cells = cells[:-1]
-    return [cell.strip().replace("\\|", "|") for cell in cells]
-
-
-def join_row(cells: list[str]) -> str:
-    return "| " + " | ".join(cell.replace("|", "\\|") for cell in cells) + " |"
-
-
 def steps_table(lines: list[str]) -> tuple[int, dict[str, int]]:
-    """Index of the step table's header line and its column positions."""
-    for i, line in enumerate(lines):
-        if line.lstrip().startswith("|"):
-            cells = [c.lower() for c in split_row(line)]
-            if "#" in cells and "step" in cells and "status" in cells:
-                return i, {name: cells.index(name) for name in cells}
-    raise PlanError("no step table with columns '#', 'Step' and 'Status'")
+    """Index of the step table's header line and its column positions (table.py)."""
+    found = table.header(lines)
+    if found is None:
+        raise PlanError("no step table with columns '#', 'Step' and 'Status'")
+    return found
 
 
 def run_default(text: str) -> tuple[str, str, str]:
@@ -300,10 +316,7 @@ def table_rows(lines: list[str]) -> tuple[int, dict[str, int], list[tuple[int, l
     """The step table's header line, its column positions and its rows as (line index, cells)."""
     header, cols = steps_table(lines)
     rows, width = [], max(cols.values()) + 1
-    for row, i in enumerate(range(header + 2, len(lines)), 1):
-        if not lines[i].lstrip().startswith("|"):
-            break
-        cells = split_row(lines[i])
+    for row, (i, cells) in enumerate(table.rows(lines, header), 1):
         if len(cells) < width:
             raise PlanError(f"row {row} of the step table has {len(cells)} cells, its header {width}: write a `|` "
                             "inside a cell as `\\|`")
@@ -389,8 +402,8 @@ def run_line(lines: list[str]) -> int | None:
 
 def steps_problems(text: str, label: str) -> list[str]:
     """The `plan-steps-sized` lines of a record plan with an open row (sizing.py); a legacy plan has none."""
-    if not folder.is_record(text):
-        return []
+    if not folder.is_record(text) or masterplan.of_text(Path(label).parent.name, text):
+        return []  # a legacy plan; a masterplan, whose rows are plans and are not sized
     lines = text.splitlines()
     try:
         header, cols, rows = table_rows(lines)
@@ -421,6 +434,7 @@ def describe(root: Path, path: Path) -> dict:
         "path": str(path.relative_to(root)),
         "title": title,
         "research": is_research(slug_of(path)),
+        **masterplan.fields(path, text),
         "current": pointer.is_file() and pointer.read_text().strip() == slug_of(path),
         "grilled": grilled,
         "finished": header_value(text, "Finished"),
@@ -481,9 +495,10 @@ def parallel_table(text: str) -> str:
 
 def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool = False,
              research: bool = False, landing: str = "auto", autogenerated: str = "", parallel_plan: bool = False,
-             seed_line: str = "") -> Path:
+             seed_line: str = "", master: bool = False) -> Path:
     names.refuse(title)
     slug = research_slug(slugify(title)) if research else slugify(title)
+    slug = masterplan.marked(slug) if master else slug
     if fetch:
         plan_number.git(root, "fetch", "--all", "--quiet")
     try:
@@ -493,11 +508,11 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
     path = root / PLANS / f"{number:04d}-{slug}" / MAIN
     path.parent.mkdir(parents=True, exist_ok=True)
     values = folder.fields(root, number, title, goal, landing)
-    text = TEMPLATE.read_text().format(**values)
+    text = masterplan.template(root, values) if master else TEMPLATE.read_text().format(**values)
     if research:
         text = "\n".join(l for l in text.split("\n") if "Write the UATs" not in l)
     text = text.replace("- Seed: <seedbag>#<n>", seed_line) if seed_line else text.replace("- Seed: <seedbag>#<n>\n", "")
-    if parallel_plan:
+    if parallel_plan and not master:
         text = parallel_table(text)
     path.write_text(text)
     set_header(path, "Run", " ".join(sizing.run_words(session.live(), template_run())))
@@ -509,8 +524,8 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
     return path
 
 
-def set_status(path: Path, step: str, status: str) -> None:
-    set_cells(path, step, {"status": status})
+def set_status(path: Path, step: str, status: str) -> dict | None:
+    return set_cells(path, step, {"status": status})
 
 
 def size_line(row: dict) -> str:
@@ -522,10 +537,10 @@ def size_line(row: dict) -> str:
 
 def scaffold_step(path: Path, step: str) -> Path | None:
     """Write `steps/<step>.md` from templates/step.md when the step becomes next (hal2's record
-    plans-short-and-concise): never over an existing file, never for a flat plan (no folder). The written file,
-    or None."""
+    plans-short-and-concise): never over an existing file, never for a flat plan (no folder) or a masterplan (its
+    rows are plans). The written file, or None."""
     target = path.parent / STEPS / f"{step}.md"
-    if path.name != MAIN or target.exists():
+    if path.name != MAIN or target.exists() or masterplan.of(path):
         return None
     text = path.read_text()
     row = next((s for s in read_steps(text) if s["number"] == step), None)
@@ -539,8 +554,9 @@ def scaffold_step(path: Path, step: str) -> Path | None:
     return target
 
 
-def set_cells(path: Path, step: str, values: dict[str, str]) -> None:
-    """Set cells of one step's row by column name (lower case), keeping every other cell."""
+def set_cells(path: Path, step: str, values: dict[str, str]) -> dict | None:
+    """Set cells of one step's row by column name (lower case), keeping every other cell. A masterplan's row the
+    change ticked or took back (`stamp_finished`), else None."""
     lines = path.read_text().splitlines(keepends=True)
     header, cols = steps_table([l.rstrip("\n") for l in lines])
     missing = [name for name in values if name not in cols]
@@ -551,12 +567,13 @@ def set_cells(path: Path, step: str, values: dict[str, str]) -> None:
             break
         cells = split_row(lines[i])
         if cells and cells[cols["#"]] == step:
+            if misfit := table.misfit(cells, table.width(lines, header)):
+                raise PlanError(f"step {step} of {slug_of(path)} is not written: its row {misfit}")
             for name, value in values.items():
                 cells[cols[name]] = value
             lines[i] = join_row(cells) + "\n"
             path.write_text("".join(lines))
-            stamp_finished(path)
-            return
+            return stamp_finished(path)
     raise PlanError(f"no step '{step}' in {slug_of(path)}")
 
 
@@ -592,8 +609,11 @@ def write_uat(path: Path, shotfile: str = "") -> Path:
     return uat
 
 
-def stamp_finished(path: Path) -> None:
-    """`Finished: <date>` once every step is done (hal2 shows it); gone again when a step reopens."""
+def stamp_finished(path: Path) -> dict | None:
+    """`Finished: <date>` once every step is done (hal2 shows it); gone again when a step reopens. A plan of a
+    masterplan then ticks its row there or takes the tick back (masterplan_keep.tick), and the masterplan is stamped
+    like every plan; that tick ({masterplan, row, status, masterplan_finished}; `skipped`: why a row was not held),
+    else None."""
     text = path.read_text()
     steps = read_steps(text)
     finished = bool(steps) and all(s["status"].lower().startswith("done") for s in steps)
@@ -603,6 +623,12 @@ def stamp_finished(path: Path) -> None:
         remove_header(path, "Finished")
     if folder.is_record(text):
         folder.sync_status(path, finished)
+    ticked = masterplan_keep.tick(path)
+    if ticked and ticked.get("row"):
+        master = path.parent.parent / ticked["masterplan"] / MAIN
+        stamp_finished(master)
+        ticked["masterplan_finished"] = bool(header_value(master.read_text(), "Finished"))
+    return ticked
 
 
 def remove_header(path: Path, key: str) -> None:
@@ -687,6 +713,10 @@ def main(argv: list[str]) -> int:
                        help="write `Landing: manual`: the plan waits for the user's /mtm at its end")
     p_new.add_argument("--seed", default="", metavar="SEEDBAG#N",
                        help="the seed this plan grows from: written into the Context and marked sent (seed.py)")
+    p_new.add_argument("--masterplan", action="store_true",
+                       help="a masterplan: slug <NNNN>-masterplan-<slug>, templates/masterplan.md, its crop picked")
+    p_new.add_argument("--parent", default="", metavar="N",
+                       help="a plan of masterplan N: its `parent`, its Context line and the masterplan's draft row")
     p_new.add_argument("--autogenerated", default="", metavar="BY",
                        help="write `Autogenerated: <BY>, <date>`: a plan a watcher (e.g. sanity-watch) made")
     sub.add_parser("current")
@@ -732,6 +762,13 @@ def main(argv: list[str]) -> int:
     p_assign.add_argument("--plan")
     p_assign.add_argument("--force", action="store_true",
                           help="assign a step that is not ready")
+    p_master = sub.add_parser("masterplan", help="a masterplan's rows and its roll-up (hal2-cli-plans)")
+    p_master.add_argument("--plan")
+    p_master.add_argument("--json", action="store_true")
+    p_leave = sub.add_parser("leave", help="after a bring in: CURRENT_PLAN names the unfinished masterplan, else it "
+                                           "is deleted")
+    p_leave.add_argument("--release", action="store_true",
+                         help="the field does not carry on with the masterplan: CURRENT_PLAN is deleted")
     p_prompt = sub.add_parser("prompt", help="the Agent call that runs one step in one subagent")
     p_prompt.add_argument("step")
     p_prompt.add_argument("--plan")
@@ -750,11 +787,22 @@ def main(argv: list[str]) -> int:
         refuse_subservant(root, args.command)
         if args.command == "check":
             return run_check(root, args.folders)
+        if args.command in ("masterplan", *masterplan.NO_STEPS):
+            path = resolve(root, args.plan) if args.plan else current_path(root)
+            if args.command == "masterplan":
+                return masterplan_view.show(root, path, args.json, lambda p: describe_safe(root, p)["steps"])
+            masterplan.refuse_step(path, args.command, getattr(args, "step", ""))
         if args.command == "new":
+            master = masterplan.check_new(args.masterplan, args.research,
+                                          resolve(root, args.parent) if args.parent else None)
             sown = seed.read(root, args.seed) if args.seed else None
             path = new_plan(root, args.title, args.goal, not args.no_current, args.fetch, args.research,
-                            "manual" if args.manual_landing or args.research else "auto",
-                            args.autogenerated, args.parallel, seed.context_line(sown) if sown else "")
+                            "manual" if args.manual_landing or args.research or args.masterplan else "auto",
+                            args.autogenerated, args.parallel, seed.context_line(sown) if sown else "",
+                            args.masterplan)
+            if master:
+                masterplan.adopt(master, path, names.default_ref(root))
+                stamp_finished(master)
             result = describe(root, path)
             if sown:
                 result["seed"] = seed.mark(root, sown)
@@ -762,6 +810,8 @@ def main(argv: list[str]) -> int:
             result = describe(root, current_path(root))
         elif args.command == "list":
             result = [describe_safe(root, p) for p in plan_files(root)]
+        elif args.command == "leave":
+            result = masterplan_keep.leave(root / PLANS / POINTER, lambda p: read_steps(p.read_text()), args.release)
         elif args.command == "use":
             path = resolve(root, args.plan)
             set_current(root, path)
@@ -777,9 +827,9 @@ def main(argv: list[str]) -> int:
             return run_parallel(root, path, args)
         else:
             path = resolve(root, args.plan) if args.plan else current_path(root)
-            written = None
+            written = ticked = None
             if args.command == "status":
-                set_status(path, args.step, args.status)
+                ticked = set_status(path, args.step, args.status)
                 if args.status.strip().lower() == "next":
                     written = scaffold_step(path, args.step)
             elif args.command == "landing":
@@ -793,7 +843,9 @@ def main(argv: list[str]) -> int:
             result = describe(root, path)
             if written:
                 result["step_file"] = str(written.relative_to(root))
-    except (PlanError, seed.SeedError, names.NameTooLong, parallel.ParallelError, step_prompt.PromptError) as error:
+            result.update(masterplan_keep.report(ticked))
+    except (PlanError, seed.SeedError, names.NameTooLong, parallel.ParallelError, step_prompt.PromptError,
+            masterplan.MasterplanError) as error:
         print(f"plan.py: {error}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -854,11 +906,14 @@ def migrate(root: Path, path: Path) -> dict:
     old_run = list(run_default(text))
     lines = text.splitlines(keepends=True)
     header, cols, rows = table_rows([l.rstrip("\n") for l in lines])
+    width = table.width(lines, header)
     new_header = sizing.migrate_header(split_row(lines[header]))
     new_cols = {name.lower(): i for i, name in enumerate(new_header)}
     lines[header] = join_row(new_header) + "\n"
     lines[header + 1] = join_row(sizing.migrate_row(split_row(lines[header + 1]), cols, new_cols, old_run, True)) + "\n"
     for i, cells in rows:
+        if misfit := table.misfit(cells, width):
+            raise PlanError(f"{slug_of(path)} is not migrated: the row of step {cells[cols['#']]} {misfit}")
         lines[i] = join_row(sizing.migrate_row(cells, cols, new_cols, old_run, False)) + "\n"
     path.write_text("".join(lines))
     set_header(path, "Run", " ".join(sizing.run_words(session.live(), or_template(old_run))))
@@ -922,17 +977,16 @@ def check_records(root: Path, folders: list[Path]) -> tuple[int, list[str]] | No
     return count, problems
 
 
-# What a servant (a worktree with plans/LEAD) may not do: plan.md is the foreman's (hal2 shows the newest copy).
-SUBSERVANT_REFUSES = ("new", "status", "assign", "grilled", "landing", "uat", "scaffold", "run", "migrate")
+# What a servant (a field with plans/LEAD) may not do: plan.md is its foreman's (hal2 shows the newest copy). Reading
+# stays: current, list, ready, prompt, masterplan.
+SUBSERVANT_REFUSES = ("new", "status", "assign", "grilled", "landing", "uat", "scaffold", "run", "migrate", "leave")
 PARALLEL_COMMANDS = ("ready", "assign")
 
 
 def refuse_subservant(root: Path, command: str) -> None:
     marker = parallel.subservant_marker(root, Path.cwd())
     if marker and command in SUBSERVANT_REFUSES:
-        raise PlanError(f"this worktree is a servant of worktree {marker['slot']} (plan {marker['plan']} step "
-                        f"{marker['step']}): it holds a stale plans/LEAD of the foreman in worktree {marker['slot']}, never "
-                        f"edits plan.md and never lands; the foreman takes the work over, or delete plans/LEAD")
+        raise PlanError(masterplan.servant_refusal(marker, command))
 
 
 def parallel_steps(path: Path) -> list[dict]:
@@ -976,6 +1030,9 @@ def run_global(args) -> int:
     if args.command == "new":
         if args.seed:
             raise PlanError("--seed is for a repository plan: a global plan has no seedbag link")
+        if args.masterplan or args.parent:
+            raise PlanError("--masterplan and --parent are for a repository's plans: a global plan is no masterplan "
+                            "and belongs to none")
         result = describe(root, new_global_plan(folder, args.title, args.goal, args.research))
     elif args.command == "list":
         result = [describe_safe(root, p) for p in plan_files(root)]

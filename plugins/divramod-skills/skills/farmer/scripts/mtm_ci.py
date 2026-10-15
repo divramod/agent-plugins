@@ -1,12 +1,12 @@
 """Landings through GitHub Actions (hal2 plan 0131), for mtm_scan.py.
 
-A repository whose default branch has `.github/workflows/merge-to-main.yml` (or
-`land.yml`, its name before plan 0263) lands through CI: each landing is a run
-of that workflow on `land/<slot>`, green ones
-fast-forward the default branch, red ones keep the merge queue held for their
-worktree until its fix lands. Runs are read under both names: one started
-before the rename finishes under the old one, and the candidate that renames
-the file already runs under the new one.
+A repository whose default branch has `.github/workflows/dev-merge-to-main.yml`
+(or `merge-to-main.yml`, its name before plan 0349 D52, or `land.yml`, before
+plan 0263) lands through CI: each landing is a run of that workflow on
+`land/<slot>`, green ones fast-forward the default branch, red ones keep the
+merge queue held for their worktree until its fix lands. Runs are read under
+every name: one started before a rename finishes under the old one, and the
+candidate that renames the file already runs under the new one.
 Here they become the same recent-landings rows the local landings' records
 give mtm_scan.py.
 
@@ -34,8 +34,8 @@ import re
 
 import gh_runs
 
-# The landing workflow's file, the name to prefer first: the one place that names both.
-LAND_NAMES = ["merge-to-main.yml", "land.yml"]
+# The landing workflow's file, the name to prefer first: the one place that names them all.
+LAND_NAMES = ["dev-merge-to-main.yml", "merge-to-main.yml", "land.yml"]
 LAND_FILES = [f".github/workflows/{name}" for name in LAND_NAMES]
 RED = {"failure", "timed_out", "startup_failure", "cancelled"}
 GREEN = {"success", "skipped", "neutral"}
@@ -44,14 +44,22 @@ NOT_COUNTED = {"park", "merge"}  # park's state is no verdict; a red merge is "m
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
 SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linux-host-ship-start",
              "laptops-start", "publish-claude-plugins", "tmux-publish-hal9k",
-             "docker-publish-github-runner-image"}
+             "docker-publish-github-runner-image",
+             # Plan 0349's jobs after the merge (its graph's column 04).
+             "git-pull-main", "rust-install-apps-mac", "ts-install-desktop-mac", "git-deliver-record",
+             "agents-publish", "tmux-publish-mac", "tmux-publish-linux", "nvim-publish",
+             "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host"}
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 # The macOS build jobs (the workflow's `mac-vm-build`, plan 0263 D64) build beside the checks what the delivery installs,
 # and `mac-vm-build-plan` names them on the Mac host before (D128): `gate` needs none of them, so a red one is no red of
 # a candidate (hal2-git's ci/job_name.rs BUILD_JOBS).
-BUILD_JOBS = {"rust-bundle-apps-macos", "ts-bundle-desktop-macos", "mac-vm-build-plan"}
-BUILD_NAME = re.compile(r"^\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?P<job>.+)$")  # today's names only: no older run had these jobs
-NAME = re.compile(r"^(?:\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/|(?P<lane>\S+) / )?(?P<job>.+)$")
+BUILD_JOBS = {"rust-bundle-apps-macos", "ts-bundle-desktop-macos", "mac-vm-build-plan",
+              # Plan 0349: the one VM lane's jobs after bash-test (D17-D20).
+              "tmux-build-mac", "tmux-test-mac", "rust-build-mac", "ts-bundle-desktop-mac"}
+# Since plan 0349 (D40) the job part of today's names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
+# the job is the bare one, as in the names without it.
+BUILD_NAME = re.compile(r"^\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?(?P<job>.+)$")  # today's names only: no older run had these jobs
+NAME = re.compile(r"^(?:\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
 CANCEL_STEP = "fail fast: cancel the run"  # the stop job's step (plan 0319 D9), hal2-git's CANCEL_STEP
@@ -59,7 +67,7 @@ STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, wit
 
 
 def ci_mode(run, main: str, default: str) -> bool:
-    """`merge-to-main.yml` or `land.yml` is on origin's default branch."""
+    """`dev-merge-to-main.yml`, `merge-to-main.yml` or `land.yml` is on origin's default branch."""
     return any(run(["git", "cat-file", "-t", f"origin/{default}:{f}"], main).strip() for f in LAND_FILES)
 
 
@@ -83,7 +91,7 @@ def outcome(run: dict) -> str:
 
 
 def job_part(name: str) -> str:
-    """The job of a display name: `05-xxx1hx/merge` and `linux / merge` -> `merge`, `merge` -> `merge`."""
+    """The job of a display name: `05-xxx1hx/merge`, `03-hz01-host-b/01-merge` and `linux / merge` -> `merge`, `merge` -> `merge`."""
     return NAME.match(name or "")["job"]
 
 
@@ -207,7 +215,7 @@ def list_args(workflow: str) -> list[str]:
 
 
 def runs_of(run_json, main: str) -> list[dict]:
-    """The runs of both landing workflow files, newest first, each list read once per round (gh_runs). A file
+    """The runs of every landing workflow file, newest first, each list read once per round (gh_runs). A file
     GitHub does not know (not renamed yet, or renamed away) gives no list: no runs."""
     runs = {}
     for name in LAND_NAMES:

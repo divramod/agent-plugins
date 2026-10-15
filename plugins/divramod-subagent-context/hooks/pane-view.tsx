@@ -2,6 +2,7 @@ import type { BoxProps, ButtonProps, ElementConstructor, RenderElement, TextProp
 
 import type { JobRow, SessionRow, SubagentRow, Tab } from '../types'
 import { MARKER, TITLE } from './keyboard'
+import type { Group } from './masterplan'
 import { lines as gridLines } from './sessions'
 import { type Limits, color, foot, head, line } from './table'
 import { type bodyOf, TABS, count } from './tabs'
@@ -23,6 +24,8 @@ export type PaneData = {
   // The current tab's table as a `Client`, or undefined to draw plain lines.
   table: RenderElement | undefined
   other: ReturnType<typeof bodyOf> | undefined
+  // The plans tab's groups above its table (the masterplan, the field's servants); empty where they have no rows.
+  groups: readonly Group[]
   // The body rows the surface gave the pane, and the plain lines' room and width.
   height: number | undefined
   room: number
@@ -77,6 +80,12 @@ export const paneView = ({ Box, Text, Button }: Elements, d: PaneData, act: Pane
         </>
       ) : d.other && (
         <>
+          {d.groups.map(g => (
+            <Box key={g.title} flexDirection="column">
+              <Text bold>{g.title}</Text>
+              {gridLines(g.grid, '', d.columns, 12).map((t, i) => <Text key={String(i)} dimColor={!/^│/.test(t)}>{t}</Text>)}
+            </Box>
+          ))}
           {d.table ?? (
             <Box flexDirection="column" flexGrow={1}>
               {gridLines(d.other.grid, d.other.empty, d.columns, (d.height ?? 24) - 10).map((t, i) => <Text key={String(i)} dimColor={!/^│/.test(t)}>{t}</Text>)}

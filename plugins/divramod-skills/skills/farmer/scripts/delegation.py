@@ -29,6 +29,7 @@ import deliver
 import due
 import mtm_scan
 import roles
+import transplants
 
 SKILLS = Path(__file__).resolve().parents[2]
 FREE = [sys.executable, str(SKILLS / "list-free-worktrees/scripts/free.py")]
@@ -247,14 +248,20 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
 
 def follow_up(main: str, slots: dict[str, dict], limit: int | str, dry: bool, now: dt.datetime,
               values: dict | None = None) -> list[dict]:
-    """Running foremen whose worktree holds nothing any more have landed: recorded, their session stopped.
+    """Running foremen whose worktree holds nothing any more have landed: recorded, their session stopped; one whose
+    field a transplant moved (transplants.py) stays running in the target.
     `slots`: worktree → {"plan": CURRENT_PLAN text, "ahead": commits not on main}. Waiting briefs start when there
     is room."""
-    done = []
+    done, moves = [], []
     for key, e in ledger(main).items():
         if e.get("state") != "running" or not e.get("slot"):
             continue
-        s, age = slots.get(e["slot"], {}), now - dt.datetime.fromisoformat(e["at"])
+        at = dt.datetime.fromisoformat(e["at"])
+        to = transplants.moved(main, e["slot"], at, call)  # plan 0286 D26: the foreman moved on, it did not land
+        if to:
+            moves.append({"key": key, "state": "running", "slot": to, "from": e["slot"]})
+            continue
+        s, age = slots.get(e["slot"], {}), now - at
         if age > SETTLE and not s.get("plan") and not s.get("ahead"):
             done.append({"key": key, "state": "landed", "slot": e["slot"], "stop": STOP + [e["slot"], "--repo", main]})
     for d in done:
@@ -263,6 +270,13 @@ def follow_up(main: str, slots: dict[str, dict], limit: int | str, dry: bool, no
             note(main, {"key": d["key"], "state": "landed", "slot": d["slot"]}, now)
             mtm_scan.log(main, {"kind": "landed", "slot": d["slot"], "what": "the foreman's plan has landed",
                                 "note": "session stopped when idle", "by": "tick", "key": d["key"]})
+    for m in moves:  # the delegation follows its field: running in the target, its session left alone
+        if not dry:
+            note(main, m, now)
+            mtm_scan.log(main, {"kind": "transplant", "slot": m["slot"], "by": "tick", "key": m["key"],
+                                "what": f"the servant's field moved from {m['from']}",
+                                "note": "still running; the delegation follows the target"})
+    done += moves
     waiting = [{"key": k, "text": e["title"], "brief": {"brief_file": e["brief"]}, "duty": "farmer",
                 "kind": "waiting", "slot": "-", **{f: e[f] for f in ("prompt", "role_task") if e.get(f)}}
                for k, e in ledger(main).items() if e.get("state") == "waiting"]

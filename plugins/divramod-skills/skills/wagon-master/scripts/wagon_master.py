@@ -33,6 +33,10 @@
   wagon_master.py handoff [--clear] [--repo <dir>]
       the handoff before the session's clear: the path of handoff.md in the state folder; --clear, once it is
       written, starts hal2's clear-and-continue (/clear, then /wagon-master act)
+  wagon_master.py silence | unsilence [--repo <dir>]
+      silence the rounds (silence.py, hal2 plan 0349 D6): a real round prints, per train it touched or that stands,
+      one table line `| wagon-master | <train> | <state> | joined <fields> |` and nothing else (marker file `silent`
+      in the state folder); unsilence ends it. A dry run and --json stay full
   wagon_master.py mode [claude|timer] [--repo <dir>]
       who runs the rounds: the timer (`timer`) or nobody yet (`claude`, the default)
 
@@ -60,6 +64,7 @@ import learn
 import mtm_scan
 import role_cli
 import roles
+import silence
 import timer
 import train_state
 import trains
@@ -121,6 +126,8 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("retry")
     for name in ("unhitch", "retry"):
         sub.choices[name].add_argument("--why", required=True)
+    for name in ("silence", "unsilence"):
+        sub.add_parser(name)
     sub.add_parser("mode").add_argument("set", nargs="?", choices=role_cli.MODES)
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())
@@ -144,6 +151,8 @@ def main(argv: list[str]) -> int:
                       else engine.retry(args.repo, args.why))
         print(text, file=sys.stderr if code else sys.stdout)
         return code
+    if args.cmd in ("silence", "unsilence"):
+        return silence.run(args, WIRING, args.cmd == "silence")
     if args.cmd == "act":
         return role_cli.run_wake(args, WIRING)
     if args.cmd == "handoff":
@@ -158,13 +167,39 @@ def main(argv: list[str]) -> int:
     return tick(args)
 
 
+STATE = {"formed": "formed", "started": "landing", "red": "red", "retry": "lands again", "landed": "in the barn",
+         "cleared": "broken up"}
+
+
+def silent_lines(main: str, r: dict, since: str, wiring: roles.Wiring = WIRING) -> list[str]:
+    """A silenced round (silence.py): one table line per train that changed since `since` (UTC, train_state.utc) or
+    stands now, `joined` the fields that rode it (the yard as `yard`); none: a line saying so."""
+    if r.get("problem"):
+        return silence.round_lines(r, wiring)
+    rows = train_state.lines(main)
+    names = list(dict.fromkeys(e["train"] for e in rows if e.get("train") and e.get("at", "") >= since))
+    stands = train_state.standing(rows)
+    if stands and stands["train"] not in names:
+        names.append(stands["train"])
+    out = []
+    for name in names:
+        mine = [e for e in rows if e.get("train") == name]
+        formed = next((e for e in mine if e["kind"] == "formed"), {})
+        state = next((STATE[e["kind"]] for e in reversed(mine) if e["kind"] in STATE), "formed")
+        joined = [c["field"] for c in formed.get("cars", [])] + (["yard"] if any(e["kind"] == "yard" for e in mine) else [])
+        out.append(silence.line(wiring.role, f"train {name}: {state}", joined))
+    return out or [silence.line(wiring.role, "no train")]
+
+
 def tick(args) -> int:
     """A round, with the message board's messages and acks (the frame's log) posted before and after it (step 7);
     a dry run writes nothing."""
     main_dir = mtm_scan.main_checkout(args.repo)
     if not args.dry_run:
         board.safely(main_dir, "messages and acks", board.sync)
-    code = role_cli.run_tick(args.repo, args.dry_run, args.json, HANDLERS, WIRING, args.all_due)
+    since = train_state.utc()
+    code = role_cli.run_tick(args.repo, args.dry_run, args.json, HANDLERS, WIRING, args.all_due,
+                             lambda r, w: silent_lines(main_dir, r, since, w))
     if not args.dry_run:
         board.safely(main_dir, "messages and acks", board.sync)
     return code

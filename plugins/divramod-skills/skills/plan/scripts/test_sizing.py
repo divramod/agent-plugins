@@ -49,7 +49,7 @@ class SizingTest(unittest.TestCase):
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, env=self.env())
+                              capture_output=True, text=True, env=self.env(), cwd=self.root)
 
     def plan(self, *args) -> dict:
         result = self.run_plan(*args)

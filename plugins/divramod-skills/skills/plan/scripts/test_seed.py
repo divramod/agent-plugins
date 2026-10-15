@@ -46,7 +46,7 @@ class SeedTest(unittest.TestCase):
 
     def new(self, *args, **env) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "new", "Tiny", *args],
-                              capture_output=True, text=True, env={**self.env, **env})
+                              capture_output=True, text=True, env={**self.env, **env}, cwd=self.root)
 
     def calls(self) -> list[str]:
         return self.log.read_text().splitlines() if self.log.exists() else []

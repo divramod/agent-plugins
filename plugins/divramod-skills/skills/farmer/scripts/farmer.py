@@ -38,6 +38,9 @@
       the farmer's own question store (questions.jsonl, questions.py); never from prose by hand
   farmer.py questions [a|answered|l|list] [--json] [--repo <dir>]
       the one list of everyone's questions: the farmer's own, the log's open asks, each worktree's store; no model call
+  farmer.py silence | unsilence [--repo <dir>]
+      silence the farmer's rounds (silence.py, hal2 plan 0349 D6): a real round prints one table line
+      `| farmer | <what> | joined <fields> |` and nothing else (marker file `silent` in the state folder); unsilence ends it
   farmer.py mode [claude|timer] [--repo <dir>]
       who runs the rounds: the farmer's Claude session (`claude`, the default) or the external
       timer (`timer`). A tick without --dry-run runs only in timer mode, so the two never overlap.
@@ -63,6 +66,7 @@ import duties
 import role_cli
 import role_sync
 import roles
+import silence
 import migrate
 import prune
 import questions
@@ -173,6 +177,8 @@ def parser() -> argparse.ArgumentParser:
     m = sub.add_parser("mode")
     m.add_argument("set", nargs="?", choices=MODES)
     m.add_argument("--repo", default=os.getcwd())
+    for name in ("silence", "unsilence"):
+        sub.add_parser(name).add_argument("--repo", default=os.getcwd())
     questions.add_parsers(sub)
     return p
 
@@ -187,6 +193,8 @@ def main(argv: list[str]) -> int:
             role_cli.set_mode(args.repo, WIRING, args.set)
         print(mode(args.repo))
         return 0
+    if args.cmd in ("silence", "unsilence"):
+        return silence.run(args, WIRING, args.cmd == "silence")
     if args.cmd == "check":
         what = args.what[1] if args.what[0] == "task" and len(args.what) > 1 else args.what[0]
         code, text = tasks.builtin(" ".join(args.what[1:]) if args.what[0] == "task" else what, args.repo)

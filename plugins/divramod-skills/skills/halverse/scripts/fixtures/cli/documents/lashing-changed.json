@@ -1,0 +1,7 @@
+{
+  "terms": ["lashing"],
+  "definition": "A ship made fast at its berth, bow and stern.",
+  "languages": {
+    "de": {"description": "Ein Schiff, das an seinem Liegeplatz an Bug und Heck festgemacht ist."}
+  }
+}

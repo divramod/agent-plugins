@@ -1,0 +1,668 @@
+{
+  "files": {
+    "glossary": "GLOSSARY.md",
+    "ontology": "HALVERSE-ONTOLOGY.md",
+    "dictation": "DICTATION.md",
+    "companions": {
+      "de": {
+        "glossary": "GLOSSARY.de.md",
+        "ontology": "HALVERSE-ONTOLOGY.de.md"
+      },
+      "nl": {
+        "glossary": "GLOSSARY.nl.md",
+        "ontology": "HALVERSE-ONTOLOGY.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "GLOSSARY.pt-PT.md",
+        "ontology": "HALVERSE-ONTOLOGY.pt-PT.md"
+      }
+    }
+  },
+  "sections": [
+    {
+      "title": "Levels",
+      "note": "",
+      "status": null,
+      "line": 10,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "level",
+            "physical world",
+            "agent roles",
+            "status"
+          ],
+          "labels": [
+            "Level",
+            "Physical world",
+            "Agent roles",
+            "Status"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "line": 14
+            },
+            {
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "line": 15
+            },
+            {
+              "cells": [
+                "strait",
+                "network",
+                "",
+                "draft"
+              ],
+              "line": 16
+            },
+            {
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "line": 17
+            },
+            {
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "line": 18
+            },
+            {
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "line": 19
+            }
+          ],
+          "line": 12,
+          "last": 19
+        }
+      ]
+    },
+    {
+      "title": "Roles in the harbour",
+      "note": "in force, defined in the glossary",
+      "status": "in force",
+      "line": 21,
+      "lines": [
+        {
+          "line": 23,
+          "last": 24,
+          "text": "- **pilot**: the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\").",
+          "bullet": true
+        },
+        {
+          "line": 25,
+          "last": 25,
+          "text": "- **skipper**: runs one ship and hands out routes.",
+          "bullet": true
+        },
+        {
+          "line": 26,
+          "last": 27,
+          "text": "- **deckhand**: a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open.",
+          "bullet": true
+        },
+        {
+          "line": 28,
+          "last": 28,
+          "text": "- a fourth role without a name yet (\"mate\", \"bosun\" proposed).",
+          "bullet": true
+        }
+      ],
+      "tables": []
+    },
+    {
+      "title": "Orders",
+      "note": "in force, each with its glossary entry",
+      "status": "in force",
+      "line": 30,
+      "lines": [
+        {
+          "line": 32,
+          "last": 32,
+          "text": "- **\"hail all ships\"**: a message to every ship in the harbour.",
+          "bullet": true
+        }
+      ],
+      "tables": []
+    },
+    {
+      "title": "Places in the harbour",
+      "note": "in force, synonyms; the captain, 2031-01-05: \"4a\"",
+      "status": "in force",
+      "line": 34,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "farm word",
+            "stands for"
+          ],
+          "labels": [
+            "Farm word",
+            "Stands for"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "slip",
+                "a berth"
+              ],
+              "line": 38
+            },
+            {
+              "cells": [
+                "dock",
+                "the default mooring (main)"
+              ],
+              "line": 39
+            }
+          ],
+          "line": 36,
+          "last": 39
+        }
+      ]
+    },
+    {
+      "title": "Activities",
+      "note": "what a ship does",
+      "status": null,
+      "line": 41,
+      "lines": [
+        {
+          "line": 43,
+          "last": 43,
+          "text": "The captain, 2031-01-05: the harbour words first as synonyms, the code renamed \"once the fog has lifted\".",
+          "bullet": false
+        },
+        {
+          "line": 57,
+          "last": 59,
+          "text": "Things (what lies on disk): route, cargo (freight), KRT, logbook, knot; see \"Routes and loads\". The logbook exists in the fishery only (`/fs-daily`, the captain, 2031-01-05: \"2a\"); a command for every harbour is to be built.",
+          "bullet": false
+        }
+      ],
+      "tables": [
+        {
+          "header": [
+            "farm word",
+            "stands for",
+            "status"
+          ],
+          "labels": [
+            "Farm word",
+            "Stands for",
+            "Status"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "landfall",
+                "ashore, an unloading (`/ashore`)",
+                "in force (synonym)"
+              ],
+              "line": 47
+            },
+            {
+              "cells": [
+                "run the blockade",
+                "`/fast-ashore`",
+                "in force (synonym)"
+              ],
+              "line": 48
+            },
+            {
+              "cells": [
+                "lock gate",
+                "the queue",
+                "in force (synonym)"
+              ],
+              "line": 49
+            },
+            {
+              "cells": [
+                "tugboat",
+                "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+                "in force"
+              ],
+              "line": 50
+            },
+            {
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "line": 51
+            },
+            {
+              "cells": [
+                "foghorn",
+                "the nightly start of a new day's logbook",
+                "proposed, not chosen"
+              ],
+              "line": 52
+            },
+            {
+              "cells": [
+                "anchor",
+                "`/anchor`",
+                "in force, keeps its name"
+              ],
+              "line": 53
+            },
+            {
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "line": 54
+            },
+            {
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "line": 55
+            }
+          ],
+          "line": 45,
+          "last": 55
+        }
+      ]
+    },
+    {
+      "title": "Tools",
+      "note": "",
+      "status": null,
+      "line": 61,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "tool",
+            "level it stands at in the graphic",
+            "status"
+          ],
+          "labels": [
+            "Tool",
+            "Level it stands at in the graphic",
+            "Status"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "portmap",
+                "coast",
+                "exists"
+              ],
+              "line": 65
+            },
+            {
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "line": 66
+            }
+          ],
+          "line": 63,
+          "last": 66
+        }
+      ]
+    },
+    {
+      "title": "Routes and loads",
+      "note": "",
+      "status": null,
+      "line": 68,
+      "lines": [
+        {
+          "line": 70,
+          "last": 71,
+          "text": "mainroute, subroutes (harbour level); grandroute (coast level). Status: draft. In force, defined in the glossary: cargo, KRT.",
+          "bullet": false
+        }
+      ],
+      "tables": []
+    },
+    {
+      "title": "German words",
+      "note": "in force: the captain, 2031-01-05, \"The German words are okay\"; in the glossary as `_de_:` lines",
+      "status": "in force",
+      "line": 73,
+      "lines": [
+        {
+          "line": 75,
+          "last": 76,
+          "text": "The captain, 2031-01-05: \"we need German words because in some of my harbours I use German and English.\"",
+          "bullet": false
+        }
+      ],
+      "tables": [
+        {
+          "header": [
+            "english",
+            "german",
+            "note"
+          ],
+          "labels": [
+            "English",
+            "German",
+            "Note"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "seaverse",
+                "Seeversum",
+                "or stays \"seaverse\""
+              ],
+              "line": 80
+            },
+            {
+              "cells": [
+                "harbour",
+                "Hafen",
+                ""
+              ],
+              "line": 81
+            },
+            {
+              "cells": [
+                "coast, strait, sea, ocean, globe",
+                "Küste, Meerenge, See, Ozean, Globus",
+                ""
+              ],
+              "line": 82
+            },
+            {
+              "cells": [
+                "pilot",
+                "Lotse",
+                ""
+              ],
+              "line": 83
+            },
+            {
+              "cells": [
+                "skipper",
+                "Schiffer",
+                ""
+              ],
+              "line": 84
+            },
+            {
+              "cells": [
+                "slip",
+                "Liegeplatz",
+                ""
+              ],
+              "line": 85
+            },
+            {
+              "cells": [
+                "dock",
+                "Dock",
+                "\"Hafen\" is the harbour"
+              ],
+              "line": 86
+            },
+            {
+              "cells": [
+                "landfall",
+                "Anlandung, anlanden",
+                ""
+              ],
+              "line": 87
+            },
+            {
+              "cells": [
+                "lock gate",
+                "Schleusentor",
+                "or \"Schleuse\""
+              ],
+              "line": 88
+            },
+            {
+              "cells": [
+                "cargo, freight",
+                "Fracht, Frachtgut",
+                ""
+              ],
+              "line": 89
+            },
+            {
+              "cells": [
+                "tie, cut loose",
+                "knüpfen, kappen",
+                ""
+              ],
+              "line": 90
+            },
+            {
+              "cells": [
+                "drill, self drill",
+                "drillen, selbst drillen",
+                "or stays English"
+              ],
+              "line": 91
+            },
+            {
+              "cells": [
+                "KRT",
+                "KRT (Kursprotokoll)",
+                ""
+              ],
+              "line": 92
+            },
+            {
+              "cells": [
+                "\"hail all ships\"",
+                "\"ruf alle Schiffe\"",
+                ""
+              ],
+              "line": 93
+            }
+          ],
+          "line": 78,
+          "last": 93
+        }
+      ]
+    },
+    {
+      "title": "Todo",
+      "note": "names still waiting for a berth",
+      "status": null,
+      "line": 95,
+      "lines": [
+        {
+          "line": 97,
+          "last": 97,
+          "text": "prince, bosun; tug master (proposed for the lead of a convoy, the skipper's Q7).",
+          "bullet": false
+        }
+      ],
+      "tables": []
+    }
+  ],
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 43,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term logbook is untranslated in German (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 86,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term unloading is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 128,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term tally is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 133,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term stowplan is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": 65,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": 79,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": 78,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 32,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term hail all ships is untranslated in German (the ontology's line 32), Dutch (the ontology's line 32), Portuguese (the ontology's line 32): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term anchor is untranslated in German (the ontology's line 53), Dutch (the ontology's line 53), Portuguese (the ontology's line 53): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 80,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": 67,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": 67,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": 66,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    }
+  ]
+}

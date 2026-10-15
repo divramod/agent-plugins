@@ -1,0 +1,20 @@
+{
+  "terms": ["lashing", "tie-up"],
+  "section": "Work",
+  "definition": "A ship made fast at its berth.",
+  "avoid": "parking",
+  "languages": {
+    "de": {"word": "Festmachen", "description": "Ein Schiff, das an seinem Liegeplatz festgemacht ist."},
+    "nl": {"word": "afmeren", "description": "Een schip dat aan zijn ligplaats vastligt."},
+    "pt-PT": {"word": "amarração", "description": "Um navio preso ao seu cais de acostagem."}
+  },
+  "ontology": {
+    "section": "Activities", "term": "tie-up", "cells": ["a lashing"], "status": "in force (synonym)",
+    "languages": {
+      "de": {"cells": ["ein Festmachen", "in Kraft (Synonym)"]},
+      "nl": {"cells": ["een afmering", "van kracht (synoniem)"]},
+      "pt-PT": {"cells": ["uma amarração", "em vigor (sinónimo)"]}
+    }
+  },
+  "dictation": {"heard_as": ["lash in", "lasching"], "note": "the history: 3"}
+}

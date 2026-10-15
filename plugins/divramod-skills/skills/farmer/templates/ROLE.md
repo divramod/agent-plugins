@@ -6,7 +6,7 @@ duties:
   lead: "*/15 * * * *"        # development foreman: unstick sessions
   ci: "*/30 * * * *"          # GitHub Actions green
   sync: "*/30 * * * *"        # farmer branch onto main: a foreman merges main, then farmer, and lands
-  prs: "23 * * * *"           # pull requests clean: Dependabot PRs batched to one foreman, leftovers closed
+  prs: "23 * * * *"           # pull requests clean: dependency PRs (Renovate, Dependabot) batched to one foreman, leftovers closed
   watch: "*/15 * * * *"       # sanity-watch: resume abnormal stops
   autoclear: "0 * * * *"      # fix-autoclear: autoclear failures
   prune: "*/15 * * * *"       # landed worktrees: 00-09 cleaned, 10-99 removed with their branch; free disk

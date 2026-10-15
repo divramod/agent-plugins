@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "term-exists",
+    "message": "the term lashing heads the entry of line 70 already",
+    "detail": {
+      "term": "lashing",
+      "line": 70
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import type { SessionRow } from '../types'
 import { agentsGrid, ago, folder, lines, ordered, parse, planOf, plansGrid } from './sessions'
 
-const row = (over: Partial<SessionRow>): SessionRow => ({ id: 'x', pid: 1, name: 'n', cwd: '/a/b', kind: 'interactive', status: 'idle', startedAt: 0, plan: '', here: false, ...over })
+const row = (over: Partial<SessionRow>): SessionRow => ({ id: 'x', pid: 1, name: 'n', cwd: '/a/b', kind: 'interactive', status: 'idle', startedAt: 0, plan: '', lead: '', here: false, ...over })
 
 test('a session file gives its name, folder, status and start; anything else is no session', () => {
   const s = parse(JSON.stringify({ pid: 7, sessionId: 'S', cwd: '/h/worktree/hal2/03', name: '03-c6', kind: 'interactive', status: 'busy', startedAt: 5 }))

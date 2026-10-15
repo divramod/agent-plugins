@@ -1,6 +1,8 @@
 import type { AgentStatus, On } from 'claude-code'
 import { type Engine, mock } from 'claude-code/testing'
 
+import type { RollUp } from '../types'
+
 // What the table tests share: the pane, three subagents with one step each, the Client mounted at 100 by 10.
 
 export const PANE = { plugin: 'divramod-subagent-context', surface: 'terminal', component: 'Pane', props: { title: 'Subagents: context', isFocused: true, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 10 }, view: {} }, requestId: 'subagent-context', viewport: { columns: 100, rows: 12 } } as const
@@ -58,3 +60,16 @@ export const mounted = async ($: Engine, on: On, surface: 'terminal' | 'desktop'
   }
   return { ui, status, all, texts, header, sum, names, click, drag }
 }
+
+// A part of the contract's fixture (code/rust/apps/hal2-cli-plans/tests/fixtures/expected/masterplan.json): three rows,
+// row 2 working on its step 3 (`running`), row 3 on its step 1 (open).
+export const ROLLUP: RollUp = {
+  id: 10, slug: '0010-masterplan-farm', title: 'Masterplan farm', crop: { name: 'wheat', glyph: '🌾', code: 'WH' }, current_in: [],
+  plans_done: 1, plans_total: 3, steps_done: 5, steps_total: 12, plus: true,
+  rows: [
+    { row: '1', status: 'done', needs: [], slug: '0011-tools', done: 3, total: 3, next: null, current_in: [] },
+    { row: '2', status: 'running', needs: ['1'], slug: '0012-view', done: 2, total: 4, next: { number: '3', title: 'step 3', status: 'running' }, current_in: ['01'] },
+    { row: '3', status: 'draft', needs: ['1', '2'], slug: '0013-map', done: 0, total: 5, next: { number: '1', title: 'step 1', status: '' }, current_in: [] },
+  ],
+}
+

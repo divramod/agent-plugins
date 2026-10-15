@@ -1,28 +1,43 @@
 #!/usr/bin/env python3
-"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270); `voiceink [status|restore]` syncs the words into VoiceInk through hal2-cli-voiceink (plan 0273).
+"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `check` words the check of the halverse files; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270); `voiceink [status|restore|prompt|export]` syncs the words into VoiceInk through hal2-cli-voiceink (plan 0273); `add`, `change`, `retire` and `short` write a term or a short form through hal2-cli-halverse (plan 0276).
 
-Reads the user's typed prompts of the last n days (transcripts.py) and the two source files (sources.py); prints a
-table, the ambiguous forms and the three words to practise. Stores nothing, sends nothing. Python stdlib only.
+Reads the user's typed prompts of the last n days (transcripts.py) and, through hal2-cli-halverse (sources.py), the
+halverse files; prints a table, the ambiguous forms and the three words to practise. `check` words the CLI's
+check of the files. The writing calls (term.py) go through the CLI's writer: a proposal is a dry run, a write needs the
+proposal's number. This script stores nothing and sends nothing. Python stdlib only.
 """
 import argparse
 import json
+import shlex
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
+import check
+import cli
+import halverse_args
 import learn
 import ontology
+import prompt
 import sources
+import term
 import transcripts
 import voiceink
+
+
+def coverage(pairset: learn.PairSet) -> List[str]:
+    """The pairs checked against the files; without the CLI or with a file it cannot read, one line says they were not."""
+    try:
+        data = sources.load()
+    except cli.CliError as err:
+        return ["the pairs were not checked against the files: " + err.text.splitlines()[0]]
+    return learn.coverage_warnings(pairset, sources.farm_words(data), sources.glossary_pairs(data))
 
 
 def run_learn(days: float, as_json: bool) -> str:
     pairset = learn.load_pairs()
     messages = list(transcripts.user_messages(days))
     stats = learn.count(messages, pairset.pairs)
-    words = sources.farm_words(sources.read_text(sources.ontology_path()))
-    headings = sources.glossary_pairs(sources.read_text(sources.glossary_path()))
-    warnings = learn.coverage_warnings(pairset, words, headings)
+    warnings = coverage(pairset)
     top = learn.practise(stats)
     if as_json:
         return json.dumps({
@@ -43,32 +58,59 @@ def run_learn(days: float, as_json: bool) -> str:
     return "\n".join(out)
 
 
+def run_term(args: argparse.Namespace) -> Tuple[str, int]:
+    """`add`, `change` and `retire`: the fit, the term as it is, the proposal (a dry run) or the one writing call."""
+    if args.action == "check":
+        return term.check(args.words, args.repo_glossary, args.json)
+    if args.action == "show":
+        return term.show(args.term)
+    try:
+        if args.command == "retire":
+            request = term.retire_request(args.term, args.by)
+            call = "halverse.py retire write %s" % " ".join(shlex.quote(part) for part in request[0][2:])
+        else:
+            request = term.document_request(args.kind, args.source)
+            call = "halverse.py %s write --from %s" % (args.kind, shlex.quote(args.source))
+    except cli.CliError as err:
+        return err.text, err.code
+    if args.action == "propose":
+        return term.propose(request, call, args.json)
+    return term.write(request, args.confirmed, args.json)
+
+
+def run_short(args: argparse.Namespace) -> Tuple[str, int]:
+    if args.action == "set":
+        return term.short_set(args.short, args.word, args.farm, args.spoken, args.json)
+    if args.action == "rm":
+        return term.short_rm(args.short, args.json)
+    return term.short_list(args.json)
+
+
+def run_voiceink(args: argparse.Namespace) -> Tuple[str, int]:
+    if args.action == "prompt":
+        return prompt.run(args.json)
+    return voiceink.run(args.action, args.json, args.dry_run, args.backup, args.list, args.out)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(prog="halverse.py", description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
-    cmd = sub.add_parser("learn", help="count old words against farm words in the user's own prompts")
-    cmd.add_argument("--days", type=float, default=7, help="how many days back (default 7)")
-    cmd.add_argument("--json", action="store_true", help="print data instead of the table")
-    onto = sub.add_parser("ontology", help="the user's ontology and glossary, or one term of them")
-    onto.add_argument("term", nargs="?", help="a term: its glossary entry, ontology lines, old word and command")
-    onto.add_argument("--json", action="store_true", help="print data instead of text")
-    vi = sub.add_parser("voiceink", help="sync the words into VoiceInk (hal2-cli-voiceink), or show the difference, or restore a backup")
-    vi.add_argument("action", nargs="?", choices=["sync", "status", "restore"], default="sync", help="sync (default), status or restore")
-    vi.add_argument("backup", nargs="?", help="restore: the backup to put back (default the newest)")
-    vi.add_argument("--dry-run", action="store_true", help="sync: show what it would write, write nothing")
-    vi.add_argument("--list", action="store_true", help="restore: list the backups")
-    vi.add_argument("--json", action="store_true", help="print the CLI's data instead of the report")
-    args = parser.parse_args(argv)
-    if args.command == "voiceink":
-        text, code = voiceink.run(args.action, args.json, args.dry_run, args.backup, args.list)
-        print(text, file=sys.stderr if code else sys.stdout)
+    args = halverse_args.parser(__doc__).parse_args(argv)
+    if args.command == "learn":
+        print(run_learn(args.days, args.json))
+        return 0
+    if args.command == "check":
+        text, code = check.run(args.json)
+        print(text, file=sys.stderr if code > 1 else sys.stdout)
         return code
     if args.command == "ontology":
         text, code = ontology.run(args.term, args.json)
-        print(text, file=sys.stderr if code else sys.stdout)
-        return code
-    print(run_learn(args.days, args.json))
-    return 0
+    elif args.command == "voiceink":
+        text, code = run_voiceink(args)
+    elif args.command == "short":
+        text, code = run_short(args)
+    else:
+        text, code = run_term(args)
+    print(text, file=sys.stderr if code else sys.stdout)
+    return code
 
 
 if __name__ == "__main__":

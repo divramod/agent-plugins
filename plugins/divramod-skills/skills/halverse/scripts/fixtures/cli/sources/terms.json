@@ -1,0 +1,1566 @@
+{
+  "files": {
+    "glossary": "GLOSSARY.md",
+    "ontology": "ontology.md",
+    "dictation": "dictation.md",
+    "companions": {
+      "de": {
+        "glossary": "GLOSSARY.de.md",
+        "ontology": "ontology.de.md"
+      },
+      "nl": {
+        "glossary": "GLOSSARY.nl.md",
+        "ontology": "ontology.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "GLOSSARY.pt-PT.md",
+        "ontology": "ontology.pt-PT.md"
+      }
+    }
+  },
+  "levels": [],
+  "short_forms": [],
+  "terms": [
+    {
+      "id": "none/other/shot",
+      "term": "shot",
+      "synonyms": [
+        "seed"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 0,
+      "definition": "One prompt in a shotfile.",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "",
+        "line": 3
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "shot",
+          "word_lang": "en",
+          "description": "One prompt in a shotfile.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "",
+          "ontology": []
+        },
+        "de": {
+          "word": "shot",
+          "word_lang": "en",
+          "description": "One prompt in a shotfile.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        },
+        "nl": {
+          "word": "shot",
+          "word_lang": "en",
+          "description": "One prompt in a shotfile.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "shot",
+          "word_lang": "en",
+          "description": "One prompt in a shotfile.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/landing",
+      "term": "landing",
+      "synonyms": [
+        "bring in"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 1,
+      "definition": "Bringing work onto the default branch.",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "",
+        "line": 6
+      },
+      "ontology": [
+        {
+          "term": "bring in",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "merge-to-main (`/mtm`)",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force (synonym)",
+          "section": "Activities",
+          "line": 20
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "landing",
+          "word_lang": "en",
+          "description": "Bringing work onto the default branch.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "bring in",
+                "merge-to-main (`/mtm`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 20
+            }
+          ]
+        },
+        "de": {
+          "word": "landing",
+          "word_lang": "en",
+          "description": "Bringing work onto the default branch.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "bring in",
+                "merge-to-main (`/mtm`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 20
+            }
+          ]
+        },
+        "nl": {
+          "word": "landing",
+          "word_lang": "en",
+          "description": "Bringing work onto the default branch.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "bring in",
+                "merge-to-main (`/mtm`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 20
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "landing",
+          "word_lang": "en",
+          "description": "Bringing work onto the default branch.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "bring in",
+                "merge-to-main (`/mtm`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 20
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/harvest",
+      "term": "harvest",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 0,
+      "definition": "The foreman's part before a landing.",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "",
+        "line": 9
+      },
+      "ontology": [
+        {
+          "term": "harvest",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the foreman's part before a landing",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 19
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "harvest",
+          "word_lang": "en",
+          "description": "The foreman's part before a landing.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "harvest",
+                "the foreman's part before a landing",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "de": {
+          "word": "harvest",
+          "word_lang": "en",
+          "description": "The foreman's part before a landing.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "harvest",
+                "the foreman's part before a landing",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "nl": {
+          "word": "harvest",
+          "word_lang": "en",
+          "description": "The foreman's part before a landing.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "harvest",
+                "the foreman's part before a landing",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "harvest",
+          "word_lang": "en",
+          "description": "The foreman's part before a landing.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "harvest",
+                "the foreman's part before a landing",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/role/steward",
+      "term": "steward",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "role",
+      "level": null,
+      "order": 0,
+      "definition": "The session in the main checkout.",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "",
+        "line": 12
+      },
+      "ontology": [
+        {
+          "term": "steward",
+          "phrase": false,
+          "column": null,
+          "stands_for": "the session in the main checkout, with the user.",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, defined in the glossary",
+          "section": "Roles on the farm",
+          "line": 5
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "steward",
+          "word_lang": "en",
+          "description": "The session in the main checkout.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Roles on the farm",
+              "cells": [
+                "steward",
+                "the session in the main checkout, with the user."
+              ],
+              "lang": "en",
+              "line": 5
+            }
+          ]
+        },
+        "de": {
+          "word": "steward",
+          "word_lang": "en",
+          "description": "The session in the main checkout.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Roles on the farm",
+              "cells": [
+                "steward",
+                "the session in the main checkout, with the user."
+              ],
+              "lang": "en",
+              "line": 5
+            }
+          ]
+        },
+        "nl": {
+          "word": "steward",
+          "word_lang": "en",
+          "description": "The session in the main checkout.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Roles on the farm",
+              "cells": [
+                "steward",
+                "the session in the main checkout, with the user."
+              ],
+              "lang": "en",
+              "line": 5
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "steward",
+          "word_lang": "en",
+          "description": "The session in the main checkout.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": [
+            {
+              "section": "Roles on the farm",
+              "cells": [
+                "steward",
+                "the session in the main checkout, with the user."
+              ],
+              "lang": "en",
+              "line": 5
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/tell-the-farm",
+      "term": "tell the farm",
+      "synonyms": [],
+      "phrase": true,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 1,
+      "definition": "A message to every agent.",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "",
+        "line": 15
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "tell the farm",
+          "word_lang": "en",
+          "description": "A message to every agent.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "",
+          "ontology": []
+        },
+        "de": {
+          "word": "tell the farm",
+          "word_lang": "en",
+          "description": "A message to every agent.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        },
+        "nl": {
+          "word": "tell the farm",
+          "word_lang": "en",
+          "description": "A message to every agent.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "tell the farm",
+          "word_lang": "en",
+          "description": "A message to every agent.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/place/field",
+      "term": "field",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "place",
+      "level": null,
+      "order": 0,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "field",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "a worktree",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, synonyms",
+          "section": "Places on the farm",
+          "line": 12
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "field",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "field",
+                "a worktree"
+              ],
+              "lang": "en",
+              "line": 12
+            }
+          ]
+        },
+        "de": {
+          "word": "field",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "field",
+                "a worktree"
+              ],
+              "lang": "en",
+              "line": 12
+            }
+          ]
+        },
+        "nl": {
+          "word": "field",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "field",
+                "a worktree"
+              ],
+              "lang": "en",
+              "line": 12
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "field",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "field",
+                "a worktree"
+              ],
+              "lang": "en",
+              "line": 12
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/place/yard",
+      "term": "yard",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "place",
+      "level": null,
+      "order": 1,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "yard",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the main checkout",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, synonyms",
+          "section": "Places on the farm",
+          "line": 13
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "yard",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "yard",
+                "the main checkout"
+              ],
+              "lang": "en",
+              "line": 13
+            }
+          ]
+        },
+        "de": {
+          "word": "yard",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "yard",
+                "the main checkout"
+              ],
+              "lang": "en",
+              "line": 13
+            }
+          ]
+        },
+        "nl": {
+          "word": "yard",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "yard",
+                "the main checkout"
+              ],
+              "lang": "en",
+              "line": 13
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "yard",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Places on the farm",
+              "cells": [
+                "yard",
+                "the main checkout"
+              ],
+              "lang": "en",
+              "line": 13
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/jot",
+      "term": "jot",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 2,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "jot",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "adding a chore",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 21
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "jot",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "de": {
+          "word": "jot",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "nl": {
+          "word": "jot",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "jot",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/tick-off",
+      "term": "tick off",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 3,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "tick off",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "finishing it",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 21
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "tick off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "de": {
+          "word": "tick off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "nl": {
+          "word": "tick off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "tick off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 21
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/cockcrow",
+      "term": "cockcrow",
+      "synonyms": [],
+      "phrase": false,
+      "status": "proposed",
+      "kind": "activity",
+      "level": null,
+      "order": 4,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "cockcrow",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the nightly start",
+          "level": null,
+          "status": "proposed",
+          "status_text": "proposed, not chosen",
+          "section": "Activities",
+          "line": 22
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "cockcrow",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "cockcrow",
+                "the nightly start",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 22
+            }
+          ]
+        },
+        "de": {
+          "word": "cockcrow",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "cockcrow",
+                "the nightly start",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 22
+            }
+          ]
+        },
+        "nl": {
+          "word": "cockcrow",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "cockcrow",
+                "the nightly start",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 22
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "cockcrow",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "cockcrow",
+                "the nightly start",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 22
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/pause",
+      "term": "pause",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 5,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "pause",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/pause`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, keeps its name",
+          "section": "Activities",
+          "line": 23
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "pause",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "pause",
+                "`/pause`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "de": {
+          "word": "pause",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "pause",
+                "`/pause`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "nl": {
+          "word": "pause",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "pause",
+                "`/pause`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "pause",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "pause",
+                "`/pause`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/hand-off",
+      "term": "hand off",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 6,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "hand off",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/handoff`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force; other names proposed",
+          "section": "Activities",
+          "line": 24
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "hand off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "de": {
+          "word": "hand off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "nl": {
+          "word": "hand off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "hand off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/continue",
+      "term": "continue",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 7,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "continue",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/continue`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force; other names proposed",
+          "section": "Activities",
+          "line": 24
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "continue",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "de": {
+          "word": "continue",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "nl": {
+          "word": "continue",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "continue",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "lang": "en",
+              "line": 24
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/tool/hal9k",
+      "term": "hal9k",
+      "synonyms": [],
+      "phrase": false,
+      "status": "exists",
+      "kind": "tool",
+      "level": null,
+      "order": 0,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "hal9k",
+          "phrase": false,
+          "column": "tool",
+          "stands_for": "",
+          "level": "village",
+          "status": "exists",
+          "status_text": "exists",
+          "section": "Tools",
+          "line": 30
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "hal9k",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "hal9k",
+                "village",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 30
+            }
+          ]
+        },
+        "de": {
+          "word": "hal9k",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "hal9k",
+                "village",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 30
+            }
+          ]
+        },
+        "nl": {
+          "word": "hal9k",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "hal9k",
+                "village",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 30
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "hal9k",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "hal9k",
+                "village",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 30
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    }
+  ],
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 12,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term field has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 13,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term yard has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term jot has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tick off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 23,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term pause has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term hand off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term continue has no glossary entry"
+    }
+  ]
+}

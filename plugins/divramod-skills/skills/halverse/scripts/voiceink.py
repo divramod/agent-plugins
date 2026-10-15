@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""halverse voiceink: one call of `hal2-cli-voiceink <sync|status|restore> --json`, reported in short plain words (plan 0273, D9, D15).
+"""halverse voiceink: one call of `hal2-cli-voiceink <sync|status|restore|export> --json`, reported in short plain words (plan 0273, D9, D15).
 
 The CLI (apps/hal2-cli-voiceink) does the work and owns the JSON contract (D15) and the exit codes: 0 done, 2 usage,
 3 no store, 4 unknown schema, 5 store unavailable, 6 write failed (backup put back), 7 no backup. This module only runs
-it and words the answer. The one writer is the CLI; nothing here opens VoiceInk's store. Python stdlib only.
+it and words the answer; `export` writes VoiceInk's import file and opens no store (plan 0276, D20). The one writer is
+the CLI; nothing here opens VoiceInk's store. Python stdlib only.
 """
 import json
 import os
@@ -31,8 +32,11 @@ ADVICE = {
     "no-store": "VoiceInk's store was not found: VoiceInk is not installed, was never opened, or this is not a Mac "
                 "(VoiceInk exists on macOS only). Install VoiceInk, open it once, then call /hv voiceink again.",
     "unknown-schema": "VoiceInk's store has a schema this tool does not know, so VoiceInk was probably updated. "
-                      "Nothing was written. Tell the farmer or the halverse plan's foreman; the sync is verified only "
-                      "against the versions named below.",
+                      "Nothing was written. Until the sync knows that version, `/hv voiceink export` writes the words "
+                      "as a file that VoiceInk's \"Import Dictionary\" reads. Tell the farmer or the halverse plan's "
+                      "foreman; the sync is verified only against the versions named below.",
+    "unwritable": "The import file could not be written. See that its folder exists and can be written, or name "
+                  "another file: `/hv voiceink export --out <file>`.",
     "no-backup": "There is no backup to restore. A backup exists only after a sync that changed something "
                  "(`/hv voiceink restore --list` shows them).",
 }
@@ -72,6 +76,20 @@ def write_failed_advice(detail: Dict[str, Any]) -> str:
     return ("The write may have reached VoiceInk's store and the backup was NOT put back (it is only put back while "
             "VoiceInk is not running). The backup%s holds the store as it was. Quit VoiceInk (Cmd+Q in VoiceInk), "
             "then call `/hv voiceink restore` to put it back, and tell the farmer." % (" " + str(backup) if backup else ""))
+
+
+def state_advice(state: str, message: Optional[str]) -> List[str]:
+    """A failed sync as another command reports it (`hal2-cli-halverse term`: `voiceink.state` is this CLI's error
+    code, `message` its text, and there is no detail): the advice for that code, then the CLI's message."""
+    if state == "write-failed":
+        out = ["The write into VoiceInk's store failed. The CLI's message below says whether anything was written and "
+               "whether the backup was put back; if the store is not as it was, quit VoiceInk and call "
+               "`/hv voiceink restore`."]
+    elif state == "store-unavailable":
+        out = [unavailable_advice({})]
+    else:
+        out = [ADVICE.get(state, "hal2-cli-voiceink stopped with the error \"%s\"." % state)]
+    return out + (["CLI message: %s" % message] if message else [])
 
 
 def find_cli() -> Optional[str]:
@@ -132,6 +150,17 @@ def problem_lines(problems: List[Any]) -> List[str]:
         out.append("notes on the source files (%d), nothing to do for the sync:" % len(notes))
         out += ["  - " + problem(p) for p in notes[:LIST_MAX]]
     return out
+
+
+def problem_counts(problems: List[Any]) -> List[str]:
+    """One line for a call that only reads the word list: how many problems the source files have, not each."""
+    notes = [p for p in problems if isinstance(p, dict) and p.get("severity") == "note"]
+    errors = len(problems) - len(notes)
+    if not problems:
+        return []
+    return ["the source files have %d error%s%s and %d note%s: `/hv check` lists them"
+            % (errors, "" if errors == 1 else "s", " (their rows are left out)" if errors else "", len(notes),
+               "" if len(notes) == 1 else "s")]
 
 
 def left_out_lines(voc: Dict[str, Any]) -> List[str]:
@@ -234,8 +263,16 @@ def restore_report(data: Dict[str, Any]) -> str:
     return "restored %s\ninto %s%s\nOpen VoiceInk again." % (data.get("restored", "?"), data.get("store", "?"), before)
 
 
+def export_report(data: Dict[str, Any]) -> str:
+    out = ["VoiceInk's import file is written: %s" % data.get("file", "?"),
+           "it holds %s vocabulary words and %s replacements; VoiceInk's store was not opened"
+           % (data.get("vocabulary", "?"), data.get("replacements", "?")),
+           "Import it in VoiceInk with its own \"Import Dictionary\" (only a VoiceInk that has that command reads it)."]
+    return "\n".join(out + problem_counts(data.get("problems") or []))
+
+
 def run(action: str, as_json: bool = False, dry_run: bool = False, backup: Optional[str] = None,
-        list_backups: bool = False) -> Tuple[str, int]:
+        list_backups: bool = False, out: Optional[str] = None) -> Tuple[str, int]:
     """The report and the script's exit code: the CLI's own on an error, 2 when the CLI is not installed."""
     if find_cli() is None:
         return missing_cli()
@@ -244,6 +281,8 @@ def run(action: str, as_json: bool = False, dry_run: bool = False, backup: Optio
         args.append("--dry-run")
     if action == "restore":
         args += ["--list"] if list_backups else ([backup] if backup else [])
+    if action == "export" and out:
+        args += ["--out", out]
     data, code, raw = call(args)
     if code != 0:
         return error_text(data, code, raw), code
@@ -251,5 +290,5 @@ def run(action: str, as_json: bool = False, dry_run: bool = False, backup: Optio
         return "hal2-cli-voiceink answered without JSON:\n%s" % raw[:600], 1
     if as_json:
         return json.dumps(data, indent=2, ensure_ascii=False), 0
-    report = {"sync": sync_report, "status": status_report, "restore": restore_report}[action]
+    report = {"sync": sync_report, "status": status_report, "restore": restore_report, "export": export_report}[action]
     return report(data), 0

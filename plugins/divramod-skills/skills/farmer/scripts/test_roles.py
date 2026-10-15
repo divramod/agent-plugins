@@ -7,7 +7,7 @@ from unittest import mock
 
 import roles
 
-RUST_ROLES = Path(__file__).resolve().parents[7] / "code/rust/libs/hal2-git/src/worktree/role.rs"
+RUST_ROLES = Path(__file__).resolve().parents[7] / "code/rust/libs/hal2-core/src/roles.rs"
 
 
 def git(cwd, *args):
@@ -16,7 +16,7 @@ def git(cwd, *args):
 
 class Names(unittest.TestCase):
     def test_roles_are_the_ones_hal2_git_protects(self):
-        """ROLES mirrors hal2_git::worktree::PROTECTED_SLOTS (same names, same order)."""
+        """ROLES mirrors hal2_core::roles::PROTECTED_SLOTS (same names, same order)."""
         if not RUST_ROLES.is_file():
             self.skipTest("the Rust source is not beside this checkout")
         block = re.search(r"PROTECTED_SLOTS: &\[&str\] = &\[(.*?)\];", RUST_ROLES.read_text(), re.S).group(1)

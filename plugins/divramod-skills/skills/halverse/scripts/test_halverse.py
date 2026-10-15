@@ -2,27 +2,26 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 
+import fake_cli
 import halverse
-import sources
-import transcripts
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SAMPLE = os.path.join(HERE, "fixtures", "sources")
 
 
 def line(text, when):
     return json.dumps({"type": "user", "timestamp": when.isoformat(), "message": {"role": "user", "content": text}})
 
 
-class Learn(unittest.TestCase):
+class Learn(fake_cli.FakeCli):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        super().setUp()
         project = os.path.join(self.tmp.name, "projects", "-demo")
         os.makedirs(project)
         now = datetime.now(timezone.utc)
@@ -34,19 +33,17 @@ class Learn(unittest.TestCase):
                             "message": {"content": "mtm mtm mtm"}})]
         with open(os.path.join(project, "a.jsonl"), "w") as handle:
             handle.write("\n".join(rows) + "\n")
-        self.env = {"HALVERSE_PROJECTS_ROOT": os.path.join(self.tmp.name, "projects"),
-                    "HALVERSE_GLOSSARY": os.path.join(SAMPLE, "GLOSSARY.md"),
-                    "HALVERSE_ONTOLOGY": os.path.join(SAMPLE, "ontology.md")}
-        self.saved = {k: os.environ.get(k) for k in self.env}
+        self.env = {"HALVERSE_PROJECTS_ROOT": os.path.join(self.tmp.name, "projects")}
+        self.saved_env = {k: os.environ.get(k) for k in self.env}
         os.environ.update(self.env)
 
     def tearDown(self):
-        for key, value in self.saved.items():
+        for key, value in self.saved_env.items():
             if value is None:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-        self.tmp.cleanup()
+        super().tearDown()
 
     def run_cli(self, *args):
         out = io.StringIO()
@@ -76,17 +73,30 @@ class Learn(unittest.TestCase):
         self.assertEqual(data["warnings"], [])
 
     def test_a_farm_word_without_a_pair_warns_at_run_time(self):
-        path = os.path.join(self.tmp.name, "o.md")
-        with open(path, "w") as handle:
-            handle.write("| Farm word | Stands for | Status |\n|---|---|---|\n| scythe | cutting | in force |\n")
-        os.environ["HALVERSE_ONTOLOGY"] = path
+        folder = os.path.join(self.tmp.name, "data")
+        os.makedirs(folder)
+        shutil.copy(os.path.join(fake_cli.SOURCES, "terms.json"), folder)
+        with open(os.path.join(folder, "ontology.json"), "w") as handle:
+            json.dump({"sections": [{"title": "Tools", "note": "", "lines": [], "tables": [
+                {"header": ["farm word", "stands for", "status"], "rows": [{"cells": ["scythe", "cutting", "in force"], "line": 3}]}]}]}, handle)
+        self.use(folder)
         self.assertIn('warning: farm word "scythe"', self.run_cli("learn"))
         self.assertEqual(len(json.loads(self.run_cli("learn", "--json"))["warnings"]), 1)
 
-    def test_missing_source_files_still_print_the_table(self):
-        os.environ["HALVERSE_GLOSSARY"] = os.path.join(self.tmp.name, "none.md")
-        os.environ["HALVERSE_ONTOLOGY"] = os.path.join(self.tmp.name, "none2.md")
-        self.assertIn("old word", self.run_cli("learn"))
+    def test_without_the_program_the_table_is_printed_and_one_line_says_the_pairs_were_not_checked(self):
+        os.remove(self.path)
+        out = self.run_cli("learn")
+        self.assertIn("old word", out)
+        self.assertEqual(sum("not checked against the files" in line for line in out.splitlines()), 1)
+        self.assertIn("not installed", out)
+        self.assertEqual(len(json.loads(self.run_cli("learn", "--json"))["warnings"]), 1)
+
+    def test_a_file_the_cli_cannot_read_gives_the_same_line_naming_it(self):
+        self.script("#!%s\nimport sys\nprint(%r)\nsys.exit(2)\n" % (sys.executable, json.dumps(
+            {"error": {"code": "unreadable", "message": "x", "detail": {"file": "ontology", "path": "/x/O.md"}}})))
+        out = self.run_cli("learn")
+        self.assertIn("old word", out)
+        self.assertIn("not checked against the files: The ontology file /x/O.md cannot be read", out)
 
     def test_script_runs_as_a_program_and_exits_zero(self):
         env = dict(os.environ)

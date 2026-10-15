@@ -9,14 +9,15 @@ before, while 5 landings were ready and waiting.
 
 ## Landings through CI (hal2 plan 0131)
 
-Where the default branch has `.github/workflows/merge-to-main.yml` (or `land.yml`, its name before plan 0263), a
+Where the default branch has `.github/workflows/dev-merge-to-main.yml` (or `merge-to-main.yml`, its name before plan
+0349 D52, or `land.yml`, before plan 0263), a
 landing is a candidate on `land/<slot>` that
 GitHub Actions tests on hal2's own runners and fast-forwards on green ([mtm's CI page](../../../mtm/references/ci.md)).
 Nothing holds the queue on red and nothing runs on the Mac, so the local cases change:
 
 - **Gone**: R1 (a red candidate releases the queue at once; its session fixes and lands again), R2 and R3 (the
   gates run on fixed-resource runners, not under the Mac's load), R4 (`merge-to-main --max-wait` keeps its place),
-  R10 and R11 locally (a job's `timeout-minutes` ends it on GitHub), R12 (`ship.yml` installs after the landing).
+  R10 and R11 locally (a job's `timeout-minutes` ends it on GitHub), R12 (the dev pipeline's delivery installs after the landing).
 - **Stay**: R6, R7, R8, R9 (a real failure is now a red job: its session reads `gh run view --log-failed` and
   reproduces it with `gate/main.sh <job>`).
 - **New**, the C cases below. A red job's cause in the runner, its image or the workflow is the ci duty's (one fix
@@ -38,9 +39,12 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 
 ## C9 · A landing that tested nothing: "landed as a plain merge"
 
-- **Signature**: in a repository whose workflow is `merge-to-main.yml`, a landing's warning `no
+- **Signature**: in a repository whose workflow is `merge-to-main.yml` (or, since plan 0349 D52,
+  `dev-merge-to-main.yml`), a landing's warning `no
   .github/workflows/land.yml: landed as a plain merge, nothing was tested` (the hal2-cli-git that reads both names
-  says `no .github/workflows/merge-to-main.yml or land.yml: ...`; match `landed as a plain merge`); or a landing
+  says `no .github/workflows/merge-to-main.yml or land.yml: ...`, the one that reads all three `no
+  .github/workflows/dev-merge-to-main.yml, merge-to-main.yml or land.yml: ...`; match `landed as a plain merge`); or a
+  landing
   that ends `testing` (exit 6) again and again while no run of its candidate exists under `land.yml`.
 - **Occurrences**: none yet; named when the workflow was renamed (hal2 plan 0263).
 - **Cause**: the installed hal2-cli-git is older than the rename: it looks for `land.yml` only, finds none and
@@ -49,7 +53,8 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 - **Remedy**: install the CLI (`cargo install --locked --path code/rust/apps/hal2-cli-git` in the main checkout),
   then check the landed commit by hand with the gate jobs of the files it changed.
 - **Lasting fix**: hal2 plan 0263: the mtm skill's `check-landing-cli.sh` stops `/mtm` (exit 8) before the reserve
-  and in front of every `merge-to-main` while the CLI's `--help` does not name `merge-to-main.yml`.
+  and in front of every `merge-to-main` while the CLI's `--help` does not name the repository's newest name
+  (`dev-merge-to-main.yml` or `merge-to-main.yml`).
 
 ## C8 · A delivery cannot read the new main's job map
 
@@ -95,8 +100,8 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   `shipping()` saw no shipping run: the landing released the queue and the next one pushed.
 - **Remedy**: stop the newer landing (`hal2-cli-git worktree stop <slot>`), cancel its run, "land now" once the older
   run is completed. Check by hand: `gh run list --workflow <file> --limit 10 --json databaseId,headBranch,status
-  --jq '.[] | select(.status != "completed")'` for `merge-to-main.yml` and for `land.yml` (both empty: go; the
-  mtm skill's `land-runs.sh --once` asks both).
+  --jq '.[] | select(.status != "completed")'` for `dev-merge-to-main.yml`, `merge-to-main.yml` and `land.yml` (all
+  empty: go; the mtm skill's `land-runs.sh --once` asks all three).
 - **Lasting fix**: landed: hal2 plan 0150 (cf97733d, on main with 9fda0676 #23; installed by that run's deliver
   2026-10-06 15:10, `hal2-cli-git` asks every non-completed status); mtm skill documents the check (skills plan
   0013, skills/30-1).
@@ -111,8 +116,9 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
     image (it predates the trim).
 - **Remedy**: run the repo's `code/python/scripts/rust-target-trim` on the runner as `ci` with the hook's settings
   (20 GB, 70%) while no Linux job runs, then relaunch the landing (04 did, volume 54%).
-- **Lasting fix**: landed: hal2 plan 0150 (9fda0676 #23, 20cddf34 #24, 0127104f #25; 2026-10-06 15:3x): ci-disk on
-  the volume (`/mnt/ci/lib/current`, synced by every push's `changes`), loud job-start hooks, `hal2-ci-disk.timer`,
+- **Lasting fix**: landed: hal2 plan 0150 (9fda0676 #23, 20cddf34 #24, 0127104f #25; 2026-10-06 15:3x): the disk cleaner
+  on the volume (`/mnt/ci/lib/current`, synced by every push's `changes`; since plan 0349 `ci-cache-clean --machine
+  hz01`), loud job-start hooks, the 15-minute timer (`hal2-ci-cache-clean.timer`),
   a pre-flight in the heavy jobs, the image key compared with main's (stale → rebuild). Live check: image 440285575
   (key be59ef88ccbd, built from the Mac: the old installed builder still failed once, user data over 32 KiB),
   `/mnt/ci` 53%. Shot hal2 ci #2. The image WAS rebuilt at 05:51 (run 37420645579) but by the previously installed

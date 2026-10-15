@@ -1,0 +1,248 @@
+{
+  "dry_run": true,
+  "written": false,
+  "files": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "path": "GLOSSARY.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": null,
+          "line": 15,
+          "last": 15,
+          "lines": [
+            "_Avoid_: main mate, helper (a role at the fleet's level in the model), ensign, bosun, shipmaster"
+          ]
+        },
+        {
+          "file": "glossary",
+          "lang": null,
+          "line": 18,
+          "last": 18,
+          "lines": [
+            "**skipper**:"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "path": "GLOSSARY.de.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": "de",
+          "line": 16,
+          "last": 16,
+          "lines": [
+            "**skipper**:"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "path": "GLOSSARY.nl.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": "nl",
+          "line": 17,
+          "last": 17,
+          "lines": [
+            "**skipper**:"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "path": "GLOSSARY.pt-PT.md",
+      "changes": [
+        {
+          "file": "glossary",
+          "lang": "pt-PT",
+          "line": 17,
+          "last": 17,
+          "lines": [
+            "**skipper**:"
+          ]
+        }
+      ]
+    }
+  ],
+  "backup": null,
+  "check": {
+    "errors": 3,
+    "notes": 16
+  },
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 43,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term logbook is untranslated in German (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 91,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term unloading is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 133,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term tally is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 138,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term stowplan is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": 68,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": 83,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": 82,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 32,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term hail all ships is untranslated in German (the ontology's line 32), Dutch (the ontology's line 32), Portuguese (the ontology's line 32): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term anchor is untranslated in German (the ontology's line 53), Dutch (the ontology's line 53), Portuguese (the ontology's line 53): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 81,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": 67,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    }
+  ],
+  "recovered": [],
+  "unrecovered": [],
+  "voiceink": {
+    "state": "skipped",
+    "report": null,
+    "message": null
+  },
+  "remarks": [
+    "VoiceInk keeps the word shipmaster, its words of other languages and its replacements: a sync adds and never deletes; remove them in VoiceInk's dictionary by hand if they must go"
+  ]
+}

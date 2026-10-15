@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Refuse a landing in a former servant's worktree (skills plan 0013; servant
-# sessions are gone since plan 0016, the guard stays while a worktree holds one, plan
-# 0015 D12): the worktree holds plans/LEAD (`<lead-slot> <plan> <step>`).
+# Refuse a landing in a servant's field (skills plan 0013, plan 0015 D12; hal2
+# plan 0275 D26): the worktree holds its foreman's marker plans/LEAD (`<foreman's
+# field> <plan> <step>`; of a masterplan's servant `<foreman's field> <the
+# masterplan> <its row>`). A servant never lands: its foreman merges its branch,
+# marks the steps and brings the work in.
 # Usage: subservant-guard.sh [<dir>|<slot>]   (default: the current directory)
 #   <dir>  any directory inside the worktree to check;
 #   <slot> a worktree's name when no such directory exists here (31, main, a named
@@ -38,6 +40,6 @@ root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")
 marker="$root/plans/LEAD"
 [ -f "$marker" ] || exit 0
 read -r lead plan step _ < "$marker" || true
-echo "mtm: this worktree is a servant of worktree ${lead:-?} (plan ${plan:-?} step ${step:-?}, plans/LEAD): it never lands." >&2
-echo "It holds a stale plans/LEAD of the foreman in worktree ${lead:-?}: the foreman takes the work over, or delete plans/LEAD." >&2
+echo "mtm: this field is a servant of the foreman in field ${lead:-?} (plans/LEAD: plan ${plan:-?}, step or row ${step:-?}): it never lands." >&2
+echo "Commit and push your branch and report to the foreman in field ${lead:-?}, who merges it, marks the steps and brings the work in." >&2
 exit 1

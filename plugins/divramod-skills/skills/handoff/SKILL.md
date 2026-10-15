@@ -38,10 +38,13 @@ has each file's form. Wherever this skill says `HANDOFF.md`, a record plan's ses
 
 ## Continue
 
-**In a servant's worktree** (a parallel plan's helper session: `plans/LEAD` holds `<lead-slot> <plan> <step>`,
-`decisions.py` prints a `foreman:` line) `/handoff c` continues **that one step only**, as the plan skill's "Work as a
-servant" says: never the plan's next step, never `/mtm`, never an edit of `plan.md`; `CURRENT_PLAN` keeps naming
-the foreman's plan. When the step's report is pushed and the foreman told, the work is done: say so and stop.
+**In a servant's worktree** (`plans/LEAD` holds `<foreman's field> <plan> <step>`, `decisions.py`
+prints a `foreman:` line) `/handoff c` continues **that one step only**, as the plan skill's [Work as a
+servant](../plan/SKILL.md#work-as-a-servant) says: never the plan's next step, never `/mtm`, never an edit of
+`plan.md`; `CURRENT_PLAN` keeps naming the foreman's plan. A masterplan's servant (the marker names the masterplan
+and its row) has that row as its "one step": the row's whole plan, continued from its own root `HANDOFF.md`, each of
+the plan's steps in a hand (`plan.py prompt <n> --plan <its plan>`), never a Status cell, up to the rows checked
+after the landing. When the report is pushed and the foreman told, the work is done: say so and stop.
 
 0. **Restore the coordinator's values first** (plan 0015's D10: after a clear the plan wins). Before anything else,
    and never after a `plan.py run --sync` (that would write the cleared session's values over the plan's):
@@ -98,6 +101,19 @@ the foreman's plan. When the step's report is pushed and the foreman told, the w
    When the handoff continues a plan (**Plan** links one with steps left) and this is no servant's worktree, the
    plan was already approved: keep running it as the `plan` skill's "Run the plan" says (step after step without asking, a commit after every
    step, the context check after each one) instead of stopping after the first task.
+
+**The current plan is a masterplan** (`python3 <plan-skill-dir>/scripts/plan.py current` says `masterplan` true: the
+field waits between two of its plans, and this is no servant's field; hal2 plan 0275 D15). Steps 0 to 4 run on the
+masterplan and its `handoff.md`; then, in place of the first **Next** task:
+
+1. Take the plan the masterplan's handoff names under **Next**. Never pick a plan by the rows' order alone: the
+   order is the foreman's, and `ready` knows Needs and Touches, not urgency. The handoff names none: say so and stop.
+2. `python3 <plan-skill-dir>/scripts/plan.py ready --json` must list that plan's row under `ready`. Otherwise say
+   why (its `why` under `waiting`, or that the row is `running` or `blocked`) and stop.
+3. `plan.py use <that plan>`, then one autogrill round on it (`/grill auto`) against the landed work of the rows it
+   needs: what those plans really built, not what they planned. Then `plan.py status <row> next --plan <the
+   masterplan>`, and both `plan.md` files go into one commit.
+4. Continue as for any plan (step 5 above): the plan was approved with its masterplan.
 
 **A landing named in the handoff** (hal2 plan 0181: a session is cleared although its checkout lands or waits in
 the merge queue; the landing's process goes on across the clear):
@@ -223,6 +239,8 @@ plan is the foreman's). When `before` and `run` differ, plan.md goes into step 5
 ```markdown
 # Handoff of plan <NNNN>
 
+Row <n> of [masterplan <NNNN>](../<the masterplan's slug>/plan.md).
+
 ## Done
 - <outcomes of this and recent sessions, with commit shas; not a diary>
 
@@ -238,6 +256,11 @@ Done when: <a check the next session can run>
 
 > /handoff c
 ```
+
+The line under the heading is only a plan of a masterplan's: its row there and the link, written and kept current
+by `where.py --stamp` (words you add after the link stay). Never drop it when you rewrite the body; `/handoff c`
+finds the masterplan by it. A masterplan's own handoff names under **Next** the plan that is next (its row and its
+link), which fields run which plan and what its foreman waits for: `/handoff c` there starts from that line.
 
 It holds state only: the goal and the step table are the plan's, the decisions the ledger's, the questions
 `questions.md`'s; link them (`[D4](decisions.md)`), never copy them. It is committed and read on other machines, so
@@ -318,7 +341,8 @@ Rules:
   first task.
 - Decisions live in their one home (step 1); the handoff indexes them (**Decisions**), it never holds the only copy.
 - **Next** for plan work is the current step's tasks only; the step list itself stays in the plan. A servant's
-  handoff (`plans/LEAD`) names its one step, its brief and its foreman under **Plan**, and **Next** ends with the report.
+  handoff (`plans/LEAD`) names its one step (a masterplan's servant: its row and that row's plan), its brief and its
+  foreman under **Plan**, and **Next** ends with the report.
 - A parallel plan's foreman lists what is in flight under **Next**: each running step, who (`subagent`, `worktree NN`) and
   since when; after the clear it runs `plan.py current`, `ready --json` and `reports` before the loop goes on.
 - **Questions** lists only the open entries of the questions file (step 2), one line each, and links the file;

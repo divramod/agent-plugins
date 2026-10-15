@@ -81,6 +81,24 @@ class MtmCiTest(unittest.TestCase):
                          ["merge", "bash-lint", "monitor", "merge"])
         self.assertTrue(mtm_ci.is_ship("06-mac-host-a/deliver"))
 
+    def test_the_position_in_the_lane_is_no_part_of_the_job(self):
+        # Plan 0349 D40: `<stage>-<alias>/<NN>-<job>`; the older names stay as they were.
+        self.assertEqual([mtm_ci.job_part(n) for n in ("03-hz01-host-b/01-merge", "02-hz01-host-b/03-rust-lint",
+                                                       "03-hz01-host-a/01-stack-test", "04-xxx1hx/02-gate", "01-merge")],
+                         ["merge", "rust-lint", "stack-test", "gate", "01-merge"])
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("04-mac-host-a/05-ci-cache-clean-mac-host",
+                                                         "04-mac-host-a/01-git-pull-main", "04-mac-vm-a/02-agents-publish")))
+        self.assertFalse(mtm_ci.is_ship("03-hz01-host-b/01-merge"))
+        self.assertTrue(all(mtm_ci.is_build(n) for n in ("02-mac-vm-a/01-tmux-build-mac", "03-mac-host-a/02-mac-vm-build-plan")))
+        self.assertFalse(mtm_ci.is_build("02-mac-vm-a/01-bash-test"))
+        jobs = {1: [{"name": "03-hz01-host-b/01-merge", "conclusion": "success"},
+                    {"name": "04-mac-host-a/05-ci-cache-clean-mac-host", "conclusion": "failure"},
+                    {"name": "02-mac-vm-a/01-rust-build-mac", "conclusion": "failure"}]}
+        self.assertTrue(mtm_ci.merged(jobs[1]))
+        self.assertEqual(mtm_ci.red_jobs(jobs[1]), [], "a red delivery cleanup and a red build are no red of the landing")
+        jobs[1].append({"name": "02-hz01-host-b/03-rust-lint", "conclusion": "failure"})
+        self.assertEqual(mtm_ci.red_jobs(jobs[1]), ["02-hz01-host-b/03-rust-lint"])
+
     def test_a_job_that_stops_its_run_fails_it_at_once_and_the_cancelled_jobs_only_stopped(self):
         # `gh run view --json jobs`, shaped after land run 38215106904 with the lanes' stop step; the job that stops
         # its run mostly ends `cancelled` itself (gate jobs 113753096365, 114169773542), its failed step `failure`.
@@ -243,10 +261,11 @@ class MtmCiTest(unittest.TestCase):
         since = dt.datetime(2026, 10, 5, 7, tzinfo=dt.timezone.utc).timestamp()
         self.assertEqual(mtm_ci.summary([run(1, "land/07")], lambda rid: [], since), [])
 
-    def test_ci_mode_asks_for_both_workflow_files_on_the_default_branch(self):
+    def test_ci_mode_asks_for_every_workflow_file_on_the_default_branch(self):
         seen = []
-        self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: seen.append(argv) or "", "/m", "main"))  # neither
-        self.assertEqual([argv[-1] for argv in seen], ["origin/main:.github/workflows/merge-to-main.yml",
+        self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: seen.append(argv) or "", "/m", "main"))  # none
+        self.assertEqual([argv[-1] for argv in seen], ["origin/main:.github/workflows/dev-merge-to-main.yml",
+                                                       "origin/main:.github/workflows/merge-to-main.yml",
                                                        "origin/main:.github/workflows/land.yml"])
         self.assertEqual(seen[0][:3], ["git", "cat-file", "-t"])
         self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n", "/m", "main"))  # both
@@ -254,35 +273,42 @@ class MtmCiTest(unittest.TestCase):
     def test_ci_mode_accepts_either_workflow_file(self):
         only_old = lambda argv, cwd: "blob\n" if argv[-1].endswith("/land.yml") else ""
         only_new = lambda argv, cwd: "blob\n" if argv[-1].endswith("/merge-to-main.yml") else ""
+        only_dev = lambda argv, cwd: "blob\n" if argv[-1].endswith("/dev-merge-to-main.yml") else ""
         other = lambda argv, cwd: "blob\n" if argv[-1].endswith("/ci.yml") else ""
         self.assertTrue(mtm_ci.ci_mode(only_old, "/m", "main"))
         self.assertTrue(mtm_ci.ci_mode(only_new, "/m", "main"))
+        self.assertTrue(mtm_ci.ci_mode(only_dev, "/m", "main"))
         self.assertFalse(mtm_ci.ci_mode(other, "/m", "main"))
 
-    def test_runs_of_both_workflow_files_are_joined_newest_first(self):
-        answers = {"merge-to-main.yml": [run(4, "land/08", status="queued", conclusion="", at="2026-10-12T07:00:00Z"),
+    def test_runs_of_every_workflow_file_are_joined_newest_first(self):
+        answers = {"dev-merge-to-main.yml": [run(5, "land/09", status="queued", conclusion="", at="2026-10-12T08:00:00Z")],
+                   "merge-to-main.yml": [run(4, "land/08", status="queued", conclusion="", at="2026-10-12T07:00:00Z"),
                                          run(2, "land/07", at="2026-10-12T06:00:00Z")],
                    "land.yml": [run(3, "land/05", at="2026-10-12T06:30:00Z"),
                                 run(1, "land/03", status="in_progress", conclusion="", at="2026-10-11T06:00:00Z")]}
         asked = []
         both = lambda args, cwd: asked.append(args) or answers[args[args.index("--workflow") + 1]]
-        self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(both, "/m")], [4, 3, 2, 1])
-        self.assertEqual([a[a.index("--workflow") + 1] for a in asked], ["merge-to-main.yml", "land.yml"])
+        self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(both, "/m")], [5, 4, 3, 2, 1])
+        self.assertEqual([a[a.index("--workflow") + 1] for a in asked],
+                         ["dev-merge-to-main.yml", "merge-to-main.yml", "land.yml"])
         self.assertEqual(asked[0][:3] + asked[0][5:7], ["gh", "run", "list", "--limit", "100"])
-        self.assertEqual(mtm_ci.unfinished(both, "/m"), 2)  # one unfinished run of each file
+        self.assertEqual(mtm_ci.unfinished(both, "/m"), 3)  # one unfinished run of each file
         rows = mtm_ci.landings(lambda args, cwd: answers[args[args.index("--workflow") + 1]]
                                if args[:3] == ["gh", "run", "list"] else {"jobs": []}, "/m", 0)
         self.assertEqual([(r["slot"], r["outcome"]) for r in rows],
-                         [("08", "running"), ("05", "landed"), ("07", "landed"), ("03", "running")])
+                         [("09", "running"), ("08", "running"), ("05", "landed"), ("07", "landed"), ("03", "running")])
 
     def test_a_workflow_file_github_does_not_know_has_no_runs(self):
         old = [run(1, "land/03", status="in_progress", conclusion="", at="2026-10-11T06:00:00Z")]
         new = [run(2, "land/07", status="queued", conclusion="", at="2026-10-12T06:00:00Z"), run(3, "land/05")]
         before = lambda args, cwd: old if "land.yml" in args else None  # the rename has not landed
         after = lambda args, cwd: new if "merge-to-main.yml" in args else None  # land.yml is gone
+        renamed = lambda args, cwd: new if "dev-merge-to-main.yml" in args else None  # plan 0349 D52's name alone
         self.assertEqual((mtm_ci.unfinished(before, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(before, "/m")]),
                          (1, [1]))
         self.assertEqual((mtm_ci.unfinished(after, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(after, "/m")]),
+                         (1, [2, 3]))
+        self.assertEqual((mtm_ci.unfinished(renamed, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(renamed, "/m")]),
                          (1, [2, 3]))
         self.assertEqual((mtm_ci.unfinished(lambda args, cwd: None, "/m"), mtm_ci.runs_of(lambda args, cwd: None, "/m")),
                          (0, []))

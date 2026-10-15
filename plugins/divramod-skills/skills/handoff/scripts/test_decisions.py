@@ -85,6 +85,26 @@ class DecisionsTest(unittest.TestCase):
         text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
         self.assertIn("foreman: worktree 02, plan 0003-x, step 4: a servant, continue that one step only", text)
 
+    def test_a_masterplans_servant_continues_the_plan_of_its_row(self):
+        # hal2 plan 0275 D26: the marker names the masterplan and its row; the row is a whole plan, no step
+        master = self.slot / "plans" / "0001-masterplan-farm" / "plan.md"
+        master.parent.mkdir()
+        master.write_text("---\ntype: Plan\nstatus: open\n---\n\n# Plan 0001\n\n| # | Step | Status |\n|---|---|---|\n"
+                          "| 1 | [0002](../0002-tools/plan.md) tools | done |\n"
+                          "| 2 | [0003](../0003-x/plan.md) x | running |\n")
+        (self.slot / "plans" / "LEAD").write_text("02 0001-masterplan-farm 2\n")
+
+        self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0001-masterplan-farm", "step": "2",
+                                                 "row_plan": "0003-x"})
+        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        self.assertIn("foreman: worktree 02, masterplan 0001-masterplan-farm, row 2: a servant, continue the plan of that "
+                      "row, 0003-x, each of its steps in a hand", text)
+        self.assertNotIn("that one step only", text)
+        # a plan of a masterplan whose slug carries the word is a plan (D34): its marker names a step
+        master.write_text(master.read_text().replace("status: open\n", "status: open\nparent: 274\n"))
+        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        self.assertIn("plan 0001-masterplan-farm, step 2: a servant, continue that one step only", text)
+
     def test_a_broken_marker_still_marks_the_slot(self):
         # review 1 finding 10: bad but marked, as the farmer reads it (prune refuses it, mtm_scan skips its landing)
         for broken in ("02 0003-x\n", "lead 0003-x 4\n", "\n"):

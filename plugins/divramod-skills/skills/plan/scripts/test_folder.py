@@ -47,7 +47,7 @@ class FolderTest(unittest.TestCase):
 
     def run_plan(self, *args, env: dict | None = None) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, env=env)
+                              capture_output=True, text=True, env=env, cwd=self.root)
 
     def new(self, *args, brief: bool = True) -> Path:
         """`plan.py new`, the plan's Brief written (a fresh one holds placeholders, which `check` reports)."""

@@ -1,4 +1,5 @@
-"""plan.py on a parallel plan (skills plan 0013, plan 0016): Needs, Touches, Who, ready, assign, the LEAD refusal."""
+"""plan.py on a parallel plan (skills plan 0013, plan 0016): Needs, Touches, Who, ready, assign, the refusal in a
+servant's field (plans/LEAD)."""
 import json
 import os
 import subprocess
@@ -252,7 +253,7 @@ class ParallelTest(unittest.TestCase):
         before = self.path.read_text()
 
         for args in (("status", "3", "done"), ("assign", "3", "lead")):
-            self.assertIn("is a servant of worktree 02", self.refused(*args, cwd=slot / "sub"), args)
+            self.assertIn("a servant of the foreman in field 02", self.refused(*args, cwd=slot / "sub"), args)
         self.assertEqual(self.path.read_text(), before)
         self.assertEqual(self.plan("current")["slug"], SLUG)  # reading works
         self.plan("status", "3", "done")  # from outside the worktree the foreman writes
@@ -263,21 +264,21 @@ class ParallelTest(unittest.TestCase):
 
         for args in (("new", "x"), ("status", "3", "done"), ("assign", "3", "lead"), ("grilled",),
                      ("landing", "manual"), ("uat",), ("scaffold",), ("run", "--effort", "max"), ("migrate",)):
-            self.assertIn("is a servant of worktree 02", self.refused(*args), args)
+            self.assertIn("a servant of the foreman in field 02", self.refused(*args), args)
         self.assertEqual(self.path.read_text(), before)
         self.assertEqual(self.plan("current")["lead"], {"slot": "02", "plan": SLUG, "step": "3"})
         self.assertEqual(self.numbers(self.ready()["ready"]), ["3", "5", "6"])
 
-    def test_the_refusal_names_the_stale_marker_and_the_way_out(self):
+    def test_the_refusal_names_the_foreman_and_what_the_servant_does_instead(self):
         (self.plans / "LEAD").write_text(f"07 {SLUG} 3\n")
 
         error = self.refused("status", "3", "done")
 
-        self.assertIn(f"servant of worktree 07 (plan {SLUG} step 3)", error)
-        self.assertIn("stale plans/LEAD of the foreman in worktree 07", error)
-        self.assertIn("never lands", error)
-        self.assertIn("delete plans/LEAD", error)
-        self.assertNotIn("plan.py report", error)
+        self.assertIn(f"a servant of the foreman in field 07 (plan {SLUG} step 3)", error)
+        self.assertIn("`status` is the foreman's, who alone edits plan.md and brings the work in", error)
+        self.assertIn("report to the foreman in field 07, who marks the step", error)
+        for word in ("stale", "delete", "plan.py report"):  # a live marker is never called a leftover (plan 0275 D26)
+            self.assertNotIn(word, error)
 
     def test_removed_commands_are_gone(self):
         for command in ("brief", "report", "reports", "watch"):

@@ -30,7 +30,8 @@ judge_jobs() {
   while read -r status conclusion name; do
     [ -n "$status" ] || continue
     case "$name" in
-      "$merge_job"|*" / $merge_job"|*"/$merge_job")
+      # `merge`, `linux / merge`, `03-hz01-host-b/merge` and, since hal2 plan 0349 D40, `03-hz01-host-b/01-merge`.
+      "$merge_job"|*" / $merge_job"|*"/$merge_job"|*/[0-9][0-9]-"$merge_job")
         [ "$conclusion" = success ] && merged=1 ;;
     esac
     case "$status" in
@@ -42,14 +43,15 @@ judge_jobs() {
   echo "$merged $queued_only"
 }
 
-# The landing workflow's two names: merge-to-main.yml, before hal2 plan 0263 land.yml. A run is under the name its
-# commit had, so around the rename the unfinished runs are under either: where one is a land workflow, both are.
-LAND_TWINS="merge-to-main.yml land.yml"
+# The landing workflow's names: dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml, before plan
+# 0263 land.yml. A run is under the name its commit had, so around a rename the unfinished runs are under any: where
+# one is a land workflow, all are.
+LAND_TWINS="dev-merge-to-main.yml merge-to-main.yml land.yml"
 
-# The land workflows, words: the conf's LAND_WORKFLOWS, else those of the two names the worktree or origin's
-# default branch has; then the other name of the two where one is among them (a conf written before the rename).
+# The land workflows, words: the conf's LAND_WORKFLOWS, else those of the names the worktree or origin's default
+# branch has; then the other names where one is among them (a conf written before a rename).
 github_workflows() {
-  local w f
+  local w f twin=''
   w=$(conf_get LAND_WORKFLOWS "")
   if [ -z "$w" ]; then
     for f in $LAND_TWINS; do
@@ -60,11 +62,13 @@ github_workflows() {
     done
   fi
   for f in $LAND_TWINS; do
-    case " $w " in
-      *" $f "*|*"/$f "*) ;;
-      *" merge-to-main.yml "*|*"/merge-to-main.yml "*|*" land.yml "*|*"/land.yml "*) w="$w $f" ;;
-    esac
+    case " $w " in *" $f "*|*"/$f "*) twin=1 ;; esac
   done
+  if [ -n "$twin" ]; then
+    for f in $LAND_TWINS; do
+      case " $w " in *" $f "*|*"/$f "*) ;; *) w="$w $f" ;; esac
+    done
+  fi
   echo "$w"
 }
 

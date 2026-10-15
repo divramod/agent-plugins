@@ -1,0 +1,5345 @@
+{
+  "files": {
+    "glossary": "glossary.md",
+    "ontology": "ontology.md",
+    "dictation": "dictation.md",
+    "companions": {
+      "de": {
+        "glossary": "glossary.de.md",
+        "ontology": "ontology.de.md"
+      },
+      "nl": {
+        "glossary": "glossary.nl.md",
+        "ontology": "ontology.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "glossary.pt-PT.md",
+        "ontology": "ontology.pt-PT.md"
+      }
+    }
+  },
+  "levels": [
+    {
+      "id": "harbour",
+      "term": "harbour",
+      "order": 0,
+      "physical": "ship / fleet (aor?)",
+      "status": "in force",
+      "status_text": "in force",
+      "line": 14
+    },
+    {
+      "id": "coast",
+      "term": "coast",
+      "order": 1,
+      "physical": "laptop",
+      "status": "draft",
+      "status_text": "draft",
+      "line": 15
+    },
+    {
+      "id": "strait",
+      "term": "strait",
+      "order": 2,
+      "physical": "network",
+      "status": "draft",
+      "status_text": "draft",
+      "line": 16
+    },
+    {
+      "id": "sea",
+      "term": "sea",
+      "order": 3,
+      "physical": "person, the me ship",
+      "status": "draft",
+      "status_text": "draft",
+      "line": 17
+    },
+    {
+      "id": "ocean",
+      "term": "ocean",
+      "order": 4,
+      "physical": "?",
+      "status": "draft",
+      "status_text": "draft, place open",
+      "line": 18
+    },
+    {
+      "id": "globe",
+      "term": "globe",
+      "order": 5,
+      "physical": "?",
+      "status": "draft",
+      "status_text": "draft, place and second role open",
+      "line": 19
+    }
+  ],
+  "short_forms": [
+    {
+      "short": "bt",
+      "stands_for": "berth",
+      "kind": "word",
+      "line": 156
+    },
+    {
+      "short": "lg",
+      "stands_for": "lock gate",
+      "kind": "word",
+      "line": 157
+    },
+    {
+      "short": "fy",
+      "stands_for": "fishery",
+      "kind": "farm",
+      "line": 161
+    }
+  ],
+  "terms": [
+    {
+      "id": "harbour/role/pilot",
+      "term": "pilot",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "role",
+      "level": "harbour",
+      "order": 0,
+      "definition": "The session at a harbour's main pier (the quay's own folder), the captain's first contact there: it answers questions and writes cargo notes. In a small harbour without a skipper it does all the work itself.",
+      "avoid": {
+        "text": "main mate, helper (a role at the fleet's level in the model), ensign, bosun",
+        "words": [
+          {
+            "word": "main mate",
+            "note": null
+          },
+          {
+            "word": "helper",
+            "note": "a role at the fleet's level in the model"
+          },
+          {
+            "word": "ensign",
+            "note": null
+          },
+          {
+            "word": "bosun",
+            "note": null
+          }
+        ],
+        "line": 15
+      },
+      "de": [
+        {
+          "word": "Lotse",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 16
+        }
+      ],
+      "glossary": {
+        "section": "Crew",
+        "line": 11
+      },
+      "ontology": [
+        {
+          "term": "pilot",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "harbour",
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Levels",
+          "line": 14
+        },
+        {
+          "term": "pilot",
+          "phrase": false,
+          "column": null,
+          "stands_for": "the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\").",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, defined in the glossary",
+          "section": "Roles in the harbour",
+          "line": 23
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "pilot",
+          "word_lang": "en",
+          "description": "The session at a harbour's main pier (the quay's own folder), the captain's first contact there: it answers questions and writes cargo notes. In a small harbour without a skipper it does all the work itself.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "pilot",
+                "the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\")."
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "de": {
+          "word": "Lotse",
+          "word_lang": "de",
+          "description": "The session at a harbour's main pier (the quay's own folder), the captain's first contact there: it answers questions and writes cargo notes. In a small harbour without a skipper it does all the work itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "pilot",
+                "the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\")."
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "nl": {
+          "word": "pilot",
+          "word_lang": "en",
+          "description": "The session at a harbour's main pier (the quay's own folder), the captain's first contact there: it answers questions and writes cargo notes. In a small harbour without a skipper it does all the work itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "pilot",
+                "the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\")."
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "pilot",
+          "word_lang": "en",
+          "description": "The session at a harbour's main pier (the quay's own folder), the captain's first contact there: it answers questions and writes cargo notes. In a small harbour without a skipper it does all the work itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "pilot",
+                "the session at the harbour's main pier, with the captain: answers, writes cargo notes, does all the work in a small harbour and only assists once the harbour has a skipper (the captain, 2031-01-05: \"1a\")."
+              ],
+              "lang": "en",
+              "line": 23
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "harbour/role/skipper",
+      "term": "skipper",
+      "synonyms": [
+        "shipmaster"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "role",
+      "level": "harbour",
+      "order": 1,
+      "definition": "The session that runs one ship for the captain: it brings finished work ashore and relays what only the captain can decide.",
+      "avoid": {
+        "text": "boss, supervisor",
+        "words": [
+          {
+            "word": "boss",
+            "note": null
+          },
+          {
+            "word": "supervisor",
+            "note": null
+          }
+        ],
+        "line": 21
+      },
+      "de": [
+        {
+          "word": "Schiffer",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 22
+        }
+      ],
+      "glossary": {
+        "section": "Crew",
+        "line": 18
+      },
+      "ontology": [
+        {
+          "term": "skipper",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "harbour",
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Levels",
+          "line": 14
+        },
+        {
+          "term": "skipper",
+          "phrase": false,
+          "column": null,
+          "stands_for": "runs one ship and hands out routes.",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, defined in the glossary",
+          "section": "Roles in the harbour",
+          "line": 25
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "skipper",
+          "word_lang": "en",
+          "description": "The session that runs one ship for the captain: it brings finished work ashore and relays what only the captain can decide.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "skipper",
+                "runs one ship and hands out routes."
+              ],
+              "lang": "en",
+              "line": 25
+            }
+          ]
+        },
+        "de": {
+          "word": "Schiffer",
+          "word_lang": "de",
+          "description": "The session that runs one ship for the captain: it brings finished work ashore and relays what only the captain can decide.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "skipper",
+                "runs one ship and hands out routes."
+              ],
+              "lang": "en",
+              "line": 25
+            }
+          ]
+        },
+        "nl": {
+          "word": "skipper",
+          "word_lang": "en",
+          "description": "The session that runs one ship for the captain: it brings finished work ashore and relays what only the captain can decide.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "skipper",
+                "runs one ship and hands out routes."
+              ],
+              "lang": "en",
+              "line": 25
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "skipper",
+          "word_lang": "en",
+          "description": "The session that runs one ship for the captain: it brings finished work ashore and relays what only the captain can decide.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "skipper",
+                "runs one ship and hands out routes."
+              ],
+              "lang": "en",
+              "line": 25
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "harbour/role/deckhand",
+      "term": "deckhand",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "role",
+      "level": "harbour",
+      "order": 2,
+      "definition": "A helper working inside a session: it has no berth and no session of its own.",
+      "avoid": {
+        "text": "mate (in talk; the tool's word), worker",
+        "words": [
+          {
+            "word": "mate",
+            "note": "in talk; the tool's word"
+          },
+          {
+            "word": "worker",
+            "note": null
+          }
+        ],
+        "line": 26
+      },
+      "de": [],
+      "glossary": {
+        "section": "Crew",
+        "line": 24
+      },
+      "ontology": [
+        {
+          "term": "deckhand",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "harbour",
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Levels",
+          "line": 14
+        },
+        {
+          "term": "deckhand",
+          "phrase": false,
+          "column": null,
+          "stands_for": "a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open.",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, defined in the glossary",
+          "section": "Roles in the harbour",
+          "line": 26
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "deckhand",
+          "word_lang": "en",
+          "description": "A helper working inside a session: it has no berth and no session of its own.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "deckhand",
+                "a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open."
+              ],
+              "lang": "en",
+              "line": 26
+            }
+          ]
+        },
+        "de": {
+          "word": "deckhand",
+          "word_lang": "en",
+          "description": "A helper working inside a session: it has no berth and no session of its own.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "deckhand",
+                "a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open."
+              ],
+              "lang": "en",
+              "line": 26
+            }
+          ]
+        },
+        "nl": {
+          "word": "deckhand",
+          "word_lang": "en",
+          "description": "A helper working inside a session: it has no berth and no session of its own.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "deckhand",
+                "a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open."
+              ],
+              "lang": "en",
+              "line": 26
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "deckhand",
+          "word_lang": "en",
+          "description": "A helper working inside a session: it has no berth and no session of its own.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            },
+            {
+              "section": "Roles in the harbour",
+              "cells": [
+                "deckhand",
+                "a helper inside a session (no berth of its own); in force since the captain used it (2031-01-05: \"the running skippers, deckhands\"). German words: open."
+              ],
+              "lang": "en",
+              "line": 26
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/order/hail-all-ships",
+      "term": "hail all ships",
+      "synonyms": [],
+      "phrase": true,
+      "status": "in force",
+      "kind": "order",
+      "level": null,
+      "order": 0,
+      "definition": "The captain's order to pass a message to every ship in the harbour, the skippers of other harbours included.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "ruf alle Schiffe",
+          "for": null,
+          "phrase": true,
+          "file": "glossary",
+          "line": 31
+        }
+      ],
+      "glossary": {
+        "section": "Crew",
+        "line": 28
+      },
+      "ontology": [
+        {
+          "term": "hail all ships",
+          "phrase": true,
+          "column": null,
+          "stands_for": "a message to every ship in the harbour.",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, each with its glossary entry",
+          "section": "Orders",
+          "line": 32
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "hail all ships",
+          "word_lang": "en",
+          "description": "The captain's order to pass a message to every ship in the harbour, the skippers of other harbours included.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Orders",
+              "cells": [
+                "hail all ships",
+                "a message to every ship in the harbour."
+              ],
+              "lang": "en",
+              "line": 32
+            }
+          ]
+        },
+        "de": {
+          "word": "ruf alle Schiffe",
+          "word_lang": "de",
+          "description": "The captain's order to pass a message to every ship in the harbour, the skippers of other harbours included.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Orders",
+              "cells": [
+                "hail all ships",
+                "a message to every ship in the harbour."
+              ],
+              "lang": "en",
+              "line": 32
+            }
+          ]
+        },
+        "nl": {
+          "word": "hail all ships",
+          "word_lang": "en",
+          "description": "The captain's order to pass a message to every ship in the harbour, the skippers of other harbours included.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Orders",
+              "cells": [
+                "hail all ships",
+                "a message to every ship in the harbour."
+              ],
+              "lang": "en",
+              "line": 32
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "hail all ships",
+          "word_lang": "en",
+          "description": "The captain's order to pass a message to every ship in the harbour, the skippers of other harbours included.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Crew",
+          "ontology": [
+            {
+              "section": "Orders",
+              "cells": [
+                "hail all ships",
+                "a message to every ship in the harbour."
+              ],
+              "lang": "en",
+              "line": 32
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/cargo",
+      "term": "cargo",
+      "synonyms": [
+        "freight"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 0,
+      "definition": "One load in a manifest, the heading `## cargo <n> <title>` and its text, sent to a session.",
+      "avoid": {
+        "text": "parcel, crate",
+        "words": [
+          {
+            "word": "parcel",
+            "note": null
+          },
+          {
+            "word": "crate",
+            "note": null
+          }
+        ],
+        "line": 40
+      },
+      "de": [
+        {
+          "word": "Fracht",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 41
+        },
+        {
+          "word": "Frachtgut",
+          "for": "freight",
+          "phrase": false,
+          "file": "ontology",
+          "line": 89
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 38
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "cargo",
+          "word_lang": "en",
+          "description": "One load in a manifest, the heading `## cargo <n> <title>` and its text, sent to a session.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": []
+        },
+        "de": {
+          "word": "Fracht",
+          "word_lang": "de",
+          "description": "One load in a manifest, the heading `## cargo <n> <title>` and its text, sent to a session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "nl": {
+          "word": "cargo",
+          "word_lang": "en",
+          "description": "One load in a manifest, the heading `## cargo <n> <title>` and its text, sent to a session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "cargo",
+          "word_lang": "en",
+          "description": "One load in a manifest, the heading `## cargo <n> <title>` and its text, sent to a session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/logbook",
+      "term": "logbook",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 1,
+      "definition": "A harbour's daily list of what the captain does not want to forget there: one file per day.",
+      "avoid": {
+        "text": "daily (the fishery's daily catch), to-do list",
+        "words": [
+          {
+            "word": "daily",
+            "note": "the fishery's daily catch"
+          },
+          {
+            "word": "to-do list",
+            "note": null
+          }
+        ],
+        "line": 45
+      },
+      "de": [
+        {
+          "word": "Logbuch",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 46
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 43
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "logbook",
+          "word_lang": "en",
+          "description": "A harbour's daily list of what the captain does not want to forget there: one file per day.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": []
+        },
+        "de": {
+          "word": "Logbuch",
+          "word_lang": "de",
+          "description": "A harbour's daily list of what the captain does not want to forget there: one file per day.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "nl": {
+          "word": "logbook",
+          "word_lang": "en",
+          "description": "A harbour's daily list of what the captain does not want to forget there: one file per day.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "logbook",
+          "word_lang": "en",
+          "description": "A harbour's daily list of what the captain does not want to forget there: one file per day.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/knot",
+      "term": "knot",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 2,
+      "definition": "One item of a logbook. To **tie** a knot is to add it, to **cut** it **loose** to finish it.",
+      "avoid": {
+        "text": "loop, hitch",
+        "words": [
+          {
+            "word": "loop",
+            "note": null
+          },
+          {
+            "word": "hitch",
+            "note": null
+          }
+        ],
+        "line": 50
+      },
+      "de": [
+        {
+          "word": "Knoten",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 51
+        },
+        {
+          "word": "knüpfen",
+          "for": "tie",
+          "phrase": false,
+          "file": "glossary",
+          "line": 51
+        },
+        {
+          "word": "kappen",
+          "for": "cut loose",
+          "phrase": false,
+          "file": "glossary",
+          "line": 51
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 48
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "knot",
+          "word_lang": "en",
+          "description": "One item of a logbook. To **tie** a knot is to add it, to **cut** it **loose** to finish it.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": []
+        },
+        "de": {
+          "word": "Knoten",
+          "word_lang": "de",
+          "description": "One item of a logbook. To **tie** a knot is to add it, to **cut** it **loose** to finish it.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "nl": {
+          "word": "knot",
+          "word_lang": "en",
+          "description": "One item of a logbook. To **tie** a knot is to add it, to **cut** it **loose** to finish it.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "knot",
+          "word_lang": "en",
+          "description": "One item of a logbook. To **tie** a knot is to add it, to **cut** it **loose** to finish it.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/krt",
+      "term": "KRT",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 3,
+      "definition": "A course record: one file `.krt/<slug>.md` saying what was decided and why. \"record\" means the same.",
+      "avoid": {
+        "text": "standing order, sea law",
+        "words": [
+          {
+            "word": "standing order",
+            "note": null
+          },
+          {
+            "word": "sea law",
+            "note": null
+          }
+        ],
+        "line": 55
+      },
+      "de": [
+        {
+          "word": "KRT",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 56
+        },
+        {
+          "word": "Kursprotokoll",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 56
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 53
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "KRT",
+          "word_lang": "en",
+          "description": "A course record: one file `.krt/<slug>.md` saying what was decided and why. \"record\" means the same.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": []
+        },
+        "de": {
+          "word": "KRT",
+          "word_lang": "de",
+          "description": "A course record: one file `.krt/<slug>.md` saying what was decided and why. \"record\" means the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "nl": {
+          "word": "KRT",
+          "word_lang": "en",
+          "description": "A course record: one file `.krt/<slug>.md` saying what was decided and why. \"record\" means the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "KRT",
+          "word_lang": "en",
+          "description": "A course record: one file `.krt/<slug>.md` saying what was decided and why. \"record\" means the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/drill",
+      "term": "drill",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 8,
+      "definition": "Questioning a route branch by branch until every decision in it is made.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "drillen",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 60
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 58
+      },
+      "ontology": [
+        {
+          "term": "drill",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "as in the glossary",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 54
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "drill",
+          "word_lang": "en",
+          "description": "Questioning a route branch by branch until every decision in it is made.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "de": {
+          "word": "drillen",
+          "word_lang": "de",
+          "description": "Questioning a route branch by branch until every decision in it is made.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "nl": {
+          "word": "drill",
+          "word_lang": "en",
+          "description": "Questioning a route branch by branch until every decision in it is made.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "drill",
+          "word_lang": "en",
+          "description": "Questioning a route branch by branch until every decision in it is made.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/self-drill",
+      "term": "self drill",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 9,
+      "definition": "A drill round without the captain: the ship decides every open branch itself.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "selbst drillen",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 64
+        }
+      ],
+      "glossary": {
+        "section": "Work",
+        "line": 62
+      },
+      "ontology": [
+        {
+          "term": "self drill",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "as in the glossary",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 54
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "self drill",
+          "word_lang": "en",
+          "description": "A drill round without the captain: the ship decides every open branch itself.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "de": {
+          "word": "selbst drillen",
+          "word_lang": "de",
+          "description": "A drill round without the captain: the ship decides every open branch itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "nl": {
+          "word": "self drill",
+          "word_lang": "en",
+          "description": "A drill round without the captain: the ship decides every open branch itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "self drill",
+          "word_lang": "en",
+          "description": "A drill round without the captain: the ship decides every open branch itself.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "drill, self drill",
+                "as in the glossary",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 54
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/qa9",
+      "term": "QA9",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 4,
+      "definition": "A check the captain runs by hand after a route has come ashore, written in the route's `qa9.md`.",
+      "avoid": {
+        "text": "sea trial, dry run",
+        "words": [
+          {
+            "word": "sea trial",
+            "note": null
+          },
+          {
+            "word": "dry run",
+            "note": null
+          }
+        ],
+        "line": 68
+      },
+      "de": [],
+      "glossary": {
+        "section": "Work",
+        "line": 66
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "QA9",
+          "word_lang": "en",
+          "description": "A check the captain runs by hand after a route has come ashore, written in the route's `qa9.md`.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Work",
+          "ontology": []
+        },
+        "de": {
+          "word": "QA9",
+          "word_lang": "en",
+          "description": "A check the captain runs by hand after a route has come ashore, written in the route's `qa9.md`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "nl": {
+          "word": "QA9",
+          "word_lang": "en",
+          "description": "A check the captain runs by hand after a route has come ashore, written in the route's `qa9.md`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "QA9",
+          "word_lang": "en",
+          "description": "A check the captain runs by hand after a route has come ashore, written in the route's `qa9.md`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Work",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "harbour/level/harbour",
+      "term": "harbour",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "level",
+      "level": "harbour",
+      "order": 0,
+      "definition": "A ship or a fleet folder with the crew that works in it: one skipper and their deckhands.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Hafen",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 74
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 72
+      },
+      "ontology": [
+        {
+          "term": "harbour",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "ship / fleet (aor?)",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Levels",
+          "line": 14
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "harbour",
+          "word_lang": "en",
+          "description": "A ship or a fleet folder with the crew that works in it: one skipper and their deckhands.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            }
+          ]
+        },
+        "de": {
+          "word": "Hafen",
+          "word_lang": "de",
+          "description": "A ship or a fleet folder with the crew that works in it: one skipper and their deckhands.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            }
+          ]
+        },
+        "nl": {
+          "word": "harbour",
+          "word_lang": "en",
+          "description": "A ship or a fleet folder with the crew that works in it: one skipper and their deckhands.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "harbour",
+          "word_lang": "en",
+          "description": "A ship or a fleet folder with the crew that works in it: one skipper and their deckhands.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "harbour",
+                "ship / fleet (aor?)",
+                "pilot, skipper, deckhand",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 14
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "harbour/place/berth",
+      "term": "berth",
+      "synonyms": [
+        "slip"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "place",
+      "level": "harbour",
+      "order": 0,
+      "definition": "A numbered second mooring of a ship in its own folder (`~/.moor/<ship>/<NN>` on the line `<NN>`), so several sessions work on one ship at once; in talk \"<ship> bt <NN>\", and \"bt\", \"BT\" and \"moor place\" mean the same.",
+      "avoid": {
+        "text": "slot (the old word; older files and tools still say it), pane, tab (they show a session, not its berth)",
+        "words": [
+          {
+            "word": "slot",
+            "note": "the old word; older files and tools still say it"
+          },
+          {
+            "word": "pane",
+            "note": null
+          },
+          {
+            "word": "tab",
+            "note": "they show a session, not its berth"
+          }
+        ],
+        "line": 79
+      },
+      "de": [
+        {
+          "word": "Liegeplatz",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 80
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 76
+      },
+      "ontology": [
+        {
+          "term": "slip",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "a berth",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, synonyms; the captain, 2031-01-05: \"4a\"",
+          "section": "Places in the harbour",
+          "line": 38
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "berth",
+          "word_lang": "en",
+          "description": "A numbered second mooring of a ship in its own folder (`~/.moor/<ship>/<NN>` on the line `<NN>`), so several sessions work on one ship at once; in talk \"<ship> bt <NN>\", and \"bt\", \"BT\" and \"moor place\" mean the same.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "slip",
+                "a berth"
+              ],
+              "lang": "en",
+              "line": 38
+            }
+          ]
+        },
+        "de": {
+          "word": "Liegeplatz",
+          "word_lang": "de",
+          "description": "A numbered second mooring of a ship in its own folder (`~/.moor/<ship>/<NN>` on the line `<NN>`), so several sessions work on one ship at once; in talk \"<ship> bt <NN>\", and \"bt\", \"BT\" and \"moor place\" mean the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "slip",
+                "a berth"
+              ],
+              "lang": "en",
+              "line": 38
+            }
+          ]
+        },
+        "nl": {
+          "word": "berth",
+          "word_lang": "en",
+          "description": "A numbered second mooring of a ship in its own folder (`~/.moor/<ship>/<NN>` on the line `<NN>`), so several sessions work on one ship at once; in talk \"<ship> bt <NN>\", and \"bt\", \"BT\" and \"moor place\" mean the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "slip",
+                "a berth"
+              ],
+              "lang": "en",
+              "line": 38
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "berth",
+          "word_lang": "en",
+          "description": "A numbered second mooring of a ship in its own folder (`~/.moor/<ship>/<NN>` on the line `<NN>`), so several sessions work on one ship at once; in talk \"<ship> bt <NN>\", and \"bt\", \"BT\" and \"moor place\" mean the same.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "slip",
+                "a berth"
+              ],
+              "lang": "en",
+              "line": 38
+            }
+          ]
+        }
+      },
+      "short_forms": [
+        {
+          "short": "bt",
+          "stands_for": "berth",
+          "kind": "word",
+          "line": 156
+        }
+      ]
+    },
+    {
+      "id": "harbour/place/dock",
+      "term": "dock",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "place",
+      "level": "harbour",
+      "order": 1,
+      "definition": "The captain's word for the default mooring (main, master): where every landfall ends up.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Dock",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 84
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 82
+      },
+      "ontology": [
+        {
+          "term": "dock",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the default mooring (main)",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, synonyms; the captain, 2031-01-05: \"4a\"",
+          "section": "Places in the harbour",
+          "line": 39
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "dock",
+          "word_lang": "en",
+          "description": "The captain's word for the default mooring (main, master): where every landfall ends up.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "dock",
+                "the default mooring (main)"
+              ],
+              "lang": "en",
+              "line": 39
+            }
+          ]
+        },
+        "de": {
+          "word": "Dock",
+          "word_lang": "de",
+          "description": "The captain's word for the default mooring (main, master): where every landfall ends up.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "dock",
+                "the default mooring (main)"
+              ],
+              "lang": "en",
+              "line": 39
+            }
+          ]
+        },
+        "nl": {
+          "word": "dock",
+          "word_lang": "en",
+          "description": "The captain's word for the default mooring (main, master): where every landfall ends up.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "dock",
+                "the default mooring (main)"
+              ],
+              "lang": "en",
+              "line": 39
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "dock",
+          "word_lang": "en",
+          "description": "The captain's word for the default mooring (main, master): where every landfall ends up.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Places in the harbour",
+              "cells": [
+                "dock",
+                "the default mooring (main)"
+              ],
+              "lang": "en",
+              "line": 39
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/unloading",
+      "term": "unloading",
+      "synonyms": [
+        "landfall"
+      ],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 0,
+      "definition": "Bringing a berth's finished work ashore through the harbour's queue, started by `/ashore`. \"landfall\" is the captain's word for it (2031-01-05): \"landfall 07\" means bt 07's unloading.",
+      "avoid": {
+        "text": "deploy, release, push ashore",
+        "words": [
+          {
+            "word": "deploy",
+            "note": null
+          },
+          {
+            "word": "release",
+            "note": null
+          },
+          {
+            "word": "push ashore",
+            "note": null
+          }
+        ],
+        "line": 89
+      },
+      "de": [
+        {
+          "word": "Anlandung",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 90
+        },
+        {
+          "word": "anlanden",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 90
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 86
+      },
+      "ontology": [
+        {
+          "term": "landfall",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "ashore, an unloading (`/ashore`)",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force (synonym)",
+          "section": "Activities",
+          "line": 47
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "unloading",
+          "word_lang": "en",
+          "description": "Bringing a berth's finished work ashore through the harbour's queue, started by `/ashore`. \"landfall\" is the captain's word for it (2031-01-05): \"landfall 07\" means bt 07's unloading.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "landfall",
+                "ashore, an unloading (`/ashore`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 47
+            }
+          ]
+        },
+        "de": {
+          "word": "Anlandung",
+          "word_lang": "de",
+          "description": "Bringing a berth's finished work ashore through the harbour's queue, started by `/ashore`. \"landfall\" is the captain's word for it (2031-01-05): \"landfall 07\" means bt 07's unloading.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "landfall",
+                "ashore, an unloading (`/ashore`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 47
+            }
+          ]
+        },
+        "nl": {
+          "word": "unloading",
+          "word_lang": "en",
+          "description": "Bringing a berth's finished work ashore through the harbour's queue, started by `/ashore`. \"landfall\" is the captain's word for it (2031-01-05): \"landfall 07\" means bt 07's unloading.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "landfall",
+                "ashore, an unloading (`/ashore`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 47
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "unloading",
+          "word_lang": "en",
+          "description": "Bringing a berth's finished work ashore through the harbour's queue, started by `/ashore`. \"landfall\" is the captain's word for it (2031-01-05): \"landfall 07\" means bt 07's unloading.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "landfall",
+                "ashore, an unloading (`/ashore`)",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 47
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/ash",
+      "term": "ash",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 0,
+      "definition": "Ashore: a berth's unloading, the landfall. Only the captain starts it (`Unloading: auto`).",
+      "avoid": null,
+      "de": [],
+      "glossary": {
+        "section": "Harbours",
+        "line": 92
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "ash",
+          "word_lang": "en",
+          "description": "Ashore: a berth's unloading, the landfall. Only the captain starts it (`Unloading: auto`).",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": []
+        },
+        "de": {
+          "word": "ash",
+          "word_lang": "en",
+          "description": "Ashore: a berth's unloading, the landfall. Only the captain starts it (`Unloading: auto`).",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": []
+        },
+        "nl": {
+          "word": "ash",
+          "word_lang": "en",
+          "description": "Ashore: a berth's unloading, the landfall. Only the captain starts it (`Unloading: auto`).",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "ash",
+          "word_lang": "en",
+          "description": "Ashore: a berth's unloading, the landfall. Only the captain starts it (`Unloading: auto`).",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/run-the-blockade",
+      "term": "run the blockade",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 1,
+      "definition": "The captain's word for `/fast-ashore`: an unloading from the local machine past the checks. Only the captain starts it, never a route, the skipper or another session.",
+      "avoid": {
+        "text": "for a normal unloading (that is a landfall)",
+        "words": [],
+        "line": 99
+      },
+      "de": [
+        {
+          "word": "durchbrechen",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 100
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 96
+      },
+      "ontology": [
+        {
+          "term": "run the blockade",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/fast-ashore`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force (synonym)",
+          "section": "Activities",
+          "line": 48
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "run the blockade",
+          "word_lang": "en",
+          "description": "The captain's word for `/fast-ashore`: an unloading from the local machine past the checks. Only the captain starts it, never a route, the skipper or another session.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "run the blockade",
+                "`/fast-ashore`",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 48
+            }
+          ]
+        },
+        "de": {
+          "word": "durchbrechen",
+          "word_lang": "de",
+          "description": "The captain's word for `/fast-ashore`: an unloading from the local machine past the checks. Only the captain starts it, never a route, the skipper or another session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "run the blockade",
+                "`/fast-ashore`",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 48
+            }
+          ]
+        },
+        "nl": {
+          "word": "run the blockade",
+          "word_lang": "en",
+          "description": "The captain's word for `/fast-ashore`: an unloading from the local machine past the checks. Only the captain starts it, never a route, the skipper or another session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "run the blockade",
+                "`/fast-ashore`",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 48
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "run the blockade",
+          "word_lang": "en",
+          "description": "The captain's word for `/fast-ashore`: an unloading from the local machine past the checks. Only the captain starts it, never a route, the skipper or another session.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "run the blockade",
+                "`/fast-ashore`",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 48
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/lock-gate",
+      "term": "lock gate",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 2,
+      "definition": "The captain's word for the queue: where unloadings wait their turn, one at a time.",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Schleusentor",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 104
+        }
+      ],
+      "glossary": {
+        "section": "Harbours",
+        "line": 102
+      },
+      "ontology": [
+        {
+          "term": "lock gate",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the queue",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force (synonym)",
+          "section": "Activities",
+          "line": 49
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "lock gate",
+          "word_lang": "en",
+          "description": "The captain's word for the queue: where unloadings wait their turn, one at a time.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "lock gate",
+                "the queue",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 49
+            }
+          ]
+        },
+        "de": {
+          "word": "Schleusentor",
+          "word_lang": "de",
+          "description": "The captain's word for the queue: where unloadings wait their turn, one at a time.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "lock gate",
+                "the queue",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 49
+            }
+          ]
+        },
+        "nl": {
+          "word": "lock gate",
+          "word_lang": "en",
+          "description": "The captain's word for the queue: where unloadings wait their turn, one at a time.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "lock gate",
+                "the queue",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 49
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "lock gate",
+          "word_lang": "en",
+          "description": "The captain's word for the queue: where unloadings wait their turn, one at a time.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Harbours",
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "lock gate",
+                "the queue",
+                "in force (synonym)"
+              ],
+              "lang": "en",
+              "line": 49
+            }
+          ]
+        }
+      },
+      "short_forms": [
+        {
+          "short": "lg",
+          "stands_for": "lock gate",
+          "kind": "word",
+          "line": 157
+        }
+      ]
+    },
+    {
+      "id": "none/other/top7",
+      "term": "top7",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 0,
+      "definition": "The seven ports whose practice counts as the standard: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot and X.",
+      "avoid": {
+        "text": "big 5, big ports, PORTS",
+        "words": [
+          {
+            "word": "big 5",
+            "note": null
+          },
+          {
+            "word": "big ports",
+            "note": null
+          },
+          {
+            "word": "PORTS",
+            "note": null
+          }
+        ],
+        "line": 114
+      },
+      "de": [],
+      "glossary": {
+        "section": "Comparisons",
+        "line": 112
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "top7",
+          "word_lang": "en",
+          "description": "The seven ports whose practice counts as the standard: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot and X.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Comparisons",
+          "ontology": []
+        },
+        "de": {
+          "word": "top7",
+          "word_lang": "en",
+          "description": "The seven ports whose practice counts as the standard: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot and X.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Comparisons",
+          "ontology": []
+        },
+        "nl": {
+          "word": "top7",
+          "word_lang": "en",
+          "description": "The seven ports whose practice counts as the standard: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot and X.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Comparisons",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "top7",
+          "word_lang": "en",
+          "description": "The seven ports whose practice counts as the standard: Alpha, Bravo, Charlie, Delta, Echo, Foxtrot and X.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Comparisons",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/tally",
+      "term": "tally",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 0,
+      "definition": "A count of what a hold carries, kept as a file in the harbour's `tallies/`: a list or a stowplan.",
+      "avoid": {
+        "text": "inventory, stock list",
+        "words": [
+          {
+            "word": "inventory",
+            "note": null
+          },
+          {
+            "word": "stock list",
+            "note": null
+          }
+        ],
+        "line": 130
+      },
+      "de": [
+        {
+          "word": "Zählliste",
+          "for": null,
+          "phrase": false,
+          "file": "glossary",
+          "line": 131
+        }
+      ],
+      "glossary": {
+        "section": "Holds",
+        "line": 128
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "tally",
+          "word_lang": "en",
+          "description": "A count of what a hold carries, kept as a file in the harbour's `tallies/`: a list or a stowplan.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Holds",
+          "ontology": []
+        },
+        "de": {
+          "word": "Zählliste",
+          "word_lang": "de",
+          "description": "A count of what a hold carries, kept as a file in the harbour's `tallies/`: a list or a stowplan.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        },
+        "nl": {
+          "word": "tally",
+          "word_lang": "en",
+          "description": "A count of what a hold carries, kept as a file in the harbour's `tallies/`: a list or a stowplan.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "tally",
+          "word_lang": "en",
+          "description": "A count of what a hold carries, kept as a file in the harbour's `tallies/`: a list or a stowplan.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/other/stowplan",
+      "term": "stowplan",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "other",
+      "level": null,
+      "order": 1,
+      "definition": "A tally written as a table of where each load lies: `tallies/stowplans/<name>.stw`.",
+      "avoid": {
+        "text": "layout, floor plan",
+        "words": [
+          {
+            "word": "layout",
+            "note": null
+          },
+          {
+            "word": "floor plan",
+            "note": null
+          }
+        ],
+        "line": 135
+      },
+      "de": [],
+      "glossary": {
+        "section": "Holds",
+        "line": 133
+      },
+      "ontology": [],
+      "languages": {
+        "en": {
+          "word": "stowplan",
+          "word_lang": "en",
+          "description": "A tally written as a table of where each load lies: `tallies/stowplans/<name>.stw`.",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": "Holds",
+          "ontology": []
+        },
+        "de": {
+          "word": "stowplan",
+          "word_lang": "en",
+          "description": "A tally written as a table of where each load lies: `tallies/stowplans/<name>.stw`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        },
+        "nl": {
+          "word": "stowplan",
+          "word_lang": "en",
+          "description": "A tally written as a table of where each load lies: `tallies/stowplans/<name>.stw`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        },
+        "pt-PT": {
+          "word": "stowplan",
+          "word_lang": "en",
+          "description": "A tally written as a table of where each load lies: `tallies/stowplans/<name>.stw`.",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": "Holds",
+          "ontology": []
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "coast/level/coast",
+      "term": "coast",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "level",
+      "level": "coast",
+      "order": 1,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Küste",
+          "for": "coast",
+          "phrase": false,
+          "file": "ontology",
+          "line": 82
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "coast",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "laptop",
+          "level": null,
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 15
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "coast",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "de": {
+          "word": "Küste",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "nl": {
+          "word": "coast",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "coast",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "coast/role/warden",
+      "term": "warden",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "coast",
+      "order": 3,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "warden",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "coast",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 15
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "warden",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "de": {
+          "word": "warden",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "nl": {
+          "word": "warden",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "warden",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "coast/role/purser",
+      "term": "purser",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "coast",
+      "order": 4,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "purser",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "coast",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 15
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "purser",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "de": {
+          "word": "purser",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "nl": {
+          "word": "purser",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "purser",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "coast",
+                "laptop",
+                "warden, purser",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 15
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "strait/level/strait",
+      "term": "strait",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "level",
+      "level": "strait",
+      "order": 2,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Meerenge",
+          "for": "strait",
+          "phrase": false,
+          "file": "ontology",
+          "line": 82
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "strait",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "network",
+          "level": null,
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 16
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "strait",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "strait",
+                "network",
+                "",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 16
+            }
+          ]
+        },
+        "de": {
+          "word": "Meerenge",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "strait",
+                "network",
+                "",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 16
+            }
+          ]
+        },
+        "nl": {
+          "word": "strait",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "strait",
+                "network",
+                "",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 16
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "strait",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "strait",
+                "network",
+                "",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 16
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/level/sea",
+      "term": "sea",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "level",
+      "level": "sea",
+      "order": 3,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "See",
+          "for": "sea",
+          "phrase": false,
+          "file": "ontology",
+          "line": 82
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "sea",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "person, the me ship",
+          "level": null,
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 17
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "sea",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "de": {
+          "word": "See",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "nl": {
+          "word": "sea",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "sea",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/role/i",
+      "term": "i",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "sea",
+      "order": 5,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "i",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 17
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "i",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "de": {
+          "word": "i",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "nl": {
+          "word": "i",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "i",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/role/admiral",
+      "term": "admiral",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "sea",
+      "order": 6,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "admiral",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 17
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "admiral",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "de": {
+          "word": "admiral",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "nl": {
+          "word": "admiral",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "admiral",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/role/helper",
+      "term": "helper",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "sea",
+      "order": 7,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "helper",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Levels",
+          "line": 17
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "helper",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "de": {
+          "word": "helper",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "nl": {
+          "word": "helper",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "helper",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "sea",
+                "person, the me ship",
+                "i, admiral, helper",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 17
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "ocean/level/ocean",
+      "term": "ocean",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "level",
+      "level": "ocean",
+      "order": 4,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Ozean",
+          "for": "ocean",
+          "phrase": false,
+          "file": "ontology",
+          "line": 82
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "ocean",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "?",
+          "level": null,
+          "status": "draft",
+          "status_text": "draft, place open",
+          "section": "Levels",
+          "line": 18
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "ocean",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "de": {
+          "word": "Ozean",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "nl": {
+          "word": "ocean",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "ocean",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "ocean/role/regent",
+      "term": "regent",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "ocean",
+      "order": 8,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "regent",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "ocean",
+          "status": "draft",
+          "status_text": "draft, place open",
+          "section": "Levels",
+          "line": 18
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "regent",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "de": {
+          "word": "regent",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "nl": {
+          "word": "regent",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "regent",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "ocean/role/elector",
+      "term": "elector",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "ocean",
+      "order": 9,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "elector",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "ocean",
+          "status": "draft",
+          "status_text": "draft, place open",
+          "section": "Levels",
+          "line": 18
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "elector",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "de": {
+          "word": "elector",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "nl": {
+          "word": "elector",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "elector",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "ocean",
+                "?",
+                "regent, elector",
+                "draft, place open"
+              ],
+              "lang": "en",
+              "line": 18
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "globe/level/globe",
+      "term": "globe",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "level",
+      "level": "globe",
+      "order": 5,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "Globus",
+          "for": "globe",
+          "phrase": false,
+          "file": "ontology",
+          "line": 82
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "globe",
+          "phrase": false,
+          "column": "level",
+          "stands_for": "?",
+          "level": null,
+          "status": "draft",
+          "status_text": "draft, place and second role open",
+          "section": "Levels",
+          "line": 19
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "globe",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "de": {
+          "word": "Globus",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "nl": {
+          "word": "globe",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "globe",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "globe/role/sovereign",
+      "term": "sovereign",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "role",
+      "level": "globe",
+      "order": 10,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "sovereign",
+          "phrase": false,
+          "column": "agent roles",
+          "stands_for": "",
+          "level": "globe",
+          "status": "draft",
+          "status_text": "draft, place and second role open",
+          "section": "Levels",
+          "line": 19
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "sovereign",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "de": {
+          "word": "sovereign",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "nl": {
+          "word": "sovereign",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "sovereign",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Levels",
+              "cells": [
+                "globe",
+                "?",
+                "sovereign, ???",
+                "draft, place and second role open"
+              ],
+              "lang": "en",
+              "line": 19
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/tugboat",
+      "term": "tugboat",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 3,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "tugboat",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 50
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "tugboat",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tugboat",
+                "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 50
+            }
+          ]
+        },
+        "de": {
+          "word": "tugboat",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tugboat",
+                "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 50
+            }
+          ]
+        },
+        "nl": {
+          "word": "tugboat",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tugboat",
+                "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 50
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "tugboat",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tugboat",
+                "one berth's load at the lock gate (the skipper's reading of the captain's word, 2031-01-05)",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 50
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/tie",
+      "term": "tie",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 4,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "knüpfen",
+          "for": "tie",
+          "phrase": false,
+          "file": "ontology",
+          "line": 90
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "tie",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "adding a knot to the logbook",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 51
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "tie",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "de": {
+          "word": "knüpfen",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "nl": {
+          "word": "tie",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "tie",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/cut-loose",
+      "term": "cut loose",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 5,
+      "definition": "",
+      "avoid": null,
+      "de": [
+        {
+          "word": "kappen",
+          "for": "cut loose",
+          "phrase": false,
+          "file": "ontology",
+          "line": 90
+        }
+      ],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "cut loose",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "finishing it",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force",
+          "section": "Activities",
+          "line": 51
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "cut loose",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "de": {
+          "word": "kappen",
+          "word_lang": "de",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "nl": {
+          "word": "cut loose",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "cut loose",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "tie, cut loose",
+                "adding a knot to the logbook, finishing it",
+                "in force"
+              ],
+              "lang": "en",
+              "line": 51
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/foghorn",
+      "term": "foghorn",
+      "synonyms": [],
+      "phrase": false,
+      "status": "proposed",
+      "kind": "activity",
+      "level": null,
+      "order": 6,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "foghorn",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "the nightly start of a new day's logbook",
+          "level": null,
+          "status": "proposed",
+          "status_text": "proposed, not chosen",
+          "section": "Activities",
+          "line": 52
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "foghorn",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "foghorn",
+                "the nightly start of a new day's logbook",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 52
+            }
+          ]
+        },
+        "de": {
+          "word": "foghorn",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "foghorn",
+                "the nightly start of a new day's logbook",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 52
+            }
+          ]
+        },
+        "nl": {
+          "word": "foghorn",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "foghorn",
+                "the nightly start of a new day's logbook",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 52
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "foghorn",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "foghorn",
+                "the nightly start of a new day's logbook",
+                "proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 52
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/anchor",
+      "term": "anchor",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 7,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "anchor",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/anchor`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force, keeps its name",
+          "section": "Activities",
+          "line": 53
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "anchor",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "anchor",
+                "`/anchor`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 53
+            }
+          ]
+        },
+        "de": {
+          "word": "anchor",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "anchor",
+                "`/anchor`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 53
+            }
+          ]
+        },
+        "nl": {
+          "word": "anchor",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "anchor",
+                "`/anchor`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 53
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "anchor",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "anchor",
+                "`/anchor`",
+                "in force, keeps its name"
+              ],
+              "lang": "en",
+              "line": 53
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/sign-off",
+      "term": "sign off",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 10,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "sign off",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/signoff`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force; \"pass the helm\", \"take the helm\" proposed, not chosen",
+          "section": "Activities",
+          "line": 55
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "sign off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "de": {
+          "word": "sign off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "nl": {
+          "word": "sign off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "sign off",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "none/activity/resume",
+      "term": "resume",
+      "synonyms": [],
+      "phrase": false,
+      "status": "in force",
+      "kind": "activity",
+      "level": null,
+      "order": 11,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "resume",
+          "phrase": false,
+          "column": "farm word",
+          "stands_for": "`/resume`",
+          "level": null,
+          "status": "in force",
+          "status_text": "in force; \"pass the helm\", \"take the helm\" proposed, not chosen",
+          "section": "Activities",
+          "line": 55
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "resume",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "de": {
+          "word": "resume",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "nl": {
+          "word": "resume",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "resume",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Activities",
+              "cells": [
+                "sign off, resume",
+                "`/signoff`, `/resume`",
+                "in force; \"pass the helm\", \"take the helm\" proposed, not chosen"
+              ],
+              "lang": "en",
+              "line": 55
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "coast/tool/portmap",
+      "term": "portmap",
+      "synonyms": [],
+      "phrase": false,
+      "status": "exists",
+      "kind": "tool",
+      "level": "coast",
+      "order": 0,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "portmap",
+          "phrase": false,
+          "column": "tool",
+          "stands_for": "",
+          "level": "coast",
+          "status": "exists",
+          "status_text": "exists",
+          "section": "Tools",
+          "line": 65
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "portmap",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "portmap",
+                "coast",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 65
+            }
+          ]
+        },
+        "de": {
+          "word": "portmap",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "portmap",
+                "coast",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 65
+            }
+          ]
+        },
+        "nl": {
+          "word": "portmap",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "portmap",
+                "coast",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 65
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "portmap",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "portmap",
+                "coast",
+                "exists"
+              ],
+              "lang": "en",
+              "line": 65
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/tool/ship-wiki",
+      "term": "ship wiki",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "tool",
+      "level": "sea",
+      "order": 1,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "ship wiki",
+          "phrase": false,
+          "column": "tool",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Tools",
+          "line": 66
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "ship wiki",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "de": {
+          "word": "ship wiki",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "nl": {
+          "word": "ship wiki",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "ship wiki",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/tool/second-chart",
+      "term": "second chart",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "tool",
+      "level": "sea",
+      "order": 2,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "second chart",
+          "phrase": false,
+          "column": "tool",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Tools",
+          "line": 66
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "second chart",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "de": {
+          "word": "second chart",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "nl": {
+          "word": "second chart",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "second chart",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    },
+    {
+      "id": "sea/tool/paper-rag",
+      "term": "paper rag",
+      "synonyms": [],
+      "phrase": false,
+      "status": "draft",
+      "kind": "tool",
+      "level": "sea",
+      "order": 3,
+      "definition": "",
+      "avoid": null,
+      "de": [],
+      "glossary": null,
+      "ontology": [
+        {
+          "term": "paper rag",
+          "phrase": false,
+          "column": "tool",
+          "stands_for": "",
+          "level": "sea",
+          "status": "draft",
+          "status_text": "draft",
+          "section": "Tools",
+          "line": 66
+        }
+      ],
+      "languages": {
+        "en": {
+          "word": "paper rag",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": false,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "de": {
+          "word": "paper rag",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "nl": {
+          "word": "paper rag",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        },
+        "pt-PT": {
+          "word": "paper rag",
+          "word_lang": "en",
+          "description": "",
+          "description_lang": "en",
+          "untranslated": true,
+          "section": null,
+          "ontology": [
+            {
+              "section": "Tools",
+              "cells": [
+                "ship wiki, second chart, paper rag",
+                "sea",
+                "draft"
+              ],
+              "lang": "en",
+              "line": 66
+            }
+          ]
+        }
+      },
+      "short_forms": []
+    }
+  ],
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 80,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    }
+  ]
+}

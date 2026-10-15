@@ -17,8 +17,40 @@ export type SubagentRow = {
   large?: boolean
 }
 
-// One Claude Code session of this machine, from `~/.claude/sessions/<pid>.json`; `plan` is its folder's `plans/CURRENT_PLAN`.
-export type SessionRow = { id: string; pid: number; name: string; cwd: string; kind: string; status: string; startedAt: number; plan: string; here: boolean }
+// One Claude Code session of this machine, from `~/.claude/sessions/<pid>.json`; `plan` is its folder's `plans/CURRENT_PLAN`,
+// `lead` the first line of its `plans/LEAD` (`<foreman's field> <plan> <step>`, empty when the file is not there).
+export type SessionRow = { id: string; pid: number; name: string; cwd: string; kind: string; status: string; startedAt: number; plan: string; lead: string; here: boolean }
+
+// The step a row of the roll-up works on next; `status` is the step table's word, empty while the step is open.
+export type NextStep = { number: string; title: string; status: string }
+
+// One row of a masterplan, as `hal2-cli-plans masterplan --json` gives it (the contract's fixture is
+// code/rust/apps/hal2-cli-plans/tests/fixtures/expected/masterplan.json); the fields the mod does not read are left out.
+export type RollUpRow = {
+  row: string
+  status: string
+  needs: string[]
+  slug: string
+  done: number
+  total: number
+  next: NextStep | null
+  current_in: string[]
+}
+
+// A masterplan's roll-up. `current_in` lists the fields whose CURRENT_PLAN is the masterplan itself (a servant's field).
+export type RollUp = {
+  id: number
+  slug: string
+  title: string
+  crop: { name: string; glyph: string; code: string } | null
+  current_in: string[]
+  plans_done: number
+  plans_total: number
+  steps_done: number
+  steps_total: number
+  plus: boolean
+  rows: RollUpRow[]
+}
 
 // The pane's top-level tab.
 export type Tab = 'subagents' | 'plans' | 'agents' | 'jobs'
@@ -38,6 +70,6 @@ export type TableState = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'divramod-subagent-context': { rows: SubagentRow[]; view: TableState | null; epoch: number; sessions: SessionRow[]; tab: Tab; plansView: TableState | null; agentsView: TableState | null; jobsView: TableState | null; jobs: JobRow[]; jobType: string }
+    'divramod-subagent-context': { rows: SubagentRow[]; view: TableState | null; epoch: number; sessions: SessionRow[]; tab: Tab; plansView: TableState | null; agentsView: TableState | null; jobsView: TableState | null; jobs: JobRow[]; jobType: string; masterplan: RollUp | null; home: string }
   }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
-# check-landing-cli.sh: a repository with merge-to-main.yml needs a hal2-cli-git whose help names that file; an
-# older one would land it as a plain merge, untested.
+# check-landing-cli.sh: a repository with dev-merge-to-main.yml or merge-to-main.yml needs a hal2-cli-git whose help
+# names that file; an older one would land it as a plain merge, untested.
 
 setup() {
   here="$BATS_TEST_DIRNAME"
@@ -42,6 +42,13 @@ new_cli() {
   fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
     "  the candidate merge commit and, when the repository has .github/workflows/merge-to-main.yml (or land.yml," \
     "  its name before plan 0263), push it to land/<slot>"
+}
+
+# The help of the CLI that reads dev-merge-to-main.yml too (hal2 plan 0349 D52).
+dev_cli() {
+  fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
+    "  the candidate merge commit and, when the repository has .github/workflows/dev-merge-to-main.yml (or" \
+    "  merge-to-main.yml, its name before plan 0349, or land.yml, before plan 0263), push it to land/<slot>"
 }
 
 add_workflow() { # <workflow file>...: one commit with them
@@ -140,6 +147,34 @@ path_without_cli() {
   git push -q origin HEAD:main
   git reset -q --hard HEAD~1
   run bash "$here/check-landing-cli.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "dev-merge-to-main.yml in HEAD or on origin's default branch: a CLI that knows only merge-to-main.yml is stopped" {
+  add_workflow dev-merge-to-main.yml
+  new_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 8 ]
+  [[ "$output" == *".github/workflows/dev-merge-to-main.yml (in HEAD): "* ]]
+  [[ "$output" == *"(a hal2 checkout that has dev-merge-to-main.yml)"* ]]
+  git push -q origin HEAD:main
+  git reset -q --hard HEAD~1
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 8 ]
+  [[ "$output" == *"dev-merge-to-main.yml (in origin/main): "* ]]
+  dev_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "the rename to dev-merge-to-main.yml beside merge-to-main.yml: the newer name must be known" {
+  add_workflow merge-to-main.yml dev-merge-to-main.yml
+  new_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 8 ]
+  dev_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
   [ "$status" -eq 0 ]
 }
 

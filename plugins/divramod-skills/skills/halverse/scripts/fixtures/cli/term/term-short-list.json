@@ -1,0 +1,195 @@
+{
+  "files": {
+    "glossary": "GLOSSARY.md",
+    "ontology": "HALVERSE-ONTOLOGY.md",
+    "dictation": "DICTATION.md",
+    "companions": {
+      "de": {
+        "glossary": "GLOSSARY.de.md",
+        "ontology": "HALVERSE-ONTOLOGY.de.md"
+      },
+      "nl": {
+        "glossary": "GLOSSARY.nl.md",
+        "ontology": "HALVERSE-ONTOLOGY.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "GLOSSARY.pt-PT.md",
+        "ontology": "HALVERSE-ONTOLOGY.pt-PT.md"
+      }
+    }
+  },
+  "short_forms": [
+    {
+      "short": "bt",
+      "stands_for": "berth",
+      "kind": "word",
+      "line": 161
+    },
+    {
+      "short": "lg",
+      "stands_for": "lock gate",
+      "kind": "word",
+      "line": 162
+    },
+    {
+      "short": "fy",
+      "stands_for": "fishery",
+      "kind": "farm",
+      "line": 166
+    }
+  ],
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 43,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term logbook is untranslated in German (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 91,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term unloading is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 133,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term tally is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": null,
+      "line": 138,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term stowplan is untranslated in German (its glossary entry), Dutch (its glossary entry), Portuguese (its glossary entry): the English text stands there"
+    },
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": 68,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": 83,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": 82,
+      "severity": "error",
+      "rule": "orphan-entry",
+      "message": "the entry **unloading**, **mooring** has a head line no entry of the glossary has: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 32,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term hail all ships is untranslated in German (the ontology's line 32), Dutch (the ontology's line 32), Portuguese (the ontology's line 32): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 50,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tugboat has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tie has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 51,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term cut loose has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term anchor has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 53,
+      "severity": "note",
+      "rule": "untranslated",
+      "message": "the term anchor is untranslated in German (the ontology's line 53), Dutch (the ontology's line 53), Portuguese (the ontology's line 53): the English text stands there"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term sign off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 55,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term resume has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 81,
+      "severity": "note",
+      "rule": "unknown-english",
+      "message": "the English word seaverse is a term of neither file: the row's German words are not written"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": 68,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": 67,
+      "severity": "note",
+      "rule": "orphan-row",
+      "message": "the row `tide table` stands for no row of the ontology's section: it is shown nowhere"
+    }
+  ]
+}

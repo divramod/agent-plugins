@@ -17,6 +17,7 @@ from pathlib import Path
 import due
 import handoff
 import roles
+import silence
 import tick
 import timer
 import wake
@@ -94,8 +95,10 @@ def print_round(r: dict, wiring: roles.Wiring) -> None:
         print(tick.timing_line(r["timing"], r.get("gh")))
 
 
-def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.Wiring, all_due: bool = False) -> int:
-    """One round behind the role's tick lock; outside a dry run only in timer mode."""
+def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.Wiring, all_due: bool = False,
+             silent_lines=None) -> int:
+    """One round behind the role's tick lock; outside a dry run only in timer mode. A silenced role (silence.py)
+    prints table lines only: `silent_lines(r, wiring)` or the default one line."""
     cli, gone = wiring.cli.name, missing()
     if gone:
         print(f"{cli}: missing {', '.join(gone)}; run {wiring.cli.parent}/install-prerequisites.sh", file=sys.stderr)
@@ -118,7 +121,9 @@ def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.
         if not dry and not r.get("problem"):
             follow_cron(repo, wiring)
     print(json.dumps(r, indent=1, default=str) if as_json else "", end="")
-    if not as_json:
+    if not as_json and not dry and silence.on(repo, wiring):
+        print("\n".join((silent_lines or silence.round_lines)(r, wiring)))
+    elif not as_json:
         print_round(r, wiring)
     return 4 if r.get("problem") else 0
 

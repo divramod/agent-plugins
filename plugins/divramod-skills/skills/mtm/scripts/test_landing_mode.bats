@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# landing-mode.sh: ci when merge-to-main.yml or land.yml is in HEAD or origin's default branch.
+# landing-mode.sh: ci when dev-merge-to-main.yml, merge-to-main.yml or land.yml is in HEAD or origin's default branch.
 
 setup() {
   here="$BATS_TEST_DIRNAME"
@@ -40,6 +40,20 @@ add_land() { # [<workflow file>...], default land.yml: one commit with them
 
 @test "land.yml only on origin's default branch lands through CI" {
   add_land
+  git push -q origin HEAD:main
+  git reset -q --hard HEAD~1
+  run bash "$here/landing-mode.sh" "$tmp/wt"
+  [ "$output" = ci ]
+}
+
+@test "dev-merge-to-main.yml in HEAD lands through CI" {
+  add_land dev-merge-to-main.yml
+  run bash "$here/landing-mode.sh" "$tmp/wt"
+  [ "$output" = ci ]
+}
+
+@test "dev-merge-to-main.yml only on origin's default branch lands through CI" {
+  add_land dev-merge-to-main.yml
   git push -q origin HEAD:main
   git reset -q --hard HEAD~1
   run bash "$here/landing-mode.sh" "$tmp/wt"

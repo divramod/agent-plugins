@@ -192,16 +192,18 @@ def plan_autoclear(item: dict, ctx: dict, problems: list[dict] | None = None, of
 
 
 DEPENDABOT_TASK = (
-    "Apply these Dependabot updates in your worktree and land them together as one plan:\n\n"
+    "Apply these dependency updates (Renovate's, Dependabot's) in your worktree and land them together as one "
+    "plan:\n\n"
     "- Merge each PR's branch into your worktree's branch as it is, oldest first (`git fetch origin <head>` then "
-    "`git merge --no-ff origin/<head>`), resolving conflicts in the merge. Never rewrite Dependabot's commits: GitHub "
+    "`git merge --no-ff origin/<head>`), resolving conflicts in the merge. Never rewrite the bot's commits: GitHub "
     "marks a PR merged once its head commit reaches main.\n"
     "- Fix what each update breaks (build, tests, lint, a major version's migration) in commits of your own, and "
     "regenerate what the repository derives from its dependencies (its CLAUDE.md names it, e.g. `cargo hakari`).\n"
     "- An update that cannot be done now (it needs a product decision or an upstream fix): leave its branch out, close "
     "its PR with `gh pr close <n> --comment \"<why>\"` and record why in the plan.\n"
-    "- Never merge a PR on GitHub and never push to a `dependabot/` branch: main moves only by your landing.")
-DEPENDABOT_DONE = ("Every PR listed is merged by your landing (GitHub shows it merged, or Dependabot closes it as up to "
+    "- Never merge a PR on GitHub and never push to a `renovate/` or `dependabot/` branch: main moves only by your "
+    "landing.")
+DEPENDABOT_DONE = ("Every PR listed is merged by your landing (GitHub shows it merged, or its bot closes it as up to "
                    "date) or closed by you with its reason, and the landing's gates were green.")
 CLOSE = {"superseded": "Closed by the farmer: main already holds this update.",
          "land-stale": "Closed by the farmer: this landing's worktree has no ticket in the merge queue and nothing beyond "
@@ -209,8 +211,8 @@ CLOSE = {"superseded": "Closed by the farmer: main already holds this update.",
 
 
 def plan_prs(item: dict, ctx: dict, scan: dict | None = None, held: dict | None = None) -> list[dict]:
-    """The open PRs kept clean: Dependabot's applied by one foreman per batch, PRs main holds closed, a leftover
-    landing PR closed (its worktree holds nothing) or judged, any other PR the user's."""
+    """The open PRs kept clean: the dependency bots' (Renovate, Dependabot) applied by one foreman per batch, PRs main
+    holds closed, a leftover landing PR closed (its worktree holds nothing) or judged, any other PR the user's."""
     scan = scan if scan is not None else pr_scan.scan(ctx["top"])
     held = held if held is not None else delegation.ledger(ctx["main"])
     busy = any(k.startswith("prs:dependabot") and e.get("state") in ("running", "waiting") for k, e in held.items())
@@ -220,7 +222,7 @@ def plan_prs(item: dict, ctx: dict, scan: dict | None = None, held: dict | None 
         if kind == "dependabot" and not busy:
             nums = f["numbers"]
             out.append(act("prs", kind, "delegate", "-", key="prs:dependabot:" + "-".join(map(str, nums)),
-                           text="Apply the open Dependabot PRs " + ", ".join(f"#{n}" for n in nums),
+                           text="Apply the open dependency PRs " + ", ".join(f"#{n}" for n in nums),
                            task=DEPENDABOT_TASK, done=DEPENDABOT_DONE, brief={"prs": f["prs"]}))
         elif kind == "superseded" or (kind == "land-stale" and not f.get("ahead")):
             out.append(act("prs", kind, "run", f.get("slot") or "-", key=f"prs:close:{f['number']}", text=f["why"],

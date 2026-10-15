@@ -44,6 +44,7 @@ Every round starts with the merge from main (not while a train stands) and the u
 | Form | merges the cars into the own field in queue order (a conflict only in generated files takes the barn's side, and the train's last commit writes them again by the map's commands; one that fails breaks the train up: `train-stuck`), writes `plans/CURRENT_PLAN`, marks the train (`worktree queue train`), starts `hal2-cli-git worktree merge-to-main` detached (`engine.py land`); a tick never waits for CI | |
 | Landed | tells each car's foreman "in the barn", resets the own field to the barn | |
 | Red | | `train-failed`: name the wagon that broke it, or send the train again |
+| Red stack-test after the merge | a landed train whose result has a red job `.../stack-test`, or whose land run's stack-test job ends red later (stack-test runs beside the merge, plan 0349 D11; `stack_red.watch` reads the newest landed train's run each round until the job ends, at most 6 hours) stays landed: `stack_red.py` posts a board `red` line (status `stack-test`) and tells each car's foreman the failing tests (the job's `tests`/`failed_tests`, else its name and the run) as a fix for its next harvest (D6) | |
 | Failed change | | `train-stuck`: a verb of the engine failed |
 | Queue health | failed landings woken, held queues of fields without a session released, user priority and pauses kept, orphans restarted with a handoff | `mtm` kinds: a long landing, work not queued, a flaky test, an orphan without handoff |
 
@@ -60,7 +61,7 @@ the train state and the run title starts with `yard + `. If the session names th
 train, `wagon_master.py unhitch yard --why <text>` keeps its files out of every train until they change.
 
 **The code** (`$S`): `wagon_master.py` (the verbs and the rounds on the farmer skill's frame, `farmer_frame.py`),
-`trains.py` (plans a round) and `trial.py` (the trial merge), `generated.py` (conflicts in generated files), `engine.py` (does it: form, restart, land, landed, red,
+`trains.py` (plans a round), `stack_red.py` (a red stack-test after the merge) and `trial.py` (the trial merge), `generated.py` (conflicts in generated files), `engine.py` (does it: form, restart, land, landed, red,
 breakup, which also puts the carrier's remote branch back on the train's base with a leased push; `engine_farm.py`
 is its test farm), `train_state.py` (`train.jsonl`), `board.py` (`board.jsonl`;
 `board.py list [--kind <kind>] [--last <n>] [--json]` reads it, `board.py sync` copies the frame's messages and acks
@@ -80,7 +81,18 @@ from the checkout (`cargo build -p hal2-cli-git`); without that binary it is ski
 | `/wagon-master` | one tick now: `python3 $S/wagon_master.py tick` (`--dry-run` plans it and touches nothing) |
 | `/wagon-master train` | `python3 $S/wagon_master.py train --dry-run`: the train that stands, the next one, the unhitched with their reasons, and the yard's lines (`yard: placed: <path>`, `yard: left: <path>: <why>`, `yard: skipped: <why>`) |
 | `/wagon-master status` | `python3 $S/wagon_master.py status`: the worktree, the timer and its mode, the last tick, the wake items not handled yet |
+| `/wagon-master silence`, `/wagon-master unsilence` | `python3 $S/wagon_master.py silence` / `unsilence`: [silent](#silent) or full output again |
 | `/wagon-master h`, `/wagon-master help` | print this table and stop |
+
+## Silent
+
+`/wagon-master silence` (marker file `silent` in `roles/wagon-master/`, gitignored; plan 0349 D6): a real round prints,
+per train it touched or that stands, **one table line** `| wagon-master | train <name>: <state> | joined <fields> |`
+(`joined`: the fields that rode it, `yard` if its car did; no train: `no train`), nothing else. The code prints it
+(`silence.py`, `wagon_master.silent_lines`); a dry run and `--json` stay full. A woken session of a silenced wagon
+master answers in table lines only and spends the fewest tool calls: `act`, the items' own commands, `act --done`;
+no reading beyond the item's file, no narration, no `status`. The foremen are unchanged. `/wagon-master unsilence`
+removes the marker.
 
 ## Start
 

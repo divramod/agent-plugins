@@ -11,8 +11,9 @@
 - Status: `done...`, `running`, `blocked <why>`, anything else (blank, `next`) is open. A running step, and a blocked
   one with a Who, holds its Touches.
 
-A former servant's worktree may still hold the gitignored marker `plans/LEAD` (`<lead-slot> <plan-slug> <step>`):
-plan.py and mtm refuse to write the plan or land there (plan 0015 D12) until the marker is gone.
+A servant's field holds the gitignored marker `plans/LEAD` (`<foreman's field> <plan-slug> <step>`; of a masterplan's
+servant the masterplan's slug and its row): plan.py and mtm refuse to write the plan or land there (plan 0015 D12;
+hal2 plan 0275 D26): the foreman marks the steps and brings the work in.
 """
 import re
 import subprocess

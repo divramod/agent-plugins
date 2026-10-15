@@ -2,15 +2,15 @@
 # Wait until no run of the landing workflow is unfinished in the repository of <dir> (default .),
 # so a landing through CI (which reserves the queue first) never pushes a
 # candidate while another landing still runs or ships (references/ci.md). The workflow is
-# merge-to-main.yml, before hal2 plan 0263 land.yml: both are asked, a run started before the
-# rename finishes under the old name. A run counts until its
+# dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml, before plan 0263 land.yml:
+# all are asked, a run started before a rename finishes under the old name. A run counts until its
 # status is `completed`: `queued` too (a ship job waiting for a runner is queued).
 #   land-runs.sh [--once] [--interval <s>] [--max-wait <minutes>] [<dir>]
 # Exit 0: none unfinished. --once: exit 6 and list them instead of waiting.
 # Exit 7: still unfinished after --max-wait (default 60): a run stuck queued or
 # waiting (a parked runner, a pending approval); tell the farmer, do not push.
 # A file GitHub does not know (HTTP 404: the workflow is not renamed yet, or has been) has no runs,
-# as long as GitHub knows the other one; when it knows neither, nothing is known.
+# as long as GitHub knows another one; when it knows none, nothing is known.
 # Exit 2: gh is missing, or --max-wait/--interval is no whole number. Exit 1: gh failed, nothing is known: do not push.
 set -euo pipefail
 once=0
@@ -52,10 +52,10 @@ unfinished_of() {
   [ -z "$err" ] || echo "$err" >&2
   return 1
 }
-# The unfinished runs of both workflow files.
+# The unfinished runs of every name of the workflow file.
 unfinished() {
   local file runs rc known=0 all=""
-  for file in merge-to-main.yml land.yml; do
+  for file in dev-merge-to-main.yml merge-to-main.yml land.yml; do
     rc=0
     runs=$(unfinished_of "$file") || rc=$?
     case "$rc" in
@@ -67,7 +67,7 @@ unfinished() {
 }$runs"
   done
   if [ "$known" -eq 0 ]; then
-    echo "land-runs.sh: GitHub knows neither merge-to-main.yml nor land.yml in this repository" >&2
+    echo "land-runs.sh: GitHub knows none of dev-merge-to-main.yml, merge-to-main.yml and land.yml in this repository" >&2
     return 1
   fi
   [ -z "$all" ] || echo "$all"

@@ -11,17 +11,16 @@ notes, data), so the folder is self-contained; no phase folders, no state files,
 plan as JSON (`slug`, `path`, `research`, `grilled`, `done`, `total`, `next`, `landing`, `land`, `problems`, `steps`).
 
 **A plan's `plan.md` holds, after the Goal, a `## Brief`** (`In`, `Out`, `Must`, `Proof`: about ten lines; more goes
-into a linked `design.md`), written from the plan's seed before any step; the Context line `- Seed: <seedbag>#<n>`
-links the seed (`new --seed`). A plan without the section is valid (old plans).
+into a linked `design.md`), written from the plan's seed before any step; the Context line `- Seed: <seedbag>#<n>` links the seed (`new --seed`). A plan without the section is valid (old plans).
 
 Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first.
 A question is listed to the user only on `/q` or when the plan cannot continue without the answer; otherwise it is
 recorded in `questions.md` and the run goes on (the user, 2026-10-13: "they should only list questions, when they cannot continue").
 
 **`plans/CURRENT_PLAN` names what the worktree works on**, so the statusline shows it: `new` and `use` write the
-plan's slug into it. Other work writes it too (a shot `<shotfile>/<n>/<title-slug>`, a task name); then `current` fails with
-"not a plan": list the plans and ask, as in Status. The file is gitignored per-worktree state: never stage or
-commit it (untrack and gitignore it when the repo still tracks it); `/mtm` deletes it once a finished plan has landed.
+plan's slug into it. Other work writes it too (a shot `<shotfile>/<n>/<title-slug>`, a task name); then `current`
+fails with "not a plan": list the plans and ask, as in Status. Gitignored per-worktree state: never stage or commit
+it. After a landing `/mtm` runs `plan.py leave`: it then names the plan's unfinished masterplan or is deleted.
 
 **Research plans start with `research`.** When the user asks for research rather than an implementation
 (investigate, compare, evaluate, analyse, "find out", "look into": the result is findings or a decision, not code),
@@ -41,8 +40,7 @@ plan to `auto`; only an implementation plan lands itself.
 **Every implementation plan ends with its UATs.** Its last step before the landing (the template's "Write the
 UATs") writes `plans/<NNNN>-<slug>/uat.md` (`plan.py uat` scaffolds it from `templates/uat.md`, typed `UAT`: its
 `status` is the file's, `active` or `archived`, never a check's; a legacy uat.md keeps its header lines): the user acceptance
-checks the user runs by hand on the default branch after the landing (`hal2-cli-plans uat next <plan>`, then `uat set
-<plan> <check> pass|fail|skip|blocked`). Only what a human must see
+checks the user runs by hand on the default branch after the landing (`hal2-cli-plans uat next <plan>`, then `uat set <plan> <check> pass|fail|skip|blocked`). Only what a human must see
 goes there: derive the checks from the goal, each step's done-when and the diff (new panes, commands, keys, deep
 links), drop what the plan's tests and your own verification already proved, keep what needs eyes and hands (layout,
 feel, real data, other devices), riskiest first (`Priority: p1` = what the goal promises), at most about 10, each
@@ -68,7 +66,8 @@ behaviour. A done-when tests only what the step changed: the crates or packages 
 a gate job for the branch's range (`gate/main.sh <job> --branch origin/main` in hal2). It never runs a whole-workspace
 test (`--workspace`, a bare `cargo nextest run`) or a full gate job (a release bundle, an e2e stack) on the Mac: those
 are the landing's CI; a check that needs one before then runs on the CI runner (hal2: `gh workflow run
-merge-to-main.yml -f ref=<branch> -f jobs=<job>`, `land.yml` where the repository still has that name; hal2 plan 0157).
+dev-merge-to-main.yml -f ref=<branch> -f jobs=<job>`, `merge-to-main.yml` or `land.yml` where the repository still
+has an older name; hal2 plan 0157).
 
 **Short and concise** (hal2's record plans-short-and-concise): one line per step, `plan.md` at most 150 lines, a
 table cell at most 200 characters, a step file at most 120 lines; link the research, records and code instead of
@@ -110,12 +109,11 @@ four, each with a front matter envelope: `type`, `schema`, `title`, `description
 | `questions.md` | every question, the agent's and the user's, with its answer (the handoff skill's entries), plus `**Decision:** D<n>` when the answer is a decision | appended |
 | `handoff.md` | the state a cleared session needs (Done, Next with its `Done when:`, Watch out, Start with); committed, so no PID, pane id, session name or absolute home path | overwritten by `/handoff` |
 
-Beside them, **each step has its file** `steps/<n>.md` (hal2's shaped kind Step: `# Step <n>: <title>`, `## Task`,
-then optional and in this order `## Needs and touches`, `## Approach`, `## Done when`, `## Notes`, `## Result`; at
-most 120 lines): `plan.py status <n> next` writes it from `templates/step.md` when it is missing (never over an
-existing one), with the row's `Size: <size> of <window>` under the Task. It is the step's brief: the coordinator
-writes its `## Task`, the step's subagent its `## Approach` first and its `## Notes` at its end. Status and who stay
-in the step table only.
+Beside them, **each step has its file** `steps/<n>.md` (hal2's shaped kind Step: `# Step <n>: <title>`, `## Task`, then
+optional and in this order `## Needs and touches`, `## Approach`, `## Done when`, `## Notes`, `## Result`; at most 120
+lines): `plan.py status <n> next` writes it from `templates/step.md` when it is missing (never over an existing one),
+with the row's `Size: <size> of <window>` under the Task. It is the step's brief: the coordinator writes its `## Task`,
+the step's subagent its `## Approach` first and its `## Notes` at its end. Status and who stay in the step table only.
 
 A plan has no `## Decisions` section: an autogrill decision is a `D<n>` entry by `agent` with its **Why**, a user's
 answer an entry with their quoted **Words**, and **Pre-authorized** names its entries by number. `python3 $S/plan.py
@@ -165,6 +163,8 @@ and its steps are not committed (the folder is no repository) unless the user ke
 | `/plan new --parallel <idea>` | `/plan p <idea>` | a parallel plan: the step table gets Needs, Touches and Who; it runs as in [Run a parallel plan](#run-a-parallel-plan) |
 | `/plan ready` | | `python3 $S/plan.py ready --json`: the parallel plan's steps that can start now, and why the others wait |
 | `/plan assign <n> <who>` | | `python3 $S/plan.py assign <n> <who>`: lead, subagent or user |
+| `/plan new --masterplan <title>`, `/plan new --parent <n> <title>` | | a [masterplan](#masterplans) (an empty table, so the checker says "the Steps table has no step" until the first `--parent`; `landing: manual`, its `crop` picked); a plan of masterplan `<n>` (`parent`, its Context line, its `draft` row there) |
+| `/plan masterplan` | | `python3 $S/plan.py masterplan [--plan <ref>] [--json]`: the masterplan the plan is, or is a plan of: plans brought in of all, steps done of all, a row per plan, `after_landing`; `plan.py leave` (the end of `/mtm`) keeps `CURRENT_PLAN` on the masterplan, `leave --release` deletes it in a field that does not carry on with it |
 | `/plan new -g <title>` | `/plan r -g <topic>` | a global plan (see "Global plans" above; `--research` works too) |
 | `/plan s -g <n>`, `/plan n -g <n>`, `/plan d -g <n> [<step>]` | | status, run, finish a step of global plan `<n>` |
 | `/plan check` | `/plan c` | `python3 $S/plan.py check`: report plan numbers used twice, every problem of the plan folders' records and every unsized open step (`plan-steps-sized`) and a Brief whose `Out` or `Proof` is still the placeholder (`plan-brief-filled`) |
@@ -289,8 +289,7 @@ python3 $S/plan.py current      # or: list
 ```
 
 Report the plan title, `done/total`, the next step and its done-when check, whether it was grilled, whether it lands
-itself (`landing`) and any `problems`. If there is
-no current plan, list the plans and ask which one to use.
+itself (`landing`) and any `problems`. If there is no current plan, list the plans and ask which one to use.
 
 ## Run the plan
 
@@ -394,9 +393,37 @@ carries and which touches `@land`; before it, every gate job the candidate touch
 farmer's (or the user's) "land now" and `/mtm milestone` (the queue is not kept, `CURRENT_PLAN` stays). Only the
 plan's last landing is the plan's own ([Land the plan](#land-the-plan)).
 
-**A stale `plans/LEAD`** (left by a former servant session of a foreman) marks a worktree that runs no plan of its own:
-`plan.py` refuses its writes, mtm's guard and hal2's merge queue refuse its landing. The foreman takes its work over,
-or `plans/LEAD` is deleted (plan 0015's D12).
+## Masterplans
+
+A **masterplan** is a plan whose rows are plans (`plans/<NNNN>-masterplan-<slug>/plan.md`): the parallel form without
+Model, Effort, Window and Size, `landing: manual` (it never lands itself) and its symbol, the key `crop`. A plan names
+its masterplan by the key `parent` and is then never a masterplan itself; the JSON says `masterplan`, `crop`, `parent`
+and `row`. **Three levels, masterplan > plan > step**: the masterplan's files are its foreman's alone (the foreman of
+the field it was created in) and are never brought in on their own; a plan has its own folder, ledger, UATs and
+foreman, who brings it in alone (a servant may do its steps: [Work as a servant](#work-as-a-servant)); a step
+runs in a hand, one subagent, and the foreman commits it. No level below: **a hand's helpers** (read-only fan-out:
+a search, a review) have no row or file, report to the hand, carry its name (`Plan <NNNN> row <step>: <title>`),
+never edit, commit or start a servant, and count in the five subagents at once. **A row's status** is `draft` (from `new --parent`: not
+yet grilled again against the default branch), `next`, `running`, `blocked <why>`, `done` (`done (<note>)`) or blank,
+nothing else; `done` exactly when its plan is. **Code ticks it**: the `plan.py status` that finishes a plan's last
+step sets its row `done` (`tick` in the JSON, `tick_skipped`: why not; also with `--plan`), a reopened step takes it
+back (`running`); commit both `plan.md` files. Between two plans `CURRENT_PLAN` names the masterplan (`/handoff c`).
+
+- `plan.py new "<title>" --masterplan`: its crop is the first of twelve no unfinished masterplan of any checkout uses;
+  the marker is none of the name's four words. After `new --parent <n>` fill the row's Needs and Touches.
+- `plan.py masterplan [--plan <ref>] [--json]`: the roll-up of `hal2-cli-plans masterplan` (`$HAL2_CLI_PLANS`, else on
+  PATH; `+` while a row is `draft`), without it the own rows and one line, exit 0: never add up step tables yourself.
+  Its `after_landing`: the plans whose open steps are all checked after the landing (`/mtm` finishes them).
+- On the masterplan `ready --json`, `assign` and `status <row> <status>` work as on a parallel plan. Its rows are no
+  steps: not sized, no step file on `next`; `prompt <row>` and `uat` refuse and name the row's plan.
+
+## Work as a servant
+
+A servant's field (30 to 99) holds its foreman's marker `plans/LEAD`, `<foreman's field> <plan> <step>` (a whole plan
+of a masterplan: `<field> <the masterplan> <its row>`, `CURRENT_PLAN` naming the masterplan); it never deletes it.
+It does its steps, each in a hand (`plan.py prompt <n> --plan <its plan>`), commits them, writes their Notes and
+reports; the foreman merges, checks, marks them (`status <n> done --plan <its plan>`) and brings them in. It never
+edits `plan.md`, marks a step or lands: `plan.py`, mtm's guard and hal2's merge queue refuse it.
 
 ## Land the plan
 
@@ -411,14 +438,13 @@ time limit ended, or exit 5 `interrupted`, its process gone and not the user, is
    already); untracked files are junk (gitignore), secrets (gitignore, never commit) or the plan's work (commit);
    what stays unclear is left untracked, no question, and named in the report.
 3. Run the [mtm](../mtm/SKILL.md) skill from its step 1, as a plan's landing: it lands the work, finishes the
-   after-landing steps, clears `CURRENT_PLAN` and reports what landed. Fix and rerun as it says while it holds the
-   queue. Where mtm would ask the user (the attempts limit, a cause you cannot fix), a plan's landing asks
-   nothing: push a notification (`PushNotification`, e.g. "plan 0063: landing holds the merge queue, needs you")
-   and stop with the report; the failed landing keeps holding the queue until the user acts. A successful landing
-   only reports. In a repository with a working wagon master (mtm's `scripts/wagon-master.sh` prints `yes`, its
-   check before step 1) this `/mtm` hitches instead of landing: the work is reported ready, the session ends its
-   turn, and the plan's end (the after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the wagon
-   master's "in the barn".
+   after-landing steps, runs `plan.py leave` and reports what landed. Fix and rerun as it says while it holds the queue.
+   Where mtm would ask the user (the attempts limit, a cause you cannot fix), a plan's landing asks nothing: push a
+   notification (`PushNotification`, e.g. "plan 0063: landing holds the merge queue, needs you") and stop with the
+   report; the failed landing keeps holding the queue until the user acts. A successful landing only reports. In a
+   repository with a working wagon master (mtm's `scripts/wagon-master.sh` prints `yes`, its check before step 1) this
+   `/mtm` hitches instead of landing: the work is reported ready, the session ends its turn, and the plan's end (the
+   after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the wagon master's "in the barn".
 
 ## Finish a step
 

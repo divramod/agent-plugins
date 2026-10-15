@@ -1,0 +1,293 @@
+{
+  "files": {
+    "glossary": "GLOSSARY.md",
+    "ontology": "ontology.md",
+    "dictation": "dictation.md",
+    "companions": {
+      "de": {
+        "glossary": "GLOSSARY.de.md",
+        "ontology": "ontology.de.md"
+      },
+      "nl": {
+        "glossary": "GLOSSARY.nl.md",
+        "ontology": "ontology.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "GLOSSARY.pt-PT.md",
+        "ontology": "ontology.pt-PT.md"
+      }
+    }
+  },
+  "sections": [
+    {
+      "title": "Roles on the farm",
+      "note": "in force, defined in the glossary",
+      "status": "in force",
+      "line": 3,
+      "lines": [
+        {
+          "line": 5,
+          "last": 5,
+          "text": "- **steward**: the session in the main checkout, with the user.",
+          "bullet": true
+        },
+        {
+          "line": 6,
+          "last": 6,
+          "text": "- A worker inside a foreman's session: name open; proposed \"hand\".",
+          "bullet": true
+        }
+      ],
+      "tables": []
+    },
+    {
+      "title": "Places on the farm",
+      "note": "in force, synonyms",
+      "status": "in force",
+      "line": 8,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "farm word",
+            "stands for"
+          ],
+          "labels": [
+            "Farm word",
+            "Stands for"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "field",
+                "a worktree"
+              ],
+              "line": 12
+            },
+            {
+              "cells": [
+                "yard",
+                "the main checkout"
+              ],
+              "line": 13
+            }
+          ],
+          "line": 10,
+          "last": 13
+        }
+      ]
+    },
+    {
+      "title": "Activities",
+      "note": "what an agent does",
+      "status": null,
+      "line": 15,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "farm word",
+            "stands for",
+            "status"
+          ],
+          "labels": [
+            "Farm word",
+            "Stands for",
+            "Status"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "harvest",
+                "the foreman's part before a landing",
+                "in force"
+              ],
+              "line": 19
+            },
+            {
+              "cells": [
+                "bring in",
+                "merge-to-main (`/mtm`)",
+                "in force (synonym)"
+              ],
+              "line": 20
+            },
+            {
+              "cells": [
+                "jot, tick off",
+                "adding a chore, finishing it",
+                "in force"
+              ],
+              "line": 21
+            },
+            {
+              "cells": [
+                "cockcrow",
+                "the nightly start",
+                "proposed, not chosen"
+              ],
+              "line": 22
+            },
+            {
+              "cells": [
+                "pause",
+                "`/pause`",
+                "in force, keeps its name"
+              ],
+              "line": 23
+            },
+            {
+              "cells": [
+                "hand off, continue",
+                "`/handoff`, `/continue`",
+                "in force; other names proposed"
+              ],
+              "line": 24
+            }
+          ],
+          "line": 17,
+          "last": 24
+        }
+      ]
+    },
+    {
+      "title": "Tools",
+      "note": "",
+      "status": null,
+      "line": 26,
+      "lines": [],
+      "tables": [
+        {
+          "header": [
+            "tool",
+            "level",
+            "status"
+          ],
+          "labels": [
+            "Tool",
+            "Level",
+            "Status"
+          ],
+          "rows": [
+            {
+              "cells": [
+                "hal9k",
+                "village",
+                "exists"
+              ],
+              "line": 30
+            }
+          ],
+          "line": 28,
+          "last": 30
+        }
+      ]
+    }
+  ],
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 12,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term field has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 13,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term yard has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term jot has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tick off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 23,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term pause has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term hand off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term continue has no glossary entry"
+    }
+  ]
+}

@@ -33,6 +33,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
 import generated
 import mtm_scan
+import stack_red
 import train_state
 import trial as trial_merge
 import yard_report
@@ -203,7 +204,7 @@ def settle(top: str, train: dict, result: dict | None, panes: dict) -> list[dict
                    text=f"train {name} is in the barn")
         text = TEXT["barn"].format(cars=cars, run=f", {link}" if link else "")
         return [done] + [tell("in-the-barn", c["field"], f"barn:{name}:{c['field']}", text, panes, key)
-                         for c in train["cars"]]
+                         for c in train["cars"]] + stack_red.actions(top, train, result, panes, key)
     if status in AGAIN and train["starts"] < MAX_STARTS:
         return [run("restart", "-", f"restart:{name}:{train['starts']}", "restart", top,
                     text=f"train {name}: its landing ended {status or 'without a result'}, started again")]
@@ -264,7 +265,8 @@ def handler(item: dict, ctx: dict) -> list[dict]:
     if not ctx.get("dry"):
         board.safely(ctx["main"], "ready tickets", board.on_ready, tickets)  # a ready ticket seen first (step 7)
     rows, panes = train_state.lines(ctx["main"]), ctx.get("panes", {})
-    return plan(ctx["top"], ctx["main"], tickets, rows, panes) + yard_report.settled_actions(ctx["main"], rows, panes)
+    return (plan(ctx["top"], ctx["main"], tickets, rows, panes) + yard_report.settled_actions(ctx["main"], rows, panes)
+            + stack_red.watch(ctx["top"], ctx["main"], rows, panes, ctx.get("log", [])))
 
 
 def dry_run(repo: str) -> dict:

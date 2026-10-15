@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import learn
 import sources
+from fake_cli import FakeCli
 from transcripts import Message
 
 PAIRSET = learn.load_pairs()
@@ -188,14 +189,11 @@ class Practise(unittest.TestCase):
         self.assertEqual(learn.practise(learn.count(["the VM slot"], PAIRS)), [])
 
 
-class Coverage(unittest.TestCase):
-    sample = "fixtures/sources"
-
+class Coverage(FakeCli):
     def test_sample_with_a_pair_for_each_word_has_no_warning(self):
-        import os
-        here = os.path.dirname(os.path.abspath(__file__))
-        words = sources.farm_words(sources.read_text(os.path.join(here, self.sample, "ontology.md")))
-        heads = sources.glossary_pairs(sources.read_text(os.path.join(here, self.sample, "GLOSSARY.md")))
+        data = sources.load()  # the CLI's answers for fixtures/sources
+        words = sources.farm_words(data)
+        heads = sources.glossary_pairs(data)
         self.assertEqual(learn.coverage_warnings(PAIRSET, words, heads), [])
         self.assertEqual(heads, [("shot", "seed"), ("landing", "bring in")])
         for old, new in heads:  # the old word of a heading is matched by its pair

@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "refused",
+    "message": "nothing written: the files would get errors they do not have now: short-form-is-a-word (line 163): the short form dock is itself a term (the glossary, line 87)",
+    "detail": {
+      "problems": [
+        {
+          "file": "glossary",
+          "lang": null,
+          "line": 163,
+          "severity": "error",
+          "rule": "short-form-is-a-word",
+          "message": "the short form dock is itself a term (the glossary, line 87)"
+        }
+      ]
+    }
+  }
+}

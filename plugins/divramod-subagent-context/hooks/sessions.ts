@@ -2,7 +2,7 @@ import type { SessionRow, TableState } from '../types'
 import { type Align, type TableProps, line, rule } from './grid'
 
 // One Claude Code session as its `~/.claude/sessions/<pid>.json` says it; undefined when the text is no session.
-export const parse = (text: string): Omit<SessionRow, 'plan' | 'here'> | undefined => {
+export const parse = (text: string): Omit<SessionRow, 'plan' | 'lead' | 'here'> | undefined => {
   try {
     const s = JSON.parse(text)
     if (typeof s?.pid !== 'number' || typeof s.cwd !== 'string') return undefined

@@ -1,0 +1,130 @@
+{
+  "files": {
+    "glossary": "GLOSSARY.md",
+    "ontology": "ontology.md",
+    "dictation": "dictation.md",
+    "companions": {
+      "de": {
+        "glossary": "GLOSSARY.de.md",
+        "ontology": "ontology.de.md"
+      },
+      "nl": {
+        "glossary": "GLOSSARY.nl.md",
+        "ontology": "ontology.nl.md"
+      },
+      "pt-PT": {
+        "glossary": "GLOSSARY.pt-PT.md",
+        "ontology": "ontology.pt-PT.md"
+      }
+    }
+  },
+  "ok": true,
+  "errors": 0,
+  "notes": 13,
+  "problems": [
+    {
+      "file": "glossary",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "glossary",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the glossary has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "de",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no German companion (a file <its name>.de.md beside it): German gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "nl",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Dutch companion (a file <its name>.nl.md beside it): Dutch gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": "pt-PT",
+      "line": null,
+      "severity": "note",
+      "rule": "no-companion",
+      "message": "the ontology has no Portuguese companion (a file <its name>.pt-PT.md beside it): Portuguese gets the English text"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 12,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term field has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 13,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term yard has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term jot has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 21,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term tick off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 23,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term pause has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term hand off has no glossary entry"
+    },
+    {
+      "file": "ontology",
+      "lang": null,
+      "line": 24,
+      "severity": "note",
+      "rule": "no-glossary-entry",
+      "message": "the in-force term continue has no glossary entry"
+    }
+  ]
+}

@@ -17,6 +17,8 @@ def pr(number, head, login="divramod", updated="2026-10-06T09:00:00", draft=Fals
 
 DEPS = [pr(8, "dependabot/cargo/code/rust/cargo-a8", "app/dependabot"),
         pr(2, "dependabot/bun/code/typescript/apps/hal2-mermaid/bun-61", "app/dependabot")]
+# Renovate's (dev-dependabot-updates.yml, plan 0349 D51): as the App hal9k-app, and as the Renovate App.
+RENOVATE = [pr(12, "renovate/cargo", "app/hal9k-app"), pr(11, "renovate/bun", "app/renovate")]
 
 
 def ctx():
@@ -38,6 +40,17 @@ class Scan(unittest.TestCase):
         found = pr_scan.findings(DEPS, set(), set(), {}, T)
         self.assertEqual([(f["kind"], f.get("numbers")) for f in found], [("dependabot", [2, 8])])
 
+    def test_renovate_prs_are_dependency_prs_by_branch_or_author(self):
+        self.assertEqual([pr_scan.kind_of(p) for p in RENOVATE], ["dependabot", "dependabot"])
+        self.assertEqual(pr_scan.kind_of(pr(13, "deps", "renovate[bot]")), "dependabot")
+        self.assertEqual(pr_scan.kind_of(pr(14, "renovate/x", "divramod")), "dependabot")
+        self.assertEqual(pr_scan.kind_of(pr(15, "feature", "app/hal9k-app")), "dependabot")
+
+    def test_renovate_and_dependabot_prs_are_one_batch(self):
+        found = pr_scan.findings(DEPS + RENOVATE, set(), set(), {}, T)
+        self.assertEqual([(f["kind"], f.get("numbers")) for f in found], [("dependabot", [2, 8, 11, 12])])
+        self.assertIn("4 open dependency PR(s)", found[0]["why"])
+
     def test_a_landing_pr_is_stale_only_without_a_ticket_for_a_day(self):
         old = pr(7, "land/00", updated="2026-10-04T09:00:00")
         self.assertEqual(pr_scan.findings([old], {"00"}, set(), {}, T), [])
@@ -55,6 +68,12 @@ class Plan(unittest.TestCase):
         self.assertIn("#2, #8", a["text"])
         self.assertIn("git merge --no-ff", a["task"])
         self.assertEqual([p["number"] for p in a["brief"]["prs"]], [2, 8])
+
+    def test_a_renovate_batch_goes_to_one_servant_and_names_its_branches(self):
+        [a] = plan(RENOVATE)
+        self.assertEqual((a["do"], a["key"]), ("delegate", "prs:dependabot:11-12"))
+        self.assertIn("Apply the open dependency PRs #11, #12", a["text"])
+        self.assertIn("`renovate/`", a["task"])
 
     def test_no_second_batch_while_one_is_in_hand(self):
         held = {"prs:dependabot:2": {"state": "running", "slot": "05"}}

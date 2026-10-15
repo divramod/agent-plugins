@@ -40,6 +40,12 @@ kind = "scalar"
 values = ["claude", "timer"]
 
 [[files]]
+path = "silent"
+kind = "scalar"
+values = ["on"]
+description = "Present while the rounds are silenced (`wagon_master.py silence`, farmer/scripts/silence.py): a round prints one table line per train with a joined column."
+
+[[files]]
 path = "*.lock"
 kind = "lock"
 description = "tick.lock (the round) and board.lock (the board's writers), held with flock."

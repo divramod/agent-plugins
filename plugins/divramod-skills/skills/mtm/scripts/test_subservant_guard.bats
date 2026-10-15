@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# subservant-guard.sh: a worktree with plans/LEAD never lands.
+# subservant-guard.sh: a servant's field (plans/LEAD) never lands, and is told who does.
 
 setup() {
   here="$BATS_TEST_DIRNAME"
@@ -16,14 +16,25 @@ teardown() { rm -rf "$tmp"; }
   [ -z "$output" ]
 }
 
-@test "a marked worktree is refused, naming the foreman" {
+@test "a servant's field is refused, naming the foreman and what the servant does instead" {
   mkdir -p "$tmp/wt/plans" && echo "02 0005-big-plan 3" > "$tmp/wt/plans/LEAD"
   run bash "$here/subservant-guard.sh" "$tmp/wt/sub"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"servant of worktree 02 (plan 0005-big-plan step 3"* ]]
-  [[ "$output" == *"stale plans/LEAD of the foreman in worktree 02"* ]]
-  [[ "$output" == *"delete plans/LEAD"* ]]
+  [[ "$output" == *"a servant of the foreman in field 02 (plans/LEAD: plan 0005-big-plan, step or row 3): it never lands"* ]]
+  [[ "$output" == *"report to the foreman in field 02, who merges it, marks the steps and brings the work in"* ]]
+  # a live marker is never called a leftover, and the servant is never told to remove it (hal2 plan 0275 D26)
+  [[ "$output" != *"stale"* ]]
+  [[ "$output" != *"delete"* ]]
   [[ "$output" != *"plan.py report"* ]]
+  [ -f "$tmp/wt/plans/LEAD" ]
+}
+
+@test "a masterplan's servant is refused the same way: its marker names the masterplan and its row" {
+  mkdir -p "$tmp/wt/plans" && echo "09 0274-masterplan-halverse-plugin 12" > "$tmp/wt/plans/LEAD"
+  echo "0274-masterplan-halverse-plugin" > "$tmp/wt/plans/CURRENT_PLAN"
+  run bash "$here/subservant-guard.sh" "$tmp/wt"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the foreman in field 09 (plans/LEAD: plan 0274-masterplan-halverse-plugin, step or row 12)"* ]]
 }
 
 @test "the current directory is the default" {
@@ -31,7 +42,7 @@ teardown() { rm -rf "$tmp"; }
   cd "$tmp/wt/sub"
   run bash "$here/subservant-guard.sh"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"worktree 07"* ]]
+  [[ "$output" == *"field 07"* ]]
 }
 
 @test "a bare worktree name resolves to the worktree of that folder name" {
@@ -41,7 +52,7 @@ teardown() { rm -rf "$tmp"; }
   cd "$tmp/wt"
   run bash "$here/subservant-guard.sh" 31
   [ "$status" -eq 1 ]
-  [[ "$output" == *"servant of worktree 30 (plan 0013-parallel step 4"* ]]
+  [[ "$output" == *"the foreman in field 30 (plans/LEAD: plan 0013-parallel, step or row 4)"* ]]
 }
 
 @test "a bare worktree name without the marker passes, whatever the current worktree holds" {
@@ -70,7 +81,7 @@ teardown() { rm -rf "$tmp"; }
   cd "$tmp/wt"
   PATH="$tmp/bin:$PATH" run bash "$here/subservant-guard.sh" farmer-hal2
   [ "$status" -eq 1 ]
-  [[ "$output" == *"worktree 30"* ]]
+  [[ "$output" == *"field 30"* ]]
 }
 
 @test "main is the main checkout without hal2-cli-git" {
@@ -81,7 +92,7 @@ teardown() { rm -rf "$tmp"; }
   cd "$tmp/slots/33"
   PATH="$tmp/bin:$PATH" run bash "$here/subservant-guard.sh" main
   [ "$status" -eq 1 ]
-  [[ "$output" == *"worktree 07"* ]]
+  [[ "$output" == *"field 07"* ]]
 }
 
 @test "a worktree name is compared as text: 2 is not 02" {
