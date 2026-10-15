@@ -140,7 +140,14 @@ def worktrees(main: str) -> list[dict]:
             cur["branch"] = line[7:].removeprefix("refs/heads/")
         elif line.startswith("prunable"):
             cur["prunable"] = True
-    return items
+    return [w for w in items if not nested_hand(w["path"], [main] + [x["path"] for x in items])]
+
+
+def nested_hand(path: str, all_paths: list[str]) -> bool:
+    """A hand's isolated worktree (the Agent tool's `<field>/.claude/worktrees/<name>`) lies inside another worktree: it
+    has no session of its own and is no field, so no scan counts it."""
+    p = Path(path)
+    return p.parent.name == "worktrees" and p.parent.parent.name == ".claude" and str(p.parent.parent.parent) in all_paths
 
 
 def lead_of(path: str | Path) -> dict | None:
@@ -221,6 +228,14 @@ def holder_works(w: dict, snap: dict) -> bool:
     agent = w.get("agent_state")
     return bool(agent in BUSY or (agent and w.get("agent_idle_seconds", 0) < HELD_IDLE_AFTER)
                 or w.get("agent_tasks") or snap.get("runs_unfinished"))
+
+
+def session_works(w: dict) -> bool:
+    """The worktree's session still works, so its unqueued work is no `work-not-queued` (hal2 plan 0313 step 3, fields
+    07, 00 and 02 on 2026-10-14): busy, blocked on the user, or its turn ended while background shells, subagents or
+    workflows run (hal2-cli-agents then says `done`, `idle` or `sleeping`)."""
+    agent = w.get("agent_state") or ""
+    return agent in BUSY or agent.startswith("blocked") or bool(w.get("agent_tasks"))
 
 
 def fastlane_owned(t: dict) -> bool:
@@ -312,7 +327,7 @@ def findings(snap: dict) -> list[dict]:
             out.append({"kind": "work-without-agent", "slot": w["slot"],
                         "why": f"{w['ahead']} commits not on main, plan {w.get('plan') or '-'}, no agent session"})
             continue
-        if w["ahead"] and w["slot"] not in queued and w.get("agent_state") not in BUSY \
+        if w["ahead"] and w["slot"] not in queued and not session_works(w) \
                 and w.get("agent_idle_seconds", 0) > IDLE_WITH_WORK_AFTER:
             out.append({"kind": "work-not-queued", "slot": w["slot"],
                         "why": f"{w['ahead']} commits not on main, plan {w.get('plan') or '-'}, "

@@ -6,7 +6,8 @@ train engine's since hal2 plan 0294 step 6).
 (the trial commit dangles until git's gc). `trains.draft` chains them in queue order onto the barn's head with what
 the wagon master's field holds: a wagon whose merge is clean rides and the next is tried onto the result; one that
 conflicts is left out with its files, and the trial goes on without it. No file is soft any more: the carrier is
-code, and nothing resolves a conflict for a foreman (D10).
+code, and nothing resolves a conflict for a foreman (D10), except one only in generated files, which the train
+writes again (generated.py, hal2 plan 0313 step 8).
 """
 
 import subprocess

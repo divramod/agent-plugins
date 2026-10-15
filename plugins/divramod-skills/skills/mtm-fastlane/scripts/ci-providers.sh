@@ -126,20 +126,30 @@ github_cancel_queued() {
   github_cancel "$1" "$2"
 }
 
-# A run that its own fail-fast is ending (hal2 plan 0263 rows 19 and 73, the rule hal2-git's ci/fail_fast.rs
-# follows): every job the landing workflow's `gate` job needs carries the step `[NN] fail fast: stop the run`, which
-# asks GitHub to cancel the run once its job failed or hit its time limit. The run is ending when that step ended
-# `success` in one of its jobs (the request went out) or still runs there (`in_progress`: it runs only in such a job,
-# and its request is going out in these seconds; the workflow's own look, gate/lib/stop-run.sh, reads it so too), or
-# when a job that carries the step concluded `cancelled` (a cancel reached the gate's jobs). Such a run can no longer
-# merge. Nothing else counts: a cancelled job without the step (at its own time limit, a cleanup replaced in its
-# group), a stop step still before its job (`pending`), one that ended `failure` (the request did not go out, or
+# A run that its own fail-fast is ending (hal2 plan 0263 rows 19 and 73, plan 0319; the rule hal2-git's
+# ci/fail_fast.rs follows): every job the landing workflow's `gate` job needs carries the step `[NN] fail fast: stop the
+# run`. A job that failed ends `failure` (red) and that step is its hand-off (`success`, no request): its lane's stop
+# job (`fail-fast-<lane>`, no job of the gate) sends the one request in its step `[NN] fail fast: cancel the run`. A
+# job that hit its time limit asks from inside (the step `success` in a job with a step `cancelled`). The run is
+# ending when a cancel step ended `success` or still runs (its request is going out in these seconds; the
+# workflow's own look, gate/lib/stop-run.sh, reads it so too), or a stop step ended `success` or still runs (the
+# hand-off, the stop job follows; or the limit's request), or a job that carries the stop step concluded `cancelled`. A
+# hand-off stops counting once a cancel step ended `failure` and no request is out (a stop step `success` in a job
+# with no `cancelled` step is a hand-off, no request): nobody has cancelled the run, so it is asked. Such a run can no
+# longer merge. Nothing else counts: a cancelled job without the step (at its own time limit, a cleanup replaced in
+# its group), a stop step still before its job (`pending`), one that ended `failure` (the request did not go out, or
 # GitHub refused it) and a run of a workflow file without the step leave the run to be asked.
-# shellcheck disable=SC2016 # $stop is jq's
-GITHUB_ENDING='any(.jobs[];
-  [.steps[]? | select((.name // "") | test("^\\s*(\\[[0-9]+\\]\\s*)?fail fast: stop the run\\s*$"))
-    | .status == "in_progress" or .conclusion == "success"] as $stop
-  | ($stop | length) > 0 and (.conclusion == "cancelled" or ($stop | any)))'
+# shellcheck disable=SC2016 # $stop, $cancels, $refused are jq's
+GITHUB_ENDING='def step($task): (.name // "") | test("^\\s*(\\[[0-9]+\\]\\s*)?" + $task + "\\s*$");
+  [.jobs[].steps[]? | select(step("fail fast: cancel the run"))] as $cancels
+  | ($cancels | any(.status == "in_progress" or .conclusion == "success"))
+  or (($cancels | any(.conclusion == "failure")) as $refused
+    | any(.jobs[];
+      [.steps[]? | select(step("fail fast: stop the run"))] as $stop
+      | ($stop | length) > 0
+      and (.conclusion == "cancelled"
+        or (($stop | any(.status == "in_progress" or .conclusion == "success"))
+          and (([.steps[]? | select(.conclusion == "cancelled")] | length) > 0 or ($refused | not))))))'
 
 # 0: the run ends by itself. A look that fails says 1: the run then gets its one request, as before the look.
 github_ending() { [ "$(gh run view "$1" --json jobs --jq "$GITHUB_ENDING")" = true ]; }

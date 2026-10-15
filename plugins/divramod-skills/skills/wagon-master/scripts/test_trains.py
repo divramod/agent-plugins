@@ -292,7 +292,7 @@ class State(unittest.TestCase):
         aware = tick.dt.datetime(2026, 10, 13, 12, 0, 5, tzinfo=tick.dt.timezone(tick.dt.timedelta(hours=2)))
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)),
-                         ["formed", "yard", "started", "red", "retry", "unhitched", "landed", "cleared"])
+                         ["formed", "yard", "regenerated", "started", "red", "retry", "unhitched", "landed", "cleared"])
 
 
 if __name__ == "__main__":

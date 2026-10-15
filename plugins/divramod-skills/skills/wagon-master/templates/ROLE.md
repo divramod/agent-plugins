@@ -7,6 +7,7 @@
 duties:
   trains: "*/5 * * * *"       # the wagon train: ready wagons, trial merge, the landing; a red train wakes the session
   mtm: "*/10 * * * *"         # the merge-to-main boss: failed landings, held queues, pauses, orphans
+  learn: "17 6 * * *"         # once a day: the untaken learnings (learnings.md) go to one foreman as a skill change
 notify: every-round
 ---
 

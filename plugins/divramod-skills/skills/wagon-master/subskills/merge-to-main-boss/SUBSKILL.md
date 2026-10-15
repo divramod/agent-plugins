@@ -16,10 +16,11 @@ orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) 
 `gh pr list --head 'land/'`, `gh run list --workflow <file>` for both names); a red candidate keeps the queue held for its
 worktree until its fix lands (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"): its session reads the red jobs, reproduces them with `gate/main.sh <job>`, fixes
 and lands again at once. A workflow whose jobs stop their run (the step `fail fast: stop the run`, plan 0263) is red
-at its first job that failed or hit its time limit (told by the job's steps: GitHub concludes that job `cancelled`
-like the ones cancelled with it): the scan reads the run `failed` at once, also while its other jobs still end, with
+at its first job that failed or hit its time limit (told by the job's steps; since plan 0319 the job that failed ends
+`failure`, red in the graph, and its lane's stop job `fail-fast-<lane>` cancels the run after it; a job at its time
+limit stays `cancelled`): the scan reads the run `failed` at once, also while its other jobs still end, with
 that job as the row's task (the cancelled jobs only stopped), and its landing has returned `gate_failed` by then.
-Never cancel such a run again (`gh run cancel`): its own step did, and a second request seems to end its last jobs,
+Never cancel such a run again (`gh run cancel`): its own stop job did (or its own step, at a time limit), and a second request seems to end its last jobs,
 the parks, unrun. A run that ended `cancelled` without such a job is a pause's or a hand's cancel, as before. While a CI landing's run is tested its process lives, so its reservation is not idle. Load
 pauses and flaky disabling are rarely needed (the gates do not run on the Mac). The farmer's branch `farmer-<repo>` lands
 like any worktree's (an ordinary `/mtm` of the farmer's worktree), its per-round mfm stays; the wagon master's own field lands

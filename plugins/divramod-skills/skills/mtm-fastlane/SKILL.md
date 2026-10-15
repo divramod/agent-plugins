@@ -89,8 +89,10 @@ cleanup); the command released the queue itself, so no `fastlane.sh release`. Th
    the stopped worktrees. **A run gets one cancel request**, however many rounds its end takes and however often the
    script is rerun (it notes the runs it asked in the git common dir; a run started again, a new attempt, is asked
    once more), and none when its own fail-fast is ending it already (the step `fail fast: stop the run` of one of
-   its jobs ended `success` or still runs, or a job with that step concluded `cancelled`; such a run can no longer
-   merge and is printed as `ending`, like one an earlier call asked). Never send a `gh run cancel` of your own
+   its jobs ended `success` or still runs, or a job with that step concluded `cancelled`, or the step `fail fast:
+   cancel the run` of a lane's stop job `fail-fast-<lane>` ended `success` or still runs; a failed job's stop step is
+   only a hand-off to that stop job and stops counting once the stop job's cancel step ended `failure` with no request
+   out, plan 0319; such a run can no longer merge and is printed as `ending`, like one an earlier call asked). Never send a `gh run cancel` of your own
    beside it: a second request to a run that is cancelling seems to end its last jobs, which park the machines,
    unrun (hal2 plan 0263). Exit 1 with "cancelling run <id> failed": the run is not asked again; look at it (`gh run view
    <id>`) and only when nothing is cancelling it remove the file the message names and rerun. Then

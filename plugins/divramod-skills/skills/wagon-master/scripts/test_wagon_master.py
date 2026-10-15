@@ -42,9 +42,9 @@ class Wiring(unittest.TestCase):
         self.assertEqual((w.role, w.cli, w.skill), ("wagon-master", SCRIPTS / "wagon_master.py", SCRIPTS.parent))
         self.assertEqual((w.act, w.handoff, w.delegates), ("/wagon-master act", "/wagon-master handoff", False))
         self.assertEqual((w.duties, dict(w.subskills)),
-                         (("mtm", "trains"), {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
+                         (("mtm", "trains", "learn"), {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
         self.assertEqual(w.role_files, ("roles/wagon-master/ROLE.md", "roles/wagon-master/.gitignore"))
-        self.assertEqual(set(wagon_master.HANDLERS), {"duty:mtm", "duty:trains"}, "no task:* (D22)")
+        self.assertEqual(set(wagon_master.HANDLERS), {"duty:mtm", "duty:trains", "duty:learn"}, "no task:* (D22)")
         self.assertIs(w.carries, wagon_master.train_state.carries, "D22: the field carries the trains")
         self.assertIsNone(roles.FARMER.carries)
 
@@ -121,7 +121,7 @@ class Start(Field):
     def test_a_duty_of_the_farmer_s_is_unknown_here_and_no_role_file_is_nothing_to_run(self):
         self.commit(self.wm, WIRING.role_file, ROLE.replace("trains:", "lead:"))
         code, out = self.call("start-check")
-        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains)\n"))
+        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains, learn)\n"))
         git(self.wm, "rm", "-q", WIRING.role_file)
         code, out = self.call("start-check")
         self.assertEqual(code, 3)

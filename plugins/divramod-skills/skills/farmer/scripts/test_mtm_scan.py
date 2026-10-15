@@ -423,6 +423,32 @@ class Roles(unittest.TestCase):
         self.assertEqual([w["slot"] for w in got["worktrees"]], ["04"])
         self.assertEqual([f["slot"] for f in got["findings"]], ["04"], "only the numbered field has work to land")
 
+    def test_a_nested_hand_worktree_is_no_field_and_no_orphan(self):
+        """Wagon engine fix (plan 0313 step 2): the Agent tool's `<field>/.claude/worktrees/agent-x` is listed by git
+        but has no session of its own; the 09:04 UTC round woke sessions for such paths."""
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            main, field = str(Path(d) / "hal2"), Path(d) / "04"
+            nested = field / ".claude" / "worktrees" / "agent-x"
+            lone = Path(d) / "other" / ".claude" / "worktrees" / "agent-y"  # its field is no worktree: still listed
+            porcelain = "".join(f"worktree {p}\nHEAD {'a' * 40}\nbranch refs/heads/{b}\n\n"
+                                for p, b in ((main, "main"), (field, "04"), (nested, "worktree-agent-x"), (lone, "y")))
+            fake = lambda args, cwd=None: porcelain if args[:3] == ["git", "worktree", "list"] else ""
+            for p in (field, nested, lone):
+                p.mkdir(parents=True)
+            with mock.patch.object(scan, "run", fake), mock.patch.object(scan, "run_json", lambda *a, **k: None), \
+                    mock.patch.object(scan, "unmerged", return_value=3), \
+                    mock.patch.object(scan.mtm_ci, "ci_mode", return_value=False), \
+                    mock.patch.object(scan, "state_dir", return_value=Path(d) / "state"):
+                listed = [w["path"] for w in scan.worktrees(main)]
+                got = scan.snapshot(main, 24, fetch=False)
+        self.assertEqual(listed, [str(field), str(lone)])
+        slots = [w["slot"] for w in got["worktrees"]]
+        self.assertNotIn("agent-x", slots + [f["slot"] for f in got["findings"]])
+        self.assertIn("04", [f["slot"] for f in got["findings"]], "the field itself is still judged")
+
     def test_the_command_line_writes_the_folder_of_the_role_it_is_told(self):
         import json
         import tempfile

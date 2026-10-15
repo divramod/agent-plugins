@@ -86,7 +86,9 @@ disk, network): tell the farmer right away.
 
 **A workflow with fail-fast** (the lanes' jobs have the step `[NN] fail fast: stop the run`; hal2 plan 0263, the user,
 2026-10-12: "when one job fails. the whole pipeline fails instantly"): the first job the `gate` job needs that fails
-or hits its time limit cancels the run itself, and the landing returns `gate_failed` **at once** with that job in
+or hits its time limit stops the run itself (a job that failed ends `failure`, red in the graph, and its lane's stop
+job `fail-fast-<lane>` cancels the run seconds after it; plan 0319, the user, 2026-10-14: "i want to visually see in
+red, which job failed"; a job at its time limit asks from inside and stays `cancelled`), and the landing returns `gate_failed` **at once** with that job in
 `red`, without waiting for the run's other jobs. Nothing to start early, and **never cancel the run yourself** (`gh
 run cancel`): a second cancel request seems to end the run's last jobs, which park the machines, unrun. Go to
 [Red](#red) when it returns. One landing names one cause; a second red job shows in the next landing. A red monitor,
@@ -111,8 +113,9 @@ origin/main`; hal2 plan 0157). Never drop the `--branch`: without a range the jo
 the runner's work, not the Mac's. `stopped` names the jobs that only stopped because of them (cancelled after the
 failure, or still running when a fail-fast workflow's first failed job decided the landing): no cause, nothing to
 reproduce or fix, they run again in the next landing. A red job with `conclusion: timed_out` hit its time limit: its
-log shows what hung. On GitHub the run of a fail-fast red landing reads `cancelled`, and so does the job that failed
-(only its failed step reads `failure`): trust `red`, not the conclusions there, and do not rerun the run, fix the job:
+log shows what hung. On GitHub the run of a fail-fast red landing reads `cancelled`; the job that failed reads `failure` (red), the jobs
+cut with the run read `cancelled` (grey), and so does a job that hit its time limit (`gate`'s summary names it red):
+trust `red`, and do not rerun the run, fix the job:
 
 1. Read why: `gh run view <run id> --log-failed` (the run is the JSON's `run`), or the job's `url`.
 2. Reproduce locally with `reproduce` (it runs the same script as CI; a macOS-only job needs this Mac's Xcode, a

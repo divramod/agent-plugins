@@ -19,6 +19,14 @@ with a cause is failed at once, also while its other jobs still end, and its red
 cancelled job only stopped. A run without the step, or without a cause (a pause's cancel), is read as before.
 A stop step still `in_progress` is no cause yet (it has not ended), but its run is `ending` like one whose stop step
 ended `success` or one with a job of the gate concluded `cancelled`: nobody asks such a run to cancel (ci_scan.py).
+
+Plan 0319 (hal2-git's ci/fail_fast.rs, the same rule): a job that failed no longer cancels the run from inside (a
+cancel that reaches a running job would turn it `cancelled`, grey): its stop step is a hand-off (`success`, no request)
+and the lane's stop job (`fail-fast-<lane>`) sends the one request in its step `[NN] fail fast: cancel the run`. That
+job is no job of the gate (it holds no stop step): never a `needed` job, never a cause, never a red job of the
+candidate. The run is `ending` from the hand-off on and while a cancel step runs or ended `success`; the hand-off
+stops counting once a cancel step ended `failure` and no request is out (nobody has asked: a reader may). A job at
+its time limit still asks from inside (stop step `success` in a job with a `cancelled` step): that request is out.
 """
 
 import datetime as dt
@@ -46,6 +54,7 @@ BUILD_NAME = re.compile(r"^\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?P<jo
 NAME = re.compile(r"^(?:\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
+CANCEL_STEP = "fail fast: cancel the run"  # the stop job's step (plan 0319 D9), hal2-git's CANCEL_STEP
 STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, without its `[NN] ` number
 
 
@@ -110,17 +119,38 @@ def cause(job: dict) -> bool:
     return stop in ("success", "failure") or bool(failed and job.get("conclusion"))
 
 
+def steps_named(job: dict, task: str) -> list[dict]:
+    return [s for s in job.get("steps") or [] if STEP.match(s.get("name") or "")["task"] == task]
+
+
+def stop_job(job: dict) -> bool:
+    """A lane's stop job (`fail-fast-a`, plan 0319): it holds the step that sends the cancel, never a job of the gate."""
+    return bool(steps_named(job, CANCEL_STEP))
+
+
 def ending(jobs: list[dict]) -> bool:
     """A run its own fail-fast is ending, which nobody asks to cancel (a second request seems to end the run's last
-    jobs, the parks, unrun): the stop step of one of its jobs ended `success` or still runs (`in_progress`: it runs
-    only in a job that failed or hit its time limit, its request is going out), or a job that carries the stop step
-    concluded `cancelled`. Such a run can no longer merge. A stop step still to come, one that ended `failure` (no
-    request arrived) and a cancelled job without the step are none: mtm-fastlane's GITHUB_ENDING, hal2-git's
-    `Needs::ending`, the workflow's own look (gate/lib/stop-run.sh)."""
-    def stops(job: dict) -> list[dict]:
-        return [s for s in job.get("steps") or [] if STEP.match(s.get("name") or "")["task"] == STOP_STEP]
-    return any(job.get("conclusion") == "cancelled" or s.get("status") == "in_progress"
-               or s.get("conclusion") == "success" for job in jobs or [] for s in stops(job))
+    jobs, the parks, unrun): a stop job's cancel step runs (`in_progress`: its request is going out) or ended
+    `success`; or a job of the gate stopped: its stop step runs, or ended `success` (a failed job's hand-off, the stop
+    job's request follows; or a job at its limit's own request), or the job concluded `cancelled`. A hand-off stops
+    counting once a cancel step ended `failure` while no request is out (a stop step `success` in a job with no
+    `cancelled` step is a hand-off, no request): nobody has cancelled the run, a reader may. Such a run can no longer
+    merge. A stop step still to come and a cancelled job without the step are none: mtm-fastlane's GITHUB_ENDING,
+    hal2-git's `Needs::ending`, the workflow's own look (gate/lib/stop-run.sh)."""
+    cancels = [s for job in jobs or [] for s in steps_named(job, CANCEL_STEP)]
+    if any(s.get("status") == "in_progress" or s.get("conclusion") == "success" for s in cancels):
+        return True
+    refused = any(s.get("conclusion") == "failure" for s in cancels)
+
+    def stopping(job: dict) -> bool:
+        stops = steps_named(job, STOP_STEP)
+        if stops and job.get("conclusion") == "cancelled":
+            return True
+        limit = any(s.get("conclusion") == "cancelled" for s in job.get("steps") or [])
+        asked = any(s.get("status") == "in_progress" or s.get("conclusion") == "success" for s in stops)
+        return asked and (limit or not refused)
+
+    return any(stopping(job) for job in jobs or [])
 
 
 def stopped_by(jobs: list[dict]) -> list[str]:
@@ -130,7 +160,8 @@ def stopped_by(jobs: list[dict]) -> list[str]:
 
 def red_jobs(jobs: list[dict]) -> list[str]:
     """The red jobs that count. In a run with a cause: the causes and a `gate` that is not green; every other
-    cancelled job only stopped and is left out. Never a ship job or a macOS build job: `gate` needs neither."""
+    cancelled job only stopped and is left out. Never a ship job, a macOS build job or a stop job: `gate` needs
+    none of them (a stop job that failed to send its request is not the candidate's red)."""
     causes = stopped_by(jobs)
 
     def red(job: dict) -> bool:
@@ -142,7 +173,7 @@ def red_jobs(jobs: list[dict]) -> list[str]:
         return conclusion in RED
 
     return [j["name"] for j in jobs if red(j) and job_part(j.get("name", "")) not in NOT_COUNTED
-            and not is_ship(j.get("name", "")) and not is_build(j.get("name", ""))]
+            and not is_ship(j.get("name", "")) and not is_build(j.get("name", "")) and not stop_job(j)]
 
 
 def merged(jobs: list[dict]) -> bool:

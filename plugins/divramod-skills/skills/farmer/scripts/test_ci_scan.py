@@ -52,6 +52,22 @@ class Stuck(unittest.TestCase):
         self.assertFalse(ci.stuck(long(), [job("", "failure")])["ending"])  # refused: nothing stops the run
         self.assertFalse(ci.stuck(long(), [])["ending"])  # no jobs read: as before
 
+    def test_a_failed_jobs_hand_off_and_its_stop_job_are_ending_and_a_refused_cancel_is_not(self):
+        # Plan 0319: `bash-lint` failed and handed off; `fail-fast-a` sends the request in its step.
+        def gate(stop):
+            return {"name": "03-x-host-x/bash-lint", "conclusion": "failure", "steps": [
+                {"name": "[07] gate bash-lint", "conclusion": "failure", "status": "completed"},
+                {"name": "[21] fail fast: stop the run", "conclusion": stop, "status": "completed"}]}
+
+        def stopper(conclusion, status="completed"):
+            return {"name": "03-x-host-x/fail-fast-a", "conclusion": "", "steps": [
+                {"name": "[02] fail fast: cancel the run", "conclusion": conclusion, "status": status}]}
+        long = lambda: {"run": 7, "kind": "running-long", "why": "land running 95 min on 08"}
+        for jobs in ([gate("success")], [gate("success"), stopper("", "in_progress")],
+                     [gate("success"), stopper("success")]):
+            self.assertTrue(ci.stuck(long(), jobs)["ending"])
+        self.assertFalse(ci.stuck(long(), [gate("success"), stopper("failure")])["ending"])  # refused: cancel it
+
 
 class Wake(unittest.TestCase):
     def test_the_oldest_run_queued_over_five_minutes_of_any_branch_wakes(self):

@@ -20,9 +20,12 @@ waiting worktrees into one train."; since 2026-10-13 the wagon master's, not the
 2. **Alone rule**: a crop that changes `.github/workflows/`, `.github/hal2-*.toml` or `code/bash/scripts/gate/` rides
    as a train of one; when it is first in the queue it rides alone, otherwise it waits for the next train.
 3. **Trial merge** (`git merge-tree --write-tree`: nothing checked out, no ref moves): each head merged onto the
-   barn's head in queue order. A wagon that conflicts, in any file (generated files and lockfiles too), is unhitched
-   (`queue ready <field> --clear`) and its foreman told the files and the cause by a template. The rest rides. No
-   maximum.
+   barn's head in queue order. A wagon that conflicts, in any file (lockfiles too), is unhitched
+   (`queue ready <field> --clear`) and its foreman told the files and the cause by a template, unless every file of
+   the conflict is generated (`.github/hal2-versions.toml`'s `[[generated]]` paths: `plans/uats.md`, the code maps,
+   the record index, INTENT.md's log, AGENTS.md's Rules): that wagon rides, the merge in the field takes the barn's
+   side and the train's last commit writes those files again by the map's commands (plan 0313 step 8). The rest
+   rides. No maximum.
 4. **Form**: in the own field `wagon-master-<repo>`, on the barn's head: the yard's first car (the yard job), then a
    merge commit per car, `plans/CURRENT_PLAN` filled (the cars' plan names joined by ` + `: the land run's title), the
    train marked (`worktree queue train <own field> <car>...`, a car's ticket then names its carrier as `rides_with`),

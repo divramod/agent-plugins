@@ -7,6 +7,8 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   yard       the yard's work rides as the train's first car (yard.py, step 8): `commit` (in the field; none
              when the barn holds every file as it is), `files` ([{path, hash}]: the hash of what each path
              carried, none for a deletion)
+  regenerated  a car's conflicts in generated files took the barn's side (generated.py, plan 0313 step 8):
+             `commit` (the train's last, none when nothing differed), `files` (the paths written again), `why`
   started    the landing's process: `pid`, `log`; written again by every restart
   red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`
   retry      the session's word after a red train: the same train lands again
@@ -15,6 +17,7 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   landed     the train is in the barn: `cars`, `run`, `commit`; `yard` when the yard rode ({dropped, kept, pulled,
              why}: what yard.settle did there)
   cleared    the train is no more (a car that did not merge, a split after red, a leftover mark): `why`
+             and `pushed` when the carrier's remote branch went back on the base, or why it did not
 
 `standing` folds the lines into the train that stands, or None between trains: its `state` is `formed` (merged or
 merging, no landing started), `landing`, `red` (waits for the session), `retry`, or `split` (a car was unhitched
@@ -36,7 +39,7 @@ ROLE = "wagon-master"
 FILE, LOG = "train.jsonl", "train-landing.log"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
-KINDS = ("formed", "yard", "started", "red", "retry", "unhitched", "landed", "cleared")
+KINDS = ("formed", "yard", "regenerated", "started", "red", "retry", "unhitched", "landed", "cleared")
 
 
 def utc(now: dt.datetime | None = None) -> str:
@@ -96,6 +99,8 @@ def standing(rows: list[dict]) -> dict | None:
             continue
         elif kind == "yard":
             train["yard"] = e.get("files", [])
+        elif kind == "regenerated":
+            train["regenerated"] = e.get("commit")
         elif kind == "started":
             train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"))
         elif kind == "red":

@@ -183,6 +183,62 @@ class MtmCiTest(unittest.TestCase):
         self.assertFalse(mtm_ci.ending([job("", failed, ("[20] fail fast: stop the run later", "", "in_progress"))]))
         self.assertFalse(mtm_ci.ending([]))
 
+    def test_a_failed_job_hands_off_and_its_stop_job_cancels_the_run(self):
+        # Plan 0319: the run of the proof (`bash-lint` failure, its hand-off `success`, `fail-fast-a` cancel step
+        # `success` and the job itself `cancelled`, the others `cancelled`), shaped after `gh run view --json jobs`.
+        def job(name, conclusion, *steps):
+            return {"name": name, "conclusion": conclusion, "status": "completed" if conclusion else "in_progress",
+                    "steps": [{"name": n, "conclusion": c, "status": "in_progress" if c == "" else "completed"}
+                              for n, c in steps]}
+        why, hand = "[20] fail fast: why this job ended", "[21] fail fast: stop the run"
+        lint = job("03-x-host-x/bash-lint", "failure", ("[07] gate bash-lint", "failure"), (why, "success"),
+                   (hand, "success"))
+        cut = job("03-x-host-x/bash-test", "cancelled", ("[07] gate bash-test", "cancelled"), (why, "skipped"),
+                  (hand, "skipped"))
+        gate = {"name": "05-x-host-x/gate", "conclusion": "cancelled", "steps": []}
+        cancel = lambda conclusion, name="03-x-host-x/fail-fast-a", status=None: job(
+            name, "cancelled" if conclusion == "success" else "", ("[01] checkout", "success"),
+            ("[02] fail fast: cancel the run", conclusion))
+        # The window after the hand-off, the stop job not started: ending, red at once, only the failed job named.
+        window = [lint, cut]
+        self.assertTrue(mtm_ci.ending(window))
+        self.assertEqual(mtm_ci.stopped_by(window), ["03-x-host-x/bash-lint"])
+        rows = mtm_ci.summary([run(1, "land/22", status="in_progress", conclusion="")], lambda rid: window, 0)
+        self.assertEqual([(r["outcome"], r["task"]) for r in rows], [("failed", "03-x-host-x/bash-lint")])
+        # The cancel step runs, then ended `success`: ending; the run ends cancelled.
+        self.assertTrue(mtm_ci.ending([lint, cut, cancel("")]))
+        done = [lint, cut, cancel("success"), gate]
+        self.assertTrue(mtm_ci.ending(done))
+        rows = mtm_ci.summary([run(1, "land/22", conclusion="cancelled")], lambda rid: done, 0)
+        self.assertEqual([(r["outcome"], r["task"]) for r in rows],
+                         [("failed", "03-x-host-x/bash-lint, 05-x-host-x/gate")])  # never fail-fast-a, nor a cut job
+        # The stop job is no job of the gate: not needed, no cause, not red even when it ended `failure`.
+        stopper = cancel("failure", status="completed")
+        stopper["conclusion"] = "failure"
+        self.assertFalse(mtm_ci.needed(stopper))
+        self.assertFalse(mtm_ci.cause(stopper))
+        self.assertTrue(mtm_ci.stop_job(stopper))
+        self.assertFalse(mtm_ci.stop_job(lint))
+        self.assertEqual(mtm_ci.red_jobs([lint, cut, stopper, gate]), ["03-x-host-x/bash-lint", "05-x-host-x/gate"])
+        # The request was refused (`failure`) and none is out: the hand-off is no ending, a reader may cancel; the
+        # failed job stays a cause. Another stop job's request out makes it ending again.
+        refused = [lint, stopper]
+        self.assertFalse(mtm_ci.ending(refused))
+        self.assertTrue(mtm_ci.ending(refused + [cut]))  # a job cut (matrix fail-fast) concluded `cancelled`: as ever
+        self.assertEqual(mtm_ci.stopped_by(refused), ["03-x-host-x/bash-lint"])
+        self.assertTrue(mtm_ci.ending(refused + [cancel("success", "04-x-host-x/fail-fast-d")]))
+        # A job at its limit asked from inside (stop step `success`, a step `cancelled`): out, so ending whatever a
+        # stop job's refusal says.
+        limit = job("03-x-host-x/bash-test", "cancelled", ("[07] gate bash-test", "cancelled"), (why, "success"),
+                    (hand, "success"))
+        self.assertTrue(mtm_ci.ending([limit, stopper]))
+        self.assertTrue(mtm_ci.ending([job("03-x-host-x/bash-test", "", ("[07] gate bash-test", "cancelled"),
+                                           (hand, "success")), stopper]))
+        # A stop job whose cancel step was skipped and a failed job that has not handed off yet: not ending.
+        waiting = job("03-x-host-x/bash-lint", "", ("[07] gate", "failure"), (hand, ""))
+        waiting["steps"][1]["status"] = "pending"
+        self.assertFalse(mtm_ci.ending([cancel("skipped"), waiting]))
+
     def test_old_runs_are_left_out(self):
         since = dt.datetime(2026, 10, 5, 7, tzinfo=dt.timezone.utc).timestamp()
         self.assertEqual(mtm_ci.summary([run(1, "land/07")], lambda rid: [], since), [])

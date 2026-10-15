@@ -272,6 +272,8 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   - A product decision is open (wt 00: GitHub access for the launchd daemon; wt 07: the research decision).
   - An ordering rule ("04 waits for 0091 step 10").
   - The user said "stop merging" earlier (wt 08 waits for the user's own /mtm).
+- **Not a cause**: a session that works (busy, blocked on the user, or its turn over while background shells,
+  subagents or workflows run) is no finding since plan 0313 step 3 (wt 07, 00, 02 read as sleeping on 2026-10-14).
 - **Remedy**: one batched push notification, or one question block when the user is present, with every open
   decision listed together. The boss never decides product questions. With the user's general "merge fast" rule
   it may tell a plan to land without UI tests that only failed for unrelated reasons, and run those tests after

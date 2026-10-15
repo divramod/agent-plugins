@@ -230,6 +230,45 @@ path_without_gh() {
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[56,57],[55]]" ]
 }
 
+@test "github: a failed job's hand-off and its stop job's cancel step make a run ending, a refused cancel step does not" {
+  echo 2 > "$fake/linger"
+  # Plan 0319, shaped like the proof's run: `bash-lint` ended failure, its stop step `success` is the hand-off (no
+  # request); its lane's stop job `fail-fast-a` sends the one request in its own step.
+  fail_and_hand_off() { # <run id>
+    step_of "$1" 03-hz01-host-a/bash-lint failure "[07] gate bash-lint"
+    step_of "$1" 03-hz01-host-a/bash-lint success "[21] fail fast: stop the run"
+  }
+  # 60: the hand-off alone, the stop job not started yet: ending, nobody asks a second request.
+  run_on 60 land/03 "completed failure 03-hz01-host-a/bash-lint" "in_progress none 03-hz01-host-a/bash-test"
+  fail_and_hand_off 60
+  step_of 60 03-hz01-host-a/bash-test "" "[21] fail fast: stop the run" pending
+  # 61: the stop job's cancel step runs; 62: it ended success and the run's jobs end cancelled: both ending.
+  run_on 61 land/04 "completed failure 03-hz01-host-a/bash-lint" "in_progress none 03-hz01-host-a/fail-fast-a"
+  fail_and_hand_off 61
+  step_of 61 03-hz01-host-a/fail-fast-a "" "[02] fail fast: cancel the run" in_progress
+  run_on 62 land/05 "completed failure 03-hz01-host-a/bash-lint" "completed cancelled 03-hz01-host-a/fail-fast-a" \
+    "completed cancelled 03-hz01-host-a/bash-test"
+  fail_and_hand_off 62
+  step_of 62 03-hz01-host-a/fail-fast-a success "[02] fail fast: cancel the run"
+  step_of 62 03-hz01-host-a/bash-test skipped "[21] fail fast: stop the run"
+  # 63: the cancel step ended failure and no request is out: the hand-off alone is no ending, the run is asked.
+  run_on 63 land/06 "completed failure 03-hz01-host-a/bash-lint" "completed failure 03-hz01-host-a/fail-fast-a" \
+    "in_progress none 03-hz01-host-a/bash-test"
+  fail_and_hand_off 63
+  step_of 63 03-hz01-host-a/fail-fast-a failure "[02] fail fast: cancel the run"
+  step_of 63 03-hz01-host-a/bash-test "" "[21] fail fast: stop the run" pending
+  # 64: the same refusal, but a time-limit job asked from inside (its stop step success, a step cancelled): out.
+  run_on 64 land/07 "completed failure 03-hz01-host-a/fail-fast-a" "completed cancelled 03-hz01-host-a/bash-test" \
+    "in_progress none 03-hz01-host-b/rust-test"
+  step_of 64 03-hz01-host-a/fail-fast-a failure "[02] fail fast: cancel the run"
+  step_of 64 03-hz01-host-a/bash-test cancelled "[07] gate bash-test"
+  step_of 64 03-hz01-host-a/bash-test success "[21] fail fast: stop the run"
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(requests)" = 63 ]
+  [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[63],[60,61,62,64]]" ]
+}
+
 @test "github: dry-run names an ending run and one asked before, and asks neither" {
   run_on 50 land/03 "completed cancelled 02-mac-host-a/bash-test"
   step_of 50 02-mac-host-a/bash-test success

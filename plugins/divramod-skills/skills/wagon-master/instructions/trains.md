@@ -6,6 +6,10 @@ field as carrier, the detached landing, "in the barn" to every car, a conflictin
 is still true (`python3 $S/wagon_master.py train --dry-run`, `hal2-cli-git worktree queue --json`), act, then log it:
 `python3 $K/farmer/scripts/mtm_scan.py record <kind> <slot> "<what you did>" --note "<why>" --role wagon-master`.
 
+Before you act: read the learnings (`python3 $S/learnings.py rules`, the file `roles/wagon-master/learnings.md`) and
+apply their rules. After you handled a red train, an error or a by-hand fix, write one entry
+(`python3 $S/learnings.py add --case ... --cause ... --rule ... --code y|n`, [SKILL.md](../SKILL.md#act)).
+
 | Kind | Do |
 |---|---|
 | `train-failed` | The train's landing did not land (the item names the train, the status, the run and the cars). Read the red job (`gh run view <run> --log-failed`) and reproduce it with `code/bash/scripts/gate/main.sh <job> --branch origin/main` where the repository has it. **One car broke it** (the failing task's files against each car's diff, `git diff --name-only origin/<default>...<branch>`): `python3 $S/wagon_master.py unhitch <field> --why "<job and cause>"`; its foreman is told, the rest forms again at the next round. **The cause is not a car** (a runner that died, a network error, a test that fails alone on the barn too): `python3 $S/wagon_master.py retry --why "<why>"` sends the same train again whole. **The barn itself is red** (the same job fails on `origin/<default>`): `python3 $S/engine.py breakup --why "<why>"`, tell the farmer in one line, the wagons ride again after the fix. Unclear after one look: unhitch nothing, retry once, and look again at the next failure |

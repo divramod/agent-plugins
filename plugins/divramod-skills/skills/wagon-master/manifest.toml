@@ -51,7 +51,7 @@ kind = "text-log"
 [[files]]
 path = "*.json"
 kind = "snapshot"
-description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json."
+description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json; learn.json, the duty learn's last day (scripts/learn.py)."
 
 [[files]]
 path = "summaries/**"
@@ -67,3 +67,21 @@ type = "Role Handoff"
 path = "flaky.md"
 kind = "record"
 type = "Ledger"
+
+[[files]]
+path = "learnings.md"
+kind = "record"
+type = "Ledger"
+description = "The learnings: one entry per red train, error or by-hand fix (scripts/learnings.py), read first by `/wagon-master act`; a hand-written file without the envelope is legacy and passes."
+
+[[files]]
+path = "stats.md"
+kind = "record"
+type = "Ledger"
+description = "The duty learn's daily before/after verdict per learning and the day's summary metrics (scripts/verdicts.py), rewritten by every run."
+
+[[files]]
+path = "briefs/*.md"
+kind = "record"
+type = "Brief"
+description = "The duty learn's daily brief of the untaken learnings for one foreman (scripts/learn.py), placed through the farmer's delegation ledger."

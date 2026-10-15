@@ -11,6 +11,10 @@ every finished worktree lands soon, in any order; throughput beats order and ret
 true (`hal2-cli-git worktree queue --json`), act, then log it:
 `python3 $K/farmer/scripts/mtm_scan.py record <kind> <slot> "<what you did>" --note "<why>" --role wagon-master`.
 
+Before you act: read the learnings (`python3 $S/learnings.py rules`, the file `roles/wagon-master/learnings.md`) and
+apply their rules. After you handled a red train, an error or a by-hand fix, write one entry
+(`python3 $S/learnings.py add --case ... --cause ... --rule ... --code y|n`, [SKILL.md](../SKILL.md#act)).
+
 | Kind | Do |
 |---|---|
 | `active-long` | Through CI (`ci: true` in the scan): open the finding's `run` (`gh run view <id>`): a job queued long is a runner question (tell the farmer: its `ci` duty owns the runners); a job past its timeout is GitHub's to end. Locally: read the landing's live step in hal2-macos's Landings. A dead process: tell its session to stop and rerun the landing (`hal2-cli-git worktree stop`, then `/mtm`). Never stop a landing that has merged into main or a train that lands |

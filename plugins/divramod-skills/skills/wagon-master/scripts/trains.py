@@ -12,7 +12,8 @@ Between trains (`draft`, steps 1 to 4; `wagon_master.py train --dry-run` prints 
 3. the alone rule (D11): a crop touching the landing workflow, a gate job list or the runner setup (ALONE) is a
    train of one; first in the queue it rides alone, otherwise it waits for the next train
 4. the trial merge in queue order (trial.py): a wagon that conflicts is unhitched and its foreman told why (a
-   template); the rest rides, no maximum
+   template), unless every file of the conflict is generated (generated.py: the train writes them again); the
+   rest rides, no maximum
 5. `engine.py form`: the yard's work as the first car (yard.py, step 8), merge, mark, start the landing detached;
    what the yard keeps is told to the farmer (yard_report.py)
 
@@ -30,6 +31,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
+import generated
 import mtm_scan
 import train_state
 import trial as trial_merge
@@ -135,7 +137,7 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str) -> 
         commit, files = trial_merge.merge(main, acc, head)
         if commit is None:
             out["waiting"].append({"field": field, "why": f"the trial merge of {head[:12]} could not run"})
-        elif files:
+        elif files and not generated.only(main, base, files, commit):  # generated only: the train writes them again
             barn = acc == base or bool(trial_merge.merge(main, base, head)[1])
             ahead = [] if barn else [c["field"] for c in out["cars"]]
             unhitched.append({"field": field, "head": head, "at": t["ready"].get("at", ""), "tell": "conflict",

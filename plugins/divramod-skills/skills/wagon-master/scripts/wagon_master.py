@@ -6,11 +6,11 @@
       ROLE.md changes, the tools, a valid role file; prints the loop's cron
   wagon_master.py tick [--repo <dir>] [--dry-run [--all-due]] [--json]
       one round as code (the frame's tick.py): stay current, the user's role file edit, the due duties (`mtm`:
-      boss.py, `trains`: trains.py plans, engine.py does), the log, the summary; what needs judgment is collected
-      as `wake`. --dry-run plans the round and touches nothing. Outside a dry run a tick runs only in timer mode.
-      While a train stands the field holds its cars and the round neither merges from main nor commits a role
-      file edit (D22). Outside a dry run the round's messages and acks (the frame's log) are posted to the message
-      board before and after it (board.py sync)
+      boss.py, `trains`: trains.py plans, engine.py does, `learn`: learn.py once a day), the log, the summary;
+      what needs judgment is collected as `wake`. --dry-run plans the round and touches nothing. Outside a dry run
+      a tick runs only in timer mode. While a train stands the field holds its cars and the round neither merges
+      from main nor commits a role file edit (D22). Outside a dry run the round's messages and acks (the frame's
+      log) are posted to the message board before and after it (board.py sync)
   wagon_master.py train --dry-run [--json] [--repo <dir>]
       the train that stands and the next one as the queue allows it now: the cars in order, the unhitched with
       their reasons, who waits, alone or not (trains.py's steps 1 to 4), and what the yard would give it: the
@@ -40,7 +40,8 @@ The message board is board.py (`board.py list`, `post`, `sync`): roles/wagon-mas
 
 State: roles/wagon-master/ of the field wagon-master-<repo> ($FARMER_DIR/<repo>/wagon-master/ overrides it), never
 the farmer's folder; its files are declared in the skill's manifest.toml (the train state: train_state.py). No
-delegations and no `task:*` (D22). Exit codes as the frame's role_cli.py; `unhitch` and `retry` exit 1 when refused.
+delegations of its own and no `task:*` (D22): the duty `learn`'s one daily brief goes into the farmer's delegation
+ledger (learn.py, plan 0313 D8). Exit codes as the frame's role_cli.py; `unhitch` and `retry` exit 1 when refused.
 """
 
 import argparse
@@ -55,6 +56,7 @@ import board
 import boss
 import due
 import engine
+import learn
 import mtm_scan
 import role_cli
 import roles
@@ -66,9 +68,10 @@ import wake
 HERE = Path(__file__).resolve().parent
 WIRING = roles.Wiring(
     role="wagon-master", cli=HERE / "wagon_master.py", skill=HERE.parent,
-    act="/wagon-master act", handoff="/wagon-master handoff", duties=("mtm", "trains"),
+    act="/wagon-master act", handoff="/wagon-master handoff", duties=("mtm", "trains", "learn"),
     subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=train_state.carries)
-HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler}  # "duty:<name>" → (item, ctx) → actions
+# "duty:<name>" → (item, ctx) → actions
+HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:learn": learn.handler}
 
 
 def last_tick(state: Path) -> dt.datetime | None:

@@ -6,7 +6,7 @@
   "required": ["schema", "at", "kind", "slot"],
   "properties": {
     "schema": {"type": "integer", "minimum": 1, "maximum": 1},
-    "kind": {"enum": ["formed", "yard", "started", "red", "retry", "unhitched", "landed", "cleared"]},
+    "kind": {"enum": ["formed", "yard", "regenerated", "started", "red", "retry", "unhitched", "landed", "cleared"]},
     "train": {"type": "string", "minLength": 1, "description": "The train's name, `<car>+<car>@<formed at>`."},
     "cars": {
       "type": "array",
@@ -17,15 +17,16 @@
     "log": {"type": "string", "description": "The landing's output file."},
     "status": {"type": "string", "description": "A red line: the landing's result (`gate_failed`, `conflict`, `error`, ...)."},
     "run": {"type": "string", "description": "The land run's address."},
-    "commit": {"type": "string", "description": "A landed line: the commit on the default branch; a yard line: the yard's commit in the carrier's field."},
+    "commit": {"type": "string", "description": "A landed line: the commit on the default branch; a yard line: the yard's commit in the carrier's field; a regenerated line: the train's last commit, which wrote the generated files again."},
     "files": {
       "type": "array",
-      "description": "A yard line: the yard's files that ride as the train's first car, each an object with path and hash (the hash of what was carried; none for a deletion). An unhitched line of the slot `yard`: the files that stay out until they change."
+      "description": "A yard line: the yard's files that ride as the train's first car, each an object with path and hash (the hash of what was carried; none for a deletion). An unhitched line of the slot `yard`: the files that stay out until they change. A regenerated line: the paths of the generated files written again (plan 0313 step 8)."
     },
     "yard": {
       "type": "object",
       "description": "A landed line of a train the yard rode: what was done in the yard afterwards: dropped (paths), kept (path and why), pulled, why."
     },
+    "pushed": {"type": "string", "description": "A cleared line: what became of the carrier's remote branch, which the dead train's landing had pushed (put back on the base with a leased push, or why not; plan 0313); none when there was nothing to push."},
     "why": {"type": "string"}
   }
 }

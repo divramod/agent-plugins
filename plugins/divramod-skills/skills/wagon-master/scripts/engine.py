@@ -8,7 +8,9 @@ its `run` actions; none waits for CI.
       in the wagon master's field, on the barn's head: the yard's uncommitted work as the first car (yard.py:
       what it can place, one commit; it never fails a train), then each car's head merged in order (a merge
       commit per car), plans/CURRENT_PLAN written (`yard` and the cars' plan names joined by ` + `: the land run's
-      title), then `restart`. A car that does not merge, or a mark the queue refuses, breaks the train up again
+      title), then `restart`. A car that does not merge, or a mark the queue refuses, breaks the train up again;
+      one whose conflicts are all generated files takes the barn's side, and the train's last commit writes them
+      again (generated.py, plan 0313 step 8; a command that fails breaks the train up)
   engine.py restart [--repo <field>]
       mark the train (`hal2-cli-git worktree queue train`), then start its landing detached (`land`), its output in
       train-landing.log, its pid in the state; also after an interrupted landing (the rerun adopts the run) and
@@ -23,7 +25,8 @@ its `run` actions; none waits for CI.
       the landing did not land; the train waits for the session's `unhitch` or `retry`
   engine.py breakup --why <text> [--repo <field>]
       the train that stands is no more: its mark cleared, the queue its failed landing holds released, the field
-      back on the head it had before the cars. Without a train: a leftover mark cleared
+      back on the head it had before the cars, and its remote branch too (leased push, plan 0313). Without a
+      train: a leftover mark cleared
   engine.py unhitch <field> --why <text> [--repo <dir>]
       take a field's ready mark (`worktree queue ready <field> --clear`); a car of a red train: the rest forms
       again at the next round. Refused for a car of a train that lands: a running landing is never stopped.
@@ -42,6 +45,7 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import generated
 import mtm_scan
 import train_state
 import yard
@@ -123,7 +127,8 @@ def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
         return 1, "a train needs a car"
     default = fetch(top)
     behind = git(top, "merge-base", "--is-ancestor", default, "HEAD")[0]
-    if behind and git(top, "merge", "-q", "--no-edit", default)[0]:
+    taken = []  # generated files whose conflict took the barn's side (generated.py, plan 0313 step 8)
+    if behind and git(top, "merge", "-q", "--no-edit", default)[0] and not (taken := generated.take(top, "--theirs")):
         git(top, "merge", "--abort")
         return 1, f"{default} does not merge into {field}: no train formed"
     name = "+".join(c["field"] for c in cars) + "@" + train_state.utc(now)
@@ -134,9 +139,16 @@ def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
         what = f"wagon train: field {car['field']} ({car.get('plan') or car['branch']}), head {car['head']}"
         code, out = git(top, "merge", "-q", "--no-ff", "-m", f"Merge branch '{car['branch']}' into {branch}",
                         "-m", what, car["head"])
-        if code:
+        got = generated.take(top, "--ours") if code else []
+        if code and not got:
             broken = breakup(top, f"car {car['field']} did not merge: {out[-300:]}", now)[1]
             return 1, f"car {car['field']} did not merge; {broken}"
+        taken += got
+    if taken:  # the train's last commit: the generated files written again for its head, before the landing
+        code, text, commit, files = generated.regenerate(top, sorted(set(taken)))
+        train_state.append(main, "regenerated", field, now, train=name, commit=commit, files=files, why=text)
+        if code:
+            return 1, f"{text}; {breakup(top, text, now)[1]}"
     current = Path(top) / CURRENT
     current.parent.mkdir(parents=True, exist_ok=True)
     current.write_text(" + ".join(["yard"] * bool(rides) + [c.get("plan") or c["field"] for c in cars]) + "\n")
@@ -202,14 +214,36 @@ def breakup(top: str, why: str, now: dt.datetime | None = None) -> Done:
         queue = []
     if any(t.get("slot") == field and t.get("state") == "held" and not t.get("waits_for") for t in queue):
         cli(["worktree", "release", field, "--json"], top)  # its own failed landing's hold: that candidate is gone
+    pushed = ""
     if train:
         git(top, "merge", "--abort")
         code, out = git(top, "reset", "-q", "--keep", train["base"]) if train.get("base") else (0, "")
         (Path(top) / CURRENT).unlink(missing_ok=True)
         if code:
             return 1, f"{field} did not go back to {train['base']}: {out[-300:]}"
-    train_state.append(main, "cleared", field, now, train=train["train"] if train else None, why=why)
-    return 0, f"train {train['train']} broken up: {why}" if train else f"the mark of {field} cleared: {why}"
+        pushed = push_base(top, field, train["base"]) if train.get("base") else ""
+    train_state.append(main, "cleared", field, now, train=train["train"] if train else None, why=why,
+                       **({"pushed": pushed} if pushed else {}))
+    done = f"train {train['train']} broken up: {why}" if train else f"the mark of {field} cleared: {why}"
+    return 0, done + (f"; {pushed}" if pushed else "")
+
+
+def push_base(top: str, field: str, base: str) -> str:
+    """The carrier's remote branch back on the train's base (plan 0313, D2, D6): the dead train's landing pushed it
+    there, and the next train's push would be refused as not a fast-forward. Leased on the tip the remote has now,
+    never a bare force; a failure is told, the local reset stands. "": nothing to push (no remote branch, or it is
+    on the base already)."""
+    ref = "refs/heads/" + (git(top, "branch", "--show-current")[1] or field)
+    code, out = git(top, "ls-remote", "origin", ref)
+    if code:
+        return f"origin's {ref} not read, it may still hold the dead train: {out[-200:]}"
+    tip = next((w[0] for w in (line.split() for line in out.splitlines()) if w[1:] == [ref]), "")
+    if not tip or tip == base:
+        return ""
+    code, out = git(top, "push", "-q", f"--force-with-lease={ref}:{tip}", "origin", f"{base}:{ref}")
+    if code:
+        return f"origin's {ref} still holds the dead train {tip[:12]}, not pushed: {out[-200:]}"
+    return f"origin's {ref} back on {base[:12]} (was {tip[:12]})"
 
 
 def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None) -> Done:
