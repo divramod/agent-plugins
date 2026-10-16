@@ -176,8 +176,9 @@ def flaky_open(main: str, slots: dict[str, dict]) -> list[str]:
 def orphans(top: str) -> list[dict]:
     """mtm_scan's work-without-agent findings, without the worktrees that wait for the user."""
     import mtm_scan
+    import scan_cache
     import tick
-    snap = mtm_scan.snapshot(top, 24, fetch=False)
+    snap = scan_cache.scan(top, roles.ROLE)
     asked = tick.waiting_for_user(tick.read_log(snap["repo"]))
     return [f for f in snap["findings"] if f["kind"] == "work-without-agent" and f["slot"] not in asked]
 

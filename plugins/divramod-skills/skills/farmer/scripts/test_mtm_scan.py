@@ -329,12 +329,37 @@ class Priority(unittest.TestCase):
         import json
         out = json.dumps({"queue": [], "priority": {"slots": ["12", "18"], "by": "the user", "at": "A"}})
         rc, argv = self.order("12", "18", stdout=out, note="n8n first")
-        self.assertEqual((rc, argv), (0, ["hal2-cli-git", "worktree", "queue", "order", "12", "18", "--json"]))
+        self.assertEqual((rc, argv), (0, ["hal2-cli-git", "worktree", "queue", "order", "12", "18",
+                                          "--by", "hal2/farmer-hal2", "--json"]))
         self.assertEqual(json.loads(self.file.read_text()), {"slots": ["12", "18"], "note": "n8n first"})
         self.assertEqual(self.order(done="12")[1], None, "--done asks hal2 nothing")
         self.assertEqual(json.loads(self.file.read_text())["slots"], ["18"])
         self.order(done="18")
         self.assertFalse(self.file.exists(), "the last landed slot clears it")
+
+    def test_an_installed_cli_without_by_is_retried_once_without_it_and_says_so(self):
+        import io
+        import json
+        import subprocess
+        from unittest import mock
+        real, hal2 = subprocess.run, []
+        ok = json.dumps({"queue": [], "priority": {"slots": ["12"], "by": "the user (hal2-cli-git)", "at": "A"}})
+
+        def run(argv, **opts):
+            if argv[0] != "hal2-cli-git":
+                return real(argv, **opts)
+            hal2.append(argv)
+            if "--by" in argv:
+                return subprocess.CompletedProcess(argv, 2, stdout="", stderr='unknown argument "--by" for worktree queue order')
+            return subprocess.CompletedProcess(argv, 0, stdout=ok, stderr="")
+        err = io.StringIO()
+        with mock.patch.object(scan.subprocess, "run", side_effect=run), mock.patch("sys.stdout"), \
+                mock.patch("sys.stderr", err):
+            rc = scan.priority("/x/hal2", ["12"])
+        self.assertEqual(rc, 0)
+        self.assertEqual([("--by" in a) for a in hal2], [True, False], "retried once, without --by")
+        self.assertEqual(hal2[1], ["hal2-cli-git", "worktree", "queue", "order", "12", "--json"])
+        self.assertIn("does not know --by", err.getvalue())
 
     def test_clear_and_a_refusal(self):
         import json
@@ -343,8 +368,21 @@ class Priority(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertTrue(self.file.exists(), "a refused order changes nothing")
         rc, argv = self.order(clear=True, stdout=json.dumps({"queue": [], "priority": None}))
-        self.assertEqual((rc, argv[-2:]), (0, ["--clear", "--json"]))
+        self.assertEqual((rc, argv[-4:]), (0, ["--clear", "--by", "hal2/farmer-hal2", "--json"]))
         self.assertFalse(self.file.exists())
+
+    def test_the_order_names_its_setter_the_roles_field_or_the_user(self):
+        """Hal2 plan 0313 step 12 (D18): `queue order` runs in the main checkout, so the caller passes `--by`."""
+        import json
+        out = json.dumps({"queue": [], "priority": {"slots": ["12"], "by": "x", "at": "A"}})
+
+        def by(role="farmer", **kw):
+            argv = self.order("12", stdout=out, role=role, **kw)[1]
+            return argv[argv.index("--by") + 1], argv[-1]
+        self.assertEqual(by(), ("hal2/farmer-hal2", "--json"))
+        self.assertEqual(by(role="wagon-master"), ("hal2/wagon-master-hal2", "--json"))
+        self.assertEqual(by(by="user"), ("user", "--json"), "the farmer relaying the user's words")
+        self.assertEqual(scan.setter("/x/hal2", "wagon-master"), "hal2/wagon-master-hal2")
 
 
 class Roles(unittest.TestCase):

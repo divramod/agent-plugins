@@ -59,20 +59,21 @@ class Rule(unittest.TestCase):
         out = trains.settle("/f/wagon-master-hal2", TRAIN, {**LANDED, "red": [RED]}, {"07": "%7"})
         self.assertEqual(shape(out), [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09"),
                                       ("stack-red", "run", "-"), ("stack-red-fix", "send", "07"),
-                                      ("stack-red-fix", "send", "09")])
+                                      ("stack-red-fix", "send", "09"), ("chain", "run", "-")])
         log, fix = out[3], out[4]
         self.assertEqual(log["after"], out[0]["key"], "the board line follows the landed verb")
         self.assertEqual(log["argv"][2:], ["post", "--kind", "red", "--from", "wagon-master-hal2", "--to", "-", "--train",
                                            TRAIN["train"], "--cars", "07,09", "--status", "stack-test", "--repo",
                                            "/f/wagon-master-hal2", "--text", log["argv"][-3], "--run", "https://x/runs/9"])
-        self.assertEqual((fix["pane"], out[5]["pane"], {a["after"] for a in out[4:]}), ("%7", None, {log["key"]}))
+        self.assertEqual((fix["pane"], out[5]["pane"], {a["after"] for a in out[4:6]}), ("%7", None, {log["key"]}))
         for part in ("train 07+09@", "is in the barn, but 03-hz-host-a/stack-test is red (https://x/runs/9)",
                      "Fix these tests in your next harvest", "daemon::socket_roundtrip, hub::tenant_rls"):
             self.assertIn(part, fix["text"])
         self.assertEqual(len({a["key"] for a in out}), len(out), "every key is its own")
 
     def test_a_green_landing_and_a_red_train_get_no_stack_red_action(self):
-        self.assertEqual(shape(trains.settle("/f", TRAIN, LANDED, {}))[-1], ("in-the-barn", "send", "09"))
+        self.assertEqual(shape(trains.settle("/f", TRAIN, LANDED, {}))[-2:], [("in-the-barn", "send", "09"),
+                                                                             ("chain", "run", "-")])
         red = trains.settle("/f", TRAIN, {"status": "gate_failed", "red": [RED]}, {})
         self.assertEqual(shape(red), [("red", "run", "-"), ("train-failed", "wake", "-")], "not landed: the old path")
 

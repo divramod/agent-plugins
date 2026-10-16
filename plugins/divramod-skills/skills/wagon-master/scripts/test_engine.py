@@ -115,7 +115,7 @@ class Forming(Farm):
                                                         "head": out(self.main, "rev-parse", "origin/main")})
         d = json.loads(self.call("train", "--dry-run", "--json")[1])
         self.assertEqual(([c["field"] for c in d["cars"]], d["alone"], d["waiting"]),
-                         (["07"], True, [{"field": "09", "why": "07 rides alone"}]))
+                         (["07"], True, [{"field": "09", "why": "rides in the next train, after the gate train"}]))
         self.round()
         self.assertEqual(self.last, [("unhitch", "run", "31"), ("unhitched", "relay", "31"), ("unhitch", "run", "04"),
                                      ("form", "run", "-")],
@@ -157,7 +157,11 @@ class Standing(Farm):
         self.panes = {"07": "%7", "09": "%9"}
         self.ends({"status": "landed", "commit": "c0ffee", "run": "https://github.com/x/runs/9"}, land=True)
         self.round()
-        self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09")])
+        self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09"),
+                                     ("chain", "run", "-")])
+        self.assertEqual([e["what"] for e in self.wm_log() if e["kind"] == "chain"],
+                         ["chain link 1: nothing; stops: nothing to do", "the next train in the same round"],
+                         "no wagon is ready: the chain's one link, then the round's chain run itself")
         self.assertEqual([p for p, _ in self.typed], ["%7", "%9"])
         self.assertIn("your crop is in the barn (the train of 07, 09, https://github.com/x/runs/9)", self.typed[0][1])
         self.assertEqual((self.train(), self.subjects(), (self.wm / "plans/CURRENT_PLAN").exists()), (None, [], False))
@@ -182,13 +186,14 @@ class Standing(Farm):
         self.round()
         self.assertEqual((self.last, self.train()["state"], self.spawned), ([], "red", [OWN]), "nothing else")
 
-        code, text = self.call("unhitch", "09", "--why", "its test fails", repo=self.main)
-        self.assertEqual((code, text), (0, "09 unhitched: its test fails; the rest of the train forms again at the "
-                                           "next round\n"))
-        self.assertIsNone(self.gate.of("09"))
+        # 2026-10-14: unhitched at 12:53:36, broken up by the next round at 12:57:10 (plan 0333 step 6, cause C);
+        # now the unhitch's own call breaks the train up, tells 09's foreman and forms the rest.
         self.panes = {"09": "%9"}
-        self.round()
-        self.assertEqual(self.last, [("breakup", "run", "-"), ("unhitched", "send", "09"), ("form", "run", "-")])
+        code, text = self.call("unhitch", "09", "--why", "its test fails", repo=self.main)
+        self.assertEqual((code, text), (0, "09 unhitched: its test fails; the rest of the train forms again\n"
+                                           "chain link 1: breakup -, unhitched 09, form -\n"
+                                           "chain stops: a landing started\n"))
+        self.assertIsNone(self.gate.of("09"))
         self.assertIn("field 09 is unhitched from the red train: its test fails. Fix it, push and report it ready "
                       "again (`hal2-cli-git worktree queue ready`).", self.typed[0][1])
         self.assertIn(["worktree", "release", OWN], self.gate.calls, "its own failed landing's hold")
@@ -197,6 +202,29 @@ class Standing(Farm):
         self.assertEqual(self.state()[-5:], [("red", OWN), ("unhitched", "09"), ("cleared", OWN), ("formed", OWN),
                                              ("started", OWN)])
         self.assertEqual((self.train()["base"], len(self.spawned)), (self.base, 2))
+        self.assertEqual([e["what"] for e in self.wm_log() if e["kind"] == "chain"],
+                         ["chain link 1: breakup -, unhitched 09, form -; stops: a landing started"])
+        self.alive.add(40002)
+        self.round()
+        self.assertEqual((self.last, len(self.typed), len(self.spawned)), ([], 1, 2), "nothing is done twice")
+
+    def test_a_landed_train_s_round_forms_the_next_train(self):
+        # 2026-10-14: landed at 14:07:11, the next train formed by the next round at 14:12:34 (plan 0333 step 6,
+        # cause C); now the round that finds the train landed forms the next one.
+        self.ends({"status": "landed", "commit": "c0ffee", "run": "https://github.com/x/runs/9"}, land=True)
+        self.crop("11", {"eleven.txt": "11"})  # hitched while the train of 07 and 09 landed
+        self.round()
+        self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "relay", "07"),
+                                     ("in-the-barn", "relay", "09"), ("chain", "run", "-")])
+        self.assertEqual(self.state()[-3:], [("landed", OWN), ("formed", OWN), ("started", OWN)])
+        self.assertEqual((self.gate.calls[-1], len(self.spawned)), (["worktree", "queue", "train", OWN, "11"], 2))
+        self.assertEqual(([c["field"] for c in self.train()["cars"]], self.subjects()),
+                         (["11"], ["Merge branch '11' into wagon-master-hal2", "eleven.txt"]))
+        self.assertEqual([e["what"] for e in self.wm_log() if e["kind"] == "chain" and e["do"] == "record"],
+                         ["chain link 1: form -; stops: a landing started"])
+        self.alive.add(40002)
+        self.round()
+        self.assertEqual((self.last, len(self.spawned)), ([], 2), "the next round finds its landing running")
 
     def test_retry_lands_a_red_train_again_as_it_is(self):
         self.assertEqual(self.call("retry", "--why", "flaky")[0], 1, "no red train yet")
@@ -210,7 +238,8 @@ class Standing(Farm):
         self.assertEqual(self.call("retry", "--why", "flaky: tmux_attach")[0], 0)
         self.round()
         self.assertEqual((self.last, self.train()["state"], self.train()["starts"]), ([("restart", "run", "-")], "landing", 2))
-        self.assertEqual((out(self.wm, "rev-parse", "HEAD"), len(self.spawned)), (head, 2), "the same candidate")
+        self.assertEqual((out(self.wm, "rev-parse", "HEAD^"), len(self.spawned)), (head, 2),
+                         "the train as it is, one empty commit on it: a new candidate, a fresh run (plan 0313 step 13)")
         self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", OWN, "07", "09"], "marked before every start")
 
     def test_an_interrupted_landing_is_started_again_and_adopts_its_run(self):

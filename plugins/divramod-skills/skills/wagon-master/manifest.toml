@@ -20,9 +20,25 @@ schema = "schemas/board.schema.json"
 description = "The message board: one line per ready ticket, train, landing, message and ack (scripts/board.py), the farm view's feed. Append-only, one write per line; pruned only by whole lines from its start when it passes 2 MB (down to 1 MB, by rename under board.lock), so a follower that finds the file smaller starts again at its first line."
 
 [[files]]
+path = "checks.jsonl"
+kind = "event-log"
+schema = "schemas/checks.schema.json"
+description = "The held-back check runs (hal2 plan 0306, the duty `checks`: scripts/checks.py): one line per deferral, dispatch, cancel and supersede. ci-check's `checks defer` and `checks dispatched` append to it, the duty's `checks cancel` and `checks dispatch` too; one write per line under O_APPEND."
+
+[[files]]
 path = "train-landing.log"
 kind = "text-log"
 description = "The output of the train's landing (hal2-cli-git worktree merge-to-main --json), rewritten by every start."
+
+[[files]]
+path = "train-pretest.log"
+kind = "text-log"
+description = "The output of the train's pretest (scripts/pretest_train.py, plan 0349 D75), each job's line then its output, rewritten by every pretest."
+
+[[files]]
+path = "cache/**"
+kind = "cache"
+description = "The pretest's green markers, `cache/pretest/gate-<job>-<key>` (empty files, scripts/pretest.py), under CACHEDIR.TAG: may be deleted at any time, a marker older than 14 days goes at every pretest."
 
 [[files]]
 path = "log.jsonl"

@@ -18,7 +18,10 @@ what the user asked (or told) the agent that was not yet answered in words:
                            which names this question with `**From:** Q<n>`)
 
 An open entry has no `**A:**` line (or an empty one). `--check` prints `ok` or one problem per line: a heading that
-does not match, a number used twice, no `**Q:**`, an answered entry without an answer, an open one with one.
+does not match, a number used twice, no `**Q:**`, an answered entry without an answer, an open one with one, and
+(plan 0329) an open question of the agent that is not in the Q form (exactly three option lines a) b) c), the first
+"(Recommended)"): by `hal2-cli-plans questions check --json` when it is installed (`$HAL2_CLI_PLANS`), else by
+qform.py's fallback rule.
 
 Exit 0 printed (or `--check` ok; no file counts as no questions), 1 `--check` found problems.
 """
@@ -29,6 +32,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+import qform
 
 HEAD = re.compile(r"^## Q(\d+) · (\d{4}-\d{2}-\d{2}) · (agent|user) · "
                   r"(open|answered \d{4}-\d{2}-\d{2}|dropped \d{4}-\d{2}-\d{2})\s*$")
@@ -118,6 +123,11 @@ def main(argv: list[str]) -> int:
     entries, problems = parse(path.read_text()) if path.is_file() else ([], [])
     if args.check:
         problems = check(entries, problems)
+        if path.is_file():
+            # hal2 owns the Q-form rule (qform.py): its answer includes the checks above; without it the fallback.
+            from_cli = qform.cli_problems(path)
+            problems = from_cli if from_cli is not None else problems + qform.form_problems(
+                entries, raw_entries(path.read_text()))
         print("\n".join(problems) if problems else "ok")
         return 1 if problems else 0
     open_ = [e for e in entries if e["state"] == "open"]

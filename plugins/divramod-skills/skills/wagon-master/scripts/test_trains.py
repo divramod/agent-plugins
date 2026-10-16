@@ -2,13 +2,18 @@
 repository whose branches are the fields' crops; the state machine (`plan`, `settle`) over data. Nothing is done
 here: no queue, no landing, no session (test_engine.py runs whole rounds)."""
 
+import functools
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import chain
+import proof
 import tick
 import train_state
 import trains
@@ -28,6 +33,9 @@ class Crops(unittest.TestCase):
 
     def setUp(self):
         self.d = tempfile.mkdtemp()
+        green = mock.patch.object(trains, "PROVE", lambda *a: {"state": "green", "lines": []})  # Proof: the real one
+        green.start()
+        self.addCleanup(green.stop)
         self.g("init", "-q", "-b", "main")
         self.write("main", {"a.rs": "a\n", "INTENT.md": "log\n", ".github/workflows/land.yml": "on: push\n"}, new=False)
 
@@ -130,12 +138,31 @@ class Draft(Crops):
                           "11": {"eleven.rs": "11\n"}})
         first = self.draft(q)
         self.assertEqual((self.cars(first), first["alone"]), (["07"], True))
-        self.assertEqual(first["waiting"], [{"field": "09", "why": "07 rides alone"},
-                                            {"field": "11", "why": "07 rides alone"}])
+        self.assertEqual(first["waiting"], [{"field": "09", "why": "rides in the next train, after the gate train"},
+                                            {"field": "11", "why": "rides in the next train, after the gate train"}])
         later = self.draft([dict(q[1], position=0), dict(q[0], position=1), q[2]])
         self.assertEqual((self.cars(later), later["alone"], later["unhitched"]), (["09", "11"], False, []))
         self.assertEqual(later["waiting"],
-                         [{"field": "07", "why": "rides alone in the next train (.github/workflows/land.yml)"}])
+                         [{"field": "07", "why": "rides in the next train, a gate train (.github/workflows/land.yml)"}])
+
+    def test_alone_cars_ride_as_one_gate_train(self):
+        # Hal2 plan 0333 step 3 (D3), 2026-10-14: the gate cars 09, 05, 08, 14 and 21 rode as five trains of one.
+        gate = {"09": ".github/workflows/nine.yml", "05": "code/bash/scripts/gate/five.sh",
+                "08": ".github/hal2-caches.toml", "14": ".github/workflows/fourteen.yml",
+                "21": "code/bash/scripts/gate/twentyone.sh"}
+        crops = {f: {path: f + "\n"} for f, path in gate.items()}
+        q = self.queue(**{"09": crops["09"], "05": crops["05"], "17": {"seventeen.rs": "17\n"}, "08": crops["08"],
+                          "14": crops["14"], "21": crops["21"]})
+        d = self.draft(q)
+        self.assertEqual((self.cars(d), d["alone"], d["unhitched"]), (["09", "05", "08", "14", "21"], True, []))
+        self.assertEqual(d["waiting"], [{"field": "17", "why": "rides in the next train, after the gate train"}])
+        normal = [dict(t, position=n) for n, t in enumerate([q[2], *q[:2], *q[3:]])]
+        later = self.draft(normal)
+        self.assertEqual((self.cars(later), later["alone"], later["unhitched"]), (["17"], False, []))
+        self.assertEqual(later["waiting"], [{"field": f, "why": f"rides in the next train, a gate train ({path})"}
+                                            for f, path in gate.items()])
+        acts = trains.train_actions("/f", d, {})
+        self.assertEqual(acts[-1]["text"], "wagon train: 09, 05, 08, 14, 21 (gate train)")
 
     def test_what_the_field_holds_beyond_the_barn_is_under_the_cars(self):
         role = self.write("wm", {"roles/wagon-master/ROLE.md": "mine\n"})
@@ -144,6 +171,50 @@ class Draft(Crops):
         base = trains.base_of(self.d, "main", role)
         self.assertEqual(self.g("rev-list", "--parents", "-n", "1", base).split()[1:],
                          [self.g("rev-parse", "main"), role])
+
+
+class Proof(Crops):
+    """Hal2 plan 0333 step 4 (cause A): no car rides without its light gate checks green on its hitched head."""
+
+    PLAN = "0255-plugin-tmux-2-move-tmux-plugin-here"
+
+    def setUp(self):
+        super().setUp()
+        cache = Path(tempfile.mkdtemp()) / "cache" / "proof"
+        self.addCleanup(shutil.rmtree, cache.parents[1], True)
+        real = mock.patch.object(trains, "PROVE", functools.partial(proof.verdict, cache=cache))
+        real.start()
+        self.addCleanup(real.stop)
+        names = Path(__file__).resolve().parents[7] / "code/python/scripts/names-inventory"
+        files = {f"{proof.NAMES.rsplit('/', 1)[0]}/{p.name}": p.read_text() for p in names.glob("*.py")
+                 if not p.name.startswith("test_")}
+        files[f"plans/{self.PLAN}/plan.md"] = "---\nstatus: open\n---\n# Plan 0255\n"  # an open plan is no history
+        self.g("checkout", "-q", "main")
+        self.write("main", files, new=False)  # the barn's names check, as the field has it
+
+    def test_06s_car_with_an_old_word_in_a_prose_line_is_unhitched_with_the_finding(self):
+        # 2026-10-14 08:17: 06's car at d192125ca rode with "the slot's pane" in plan 0255's uat.md, and train
+        # 38534070998 was red in python-lint's names check; one car's line cost the whole train's run.
+        uat = f"plans/{self.PLAN}/uat.md"
+        (q,) = self.queue(**{"06": {uat: "# UATs\n\nExpected: 1 shows the slot's pane (or a window in session "
+                                         "`hosts`), no popup.\n"}})
+        d = self.draft([q])
+        self.assertEqual(self.cars(d), [], "the car does not ride")
+        (u,) = d["unhitched"]
+        self.assertEqual((u["field"], u["tell"]), ("06", "proof"))
+        self.assertEqual(u["lines"], [f"names: {uat}:3: slot — use worktree"])
+        (unhitch, told) = trains.train_actions("/f", d, {"06": "%6"})
+        self.assertEqual((unhitch["kind"], told["kind"], told["pane"]), ("unhitch", "unhitched", "%6"))
+        self.assertIn(f"{uat}:3: slot — use worktree", told["text"])
+        self.assertTrue(told["text"].endswith("Fix it, push and report it ready again (`hal2-cli-git worktree "
+                                              "queue ready`)."), told["text"])
+
+    def test_a_clean_car_rides_and_one_not_at_its_hitched_head_waits(self):
+        q = self.queue(**{"07": {"plans/0301-x/notes.md": "the worktree's pane\n"}, "09": {"nine.rs": "9\n"}})
+        d = self.draft(q)  # the checkout is at 09's head: 07's field moved on
+        self.assertEqual((self.cars(d), d["unhitched"]), (["09"], []))
+        self.assertEqual(d["waiting"][0]["field"], "07")
+        self.assertTrue(d["waiting"][0]["why"].startswith("no proof yet: the field is at "), d["waiting"])
 
 
 TRAIN = {"train": "07+09@" + AT, "carrier": "wagon-master-hal2", "base": "b" * 40, "state": "landing", "starts": 1,
@@ -159,7 +230,12 @@ def shape(actions):
 class Settle(unittest.TestCase):
     def test_landed_tells_every_car_s_foreman_in_the_barn(self):
         out = trains.settle("/f", TRAIN, {"status": "landed", "commit": "c1", "run": "https://x/runs/9"}, {"07": "%7"})
-        self.assertEqual(shape(out), [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09")])
+        self.assertEqual(shape(out), [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09"),
+                                      ("chain", "run", "-")])
+        go = out[-1]  # plan 0333 step 6: the same round goes on to the next train
+        self.assertEqual((go["argv"][1:], go["after"], go["key"], go["on_fail"][0]["kind"]),
+                         ([str(chain.CLI), "chain", "--in-tick", "--repo", "/f"], out[0]["key"],
+                          "chain:" + out[0]["key"], "train-stuck"))
         self.assertEqual(out[0]["argv"][1:], [str(trains.ENGINE), "landed", "--run", "https://x/runs/9", "--commit",
                                               "c1", "--repo", "/f"])
         self.assertEqual((out[1]["pane"], out[2]["pane"]), ("%7", None))
@@ -249,12 +325,44 @@ class Plan(unittest.TestCase):
             (stuck,) = a["on_fail"]
             self.assertEqual((stuck["kind"], stuck["do"], stuck["slot"], stuck["key"]),
                              ("train-stuck", "wake", "-", "stuck:" + a["key"]))
-            self.assertEqual(a["argv"][:2], [trains.sys.executable, str(trains.ENGINE)])
+            self.assertIn(a["argv"][:2], ([trains.sys.executable, str(trains.ENGINE)],
+                                          [trains.sys.executable, str(chain.CLI)]), "an engine verb, or the chain")
         log = [{"at": "2026-10-13T12:00:00", "key": a["key"]} for a in planned]
         now = tick.dt.datetime(2026, 10, 13, 12, 5)
         self.assertEqual(tick.fresh(planned, log, now, "wagon-master"), [], "a second round does nothing again")
         self.assertEqual(len(tick.fresh(planned, [], now, "wagon-master")), len(planned),
                          "and no action names the wagon master's own field: none is held back")
+
+
+class Chain(unittest.TestCase):
+    """Hal2 plan 0333 step 6 (cause C): one call goes on link after link until a wait, at most MAX_LINKS."""
+
+    @staticmethod
+    def ran(kind, code=0, do="run", slot="-"):
+        return {"kind": kind, "do": do, "slot": slot, "exit": code}
+
+    def test_a_link_goes_on_only_after_landed_or_breakup_that_started_no_landing(self):
+        ran = self.ran
+        self.assertIsNone(chain.stop([ran("landed"), ran("in-the-barn", None, "send", "07")]))
+        self.assertIsNone(chain.stop([ran("breakup", tick.OFFLINE)]), "offline is no failure")
+        self.assertEqual(chain.stop([]), "nothing to do")
+        self.assertEqual(chain.stop([ran("breakup"), ran("unhitched", None, "send", "09"), ran("form")]),
+                         "a landing started")
+        self.assertEqual(chain.stop([ran("restart")]), "a landing started")
+        self.assertEqual(chain.stop([ran("breakup", 1), ran("form")]), "failed: breakup")
+        self.assertEqual(chain.stop([ran("unhitch"), ran("unhitched", None, "send", "31")]), "a wait")
+        self.assertEqual(chain.stop([ran("red"), ran("train-failed", None, "wake")]), "a wait")
+
+    def test_the_chain_is_bounded_and_every_link_is_logged(self):
+        logged, links = [], iter([[self.ran("landed")], [self.ran("breakup")], [self.ran("landed")]])
+        with mock.patch.object(chain, "link", lambda *a: next(links)), \
+                mock.patch.object(chain.tick, "execute", lambda a, *rest: logged.append((a["kind"], a["do"], a["text"]))), \
+                mock.patch.object(chain.mtm_scan, "main_checkout", return_value="/m"):
+            r = chain.go("/f", None, None)
+        self.assertEqual((len(r["links"]), r["why"], r["items"]), (3, "3 links: the next round goes on", 0))
+        self.assertEqual(logged, [("chain", "record", "chain link 1: landed -"), ("chain", "record", "chain link 2: breakup -"),
+                                  ("chain", "record", "chain link 3: landed -")])
+        self.assertEqual(chain.report(r)[1].splitlines()[-1], "chain stops: 3 links: the next round goes on")
 
 
 class State(unittest.TestCase):
@@ -292,7 +400,8 @@ class State(unittest.TestCase):
         aware = tick.dt.datetime(2026, 10, 13, 12, 0, 5, tzinfo=tick.dt.timezone(tick.dt.timedelta(hours=2)))
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)),
-                         ["formed", "yard", "regenerated", "started", "red", "retry", "unhitched", "landed", "cleared"])
+                         ["formed", "yard", "regenerated", "pretest", "started", "red", "retry", "unhitched", "landed",
+                          "cleared"])
 
 
 if __name__ == "__main__":

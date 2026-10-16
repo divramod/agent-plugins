@@ -126,6 +126,12 @@ class Cli(Base):
             self.assertEqual((code, out, err.count("\n")), (1, "", 1), argv)
 
 
+Q31_INLINE = (
+    "\n## Q31 · 2026-10-14 · agent · open\n\n**Q:** May the CI watcher be deployed? a) (Recommended) Yes, once branch 08 "
+    "is on main: I prepare the deploy. b) Yes, but as a deploy of its own, sooner. c) Not yet: the watcher stays "
+    "undeployed.\n")
+
+
 class Joined(Base):
     def setUp(self):
         super().setUp()
@@ -154,6 +160,14 @@ class Joined(Base):
         self.assertIn("**10** (open ask in the farmer's log)\nneeds the user's go\nmoney", out)
         self.assertIn("**02** (instruction not acked)\n02-1: farmer [02-1]: land now", out)
         self.assertNotIn("old", out)  # an ask the user answered is closed
+
+    def test_an_entry_with_inline_options_prints_each_on_its_own_line(self):
+        self.slot("07", Q31_INLINE)
+        _, out, _ = self.call("questions")
+        self.assertIn("**07** (QUESTIONS.md)\nQ31: May the CI watcher be deployed?\n"
+                      "  a) (Recommended) Yes, once branch 08 is on main: I prepare the deploy.\n"
+                      "  b) Yes, but as a deploy of its own, sooner.\n"
+                      "  c) Not yet: the watcher stays undeployed.\n", out)
 
     def test_modes_and_nothing_open(self):
         questions.close(self.folder, 1, "answered", "yes")

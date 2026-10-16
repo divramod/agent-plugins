@@ -5,22 +5,26 @@ description: List the questions of the session's store on demand, printed by a s
 
 # q
 
-`S=<skill-dir>/scripts`. Read-only, no model work: a script reads the store and prints it.
+`S=<skill-dir>/scripts`. Read-only, no model work: a script reads the store and prints it. The list is printed by
+`hal2-cli-plans questions list` (the CLI of hal2's `questions` module, `$HAL2_CLI_PLANS` or the one on PATH); where it is
+missing or fails, `q.py` prints through its own parser (the handoff skill's `qform.py`, the one Q form, plus `qshape.py`), which also puts an old entry's inline options
+a) b) c) onto their own lines (split only on the ordered ` a) `, ` b) `, ` c) `).
 
 | Call | Does |
 |---|---|
 | `/q` | the open questions |
 | `/q a` or `/q answered` | the answered questions, each with its answer |
 | `/q l` or `/q list` | all questions: the open first, then the answered and dropped |
-| `... --repo <dir>` | another checkout; `--json` the same as data, `--path` only the store's path |
+| `... --repo <dir>` | another checkout; `--json` the same as data (the CLI's JSON), `--path` only the store's path |
 | `/q` in the farmer's worktree `farmer-<repo>` | the farmer's joined list instead (`farmer.py questions`): its own questions, the log's open asks and every worktree's store, each under its worktree |
 | `/q h` | print this table and stop |
 
 ## Run
 
 `python3 $S/q.py [a|l] [--repo <dir>]`. Print its output and nothing else: no summary, no advice, no rewording of a
-question. Exit 1: print the line it gave (the store is broken, fix the file named). Exit 2: the handoff skill is
-missing next to this one; report it.
+question. A store with malformed open questions (inline options, not exactly three option lines) gets one
+`warning: Q31, Q32: ...` line after the list, part of the output like the rest. Exit 1: print the line it gave (the
+store is broken, fix the file named). Exit 2: neither the CLI nor the handoff skill next to this one is found; report it.
 
 ## Record a question
 

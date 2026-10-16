@@ -188,18 +188,39 @@ python3 $S/questions.py --json     # its open entries and `next`, the number of 
 - A question a peer or the farmer passed on from the user counts as the user's.
 - An entry that is no longer needed: `dropped <date>` and why under `**A:**`. Never delete an entry.
 
-One entry per question, appended, numbered on (create the file with the heading `# Questions and answers` when
-missing; a record plan has it since `plan.py new`, and an answer that is a decision gets the line `**Decision:**
-D<n>` below its `**A:**`, naming the ledger entry of step 1):
+One entry per question, appended, numbered on. **Write it with hal2's CLI** (plan 0329: the one template of the Q
+form, the number taken under a file lock; `hal2-cli-plans` from `$HAL2_CLI_PLANS`, else on PATH). Pass the store of
+this step (`--store`: the CLI's own default for work without a plan is the root `QUESTIONS.md`, this skill's is
+`plans/questions.md`), run from the checkout's root:
+
+```bash
+Q="$(python3 $S/questions.py --path)"
+hal2-cli-plans questions add "<the question, with the explanation needed to decide>" --store "$Q" \
+  --option "<first, the recommended one>" --option "<second>" --option "<third>"     # --by agent (default); prints Q<n>
+hal2-cli-plans questions add "\"<the user's words, quoted>\"" --by user --store "$Q"   # the user's own question: no options
+hal2-cli-plans questions answer <n> "<the answer; the user's own words quoted>" [--decision <n>] --store "$Q"   # or --drop "<why>"
+```
+
+`add` refuses an agent question without exactly three options and writes "(Recommended)" before the first; an
+answered entry shows the answer under its options. Never write the options inline in the question text. Without
+`hal2-cli-plans` (a machine without hal2) write the stored format by hand (create the file with the heading `# Questions
+and answers` when missing; a record plan has it since `plan.py new`, and an answer that is a decision gets the line
+`**Decision:** D<n>` below its `**A:**`, naming the ledger entry of step 1):
 
 ```markdown
 ## Q<n> · <YYYY-MM-DD> · <agent | user> · <open | answered <YYYY-MM-DD> | dropped <YYYY-MM-DD>>
 
 **Q:** <the question; the user's own words quoted>
+  a) (Recommended) <option> — <its consequence>
+  b) <option> — <its consequence>
+  c) <option> — <its consequence>
 **A:** <the answer; the user's own words quoted when the user gave it>
 ```
 
-An open entry has no `**A:**` line. Check it: `python3 $S/questions.py --check` prints `ok` or one problem per line.
+An open entry has no `**A:**` line; an agent's question has exactly the three option lines, each on its own line,
+indented two spaces. Check it: `python3 $S/questions.py --check` prints `ok` or one problem per line (an open agent
+question not in the Q form is one; the CLI's `questions check` does the check when installed, else the script's
+own).
 
 ### 3. Gather facts, don't recall them
 

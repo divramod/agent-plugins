@@ -87,7 +87,8 @@ class MtmCiTest(unittest.TestCase):
                                                        "03-hz01-host-a/01-stack-test", "04-xxx1hx/02-gate", "01-merge")],
                          ["merge", "rust-lint", "stack-test", "gate", "01-merge"])
         self.assertTrue(all(mtm_ci.is_ship(n) for n in ("04-mac-host-a/05-ci-cache-clean-mac-host",
-                                                         "04-mac-host-a/01-git-pull-main", "04-mac-vm-a/02-agents-publish")))
+                                                         "04-mac-host-a/01-git-pull-main", "04-mac-vm-a/02-agents-publish",
+                                                         "04-mac-host-b/01-hub-deploy")))
         self.assertFalse(mtm_ci.is_ship("03-hz01-host-b/01-merge"))
         self.assertTrue(all(mtm_ci.is_build(n) for n in ("02-mac-vm-a/01-tmux-build-mac", "03-mac-host-a/02-mac-vm-build-plan")))
         self.assertFalse(mtm_ci.is_build("02-mac-vm-a/01-bash-test"))

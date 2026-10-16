@@ -14,11 +14,12 @@
       scan, then write the round's summary (queue, landings, worktrees, findings, the
       boss's actions and notes) to summaries/<day>/<HHMM>.md and latest.md in the farmer's state
       folder (roles/farmer/ of its worktree, ignored by the role folder's .gitignore)
-  scan.py priority <worktree>... [--note <why>] | priority --clear | priority --done <worktree>
+  scan.py priority <worktree>... [--note <why>] [--by <who>] | priority --clear | priority --done <worktree>
       the worktrees the user wants landed first: hal2 orders the queue (`hal2-cli-git worktree
       queue order`: listed worktrees first, each place reserved, the holder never preempted);
       priority.json keeps the user's request and why (findings name them first); --done takes
-      a landed worktree off it (hal2 drops it from its order when its turn ends)
+      a landed worktree off it (hal2 drops it from its order when its turn ends); the order is
+      stamped `--by <repo>/<role>-<project>` (hal2/farmer-hal2), `--by user` when the farmer relays the user's words
   scan.py status [--json]
       the priority, the pause flag, the last scan, the actions of the last 6 h
 
@@ -439,9 +440,18 @@ def log(main: str, entry: dict, role: str = roles.ROLE) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
+def setter(main: str, role: str = roles.ROLE) -> str:
+    """Who sets the order, as the queue's other stamps write a field: `<repo>/<role>-<project>` (`hal2/farmer-hal2`).
+
+    `queue order` runs in the main checkout, where hal2's own default would say `<repo>/main`."""
+    return f"{roles.main_checkout(main).name}/{roles.slot_name(main, role)}"
+
+
 def priority(main: str, slots: list[str], note: str = "", clear: bool = False, done: str = "",
-             role: str = roles.ROLE) -> int:
+             role: str = roles.ROLE, by: str = "") -> int:
     """The user's landing order: hal2 orders the queue (`worktree queue order`), priority.json keeps the request.
+
+    `by` is the setter hal2 shows (`--by`): the role's field, or `user` when the farmer relays the user's words.
 
     `done` only takes a landed worktree off priority.json: hal2 drops it from its own order when its turn ends."""
     f = state_dir(main, role) / "priority.json"
@@ -454,9 +464,17 @@ def priority(main: str, slots: list[str], note: str = "", clear: bool = False, d
             f.unlink(missing_ok=True)
         log(main, {"kind": "priority", "slot": done, "what": "done", "note": ""}, role)
     else:
-        args = ["hal2-cli-git", "worktree", "queue", "order", *(["--clear"] if clear else slots), "--json"]
+        args = ["hal2-cli-git", "worktree", "queue", "order", *(["--clear"] if clear else slots),
+                "--by", by or setter(main, role), "--json"]
         try:
             r = subprocess.run(args, cwd=main, capture_output=True, text=True, timeout=120)
+            if r.returncode != 0 and "unknown argument" in (r.stderr + r.stdout) and "--by" in args:
+                # The installed hal2-cli-git predates `--by` (skills and CLI are delivered separately): once without.
+                i = args.index("--by")
+                args = args[:i] + args[i + 2:]
+                print("scan.py: this hal2-cli-git does not know --by yet: ordered without it, hal2 stamps its own "
+                      "setter", file=sys.stderr)
+                r = subprocess.run(args, cwd=main, capture_output=True, text=True, timeout=120)
         except (OSError, subprocess.TimeoutExpired) as e:
             print(f"scan.py: {' '.join(args)}: {e}", file=sys.stderr)
             return 1
@@ -563,6 +581,8 @@ def main(argv: list[str]) -> int:
     pr.add_argument("--note", default="")
     pr.add_argument("--clear", action="store_true")
     pr.add_argument("--done", default="", metavar="SLOT", help="take a landed worktree off priority.json")
+    pr.add_argument("--by", default="", metavar="WHO", help="who sets the order: default the role's field "
+                    "(hal2/farmer-hal2), `user` when relaying the user's words")
     pr.add_argument("--repo", default=os.getcwd())
     sm = sub.add_parser("summary")
     sm.add_argument("--repo", default=os.getcwd())
@@ -591,7 +611,7 @@ def main(argv: list[str]) -> int:
     elif args.cmd == "priority":
         if not (args.slots or args.clear or args.done) or (args.clear and args.slots):
             p.error("priority takes worktrees, --clear or --done <worktree>")
-        return priority(main_dir, args.slots, args.note, args.clear, args.done, role)
+        return priority(main_dir, args.slots, args.note, args.clear, args.done, role, args.by)
     elif args.cmd == "summary":
         snap = snapshot(args.repo, args.hours, role=role)
         (state_dir(main_dir, role) / "last-scan.json").write_text(json.dumps(snap, indent=1))

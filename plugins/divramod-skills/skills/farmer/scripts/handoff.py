@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import deliver
+import due
 import mtm_scan
 import roles
 import wake
@@ -61,6 +62,17 @@ def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> s
     return None if written >= since else f"{f} is older than this handoff ({since:%H:%M}): write it first"
 
 
+def session_effort(top: str, wiring: roles.Wiring) -> str:
+    """The effort a role's session runs at (ROLE.md's `session_effort`, default high); an unreadable or invalid
+    setting falls back to the default: the clear must still happen."""
+    try:
+        text = (Path(top) / wiring.role_file).read_text()
+    except OSError:
+        return due.SESSION_EFFORT
+    value = due.schedule(text, wiring.duties)[1]["session_effort"]
+    return value if value in due.EFFORTS else due.SESSION_EFFORT
+
+
 def clear(top: str, main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> tuple[int, str]:
     """Start the clear-and-continue of the role's session once handoff.md is written: (exit code, what happened)."""
     why, role = fresh(main, now, wiring), wiring.role
@@ -71,6 +83,8 @@ def clear(top: str, main: str, now: dt.datetime, wiring: roles.Wiring = roles.FA
         return 1, f"no {role} session"
     session = (deliver.agent(pane) or {}).get("session_id")
     args = ["clear-and-continue", "--pane", pane, "--prompt", wiring.act, "--without-plan", "--detach", "--json"]
+    if wiring.session_effort:
+        args += ["--effort", session_effort(top, wiring)]
     code, out = deliver.cli(*args, *(["--session", session] if session else []))
     try:
         result = json.loads(out)

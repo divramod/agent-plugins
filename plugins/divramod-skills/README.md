@@ -67,7 +67,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [sanity-watch](skills/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [tell](skills/tell/SKILL.md) | summarizes a URL, file or topic into a note |
 | [transplant](skills/transplant/SKILL.md) | moves a foreman with its branch, plan and handoff to another field; only the user starts it (`.adr/transplant-by-command.md`) |
-| [wagon-master](skills/wagon-master/SKILL.md) | the third base role: brings the foremen's ready wagons through the merge queue into the barn as wagon trains, with its own field, timer, message board and yard job; the farmer's frame (`farmer/scripts`) runs its rounds; its scripts: `wagon_master.py`, `trains.py`, `trial.py`, `stack_red.py` (a red stack-test after the merge), `engine.py`, `train_state.py`, `board.py` (`list`, `sync`), `yard.py`, `yard_rules.py`, `yard_report.py`, `boss.py` |
+| [wagon-master](skills/wagon-master/SKILL.md) | the third base role: brings the foremen's ready wagons through the merge queue into the barn as wagon trains, with its own field, timer, message board and yard job; the farmer's frame (`farmer/scripts`) runs its rounds; its scripts: `wagon_master.py`, `trains.py`, `chain.py`, `trial.py`, `proof.py`, `stack_red.py` (a red stack-test after the merge), `pretest.py`, `pretest_jobs.py`, `pretest_markers.py` and `pretest_train.py` (the local pretest before a train's push), `engine.py`, `carrier.py` (the carrier's remote branch put back on a base), `train_state.py`, `board.py` (`list`, `sync`), `yard.py`, `yard_rules.py`, `yard_report.py`, `boss.py` |
 
 ## Rules
 

@@ -41,7 +41,7 @@ and `Window` (200k, 1m; 1m for the 5.x models) are its own, `Size` its estimated
 | # | Step | Done when | Model | Effort | Window | Size | Status |
 |---|---|---|---|---|---|---|---|
 | 1 | <step> | <a check anyone can run> | opus | medium | 1m | 150k | next |
-| 2 | Write the UATs: `uat.md` beside this file (`plan.py uat`), only the checks a human must do on the default branch after the landing | `plan.py current` shows `uat` with its checks | sonnet | medium | 1m | 100k | |
+| 2 | Write the UATs and the changelog fragment: `uat.md` and `changelog.md` beside this file (`plan.py uat`, `plan.py changelog`), the UATs only the checks a human must do after the landing | `plan.py current` shows `uat` with its checks; `hal2-cli-changelog check` passes | sonnet | medium | 1m | 100k | |
 
 ## Pre-authorized
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """The questions of the session's store, printed in the Q form. No model call, read-only.
 
+`hal2-cli-plans questions list` prints (`$HAL2_CLI_PLANS`, else the one on PATH); when it is missing or fails, q.py
+prints through its own parser (handoff's `qform.py`: an old entry's inline options split onto their own lines too). A store
+with malformed open questions gets one warning line after the list.
+
   q.py [open]       the open questions (the default)
   q.py a|answered   the answered ones
   q.py l|list       all: the open first, then the answered and dropped, each by number
@@ -21,8 +25,12 @@ import argparse
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import qshape  # noqa: E402  (beside this script)
 
 SKILLS = Path(__file__).resolve().parent.parent.parent
 HANDOFF_SCRIPTS = SKILLS / "handoff" / "scripts"
@@ -45,6 +53,9 @@ def load_by_path(name: str, path: Path):
     return mod
 
 
+# The Q form (CLI lookup, the one inline split of D3, the form check): handoff's qform.py (D9), loaded first under
+# its own name so handoff's questions.py finds the same module when it imports it.
+qform = load_by_path("qform", HANDOFF_SCRIPTS / "qform.py")
 questions = load_by_path("handoff_questions", HANDOFF_SCRIPTS / "questions.py")
 
 MODES = {"open": "open", "a": "answered", "answered": "answered", "l": "all", "list": "all"}
@@ -107,8 +118,9 @@ def pick(entries: list[dict], mode: str) -> list[dict]:
 
 
 def render_entry(e: dict) -> str:
-    first, *rest = (e["question"] or "").split("\n")
-    lines = [f"Q{e['n']}: {first}".rstrip(), *rest]
+    text, options, _ = qform.lines_of(e["question"])
+    first, *rest = text.split("\n")
+    lines = [f"Q{e['n']}: {first}".rstrip(), *rest, *options]
     if e["state"] == "answered":
         lines.append(f"Answer ({e['closed']}): {e['a']}")
     elif e["state"] == "dropped":
@@ -127,6 +139,57 @@ def render(entries: list[dict], mode: str, store: str) -> str:
     else:
         head = f"{n} {mode} question{'s' * (n != 1)} ({store})"
     return head + "\n\n" + "\n\n".join(render_entry(e) for e in chosen)
+
+
+def cli_path() -> str | None:
+    """The CLI: `$HAL2_CLI_PLANS` when set (a missing file means none), else `hal2-cli-plans` on PATH."""
+    return qform.binary() if qform else None
+
+
+def run_cli(cli: str, root: Path, *args: str, ok=(0,)) -> subprocess.CompletedProcess | None:
+    try:
+        run = subprocess.run([cli, "questions", *args], cwd=root, text=True, capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return run if run.returncode in ok else None
+
+
+def cli_problems(cli: str, root: Path, rel: str) -> list[dict] | None:
+    """The store's problems from `questions check --json` ({n, message}); None when the CLI cannot say."""
+    run = run_cli(cli, root, "check", "--json", "--store", rel, ok=(0, 1))
+    try:
+        return json.loads(run.stdout)["problems"] if run else None
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def via_cli(args, root: Path, rel: str, mode: str) -> int | None:
+    """Print through `hal2-cli-plans questions list`; None when the CLI is missing or fails (then q.py's own path
+    prints). `questions check --json` names the store's problems: a malformed option form of an open agent entry
+    (told by its entry, see `qshape.is_form_problem`) becomes one warning line after the list; any other problem
+    breaks the store as before: one line naming the file, exit 1."""
+    cli = cli_path()
+    if not cli:
+        return None
+    printed = run_cli(cli, root, "list", f"--{mode}", "--json" if args.json else "--markdown", "--store", rel)
+    problems = cli_problems(cli, root, rel)
+    if printed is None or problems is None or not printed.stdout.strip():
+        return None
+    if problems:
+        data = run_cli(cli, root, "list", "--all", "--json", "--store", rel)
+        try:
+            entries = json.loads(data.stdout)["entries"]
+        except (AttributeError, ValueError, KeyError):
+            return None
+        broken = [p for p in problems if not qshape.is_form_problem(p["n"], entries)]
+        if broken:
+            print(f"{rel}: {broken[0]['message']}" + (f" (and {len(problems) - 1} more)" if len(problems) > 1 else ""))
+            return 1
+    out = printed.stdout
+    sys.stdout.write(out if out.endswith("\n") else out + "\n")
+    if problems and not args.json:
+        print(qshape.warning([(p["n"], p["message"]) for p in problems]))
+    return 0
 
 
 def in_farmer_slot(root: Path) -> bool:
@@ -155,24 +218,32 @@ def main(argv: list[str]) -> int:
     if args.path:
         print(rel)
         return 0
-    if questions is None:
-        print(f"q: the handoff skill's questions.py is not found in {HANDOFF_SCRIPTS}", file=sys.stderr)
-        return 2
     if in_farmer_slot(root):
         done = hand_over(args, root)
         if done is not None:
             return done
     mode = MODES[args.mode]
+    done = via_cli(args, root, rel, mode)
+    if done is not None:
+        return done
+    if questions is None or qform is None:
+        print(f"q: no hal2-cli-plans, and the handoff skill's questions.py is not found in {HANDOFF_SCRIPTS}", file=sys.stderr)
+        return 2
     try:
         entries = load(path)
     except ValueError as err:
         print(f"{rel}: {err}")
         return 1
     if args.json:
-        keys = ("n", "asked", "by", "state", "closed", "question", "a")
-        print(json.dumps({"store": rel, "mode": mode, "entries": [{k: e[k] for k in keys} for e in pick(entries, mode)]}))
+        decided = qshape.decisions(path.read_text())
+        chosen = [qshape.json_entry(qform, e, decided.get(e["n"])) for e in pick(entries, mode)]
+        bad = [{"n": e["n"], "message": why} for e in entries if (why := qshape.form_problem(qform, e))]
+        print(json.dumps({"store": rel, "mode": mode, "entries": chosen, "problems": bad}, indent=2))
     else:
         print(render(entries, mode, rel))
+        bad = [(e["n"], why) for e in entries if (why := qshape.form_problem(qform, e))]
+        if bad:
+            print(qshape.warning(bad))
     return 0
 
 

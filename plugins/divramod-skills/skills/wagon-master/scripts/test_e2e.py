@@ -130,10 +130,12 @@ class Proof(unittest.TestCase):
 
     def farm(self) -> dict:
         """Everything a dry run could change: the queue's files, each checkout's branch, head and uncommitted
-        files, every ref of the repository and of its origin, and the wagon master's role folder."""
+        files, every ref of the repository and of its origin, and the wagon master's role folder (its cache/ aside: a
+        car's proof verdict, proof.py, may be kept by a dry run too)."""
         tops = [self.yard, self.wm, *self.fields.values()]
         queue = self.home / ".hal/git/worktree/hal2/.merge-queue"
-        files = sorted(p for d in (queue, self.wm / "roles") for p in d.rglob("*") if p.is_file() and p.name != ".lock")
+        files = sorted(p for d in (queue, self.wm / "roles") for p in d.rglob("*") if p.is_file() and p.name != ".lock"
+                       and "cache" not in p.relative_to(d).parts)
         return {"files": {str(p): p.read_bytes() for p in files},
                 "tops": [self.git(t, "status", "--porcelain=v1", "--branch", "--untracked-files=all") for t in tops],
                 "refs": [self.git(t, "for-each-ref") for t in (self.yard, self.tmp / "hal2.git")]}

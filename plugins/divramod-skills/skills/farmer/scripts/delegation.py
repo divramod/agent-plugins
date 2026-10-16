@@ -5,8 +5,10 @@ session stopped (delete-worktree-session's stop.py).
 
 The sessions the farmer hands plans to (the user's glossary: foremen; `servant_*` in the names here) work in the first free
 worktree counting from 00 (plan 0270, D13: "the farmer should start in the first free worktree from 00"): a free
-session is reused in the lowest numbered worktree that has one, and a new one starts with `create.py --from 00`. A
-foreman's own servants stay in 30-99 (the record `subservants-in-slots-30-99`; prune.py, the plan skill). The follow-up
+session is reused in the lowest numbered worktree that has one, and a new one starts with `create.py --from 00 --to 29`
+(a clean worktree without a session, one prune.py counts as landed and cleaned, is taken there too). A foreman never
+starts in 30-99, where a wagon is refused (plan 0333 D11): with no free field 00-29 the delegation waits and says so.
+A foreman's own servants stay in 30-99 (the record `subservants-in-slots-30-99`; prune.py, the plan skill). The follow-up
 reads only this ledger, so a session the farmer did not start is never followed up or stopped here.
 
 A foreman is its plan's coordinator (skills plan 0016, D7): it runs every step in a subagent. It starts at the ROLE
@@ -38,6 +40,9 @@ STOP = [sys.executable, str(SKILLS / "delete-worktree-session/scripts/stop.py"),
 SESSION = [sys.executable, str(SKILLS / "plan/scripts/session.py")]
 SWITCH = ["hal2-cli-agents", "switch"]
 FROM = 0  # the first worktree a farmer-started session may work in (plan 0270, D13); a foreman's own servants: 30-99
+TO = 29  # the last one: a foreman never works in 30-99, where the wagon master refuses its wagon (plan 0333, D11)
+NO_FIELD = f"no free field {FROM:02d}-{TO:02d}"
+NO_FREE_EXIT = 3  # create.py: no free and clean worktree in its range
 SETTLE = dt.timedelta(minutes=30)  # a foreman younger than this has not started its plan yet
 ROLE = Path(__file__).resolve().parents[1] / "templates" / "SERVANT-ROLE.md"
 # Plan 0016's D7, verbatim: the same sentence in the plan skill and every foreman prompt (grep for it).
@@ -119,9 +124,9 @@ def write_role(main: str, brief: Path, title: str, now: dt.datetime, task: str |
 
 
 def servant_slot(slot) -> bool:
-    """A numbered worktree FROM-99 (00-99), where the farmer-started sessions work; `main` and the role worktrees
-    (`farmer-<repo>`) are not."""
-    return isinstance(slot, str) and len(slot) == 2 and slot.isdigit() and int(slot) >= FROM
+    """A numbered worktree FROM-TO (00-29), where the farmer-started sessions (foremen) work; `main`, the role worktrees
+    (`farmer-<repo>`) and the servants' worktrees 30-99 are not."""
+    return isinstance(slot, str) and len(slot) == 2 and slot.isdigit() and FROM <= int(slot) <= TO
 
 
 def servant_values(settings: dict | None = None) -> dict:
@@ -190,14 +195,21 @@ def start(prompt: str, main: str, dry: bool, values: dict | None = None) -> dict
                 return {"slot": w.get("slot"), "how": "switch", **values}
         elif not deliver.send(pane, prompt):
             return {"slot": w.get("slot"), "how": "free", **values}
-    argv = CREATE + ["--repo", main, "--from", f"{FROM:02d}"] + flags + ["--prompt", prompt]
+    argv = CREATE + ["--repo", main, "--from", f"{FROM:02d}", "--to", f"{TO:02d}"] + flags + ["--prompt", prompt]
     if dry:
         return {"slot": None, "how": "new", **values, "calls": [FREE + ["--repo", main], argv]}
     code, out = call(argv, main)
+    if code == NO_FREE_EXIT:
+        return {"wait": NO_FIELD}
     try:
-        return {"slot": json.loads(out).get("slot"), "how": "new", **values} if code == 0 else {"error": out[-500:] or code}
+        slot = json.loads(out).get("slot") if code == 0 else None
     except json.JSONDecodeError:
         return {"error": out[-500:]}
+    if code != 0:
+        return {"error": out[-500:] or code}
+    if not servant_slot(slot):  # an older create.py ignoring --to: the session is started, say where
+        return {"error": f"create.py started a foreman in field {slot}, outside {FROM:02d}-{TO:02d}: refused; stop it"}
+    return {"slot": slot, "how": "new", **values}
 
 
 AUTO_LOAD = 0.8  # `servant_limit: auto`: a new foreman only while load1 / cores stays below this
@@ -235,12 +247,20 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
         role = write_role(main, brief, a["text"][:80], now, a.get("role_task")) if not dry else Path("<role>")
         prompt = a.get("prompt", PROMPT).format(repo=Path(main).name, farmer_slot=roles.slot_name(main), brief=brief, title=a["text"][:80], role=role)
         started = start(prompt, main, dry, values or servant_values())
-        state = "error" if "error" in started else "planned" if dry else "running"
-        result = {"key": a["key"], "state": state, "brief": str(brief), "role": str(role), "title": a["text"],
-                  **started}
+        if "wait" in started:  # no free field 00-29: stays queued like at the limit, with the reason
+            result = {"key": a["key"], "state": "waiting", "reason": started["wait"], "brief": str(brief),
+                      "title": a["text"], **own}
+        else:
+            state = "error" if "error" in started else "planned" if dry else "running"
+            result = {"key": a["key"], "state": state, "brief": str(brief), "role": str(role), "title": a["text"],
+                      **started}
+    again = held.get(a.get("key"), {})  # a waiting entry retried for the same reason is neither noted nor logged again
+    if result.get("reason") and again.get("state") == "waiting" and again.get("reason") == result["reason"]:
+        return result
     if not dry:
         note(main, {k: v for k, v in result.items() if k != "calls"}, now)
         at = f" at {result['model']} {result['effort']}" if result.get("model") else ""
+        at += f" ({result['reason']})" if result.get("reason") else ""
         mtm_scan.log(main, {"kind": "delegate", "slot": result.get("slot") or "-", "what": a["text"],
                             "note": f"{result['state']}{at} {brief}", "by": "tick", "key": a.get("key", "")})
     return result

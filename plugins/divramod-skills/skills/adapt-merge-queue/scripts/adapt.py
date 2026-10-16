@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Set the user's merge-queue order and say what each affected worktree must hear.
 
-  adapt.py <worktree>... [--note WHY] [--repo DIR] [--instruct] [--json]
-  adapt.py clear [--repo DIR] [--instruct] [--json]
+  adapt.py <worktree>... [--note WHY] [--by WHO] [--repo DIR] [--instruct] [--json]
+  adapt.py clear [--by WHO] [--repo DIR] [--instruct] [--json]
 
 hal2 owns the order (`hal2-cli-git worktree queue order`, hal2 plan 0143): the listed worktrees land first, in this
 order, before every other waiting landing, also one enqueued later; the holder is never preempted. A listed worktree is a
 reservation: without a ticket it gets one at its place, and at the front the queue waits for it until its own
-merge-to-main takes it over. `clear` drops the list and every reservation.
+merge-to-main takes it over. `clear` drops the list and every reservation. The order is stamped with who sets it
+(`--by`, hal2 plan 0313 D18): by default this session's own field (`hal2/17`, `hal2/farmer-hal2`; `<repo>/main` in the
+main checkout); `--by user` when the session relays the user's own words (hal2 then shows `the user (via hal2/17)`).
 
 Then it prints the queue before and after and one message per worktree to tell:
 each listed worktree its place (a worktree whose work is finished but not queued: land now, it takes its
@@ -56,10 +58,25 @@ def main_checkout(repo: Path) -> Path:
     return Path(first.split(" ", 1)[1]) if first.startswith("worktree ") else repo
 
 
-def queue(main: Path, order: list[str] | None = None) -> dict:
-    """`worktree queue --json`, or `worktree queue order <order> --json` (it answers with the queue after)."""
-    args = ["hal2-cli-git", "worktree", "queue", *(["order", *order] if order is not None else []), "--json"]
+def own_field(repo: Path, main: Path) -> str:
+    """This session's field as the queue's stamps write it: `<repo>/<slot>`, `<repo>/main` in the main checkout."""
+    top = run(["git", "rev-parse", "--show-toplevel"], repo).stdout.strip()
+    slot = Path(top).name if top and Path(top).resolve() != main.resolve() else "main"
+    return f"{main.name}/{slot}"
+
+
+def queue(main: Path, order: list[str] | None = None, by: str = "") -> dict:
+    """`worktree queue --json`, or `worktree queue order <order> --by <who> --json` (it answers with the queue after)."""
+    args = ["hal2-cli-git", "worktree", "queue", *(["order", *order, "--by", by] if order is not None else []),
+            "--json"]
     r = run(args, main)
+    if r.returncode != 0 and by and "unknown argument" in (r.stderr + r.stdout) and "--by" in args:
+        # The installed hal2-cli-git predates `--by` (skills and CLI are delivered separately): once without.
+        i = args.index("--by")
+        args = args[:i] + args[i + 2:]
+        print("adapt.py: this hal2-cli-git does not know --by yet: ordered without it, hal2 stamps its own setter",
+              file=sys.stderr)
+        r = run(args, main)
     if r.returncode != 0:
         die((r.stderr or r.stdout).strip() or f"{' '.join(args)} failed")
     return json.loads(r.stdout)
@@ -151,11 +168,14 @@ def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("slots", nargs="+", help="worktrees in landing order, or `clear`")
     p.add_argument("--note", default="", help="why, as the worktrees hear it")
+    p.add_argument("--by", default="", help="who sets the order: default this session's field, `user` when relaying "
+                   "the user's words")
     p.add_argument("--repo", default=".")
     p.add_argument("--instruct", action="store_true", help="stamp each message with a farmer ack id")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
-    main_dir = main_checkout(Path(args.repo).resolve())
+    repo = Path(args.repo).resolve()
+    main_dir = main_checkout(repo)
     if args.slots == ["clear"]:
         order = ["--clear"]
     elif "clear" in args.slots:
@@ -163,7 +183,7 @@ def main(argv: list[str]) -> int:
     else:
         order = args.slots
     before = queue(main_dir)
-    after = queue(main_dir, order)
+    after = queue(main_dir, order, args.by or own_field(repo, main_dir))
     default = default_branch(main_dir)
     sent = messages(before, after, args.note, lambda w: finished(w, default), lambda: roles.boss(main_dir))
     if args.instruct:

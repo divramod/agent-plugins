@@ -2,7 +2,7 @@
 """Start an agent session in the repository's first free and clean worktree.
 
   create.py [--repo DIR] [--agent claude|codex|opencode] [--model ID] [--effort LEVEL] [--tmux] [--prompt TEXT] [--exact]
-            [--from NN] [--min-free-gb 50]
+            [--from NN] [--to NN] [--min-free-gb 50]
 
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
@@ -11,9 +11,11 @@ fine: the first prompt runs /mfm). The agent starts detached through `hal2-cli-g
 a hal2 terminal host (`--tmux`: a window of hal-<repo>), with a new session whose first prompt runs /mfm, then the
 given prompt (`--exact`: the prompt as given, without /mfm). `--model` and `--effort` go to the agent's process
 (saved nowhere). Prints JSON: slot, pane, worktree, the attach command, the model and effort asked for (null: the
-agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 1 when no worktree is left.
+agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 3 when no free and clean
+worktree is left in the range, 1 for any other failure.
 
-`--from NN` starts the search at worktree NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30). A missing worktree is
+`--from NN` starts the search at worktree NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30), `--to NN`
+ends it there (default 99; the farmer's foremen: 29, a foreman never works in 30-99). A missing worktree is
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 """
 import json
@@ -88,13 +90,13 @@ def work(entry: dict, landing: str | None) -> str | None:
     return f"its landing is {landing} in the merge queue" if landing else None
 
 
-def choose(repo: Path, first: int = 1) -> tuple[str, list[dict], dict | None]:
+def choose(repo: Path, first: int = 1, last: int = 99) -> tuple[str, list[dict], dict | None]:
     listed = json.loads(run("hal2-cli-git", "worktree", "list", "--json", cwd=repo)).get("worktrees", [])
     worktrees = {w["name"]: w for w in listed if not w.get("main")}
     queue = json.loads(run("hal2-cli-git", "worktree", "queue", "--json", cwd=repo)).get("queue", [])
     landings = {t.get("slot"): t.get("state") or "queued" for t in queue if t.get("repo") == repo.name}
     busy, skipped = taken(repo), []
-    for n in range(first, 100):
+    for n in range(first, last + 1):
         slot = f"{n:02d}"
         if slot in busy:
             continue
@@ -102,7 +104,7 @@ def choose(repo: Path, first: int = 1) -> tuple[str, list[dict], dict | None]:
         if why is None:
             return slot, skipped, worktrees.get(slot)
         skipped.append({"slot": slot, "why": why})
-    die(f"no free and clean worktree from {first:02d} to 99")
+    die(f"no free and clean worktree from {first:02d} to {last:02d}", 3)
 
 
 def free_gb(repo: Path) -> float:
@@ -161,10 +163,13 @@ def main(argv: list[str]) -> int:
     first = arg(argv, "--from") or "1"
     if not first.isdigit() or not 0 <= int(first) <= 99:
         die(f"--from needs a worktree from 00 to 99, not '{first}'")
+    last = arg(argv, "--to") or "99"
+    if not last.isdigit() or not int(first) <= int(last) <= 99:
+        die(f"--to needs a worktree from {first} to 99, not '{last}'")
     for gone in ("--lead", "--base"):
         if gone in argv:
             die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in servant worktrees")
-    slot, skipped, entry = choose(repo, int(first))
+    slot, skipped, entry = choose(repo, int(first), int(last))
     prepare(repo, entry, float(arg(argv, "--min-free-gb") or 50))
     report = start(repo, slot, argv, first_prompt(arg(argv, "--prompt"), "--exact" in argv))
     result = {

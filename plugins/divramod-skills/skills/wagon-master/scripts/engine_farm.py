@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import chain
 import engine
 import mtm_scan
 import tick
@@ -98,11 +99,12 @@ class Farm(Field):
         def sh(argv, cwd, timeout=900):
             if argv[0] == "hal2-cli-git":  # the frame's merge-from-main
                 return 0, json.dumps({"status": "ok"})
-            if argv[:2] != [sys.executable, str(trains.ENGINE)]:
+            verbs = {str(trains.ENGINE): engine.main, str(chain.CLI): wagon_master.main}  # in this process
+            if argv[0] != sys.executable or argv[1] not in verbs:
                 return real(argv, cwd, timeout)
             text = io.StringIO()
             with contextlib.redirect_stdout(text):
-                code = engine.main(argv[2:])
+                code = verbs[argv[1]](argv[2:])
             return code, text.getvalue().strip()
 
         def spawn(top, log):

@@ -3,13 +3,19 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
 `slot`). Every change of a train is one appended line, written by one function of `engine.py`:
 
   formed     slot: the carrier (the wagon master's field); `train` (its name, `<car>+<car>@<at>`), `cars`
-             ([{field, branch, head, plan}] in the order they are merged), `base` (the field's head before them)
+             ([{field, branch, head, plan}] in the order they are merged), `base` (the field's head before them);
+             `pushed` when the carrier's remote branch still held an earlier train and went back on the base, or why
+             it did not (plan 0313 step 14)
   yard       the yard's work rides as the train's first car (yard.py, step 8): `commit` (in the field; none
              when the barn holds every file as it is), `files` ([{path, hash}]: the hash of what each path
              carried, none for a deletion)
   regenerated  a car's conflicts in generated files took the barn's side (generated.py, plan 0313 step 8):
              `commit` (the train's last, none when nothing differed), `files` (the paths written again), `why`
-  started    the landing's process: `pid`, `log`; written again by every restart
+  pretest    the train's pretest before its landing (pretest_train.py, plan 0349 D75): `seconds`, `result`
+             (green, red, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state cached, run,
+             skipped or not needed), `why`; its jobs' output in the text log `train-pretest.log`
+  started    the landing's process: `pid`, `log`; written again by every restart; after a `retry` also `commit`,
+             the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
   red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`
   retry      the session's word after a red train: the same train lands again
   unhitched  slot: the field whose ready mark went; `why`; `train` when it was a car of the red train. The slot
@@ -20,9 +26,9 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              and `pushed` when the carrier's remote branch went back on the base, or why it did not
 
 `standing` folds the lines into the train that stands, or None between trains: its `state` is `formed` (merged or
-merging, no landing started), `landing`, `red` (waits for the session), `retry`, or `split` (a car was unhitched
-after red: the rest forms again). The landing's own output is the text log `train-landing.log`, rewritten by every
-start; `result` is its last JSON line.
+merging, no landing started), `landing` (its pretest's result in `pretest`), `red` (waits for the session), `retry`,
+or `split` (a car was unhitched after red: the rest forms again). The landing's own output is the text log
+`train-landing.log`, rewritten by every start; `result` is its last JSON line.
 """
 
 import datetime as dt
@@ -39,7 +45,7 @@ ROLE = "wagon-master"
 FILE, LOG = "train.jsonl", "train-landing.log"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
-KINDS = ("formed", "yard", "regenerated", "started", "red", "retry", "unhitched", "landed", "cleared")
+KINDS = ("formed", "yard", "regenerated", "pretest", "started", "red", "retry", "unhitched", "landed", "cleared")
 
 
 def utc(now: dt.datetime | None = None) -> str:
@@ -101,12 +107,14 @@ def standing(rows: list[dict]) -> dict | None:
             train["yard"] = e.get("files", [])
         elif kind == "regenerated":
             train["regenerated"] = e.get("commit")
+        elif kind == "pretest":
+            train["pretest"] = e.get("result")
         elif kind == "started":
             train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"))
         elif kind == "red":
             train.update(state="red", status=e.get("status"), run=e.get("run"), why=e.get("why", ""))
         elif kind == "retry":
-            train.update(state="retry")
+            train.update(state="retry", retried=e.get("why", ""))
         elif kind == "unhitched":
             train["unhitched"].append({"field": e.get("slot"), "why": e.get("why", "")})
             train["state"] = "split"

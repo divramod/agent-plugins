@@ -9,19 +9,23 @@ Between trains (`draft`, steps 1 to 4; `wagon_master.py train --dry-run` prints 
 2. what cannot ride is unhitched: a head that is in the barn already (no message), a servant's field (30-99);
    while a place the user reserved for a field that is not ready stands in the queue, the others wait: a landing
    waits behind such a place (.adr/merge-queue-policy.md rule 2), and that field is to land first
-3. the alone rule (D11): a crop touching the landing workflow, a gate job list or the runner setup (ALONE) is a
-   train of one; first in the queue it rides alone, otherwise it waits for the next train
+3. the alone rule (D11): a crop touching the landing workflow, a gate job list or the runner setup (ALONE) never
+   rides with other crops; the ALONE crops ride together as one gate train (hal2 plan 0333 D3). The first car that
+   rides sets the train's kind: ALONE first, a gate train takes every further ALONE car and the others wait for the
+   next train; otherwise a normal train, and the ALONE cars wait for the next (gate) train
 4. the trial merge in queue order (trial.py): a wagon that conflicts is unhitched and its foreman told why (a
    template), unless every file of the conflict is generated (generated.py: the train writes them again); the
    rest rides, no maximum
 5. `engine.py form`: the yard's work as the first car (yard.py, step 8), merge, mark, start the landing detached;
    what the yard keeps is told to the farmer (yard_report.py)
 
-While a train stands (`standing`, step 6): its landing still runs: nothing. Landed: every car's foreman is told
-"in the barn" (D12). Red: one wake (`train-failed`), then nothing until the session's `wagon_master.py unhitch` or
-`retry`. Interrupted (the process gone without a result): the same landing again, it adopts the run; after
-MAX_STARTS the session is woken instead. A car unhitched after red, or a train never started: broken up, and the
-rest forms again in the same round. A mark without a train of ours (a dead wagon master's, step 7) is cleared.
+While a train stands (`standing`, step 6): its landing still runs: nothing. Landed: every car's foreman is told "in
+the barn" (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest
+before the push, `pretest_red`: pretest_train.py): one wake (`train-failed`), then nothing until the session's
+`wagon_master.py unhitch` or `retry`. Interrupted (the process gone without a result): the same landing again, it
+adopts the run; after MAX_STARTS the session is woken instead. A car unhitched after red (the unhitch call itself
+goes on, chain.py), or a train never started: broken up, and the rest forms again in the same round. A mark without
+a train of ours (a dead wagon master's, step 7) is cleared.
 """
 
 import json
@@ -31,8 +35,10 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
+import chain
 import generated
 import mtm_scan
+import proof
 import stack_red
 import train_state
 import trial as trial_merge
@@ -44,6 +50,7 @@ ROLE = "wagon-master"
 TRAIN = ROLE + " (wagon train)"
 ENGINE = Path(__file__).with_name("engine.py")
 ALONE = re.compile(r"^(\.github/workflows/|\.github/hal2-[^/]*\.toml$|code/bash/scripts/gate/)")
+PROVE = proof.verdict  # (main, field, head, barn) -> {state: green | red | wait, lines}; a test fakes it
 MAX_STARTS = 5  # an interrupted landing is started again this often, then the session looks
 HOUR = 3600
 LANDED = ("landed", "nothing")  # the landing's results that mean: every car's crop is in the barn
@@ -54,6 +61,8 @@ HITCH = "report it ready again (`hal2-cli-git worktree queue ready`)"
 TEXT = {
     "conflict": TRAIN + ": field {field} is unhitched: its crop conflicts with {what} in {files}. {then}, resolve "
                         "it, push and " + HITCH + ".",
+    "proof": TRAIN + ": field {field} is unhitched before it rode: its light gate checks are red on {head}:\n{lines}\n"
+                     "Fix it, push and " + HITCH + ".",
     "servant": TRAIN + ": field {field} is unhitched: a servant's field (30-99) never rides a train, its foreman "
                        "merges its branch.",
     "split": TRAIN + ": field {field} is unhitched from the red train: {why}. Fix it, push and " + HITCH + ".",
@@ -79,7 +88,7 @@ def servant(field: str) -> bool:
 
 
 def alone_files(main: str, default: str, head: str) -> list[str]:
-    """The crop's files that make it ride alone (D11): what `head` changed since it left the barn."""
+    """The crop's ALONE files (D11), which make it a gate train's car: what `head` changed since it left the barn."""
     return [f for f in trial_merge.git(main, "diff", "--name-only", f"{default}...{head}")[1].splitlines()
             if ALONE.match(f)]
 
@@ -127,13 +136,13 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str) -> 
     acc, held = base, held_for(tickets, own)
     for t in wagons:
         field, head = t["slot"], t["ready"]["head"]
-        if held or out["alone"]:
-            why = HELD.format(field=held) if held else f"{out['cars'][0]['field']} rides alone"
-            out["waiting"].append({"field": field, "why": why})
+        if held:
+            out["waiting"].append({"field": field, "why": HELD.format(field=held)})
             continue
         touched = alone_files(main, default, head)
-        if touched and out["cars"]:
-            out["waiting"].append({"field": field, "why": f"rides alone in the next train ({touched[0]})"})
+        if out["cars"] and bool(touched) != out["alone"]:  # the first car that rides sets the train's kind
+            why = f"a gate train ({touched[0]})" if touched else "after the gate train"
+            out["waiting"].append({"field": field, "why": "rides in the next train, " + why})
             continue
         commit, files = trial_merge.merge(main, acc, head)
         if commit is None:
@@ -145,6 +154,11 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str) -> 
                               "files": files, "ahead": ahead,
                               "why": f"conflicts with {'the cars ahead' if ahead else 'the barn'} in "
                                      + ", ".join(files[:5])})
+        elif (proven := PROVE(main, t["worktree"], head, default))["state"] == "wait":
+            out["waiting"].append({"field": field, "why": proven["lines"][0]})
+        elif proven["state"] == "red":
+            unhitched.append({"field": field, "head": head, "at": t["ready"].get("at", ""), "tell": "proof",
+                              "lines": proven["lines"], "why": "its light gate checks are red: " + proven["lines"][0]})
         else:
             out["cars"].append({"field": field, "branch": t.get("branch") or field, "head": head,
                                 "plan": current_plan(t["worktree"])})
@@ -179,14 +193,16 @@ def train_actions(top: str, d: dict, panes: dict, after: str | None = None) -> l
         # The same cars are not formed again within the hour, unless this round broke their train up before.
         key = "form:" + "+".join(f"{c['field']}@{c['head'][:12]}" for c in d["cars"]) + (f":{after}" if after else "")
         out.append(run("form", "-", key, "form", top, "--cars", json.dumps(d["cars"]), window=HOUR,
-                       text=f"wagon train: {', '.join(fields)}" + (" (alone)" if d["alone"] else ""), **chain))
+                       text=f"wagon train: {', '.join(fields)}" + (" (gate train)" if d["alone"] else ""), **chain))
     return out
 
 
 def unhitched_text(u: dict) -> str:
-    """What a foreman is told whose field the draft unhitched (`tell`: `servant` or `conflict`)."""
+    """What a foreman is told whose field the draft unhitched (`tell`: `servant`, `proof` or `conflict`)."""
     if u["tell"] == "servant":
         return TEXT["servant"].format(field=u["field"])
+    if u["tell"] == "proof":
+        return TEXT["proof"].format(field=u["field"], head=u["head"][:12], lines="\n".join(u["lines"]))
     ahead = ", ".join(u["ahead"])
     return TEXT["conflict"].format(
         field=u["field"], files=", ".join(u["files"][:5]), what=f"the cars ahead ({ahead})" if ahead else "the barn",
@@ -204,15 +220,17 @@ def settle(top: str, train: dict, result: dict | None, panes: dict) -> list[dict
                    text=f"train {name} is in the barn")
         text = TEXT["barn"].format(cars=cars, run=f", {link}" if link else "")
         return [done] + [tell("in-the-barn", c["field"], f"barn:{name}:{c['field']}", text, panes, key)
-                         for c in train["cars"]] + stack_red.actions(top, train, result, panes, key)
+                         for c in train["cars"]] + stack_red.actions(top, train, result, panes, key) + [
+                            chain.action(top, key)]  # the next train in this round
     if status in AGAIN and train["starts"] < MAX_STARTS:
         return [run("restart", "-", f"restart:{name}:{train['starts']}", "restart", top,
                     text=f"train {name}: its landing ended {status or 'without a result'}, started again")]
     if status in AGAIN:
         status, why = "interrupted", f"its landing ended without a result {train['starts']} times"
     else:
-        red = ", ".join(j.get("name", "") for j in result.get("red") or [])
-        why = (red or result.get("message") or status)[:300]
+        red, suspects = ", ".join(j.get("name", "") for j in result.get("red") or []), result.get("suspects")
+        why = ((f"{red}, suspects: {', '.join(suspects)}" if red and suspects else red) or result.get("message")
+               or status)[:300]
     link, key = (result or {}).get("run"), f"red:{name}:{train['starts']}"
     plans = ", ".join(f"{c['field']} ({c.get('plan') or c['branch']})" for c in train["cars"])
     plans += f", yard ({len(train['yard'])} files of the yard)" if train.get("yard") else ""
@@ -288,7 +306,7 @@ def dry_run(repo: str) -> dict:
 def print_dry_run(d: dict) -> None:
     t = d["standing"]
     print(f"standing: train {t['train']} ({t['state']})" if t else "standing: no train")
-    print("next train" + (" (alone)" if d["alone"] else "") + ": "
+    print("next train" + (" (gate train)" if d["alone"] else "") + ": "
           + (", ".join(f"{c['field']} ({c['plan'] or c['branch']}, {c['head'][:12]})" for c in d["cars"]) or "none"))
     for name in ("unhitched", "waiting"):
         for x in d[name]:

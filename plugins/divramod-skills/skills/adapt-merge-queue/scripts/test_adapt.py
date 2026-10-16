@@ -9,9 +9,17 @@ from pathlib import Path
 import adapt
 
 HERE = Path(__file__).resolve().parent
-# hal2's hal2-cli-git with `worktree queue order` (plan 0143); the installed one may predate it.
-HAL2_CLI_GIT = os.environ.get("HAL2_CLI_GIT") or str(
-    Path.home() / ".hal/git/worktree/hal2/18/code/rust/target/debug/hal2-cli-git")
+# hal2's hal2-cli-git with `worktree queue order ... --by` (plans 0143, 0313 step 11): this worktree's own build, else
+# the one in HAL2_CLI_GIT; the installed one may predate it.
+HAL2_CLI_GIT = os.environ.get("HAL2_CLI_GIT") or str(HERE.parents[6] / "code/rust/target/debug/hal2-cli-git")
+
+
+def has_by(binary: str) -> bool:
+    """Whether the binary knows `worktree queue order --by`."""
+    if not Path(binary).exists():
+        return False
+    r = subprocess.run([binary, "help"], capture_output=True, text=True)
+    return "queue order" in r.stdout and "--by" in r.stdout
 
 
 def ticket(slot, pid=7, reserved=False, state="waiting"):
@@ -71,7 +79,74 @@ class Messages(unittest.TestCase):
                                "the user)\npriority: 18\ntell: nobody")
 
 
-@unittest.skipUnless(Path(HAL2_CLI_GIT).exists(), "needs a hal2-cli-git with `worktree queue order`")
+class Setter(unittest.TestCase):
+    """Hal2 plan 0313 step 12 (D18): the order names who set it (`queue order ... --by <who>`)."""
+
+    def argv(self, *args):
+        """The `queue order` command line adapt.py builds for `args`, with hal2 and git faked."""
+        from unittest import mock
+        seen = []
+
+        def fake(argv, cwd=None, **kw):
+            seen.append(argv)
+            out = {"queue": [], "priority": None}
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(out), stderr="")
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(adapt, "run", side_effect=fake), \
+                mock.patch.object(adapt, "main_checkout", return_value=Path("/h/a/hal2")), \
+                mock.patch.object(adapt, "default_branch", return_value="main"), \
+                mock.patch.object(adapt, "own_field", return_value="hal2/17") as own, \
+                mock.patch("sys.stdout"):
+            adapt.main([*args, "--repo", d])
+        orders = [a for a in seen if "order" in a]
+        return orders[0], own.called
+
+    def test_the_default_setter_is_this_sessions_field(self):
+        argv, _ = self.argv("12", "18")
+        self.assertEqual(argv, ["hal2-cli-git", "worktree", "queue", "order", "12", "18", "--by", "hal2/17", "--json"])
+
+    def test_clear_is_stamped_too_and_a_relayed_user_decision_says_user(self):
+        self.assertEqual(self.argv("clear")[0][-4:], ["--clear", "--by", "hal2/17", "--json"])
+        argv, own = self.argv("12", "--by", "user")
+        self.assertEqual(argv[-3:], ["--by", "user", "--json"])
+        self.assertFalse(own, "an explicit --by needs no field lookup")
+
+    def test_an_installed_cli_without_by_is_retried_once_without_it_and_says_so(self):
+        import io
+        from unittest import mock
+        seen = []
+
+        def fake(argv, cwd=None, **kw):
+            seen.append(argv)
+            if "--by" in argv:
+                return subprocess.CompletedProcess(argv, 2, stdout="", stderr='unknown argument "--by"')
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps({"queue": []}), stderr="")
+        err = io.StringIO()
+        with mock.patch.object(adapt, "run", side_effect=fake), mock.patch("sys.stderr", err):
+            out = adapt.queue(Path("/h/a/hal2"), ["12"], "hal2/17")
+        self.assertEqual(out, {"queue": []})
+        self.assertEqual(seen, [["hal2-cli-git", "worktree", "queue", "order", "12", "--by", "hal2/17", "--json"],
+                                ["hal2-cli-git", "worktree", "queue", "order", "12", "--json"]])
+        self.assertIn("does not know --by", err.getvalue())
+
+    def test_another_refusal_is_not_retried(self):
+        from unittest import mock
+        fake = mock.Mock(return_value=subprocess.CompletedProcess([], 1, stdout="", stderr="unknown worktree 99"))
+        with mock.patch.object(adapt, "run", fake), self.assertRaises(SystemExit):
+            adapt.queue(Path("/h/a/hal2"), ["99"], "hal2/17")
+        self.assertEqual(fake.call_count, 1)
+
+    def test_the_own_field_is_repo_slash_slot_and_repo_slash_main_in_the_main_checkout(self):
+        from unittest import mock
+        top = lambda path: mock.patch.object(adapt, "run", return_value=subprocess.CompletedProcess(
+            [], 0, stdout=path + "\n", stderr=""))
+        with top("/h/wt/hal2/farmer-hal2"):
+            self.assertEqual(adapt.own_field(Path("."), Path("/h/a/hal2")), "hal2/farmer-hal2")
+        with top("/h/a/hal2"):
+            self.assertEqual(adapt.own_field(Path("."), Path("/h/a/hal2")), "hal2/main")
+
+
+@unittest.skipUnless(has_by(HAL2_CLI_GIT), "needs a hal2-cli-git with `worktree queue order --by`")
 class EndToEnd(unittest.TestCase):
     def test_order_then_clear_against_a_real_queue(self):
         with tempfile.TemporaryDirectory() as d:
@@ -98,6 +173,9 @@ class EndToEnd(unittest.TestCase):
             out = json.loads(r.stdout)
             self.assertEqual([t["slot"] for t in out["after"]["queue"]], ["18", "12"])
             self.assertEqual([m["kind"] for m in out["messages"]], ["reserved", "reserved"])
+            self.assertEqual(out["after"]["priority"]["by"], "r/main", "stamped with the calling field")
+            r = run("18", "12", "--by", "user")
+            self.assertEqual(json.loads(r.stdout)["after"]["priority"]["by"], "the user (via r/main)", r.stderr)
             r = run("clear")
             self.assertEqual(r.returncode, 0, r.stderr)
             out = json.loads(r.stdout)

@@ -13,6 +13,7 @@ for: `ctx["wiring"]`'s, the wagon master's without one, never the farmer's.
 
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +26,8 @@ ROLE = "wagon-master"  # whose state folder and name, when the round's ctx names
 BOSS = ROLE + " (merge-to-main boss)"
 REWAKE = dt.timedelta(hours=1)  # the same judgment item wakes the model at most hourly
 ORPHAN = dt.timedelta(hours=3)
+STATE_WAKE = dt.timedelta(hours=24)  # an unchanged work-not-queued state wakes the model at most once a day
+COMMITS = re.compile(r"^(\d+) commits? not on main, plan ([^\s,]+)")
 JUDGE = ("active-long", "work-not-queued", "long-queue", "paused")
 LANDS = ("held-idle", "reserved-idle", "waiter-gone")  # the kinds whose text tells a worktree to land or queue
 TEXT = {
@@ -194,6 +197,33 @@ class Planner:
             self.add("orphan", "wake", slot, REWAKE, key=f"orphan:{slot}", text=f"orphaned work: {f['why']}",
                      evidence=f)
 
+    def state_of(self, f: dict) -> tuple[str, str]:
+        """(ahead, plan) of a work-not-queued finding: the commits not on main and the plan, from its text."""
+        m = COMMITS.match(f.get("why", ""))
+        w = self.wt.get(f["slot"], {})
+        return (m.group(1), m.group(2)) if m else (str(w.get("ahead", "")), w.get("plan") or "-")
+
+    def refused_at(self, slot: str, ahead: str) -> bool:
+        """Did the field's last ack refuse (the board's `ack` lines come from the log's) with no new commit since?
+        The commits then are those of the last work-not-queued wake before the ack (its text starts with them)."""
+        acks = [e for e in self.log if e.get("kind") == "ack" and e.get("slot") == slot]
+        if not acks or acks[-1].get("what") != "refused":
+            return False
+        at = when(acks[-1])
+        before = [e for e in self.log if e.get("kind") == "work-not-queued" and e.get("slot") == slot
+                  and e.get("what") and when(e) <= at]
+        m = COMMITS.match(before[-1]["what"]) if before else None
+        return bool(m and m.group(1) == ahead)
+
+    def work_not_queued(self, f: dict) -> None:
+        """One wake per state, not per hour (hal2 plan 0333 step 5): keyed by field, commits and plan for a day, and
+        none at all for a field that refused (it waits on the user) while it has no new commit."""
+        ahead, plan = self.state_of(f)
+        if self.refused_at(f["slot"], ahead):
+            return
+        self.add(f["kind"], "wake", f["slot"], STATE_WAKE, key=f"work-not-queued:{f['slot']}:{ahead}:{plan}",
+                 text=f["why"], evidence=f)
+
     def run(self) -> list[dict]:
         for f in self.snap["findings"]:
             kind = f["kind"]
@@ -214,6 +244,8 @@ class Planner:
                 self.flaky(f)
             elif kind == "work-without-agent":
                 self.orphan(f)
+            elif kind == "work-not-queued":
+                self.work_not_queued(f)
             elif kind in JUDGE:
                 self.add(kind, "wake", f["slot"], REWAKE, key=f"{kind}:{f['slot']}", text=f["why"], evidence=f)
         self.go()

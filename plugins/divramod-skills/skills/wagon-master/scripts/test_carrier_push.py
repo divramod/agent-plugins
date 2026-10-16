@@ -43,9 +43,10 @@ class CarrierPush(Farm):
         self.gate.of(OWN).update(state="held", train=None, hold={"reason": "failed"})
         self.round()
         self.assertEqual(self.train()["state"], "red")
-        self.assertEqual(self.call("unhitch", "06", "--why", "the names check", repo=self.main)[0], 0)
-        self.round()  # split after red: breakup, then the train of 07 alone forms on the base
-        self.assertEqual(self.last, [("breakup", "run", "-"), ("unhitched", "relay", "06"), ("form", "run", "-")])
+        code, text = self.call("unhitch", "06", "--why", "the names check", repo=self.main)
+        # split after red, in the unhitch's own call (plan 0333 step 6): breakup, then the train of 07 alone forms
+        self.assertEqual(code, 0, text)
+        self.assertIn("chain link 1: breakup -, unhitched 06, form -\nchain stops: a landing started", text)
         self.assertEqual(self.remote(), base, "the dead train is gone from origin")
         self.assertEqual(self.cleared()["pushed"], f"origin's {REF} back on {base[:12]} (was {dead[:12]})")
         self.assertEqual(self.train()["base"], base)
@@ -90,7 +91,9 @@ class CarrierPush(Farm):
         self.assertEqual(code, 1, text)
         self.assertIn(f"origin's {REF} back on {base[:12]}", text)
         self.assertEqual(self.remote(), base)
-        self.assertTrue(self.cleared()["pushed"].startswith(f"origin's {REF} back on"))
+        formed = [e for e in train_state.lines(str(self.main)) if e["kind"] == "formed"][-1]
+        self.assertTrue(formed["pushed"].startswith(f"origin's {REF} back on"), "the form put it back (step 14)")
+        self.assertNotIn("pushed", self.cleared(), "the breakup found it on the base already")
 
 
 if __name__ == "__main__":

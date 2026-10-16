@@ -126,6 +126,15 @@ class TestCreate(unittest.TestCase):
         self.assertIn("--from needs a worktree from 00 to 99", self.refused("--from", "100"))
         self.assertIn("--from needs a worktree from 00 to 99", self.refused("--from", "x"))
 
+    def test_to_ends_the_search_and_no_free_worktree_in_range_exits_3(self):
+        """Plan 0333 step 9: the farmer's foremen search 00-29 only; none free there is exit 3, never a field above."""
+        self.assertEqual(self.run_create("--from", "01", "--to", "29")["slot"], "06")
+        r = self.run_raw("--from", "01", "--to", "05")
+        self.assertEqual(r.returncode, 3, r.stdout)
+        self.assertIn("no free and clean worktree from 01 to 05", r.stderr)
+        self.assertIn("--to needs a worktree from 10 to 99", self.refused("--from", "10", "--to", "05"))
+        self.assertIn("--to needs", self.refused("--to", "x"))
+
     def test_from_00_reaches_slot_00(self):
         """Plan 0270 (D13): the farmer's foremen start in the first free worktree from 00."""
         out = self.run_create("--from", "00", extra="00")

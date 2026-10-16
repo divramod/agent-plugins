@@ -1,6 +1,6 @@
 ---
 name: wagon-master
-description: The wagon master of a repository, the third base role beside the farmer and the foremen (hal2 plan 0294, decision record wagon-master). It brings the foremen's ready wagons (worktrees that reported themselves ready with `hal2-cli-git worktree queue ready`, the hitch) through the toll gate into the barn as wagon trains, as many per run as possible, from its own worktree `wagon-master-<repo>`; it keeps a message board and brings the yard's uncommitted work in as the first car. Started only by the user. An external timer runs `wagon_master.py tick`, which does every rule-based step of its duties as code (`trains`, the wagon trains; `mtm`, the merge-to-main boss for failed landings, held queues, pauses and orphans) and wakes the wagon master's Claude session with `/wagon-master act` only for judgment, such as the wagon that broke a red train. Use when the user says /wagon-master, "wagon master", "wagon train", "hitch", "bring the wagons in", "merge boss", "merge train" or "the toll gate hangs". `/wagon-master start` installs the timer, `/wagon-master h` shows help.
+description: The wagon master of a repository, the third base role beside the farmer and the foremen (hal2 plan 0294, decision record wagon-master). It brings the foremen's ready wagons (worktrees that reported themselves ready with `hal2-cli-git worktree queue ready`, the hitch) through the toll gate into the barn as wagon trains, as many per run as possible, from its own worktree `wagon-master-<repo>`; it keeps a message board and brings the yard's uncommitted work in as the first car. Started only by the user. An external timer runs `wagon_master.py tick`, which does every rule-based step of its duties as code (`trains`, the wagon trains; `mtm`, the merge-to-main boss for failed landings, held queues, pauses and orphans; `checks`, landings first: ci-check runs wait behind a landing or train) and wakes the wagon master's Claude session with `/wagon-master act` only for judgment, such as the wagon that broke a red train. Use when the user says /wagon-master, "wagon master", "wagon train", "hitch", "bring the wagons in", "merge boss", "merge train" or "the toll gate hangs". `/wagon-master start` installs the timer, `/wagon-master h` shows help.
 ---
 
 # wagon-master
@@ -13,7 +13,8 @@ each foreman "in the barn". The farmer does none of this any more ([wagon-master
 **Only the user starts the wagon master** (`/wagon-master start` in its session). No other session, skill, hook or
 job starts or restarts it. It runs in **its own worktree `wagon-master-<repo>`** (`~/.hal/git/worktree/<repo>/wagon-master-<repo>`,
 branch `wagon-master-<repo>`, one per repository, never the yard or a numbered field); the user starts the session
-with `hal2-cli-git worktree run wagon-master-<repo> --agent claude`. Between trains its branch equals the barn; a
+with `hal2-cli-git worktree run wagon-master-<repo> --agent claude --model opus --effort high` (effort high is the
+role's setting `session_effort`, default `high`; every clear-and-continue passes it). Between trains its branch equals the barn; a
 train is merged and lands in it, so the field is the **carrier** of every train. Until the timer has run in the last
 30 minutes a foreman's `/mtm` lands by itself as before ([mtm](../mtm/references/wagon-master.md)).
 
@@ -30,6 +31,7 @@ one runs every 10 minutes or oftener, because the foremen read a last tick older
 |---|---|---|---|
 | `trains` | `trains.py` plans, `engine.py` does | [instructions/trains.md](instructions/trains.md) | [merge-train](subskills/merge-train/SUBSKILL.md) |
 | `mtm` | `boss.py` | [instructions/mtm.md](instructions/mtm.md) | [reasons.md](subskills/merge-to-main-boss/reasons.md), [boss reference](subskills/merge-to-main-boss/SUBSKILL.md) |
+| `checks` | `checks.py`, `checks_cli.py` | [instructions/checks.md](instructions/checks.md) | [docs/ci.md](https://github.com/divramod/hal2/blob/main/docs/ci.md#landings-first) |
 | `learn` | `learn.py`: once a day (UTC, `learn.json`) `verdicts.py` judges each learning 7 days before its `Start` against 7 after (its `Metric`, at least 5 trains a side, 20% counts: helped → `Status: kept`, worse → `dropped`, no change → `revise`) into `stats.md`; the untaken learnings and the revised or dropped ones go as one brief (`briefs/learn-<date>.md`) to one foreman through the farmer's delegation ledger, then are marked taken or handed (D8, D9) | `learn-failed`: the delegation was not placed; place the brief by hand (`SendMessage` to `farmer-<repo>`) | [learnings.md](#act) |
 
 ## What a round does as code
@@ -40,9 +42,11 @@ Every round starts with the merge from main (not while a train stands) and the u
 |---|---|---|
 | Ready | reads `hal2-cli-git worktree queue --json`: the tickets marked `ready`, in queue order; a ready head already in the barn and a servant's field (30-99) are unhitched; behind a place the user reserved for a field that is not ready yet, the ready wagons wait; a ticket that ended and waits for its worktree's runs (`waits_for`) is no wagon and holds no train back, the carrier's landing waits behind it | |
 | Trial merge | merges the ready heads onto the barn's head with `git merge-tree`; a wagon that conflicts is unhitched and told why by a template; one whose conflicts are all generated files (`.github/hal2-versions.toml`'s `[[generated]]` paths: plans/uats.md, the code maps, the record index) rides | |
-| Alone rule | a crop changing `.github/workflows/`, `.github/hal2-*.toml` or `code/bash/scripts/gate/` rides as a train of one | |
+| Proof | a car whose trial merge is clean rides only with its light gate checks green on its hitched head (`proof.py`, plan 0333): the names check and, for `plans/`, `.adr/`, `docs/` or `*.md`, the records check, run read-only in its field and cached per field and head (`cache/proof/`); red is unhitched with the finding lines, a field not at its hitched head waits ("no proof yet") | |
+| Alone rule | a crop changing `.github/workflows/`, `.github/hal2-*.toml` or `code/bash/scripts/gate/` never rides with other crops: the ALONE crops ride together as one gate train (plan 0333) | |
 | Form | merges the cars into the own field in queue order (a conflict only in generated files takes the barn's side, and the train's last commit writes them again by the map's commands; one that fails breaks the train up: `train-stuck`), writes `plans/CURRENT_PLAN`, marks the train (`worktree queue train`), starts `hal2-cli-git worktree merge-to-main` detached (`engine.py land`); a tick never waits for CI | |
-| Landed | tells each car's foreman "in the barn", resets the own field to the barn | |
+| Pretest | before the landing pushes, `engine.py land` runs the short gate jobs `.github/hal2-pretest.toml` lists (`budget`, `parallel`, `[[job]] name`, `group`: one at a time) on the candidate, those the range selects, at most `parallel` at once within `budget` seconds, a job green before with the same content key skipped (markers in `cache/pretest/`); it installs nothing (`HAL2_GATE_NO_INSTALL`); the first red stops the landing (result `pretest_red`, the car(s) whose range selects the job named); a timeout, a tool the gate reports missing (`gate: tool missing:`), a signal from outside or a job that changed tracked files is skipped, never red; every other failure is red; no file: no pretest (plan 0349 D75). Logged as a `pretest` line, the output in `train-pretest.log` | `train-failed` with status `pretest_red` |
+| Landed | tells each car's foreman "in the barn", resets the own field to the barn, and the same round forms the next train (`chain.py`, plan 0333) | |
 | Red | | `train-failed`: name the wagon that broke it, or send the train again |
 | Red stack-test after the merge | a landed train whose result has a red job `.../stack-test`, or whose land run's stack-test job ends red later (stack-test runs beside the merge, plan 0349 D11; `stack_red.watch` reads the newest landed train's run each round until the job ends, at most 6 hours) stays landed: `stack_red.py` posts a board `red` line (status `stack-test`) and tells each car's foreman the failing tests (the job's `tests`/`failed_tests`, else its name and the run) as a fix for its next harvest (D6) | |
 | Failed change | | `train-stuck`: a verb of the engine failed |
@@ -61,9 +65,9 @@ the train state and the run title starts with `yard + `. If the session names th
 train, `wagon_master.py unhitch yard --why <text>` keeps its files out of every train until they change.
 
 **The code** (`$S`): `wagon_master.py` (the verbs and the rounds on the farmer skill's frame, `farmer_frame.py`),
-`trains.py` (plans a round), `stack_red.py` (a red stack-test after the merge) and `trial.py` (the trial merge), `generated.py` (conflicts in generated files), `engine.py` (does it: form, restart, land, landed, red,
-breakup, which also puts the carrier's remote branch back on the train's base with a leased push; `engine_farm.py`
-is its test farm), `train_state.py` (`train.jsonl`), `board.py` (`board.jsonl`;
+`trains.py` (plans a round), `stack_red.py` (a red stack-test after the merge) and `trial.py` (the trial merge), `proof.py` (a car's light gate checks), `chain.py` (the duty again in the same call until a wait: after an unhitch after red, after a landed train), `generated.py` (conflicts in generated files), `pretest.py`, `pretest_jobs.py`, `pretest_markers.py` and `pretest_train.py` (the pretest; `pretest.py run` a dry one of the field's HEAD), `engine.py` (does it: form, restart, land, landed, red,
+breakup; `carrier.py` puts the carrier's remote branch back on a base with a leased push, at a breakup and before
+a new train's cars; `engine_farm.py` is its test farm), `train_state.py` (`train.jsonl`), `board.py` (`board.jsonl`;
 `board.py list [--kind <kind>] [--last <n>] [--json]` reads it, `board.py sync` copies the frame's messages and acks
 into it, the tick does that by itself), `learnings.py` (`learnings.md`: `add`, `untaken`, `mark-taken`, `rules`; generic, the role folder is
 its `--dir`, so the farmer reuses it), `learn.py` (the duty `learn`, generic in the same way), `verdicts.py` (its before/after verdict per learning over
@@ -97,7 +101,7 @@ removes the marker.
 ## Start
 
 1. This must be the wagon master's worktree (`git rev-parse --show-toplevel` ends in `/wagon-master-<repo>`);
-   anywhere else say "start me in my own worktree: `hal2-cli-git worktree run wagon-master-<repo> --agent claude`" and
+   anywhere else say "start me in my own worktree: `hal2-cli-git worktree run wagon-master-<repo> --agent claude --model opus --effort high`" and
    stop. Write `wagon-master` into `plans/CURRENT_PLAN`. Read `handoff.md` (`python3 $S/wagon_master.py handoff` names it)
    when there is one.
 2. `python3 $S/wagon_master.py start-check`. Exit 2: `bash $S/install-prerequisites.sh` once, then again. Exit 3 (no
@@ -131,8 +135,8 @@ removes the marker.
    (`learnings.py untaken`, `learnings.py mark-taken <n> --plan <plan>`).
 
 What the session says about a train goes through the code, never by hand in a field: `wagon_master.py unhitch <field>
---why <text>` (the wagon that broke a red train; its foreman is told; `unhitch yard --why <text>` for the yard's car), `wagon_master.py retry --why <text>` (a flaky
-gate: the same train lands again), `python3 $S/engine.py breakup --why <text>` (give the train up). Messages to a session carry an
+--why <text>` (the wagon that broke a red train; its foreman is told, and the same call breaks the train up and forms the rest, `chain.py`; `unhitch yard --why <text>` for the yard's car), `wagon_master.py retry --why <text>` (a flaky
+gate: the same train lands again, on a fresh land run; `--skip-pretest` without its pretest, for a red pretest that is the Mac's), `python3 $S/engine.py breakup --why <text>` (give the train up). Messages to a session carry an
 ack id (`python3 $K/farmer/scripts/acks.py instruct <slot> "<text>" --role wagon-master`); record a peer's
 `ack <id>: <status>` with `acks.py ack <id> <status> --role wagon-master`. A fault of the barn itself (the runner, the workflow, `main` red) is the
 farmer's: send it one line (`SendMessage` to `farmer-<repo>`, found with `ListAgents`).
@@ -141,6 +145,9 @@ farmer's: send it one line (`SendMessage` to `farmer-<repo>`, found with `ListAg
 
 - **Never**: stop a landing that runs or has merged; edit, reset or force-push another field's crop; land for a field
   that did not hitch; answer a dialog; decide a product question; deploy.
+- **A train's composition, order and the alone rule are your own calls**: decide them by trial merge and queue order
+  (a tie goes to the wagon that hitched first), record them in the log, tell the foreman what concerns it; NEVER ask the
+  user ([wagon-master-decides-trains](https://github.com/divramod/hal2/blob/main/.adr/wagon-master-decides-trains.md)).
 - A wagon that conflicts or breaks a train is unhitched and goes back to its foreman with the reason; the rest rides
   again. A wagon that gets ready during a run rides the next train.
 - Only the user's `/mtm-fastlane` lands past the trains; the wagon master never starts it.

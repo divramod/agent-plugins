@@ -97,13 +97,12 @@ class Riding(YardFarm):
         self.assertIn("the yard's car is `yard`", r["wake"][0]["text"])
         self.assertEqual((self.yard(), self.train()["state"]), (self.before, "red"), "nothing in the yard changes")
 
+        self.typed.clear()
         code, text = self.call("unhitch", "yard", "--why", "its record is malformed", repo=self.main)
         self.assertEqual((code, text), (0, "yard unhitched: its record is malformed; the rest of the train forms "
-                                           "again at the next round\n"))
+                                           f"again\nchain link 1: breakup -, form -, yard-left {FARMER}\n"
+                                           "chain stops: a landing started\n"), "in the same call (plan 0333 step 6)")
         self.assertTrue(self.gate.of("07")["ready"], "the wagon keeps its place")
-        self.typed.clear()
-        self.round()
-        self.assertEqual(self.last, [("breakup", "run", "-"), ("form", "run", "-"), ("yard-left", "send", FARMER)])
         self.assertEqual(self.first_parents(), ["Merge branch '07' into wagon-master-hal2"], "the train without the yard")
         self.assertEqual((self.state()[-4:], self.train()["yard"], self.yard()),
                          ([("unhitched", "yard"), ("cleared", OWN), ("formed", OWN), ("started", OWN)], [], self.before))
@@ -125,8 +124,8 @@ class Riding(YardFarm):
         self.assertEqual((home["dropped"], home["kept"], home["pulled"]),
                          ([], [{"path": "docs/note.md", "why": "changed meanwhile"}], False))
         self.assertEqual((self.yard(), (self.main / "docs/note.md").read_text()), (self.before, "changed meanwhile\n"))
-        self.round()
-        self.assertEqual(self.last, [("yard-kept", "send", FARMER)])
+        self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "relay", "07"), ("chain", "run", "-")])
+        self.assertEqual(self.typed[-1][0], self.panes[FARMER], "told in the same round, by its chain (plan 0333)")
         self.assertRegex(self.typed[-1][1], r"\(yard\): train 07@\S+ is in the barn, but 1 of the files it carried "
                                             r"from the yard stay there as they are \(docs/note.md \(changed "
                                             r"meanwhile\)\) and the yard was not fast-forwarded \(")

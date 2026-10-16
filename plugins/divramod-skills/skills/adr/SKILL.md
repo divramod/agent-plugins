@@ -39,7 +39,7 @@ works, read-only and advisory:
 
 ## Promote a decision
 
-1. **The ladder** (record-formats, rule 4). A question is an entry of the plan's `questions.md`; its answer, and
+1. **The ladder** (record-formats, rule 4). A question is an entry of the plan's `questions.md` (written with `hal2-cli-plans questions add|answer`); its answer, and
    every other choice of the plan, an entry of its `decisions.md` (the plan skill's ledger). A decision becomes a
    record only when **a session that never reads this plan would have to know it to do its own work right**: it
    binds work outside the plan's steps, or after the plan has landed. Never promoted: the plan's order and who does

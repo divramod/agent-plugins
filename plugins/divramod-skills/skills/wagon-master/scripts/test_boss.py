@@ -271,5 +271,59 @@ class Home(unittest.TestCase):
             self.assertEqual(scan.call_args.kwargs, {"fetch": False, "role": "lord"})
 
 
+class OneWakePerState(unittest.TestCase):
+    """Plan 0333 step 5, cause B: field 00 woke the model five times in one afternoon (13:13 to 17:56 local) at the
+    same "49 commits, plan 0253-mobile-app" while its ack 00-1 said it waits for the user's console approval."""
+
+    def finding(self, ahead, plan="0253-mobile-app", slot="00"):
+        return {"kind": "work-not-queued", "slot": slot,
+                "why": f"{ahead} commits not on main, plan {plan}, agent sleeping for 33 min"}
+
+    def rounds(self, times, ahead_of, ack_at=None, plan="0253-mobile-app", status="refused"):
+        """Run a round at each time (day 2026-10-14); a planned wake enters the log as the tick writes it."""
+        log, woken = [], []
+        for hh, mm in times:
+            if ack_at and (hh, mm) > ack_at and not any(e["kind"] == "ack" for e in log):
+                log.append({"at": f"2026-10-14T{ack_at[0]}:{ack_at[1]:02d}:43", "kind": "ack", "slot": "00",
+                            "what": status, "id": "00-1"})
+            now = dt.datetime(2026, 10, 14, hh, mm)
+            f = self.finding(ahead_of((hh, mm)), plan)
+            planned = boss.plan(snap([f], worktrees=[wt("00", ahead=f["why"].split()[0])]),
+                                {"now": now, "log": log, "main": "/x/hal2"})
+            for a in tick.fresh(planned, log, now):
+                self.assertEqual((a["do"], a["kind"], a["slot"]), ("wake", "work-not-queued", "00"))
+                log.append({"at": now.isoformat(timespec="seconds"), "kind": a["kind"], "slot": "00",
+                            "what": a["text"], "key": a["key"]})
+                woken.append((hh, mm))
+        return woken
+
+    TIMES = [(13, 13), (14, 23), (15, 34), (16, 42), (17, 56)]
+
+    def test_a_refused_field_with_no_new_commit_is_woken_once_not_five_times(self):
+        self.assertEqual(self.rounds(self.TIMES, lambda t: 49, ack_at=(13, 18)), [(13, 13)])
+
+    def test_a_new_commit_after_the_refusal_wakes_again(self):
+        got = self.rounds(self.TIMES, lambda t: 49 if t < (16, 42) else 50, ack_at=(13, 18))
+        self.assertEqual(got, [(13, 13), (16, 42)])
+
+    def test_an_unchanged_state_without_a_refusal_wakes_once_a_day_another_plan_wakes_again(self):
+        self.assertEqual(self.rounds(self.TIMES, lambda t: 49), [(13, 13)])
+        self.assertEqual(self.rounds(self.TIMES, lambda t: 49, ack_at=(13, 18), status="started"), [(13, 13)])
+        s = snap([self.finding(49)], worktrees=[wt("00", ahead=49)])
+        woke = [{"at": at(23 * 60), "key": "work-not-queued:00:49:0253-mobile-app"}]
+        self.assertEqual(plan(s, woke), [], "less than a day ago")
+        woke[0]["at"] = at(25 * 60)
+        self.assertEqual(plan(s, woke), [("wake", "work-not-queued", "00")], "a day later")
+        other = snap([self.finding(49, "0301-other")], worktrees=[wt("00", ahead=49)])
+        woke[0]["at"] = at(5)
+        self.assertEqual(plan(other, woke), [("wake", "work-not-queued", "00")], "another plan")
+
+    def test_the_other_judgment_kinds_still_wake_hourly(self):
+        s = snap([{"kind": "long-queue", "slot": "04,05,06", "why": "3 waiting"}])
+        self.assertEqual(plan(s), [("wake", "long-queue", "04,05,06")])
+        self.assertEqual(plan(s, [{"at": at(70), "key": "long-queue:04,05,06"}]), [("wake", "long-queue", "04,05,06")])
+        self.assertEqual(plan(s, [{"at": at(30), "key": "long-queue:04,05,06"}]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

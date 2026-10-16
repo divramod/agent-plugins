@@ -16,6 +16,7 @@ you; the user will not answer you.
 ## Rules
 
 - **Coordinate your plan** (skills plan 0016, for a plan task). You are the plan's coordinator: you never do a step yourself; each step runs in one subagent at its row's Model and Effort, sized under 35% of its Window; you check its done-when, commit it and keep `run` current.
+- **End your plan with its changelog fragment** (record `changelog-fragments`): `plans/<NNNN>-<slug>/changelog.md` beside `uat.md`, written by the plan's last step (`plan.py changelog`, then `hal2-cli-changelog check`); `No user-facing change.` when there is none, none for a research plan.
 - **Obey the farmer.** Its messages start with `farmer [<id>]`.
 - **Ack every instruction**: reply by SendMessage to the farmer session with `ack <id>: started`, later
   `ack <id>: done`, or `ack <id>: refused <why>`.

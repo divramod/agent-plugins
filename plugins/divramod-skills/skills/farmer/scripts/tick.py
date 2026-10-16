@@ -49,6 +49,7 @@ import due
 import gh_runs
 import mtm_scan
 import roles
+import scan_cache
 import wake
 
 OFFLINE = 75  # EX_TEMPFAIL: a recheck that could not tell (this machine is offline) is not a failure
@@ -307,7 +308,9 @@ def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
 def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
     """The round's summary from the log: a file of its own when the round did something, latest.md always."""
     role = wiring.role
-    snap = mtm_scan.snapshot(top, 24, fetch=False, role=role)  # the round's merge-from-main fetched origin
+    # The round's own scan: duty:mtm wrote last-scan.json this round; a new snapshot only when it is missing or
+    # stale (plan 0333 step 7: the second snapshot cost 247 s of a 731 s round).
+    snap = scan_cache.scan(top, role, out.get("started"))
     logged = [a for a in out["done"] if a["do"] != "ran"]
     notes = "\n".join(f"- {a['duty']} {a['kind']} {a['slot']}: {a.get('text', '')}" for a in logged) or "quiet"
     if logged or snap["findings"]:
@@ -322,7 +325,8 @@ def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, al
         wiring: roles.Wiring = roles.FARMER) -> dict:
     """One round. Dry: plan only, touch nothing. Returns the round as data (also what `--json` prints)."""
     timing: dict[str, float] = {}
-    out = {"dry": dry, "now": now, "wake": [], "notify": [], "done": [], "planned": [], "timing": timing}
+    out = {"dry": dry, "now": now, "wake": [], "notify": [], "done": [], "planned": [], "timing": timing,
+           "started": time.time()}
     start = time.monotonic()
     problem = slot_problem(repo, wiring)
     if problem:

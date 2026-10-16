@@ -44,12 +44,13 @@ def run(args, items=None, cwd=None, path=None):
 
 
 def no_cli_path() -> str:
-    """PATH with git but without hal2-cli-shooter."""
-    keep = {str(Path(shutil.which("git")).parent), str(Path(sys.executable).parent), "/usr/bin", "/bin"}
-    cli = shutil.which("hal2-cli-shooter")
-    if cli:
-        keep.discard(str(Path(cli).parent))
-    return os.pathsep.join(sorted(keep))
+    """PATH with git and python only: a folder of links to them, never a system folder, where a machine with hal9k
+    installed has hal2-cli-shooter too (the T460p's /usr/bin, plan 0263 row 30)."""
+    folder = Path(tempfile.mkdtemp(prefix="no-cli-"))
+    for tool in ("git", Path(sys.executable).name):
+        found = shutil.which(tool) or sys.executable
+        (folder / Path(found).name).symlink_to(Path(found).resolve())
+    return str(folder)
 
 
 class TestInsert(unittest.TestCase):

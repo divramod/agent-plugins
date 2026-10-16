@@ -8,16 +8,19 @@ its `run` actions; none waits for CI.
       in the wagon master's field, on the barn's head: the yard's uncommitted work as the first car (yard.py:
       what it can place, one commit; it never fails a train), then each car's head merged in order (a merge
       commit per car), plans/CURRENT_PLAN written (`yard` and the cars' plan names joined by ` + `: the land run's
-      title), then `restart`. A car that does not merge, or a mark the queue refuses, breaks the train up again;
-      one whose conflicts are all generated files takes the barn's side, and the train's last commit writes them
+      title; its bracket shows the cars' worktrees, `[02|03]`, the yard as `main`, never this field, plan 0352), then
+      `restart`. Before the cars the field's remote branch goes back on its head when an earlier train's end left that
+      train there (carrier.py, plan 0313 step 14). A car that does not merge, or a mark the queue refuses, breaks the
+      train up again; one whose conflicts are all generated files takes the barn's side, and the train's last commit writes them
       again (generated.py, plan 0313 step 8; a command that fails breaks the train up)
   engine.py restart [--repo <field>]
       mark the train (`hal2-cli-git worktree queue train`), then start its landing detached (`land`), its output in
       train-landing.log, its pid in the state; also after an interrupted landing (the rerun adopts the run) and
-      after the session's `retry`
+      after the session's `retry`, which first gives the field one empty commit: a new candidate, a fresh run
   engine.py land [--repo <field>]
-      the detached process: `hal2-cli-git worktree merge-to-main --json` as its child. It stays that landing's
-      parent until it ends, because a merge-to-main whose starter is gone ends `interrupted`
+      the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
+      `pretest_red` and no landing starts), then `hal2-cli-git worktree merge-to-main --json` as its child. It stays
+      that landing's parent until it ends, because a merge-to-main whose starter is gone ends `interrupted`
   engine.py landed [--run <url>] [--commit <sha>] [--repo <field>]
       the train is in the barn: the field fast-forwarded to it, plans/CURRENT_PLAN gone; the files the yard's
       car carried leave the yard where they are still the same, and the yard is fast-forwarded (yard.settle)
@@ -25,14 +28,17 @@ its `run` actions; none waits for CI.
       the landing did not land; the train waits for the session's `unhitch` or `retry`
   engine.py breakup --why <text> [--repo <field>]
       the train that stands is no more: its mark cleared, the queue its failed landing holds released, the field
-      back on the head it had before the cars, and its remote branch too (leased push, plan 0313). Without a
+      back on the head it had before the cars, and its remote branch too (carrier.py, leased push). Without a
       train: a leftover mark cleared
   engine.py unhitch <field> --why <text> [--repo <dir>]
       take a field's ready mark (`worktree queue ready <field> --clear`); a car of a red train: the rest forms
-      again at the next round. Refused for a car of a train that lands: a running landing is never stopped.
+      again (`wagon_master.py unhitch` at once, chain.py; this verb alone at the next round). Refused for a car of a train that lands: a running landing is never stopped.
       `unhitch yard`: the yard's car of a red train; its files stay out of every train until they change
-  engine.py retry --why <text> [--repo <dir>]
-      a red train lands again as it is (a flaky gate)
+  engine.py retry --why <text> [--skip-pretest] [--repo <dir>]
+      a red train lands again as it is (a flaky gate), on a fresh land run: the next `restart` commits an empty
+      `wagon train <name>: retry <n>` on the field, so the candidate is new and the red run never adopted again;
+      `--skip-pretest`: a `skipped` pretest line with the why first, so its landing starts without the pretest (a
+      red pretest that is the Mac's, not a car's)
 
 Exit 0 done (also nothing to do), 1 the change was refused or failed (the tick wakes the session).
 """
@@ -47,20 +53,16 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import generated
 import mtm_scan
+import pretest_train
 import train_state
 import yard
+from carrier import Done, git, push_base
 from tick import default_ref
 
 HAL = "hal2-cli-git"
 LAND = [HAL, "worktree", "merge-to-main", "--json"]
 CURRENT = "plans/CURRENT_PLAN"
-Done = tuple[int, str]  # the exit code and what happened, one line
-
-
-def git(top: str, *args: str) -> Done:
-    p = subprocess.run(["git", *args], cwd=top, capture_output=True, text=True, timeout=600)
-    return p.returncode, (p.stdout + p.stderr).strip()
-
+RETRY = "wagon train {train}: retry {n}"  # the subject of a retried train's empty commit (plan 0313 step 13)
 
 def cli(args: list[str], cwd: str) -> Done:
     """hal2-cli-git, its exit code and output."""
@@ -132,8 +134,11 @@ def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
         git(top, "merge", "--abort")
         return 1, f"{default} does not merge into {field}: no train formed"
     name = "+".join(c["field"] for c in cars) + "@" + train_state.utc(now)
-    branch = git(top, "branch", "--show-current")[1] or field
-    train_state.append(main, "formed", field, now, train=name, cars=cars, base=git(top, "rev-parse", "HEAD")[1])
+    branch, base = git(top, "branch", "--show-current")[1] or field, git(top, "rev-parse", "HEAD")[1]
+    pushed = push_base(top, field, base)  # a dead train an earlier end left on the remote (plan 0313 step 14)
+    train_state.append(main, "formed", field, now, train=name, cars=cars, base=base,
+                       **({"pushed": pushed} if pushed else {}))
+    told = f"; {pushed}" if pushed else ""
     rides, note = load_yard(top, main, default, name, cars, now)
     for car in cars:
         what = f"wagon train: field {car['field']} ({car.get('plan') or car['branch']}), head {car['head']}"
@@ -142,18 +147,18 @@ def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
         got = generated.take(top, "--ours") if code else []
         if code and not got:
             broken = breakup(top, f"car {car['field']} did not merge: {out[-300:]}", now)[1]
-            return 1, f"car {car['field']} did not merge; {broken}"
+            return 1, f"car {car['field']} did not merge; {broken}{told}"
         taken += got
     if taken:  # the train's last commit: the generated files written again for its head, before the landing
         code, text, commit, files = generated.regenerate(top, sorted(set(taken)))
         train_state.append(main, "regenerated", field, now, train=name, commit=commit, files=files, why=text)
         if code:
-            return 1, f"{text}; {breakup(top, text, now)[1]}"
+            return 1, f"{text}; {breakup(top, text, now)[1]}{told}"
     current = Path(top) / CURRENT
     current.parent.mkdir(parents=True, exist_ok=True)
     current.write_text(" + ".join(["yard"] * bool(rides) + [c.get("plan") or c["field"] for c in cars]) + "\n")
     code, text = restart(top, now)
-    return (1, f"{text}; {breakup(top, text, now)[1]}") if code else (0, text + (f"; {note}" if note else ""))
+    return (1, f"{text}; {breakup(top, text, now)[1]}{told}") if code else (0, text + told + (f"; {note}" * bool(note)))
 
 
 def restart(top: str, now: dt.datetime | None = None) -> Done:
@@ -162,18 +167,35 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
         return 1, "no train stands: nothing to land"
     if train["state"] == "landing" and train_state.alive(train["pid"]):
         return 0, f"train {train['train']}: its landing runs (pid {train['pid']})"
+    code, commit = fresh(top, train) if train["state"] == "retry" else (0, None)
+    if code:
+        return 1, f"train {train['train']} was not retried: {commit[-300:]}"
     code, out = cli(["worktree", "queue", "train", field, *(c["field"] for c in train["cars"]), "--json"], top)
     if code:
         return 1, f"train {train['train']} was not marked: {out[-300:]}"
     log = train_state.folder(main) / train_state.LOG
     pid = spawn(top, log)
-    train_state.append(main, "started", field, now, train=train["train"], pid=pid, log=str(log))
+    train_state.append(main, "started", field, now, train=train["train"], pid=pid, log=str(log), commit=commit)
     return 0, f"train {train['train']}: landing started (pid {pid}, start {train['starts'] + 1})"
 
 
+def fresh(top: str, train: dict) -> Done:
+    """A retried train's new candidate (plan 0313 step 13, D19): hal2-git builds the landing's candidate as the
+    same commit for the same HEAD on the same barn (`candidate_with`: HEAD's dates) and finds its land run by that
+    commit, so a retry as it was adopted the red run again. One empty commit on the field makes the candidate new
+    and its push a fresh run; none when HEAD is this retry's commit already (its mark was refused). The commit."""
+    subject = RETRY.format(train=train["train"], n=train["starts"])
+    if git(top, "log", "-1", "--format=%s")[1] != subject:
+        why = train.get("retried") or "a flaky gate"
+        code, out = git(top, "commit", "-q", "--allow-empty", "-m", subject, "-m", f"Landed again on a fresh run: {why}")
+        if code:
+            return code, out
+    return git(top, "rev-parse", "HEAD")
+
+
 def land(top: str) -> int:
-    """The landing, as this process's child: its output goes where this process's does (the log)."""
-    return subprocess.run(LAND, cwd=top).returncode
+    """The pretest, then the landing, as this process's child: its output goes where this process's does (the log)."""
+    return 1 if pretest_train.before_landing(top) else subprocess.run(LAND, cwd=top).returncode
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
@@ -228,24 +250,6 @@ def breakup(top: str, why: str, now: dt.datetime | None = None) -> Done:
     return 0, done + (f"; {pushed}" if pushed else "")
 
 
-def push_base(top: str, field: str, base: str) -> str:
-    """The carrier's remote branch back on the train's base (plan 0313, D2, D6): the dead train's landing pushed it
-    there, and the next train's push would be refused as not a fast-forward. Leased on the tip the remote has now,
-    never a bare force; a failure is told, the local reset stands. "": nothing to push (no remote branch, or it is
-    on the base already)."""
-    ref = "refs/heads/" + (git(top, "branch", "--show-current")[1] or field)
-    code, out = git(top, "ls-remote", "origin", ref)
-    if code:
-        return f"origin's {ref} not read, it may still hold the dead train: {out[-200:]}"
-    tip = next((w[0] for w in (line.split() for line in out.splitlines()) if w[1:] == [ref]), "")
-    if not tip or tip == base:
-        return ""
-    code, out = git(top, "push", "-q", f"--force-with-lease={ref}:{tip}", "origin", f"{base}:{ref}")
-    if code:
-        return f"origin's {ref} still holds the dead train {tip[:12]}, not pushed: {out[-200:]}"
-    return f"origin's {ref} back on {base[:12]} (was {tip[:12]})"
-
-
 def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None) -> Done:
     main, _, train = here(repo)
     its = train["yard"] if train and field == train_state.YARD else None  # the yard's car: no ticket to clear
@@ -259,15 +263,18 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None) -> 
     if code:
         return 1, f"{field} was not unhitched: {out[-300:]}"
     train_state.append(main, "unhitched", field, now, train=train["train"] if car else None, why=why, files=its)
-    return 0, f"{field} unhitched: {why}" + ("; the rest of the train forms again at the next round" if car else "")
+    return 0, f"{field} unhitched: {why}" + ("; the rest of the train forms again" if car else "")
 
 
-def retry(repo: str, why: str, now: dt.datetime | None = None) -> Done:
+def retry(repo: str, why: str, now: dt.datetime | None = None, skip_pretest: bool = False) -> Done:
     main, _, train = here(repo)
     if not train or train["state"] != "red":
         return 1, "no red train stands: nothing to land again"
+    if skip_pretest:  # the session's word: this red is the Mac's (pretest_train.before_landing lets it through)
+        train_state.append(main, "pretest", train["carrier"], now, train=train["train"], seconds=0, result="skipped",
+                           jobs=[], why=f"skipped by the session: {why}")
     train_state.append(main, "retry", train["carrier"], now, train=train["train"], why=why)
-    return 0, f"train {train['train']} lands again at the next round: {why}"
+    return 0, f"train {train['train']} lands again at the next round{' without its pretest' * skip_pretest}: {why}"
 
 
 def main(argv: list[str]) -> int:
@@ -284,6 +291,7 @@ def main(argv: list[str]) -> int:
     sub.choices["red"].add_argument("--why", default="")
     for verb in ("breakup", "unhitch", "retry"):
         sub.choices[verb].add_argument("--why", required=True)
+    sub.choices["retry"].add_argument("--skip-pretest", action="store_true")
     a = p.parse_args(argv)
     found, shown = git(a.repo, "rev-parse", "--show-toplevel")
     top = a.repo if found else shown
@@ -292,7 +300,7 @@ def main(argv: list[str]) -> int:
     code, text = {"form": lambda: form(top, a.cars), "restart": lambda: restart(top),
                   "landed": lambda: landed(top, a.run, a.commit), "red": lambda: red(top, a.status, a.run, a.why),
                   "breakup": lambda: breakup(top, a.why), "unhitch": lambda: unhitch(top, a.field, a.why),
-                  "retry": lambda: retry(top, a.why)}[a.verb]()
+                  "retry": lambda: retry(top, a.why, skip_pretest=a.skip_pretest)}[a.verb]()
     print(text)
     return code
 

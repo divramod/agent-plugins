@@ -53,8 +53,8 @@ class Delegation(Ledger):
         r = delegation.delegate(flaky(), MAIN, 5, True, NOW)
         self.assertEqual(r["how"], "new")
         self.assertEqual(r["calls"][0], delegation.FREE + ["--repo", MAIN])
-        self.assertEqual(r["calls"][1][:11], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--model", "opus",
-                                                                  "--effort", "medium", "--prompt"])
+        self.assertEqual(r["calls"][1][:13], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--to", "29",
+                                                                  "--model", "opus", "--effort", "medium", "--prompt"])
         prompt = r["calls"][1][-1]
         self.assertNotIn('/plan new "disable the load-flaky test t"', prompt)
         self.assertNotIn("disable the load-flaky test t", prompt.split("/plan new")[1].split("`")[0])
@@ -193,6 +193,76 @@ class Delegation(Ledger):
         self.assertIn(delegation.STOP + ["18", "--repo", MAIN], self.calls)
 
 
+class ForemanFields(Ledger):
+    """Plan 0333 step 9 (D11): a foreman never starts in a field 30-99, where the wagon master refuses its wagon."""
+
+    def create_says(self, code, out):
+        """create.py answers `(code, out)`, every other call as in Ledger.setUp."""
+        base = delegation.call
+
+        def call(argv, cwd):
+            if argv[:2] == delegation.CREATE:
+                self.calls.append(argv)
+                return code, out
+            return base(argv, cwd)
+        p = mock.patch.object(delegation, "call", call)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_all_fields_00_29_busy_nothing_starts_and_the_action_waits_with_the_reason(self):
+        """Today's 44-50: with 00-29 full create.py went on to 44. Now the range ends at 29 and the delegation waits."""
+        self.create_says(delegation.NO_FREE_EXIT, "")
+        with mock.patch.object(delegation.deliver, "send", return_value=None) as send:
+            self.free = [{"slot": "44", "panes": ["%44"]}, {"slot": "main", "panes": ["%1"]}]
+            r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        send.assert_not_called()  # the idle session in field 44 is not taken
+        self.assertEqual((r["state"], r["reason"]), ("waiting", "no free field 00-29"))
+        create = [c for c in self.calls if c[:2] == delegation.CREATE]
+        self.assertEqual(len(create), 1)
+        self.assertEqual(create[0][create[0].index("--from"):create[0].index("--from") + 4], ["--from", "00", "--to", "29"])
+        entry = delegation.ledger(MAIN)["flaky:t"]
+        self.assertEqual((entry["state"], entry["reason"]), ("waiting", "no free field 00-29"))
+        log = [json.loads(x) for x in (self.tmp / "hal2" / "log.jsonl").read_text().splitlines()]
+        self.assertIn("no free field 00-29", log[-1]["note"])
+        # retried every round for the same reason: not noted nor logged again
+        again = delegation.follow_up(MAIN, {}, 5, False, NOW + dt.timedelta(minutes=5))
+        self.assertEqual([(d["state"], d["reason"]) for d in again], [("waiting", "no free field 00-29")])
+        self.assertEqual(len((self.tmp / "hal2" / "log.jsonl").read_text().splitlines()), len(log))
+
+    def test_a_waiting_delegation_starts_once_a_field_is_free(self):
+        self.create_says(delegation.NO_FREE_EXIT, "")
+        self.assertEqual(delegation.delegate(flaky(), MAIN, 5, False, NOW)["state"], "waiting")
+        self.create_says(0, json.dumps({"slot": "07"}))
+        later = delegation.follow_up(MAIN, {}, 5, False, NOW + dt.timedelta(minutes=5))
+        self.assertEqual([(d["state"], d["slot"]) for d in later], [("running", "07")])
+
+    def test_a_done_cleaned_field_07_is_reused(self):
+        self.create_says(0, json.dumps({"slot": "07"}))
+        r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        self.assertEqual((r["state"], r["slot"], r["how"]), ("running", "07", "new"))
+
+    def test_the_limit_bypass_hands_create_the_same_range(self):
+        """`farmer.py delegate` and the tick call the same delegate(): no path passes a range reaching 30."""
+        with mock.patch.object(delegation, "machine_load", return_value=0.0):
+            r = delegation.delegate(flaky(), MAIN, 999, True, NOW)
+        argv = r["calls"][1]
+        self.assertEqual(argv[argv.index("--from") + 1:argv.index("--from") + 4], ["00", "--to", "29"])
+
+    def test_a_create_that_lands_in_44_is_refused(self):
+        self.create_says(0, json.dumps({"slot": "44"}))
+        r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
+        self.assertEqual(r["state"], "error")
+        self.assertIn("field 44", r["error"])
+        self.assertIn("outside 00-29", r["error"])
+
+    def test_a_free_session_in_30_99_is_never_taken(self):
+        self.create_says(delegation.NO_FREE_EXIT, "")
+        for slot in ("30", "44", "99"):
+            self.assertFalse(delegation.servant_slot(slot))
+        for slot in ("00", "07", "29"):
+            self.assertTrue(delegation.servant_slot(slot))
+
+
 class ServantSlots(Ledger):
     """Plan 0270 (D13): the farmer's sessions (foremen) work in the first free worktree counting from 00; a foreman's
     own servants stay in 30-99 (skills plan 0013)."""
@@ -218,9 +288,9 @@ class ServantSlots(Ledger):
 
     def test_main_and_the_role_slots_are_never_taken(self):
         r, send = self.delegate_free([{"slot": "main", "panes": ["%1"]}, {"slot": "farmer-hal2", "panes": ["%2"]},
-                                      {"slot": "31", "panes": ["%31"]}])
-        self.assertEqual((r["slot"], r["how"]), ("31", "free"))
-        self.assertEqual(send.call_args.args[0], "%31")
+                                      {"slot": "21", "panes": ["%21"]}])
+        self.assertEqual((r["slot"], r["how"]), ("21", "free"))
+        self.assertEqual(send.call_args.args[0], "%21")
 
     def test_with_no_free_session_a_new_one_starts_from_00(self):
         r, send = self.delegate_free([{"slot": "main", "panes": ["%1"]}])
@@ -239,7 +309,7 @@ class ServantSlots(Ledger):
 
     def test_a_reused_session_at_other_values_is_switched_never_typed_into(self):
         """Skills plan 0016: a free session at sonnet or another effort restarts at the foreman's values."""
-        self.free = [{"slot": "31", "panes": ["%31"]}]
+        self.free = [{"slot": "21", "panes": ["%21"]}]
         for live in ({"model": "claude-sonnet-5-5", "effort": "medium"}, {"model": "opus[1m]", "effort": "max"},
                      {"model": "", "effort": ""}):
             self.live, self.calls[:] = live, []
@@ -247,9 +317,9 @@ class ServantSlots(Ledger):
             with mock.patch.object(delegation.deliver, "send", return_value=None) as send:
                 r = delegation.delegate(dict(flaky(), key=key), MAIN, 5, False, NOW)
             send.assert_not_called()
-            self.assertEqual((r["slot"], r["how"]), ("31", "switch"), live)
+            self.assertEqual((r["slot"], r["how"]), ("21", "switch"), live)
             switch = [c for c in self.calls if c[:2] == delegation.SWITCH][0]
-            self.assertEqual(switch[2:7], ["%31", "--model", "opus", "--effort", "medium"])
+            self.assertEqual(switch[2:7], ["%21", "--model", "opus", "--effort", "medium"])
             self.assertIn("--detach", switch)
             self.assertIn(delegation.COORDINATOR, switch[switch.index("--prompt") + 1])
 
@@ -260,13 +330,13 @@ class ServantSlots(Ledger):
         self.assertFalse(delegation.same_model("claude-opus-4-6", "claude-opus-5-5"))
 
     def test_follow_up_never_touches_a_session_it_did_not_start(self):
-        """A session in worktree 31 that is not in the farmer's ledger (a user's, or a former servant) is neither
+        """A session in worktree 21 that is not in the farmer's ledger (a user's, or a former servant) is neither
         recorded nor stopped, even when its worktree looks landed."""
         delegation.delegate(flaky(), MAIN, 5, False, NOW)
-        slots = {"18": {"plan": "0120-fix-t", "ahead": 2}, "31": {"plan": "", "ahead": 0}}
+        slots = {"18": {"plan": "0120-fix-t", "ahead": 2}, "21": {"plan": "", "ahead": 0}}
         self.assertEqual(delegation.follow_up(MAIN, slots, 5, False, NOW + dt.timedelta(hours=2)), [])
         self.assertFalse([c for c in self.calls if c[:len(delegation.STOP)] == delegation.STOP])
-        self.assertNotIn("31", {e.get("slot") for e in delegation.ledger(MAIN).values()})
+        self.assertNotIn("21", {e.get("slot") for e in delegation.ledger(MAIN).values()})
 
 
 if __name__ == "__main__":

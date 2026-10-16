@@ -247,7 +247,10 @@ class RepoTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(result.stdout.split("\n")[0], checker.NOT_INSTALLED)
         env = {k: v for k, v in ENV.items() if k != checker.ENV}
-        env["PATH"] = "/usr/bin:/bin"  # git, never hal2-cli-records
+        bin_dir = Path(self.tmp.name) / "hermetic-bin"  # only git: never a system hal2-cli-records
+        bin_dir.mkdir()
+        (bin_dir / "git").symlink_to(shutil.which("git"))
+        env["PATH"] = str(bin_dir)
         result = subprocess.run([sys.executable, str(SCRIPT), "check"], cwd=self.root, env=env, text=True,
                                 capture_output=True)
         self.assertEqual((result.returncode, result.stdout.split("\n")[0]), (0, checker.NOT_INSTALLED))

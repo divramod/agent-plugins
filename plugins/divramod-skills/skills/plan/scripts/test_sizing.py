@@ -27,6 +27,21 @@ def record(rows: str, run: str = "opus max 1m", header: str = HEADER) -> str:
     return f"---\ntype: Plan\nschema: 1\nid: 1\nrun: {run}\nstatus: open\n---\n\n# Plan 0001: Demo\n\n## Steps\n\n{header}{rows}"
 
 
+import qstub  # noqa: E402
+
+_STUB = None
+
+
+def setUpModule():
+    """The questions CLI is pinned to a stub with no problems: the output is the same on every machine."""
+    global _STUB
+    _STUB = qstub.pin_module()
+
+
+def tearDownModule():
+    _STUB.cleanup()
+
+
 class SizingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

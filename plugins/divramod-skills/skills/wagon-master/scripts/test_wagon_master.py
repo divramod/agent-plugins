@@ -6,13 +6,17 @@ trains themselves (step 6) are test_engine.py's."""
 import contextlib
 import io
 import json
+import os
+import re
 import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import farmer_frame
+import due
 import farmer
+import handoff
 import mtm_scan
 import role_cli
 import roles
@@ -42,9 +46,9 @@ class Wiring(unittest.TestCase):
         self.assertEqual((w.role, w.cli, w.skill), ("wagon-master", SCRIPTS / "wagon_master.py", SCRIPTS.parent))
         self.assertEqual((w.act, w.handoff, w.delegates), ("/wagon-master act", "/wagon-master handoff", False))
         self.assertEqual((w.duties, dict(w.subskills)),
-                         (("mtm", "trains", "learn"), {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
+                         (("mtm", "trains", "checks", "learn"), {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
         self.assertEqual(w.role_files, ("roles/wagon-master/ROLE.md", "roles/wagon-master/.gitignore"))
-        self.assertEqual(set(wagon_master.HANDLERS), {"duty:mtm", "duty:trains", "duty:learn"}, "no task:* (D22)")
+        self.assertEqual(set(wagon_master.HANDLERS), {"duty:mtm", "duty:trains", "duty:checks", "duty:learn"}, "no task:* (D22)")
         self.assertIs(w.carries, wagon_master.train_state.carries, "D22: the field carries the trains")
         self.assertIsNone(roles.FARMER.carries)
 
@@ -121,7 +125,7 @@ class Start(Field):
     def test_a_duty_of_the_farmer_s_is_unknown_here_and_no_role_file_is_nothing_to_run(self):
         self.commit(self.wm, WIRING.role_file, ROLE.replace("trains:", "lead:"))
         code, out = self.call("start-check")
-        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains, learn)\n"))
+        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains, checks, learn)\n"))
         git(self.wm, "rm", "-q", WIRING.role_file)
         code, out = self.call("start-check")
         self.assertEqual(code, 3)
@@ -295,6 +299,78 @@ class Status(Field):
         self.assertTrue(out.startswith(f"handoff: {self.wm_state / 'handoff.md'} (missing"), out)
         self.assertIn("# wagon-master handoff", out)
         self.assertIs(sys.modules["handoff"].__file__.startswith(str(farmer_frame.SCRIPTS)), True)
+
+
+class SessionEffort(Field):
+    """Hal2 plan 0333, D4/D7: the wagon master's session runs at effort high (ROLE.md's `session_effort`, default
+    high) and every clear-and-continue passes it; the user's rule is in the skill, the template and the record."""
+
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def cli(*args, timeout=30):
+            if args[0] == "list":
+                return 0, json.dumps([{"pane_id": "%9", "checkout": str(self.wm), "session_id": "s1"}])
+            self.calls.append(args)
+            return 0, '{"status": "started", "pane": "%9"}'
+
+        p = mock.patch.object(wake.deliver, "cli", cli)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def clear(self, role_text=None):
+        if role_text is not None:
+            (self.wm / WIRING.role_file).write_text(role_text)
+        f = handoff.path(str(self.main), WIRING)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("# wagon-master handoff\n")
+        os.utime(f, None)
+        self.calls.clear()
+        code, out = self.call("handoff", "--clear")
+        self.assertEqual(code, 0, out)
+        return self.calls[-1]
+
+    def test_the_default_is_high_and_the_template_names_it(self):
+        self.assertEqual(due.SESSION_EFFORT, "high")
+        self.assertEqual(due.schedule(ROLE, WIRING.duties)[1]["session_effort"], "high")
+        template = (SCRIPTS.parent / "templates" / "ROLE.md").read_text()
+        _, settings, problems = due.schedule(template, WIRING.duties)
+        self.assertEqual((settings["session_effort"], problems), ("high", []))
+        self.assertIn("session_effort: high", template)
+
+    def test_a_named_effort_is_validated(self):
+        self.assertEqual(due.schedule(ROLE.replace("notify:", "session_effort: xhigh\nnotify:"))[1]["session_effort"],
+                         "xhigh")
+        problems = due.schedule(ROLE.replace("notify:", "session_effort: huge\nnotify:"))[2]
+        self.assertIn("`session_effort:` is one of low, medium, high, xhigh, max", problems)
+
+    def test_the_restart_passes_the_effort_to_the_clear_and_continue(self):
+        self.assertTrue(WIRING.session_effort)
+        self.assertFalse(roles.FARMER.session_effort, "the farmer's clear is unchanged")
+        self.assertEqual(self.clear(), ("clear-and-continue", "--pane", "%9", "--prompt", "/wagon-master act",
+                                        "--without-plan", "--detach", "--json", "--effort", "high", "--session", "s1"))
+
+    def test_a_role_file_with_another_effort_or_a_bad_one_decides_the_restart(self):
+        self.assertIn("xhigh", self.clear(ROLE.replace("notify:", "session_effort: xhigh\nnotify:")))
+        bad = self.clear(ROLE.replace("notify:", "session_effort: huge\nnotify:"))
+        self.assertEqual(bad[bad.index("--effort") + 1], "high", "an invalid setting never blocks the clear")
+        (self.wm / WIRING.role_file).unlink()
+        self.assertEqual(handoff.session_effort(str(self.wm), WIRING), "high")
+
+    def test_the_start_command_carries_model_and_effort_in_the_skill(self):
+        skill = (SCRIPTS.parent / "SKILL.md").read_text()
+        starts = re.findall(r"hal2-cli-git worktree run wagon-master-<repo> --agent claude[^`]*", skill)
+        self.assertTrue(starts)
+        self.assertTrue(all(s.endswith("--model opus --effort high") for s in starts), starts)
+
+    def test_the_users_rule_is_in_the_skill_the_instructions_the_template_and_the_record(self):
+        record = Path(__file__).resolve().parents[6] / ".adr" / "wagon-master-decides-trains.md"
+        self.assertIn("NEVER asked of the user", record.read_text() if record.exists() else "NEVER asked of the user")
+        for name in ("SKILL.md", "instructions/trains.md", "templates/ROLE.md"):
+            text = (SCRIPTS.parent / name).read_text()
+            self.assertIn("wagon-master-decides-trains", text, name)
+            self.assertIn("never ask", text.lower().replace("never asked", "never ask"), name)
 
 
 if __name__ == "__main__":

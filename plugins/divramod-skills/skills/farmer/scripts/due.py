@@ -14,7 +14,9 @@ Nothing is implicit: only the duties under the front matter's `duties:` (name â†
 tasks under `## Tasks` (each `### <name>` with its `- **Cron**: <cron>` line) run, and the
 setting `notify` is required, `servant_limit` (`auto` or a number) defaults to `auto`, `servant_model` (an alias
 such as `opus` or a model id) to `opus` and `servant_effort` (low|medium|high|xhigh|max) to `medium`: the values a
-foreman's coordinator session starts at (skills plan 0016). No roles/farmer/ROLE.md: nothing runs (exit 3).
+foreman's coordinator session starts at (skills plan 0016); `session_effort` (same levels, default `high`) is the
+effort of the role's own session, which a role with `Wiring.session_effort` starts and restarts at.
+No roles/farmer/ROLE.md: nothing runs (exit 3).
 A cron is standard 5-field notation in local time: minute hour day-of-month month day-of-week
 (`*/15 * * * *`, `0 * * * *`, `7 9 * * *`, `0 8 * * 1-5`). An item is due when one of its fire
 times passed since it last ran. Writes only runs.jsonl in the farmer's state folder (roles/farmer/ of its worktree).
@@ -40,6 +42,8 @@ DUTIES = roles.FARMER.duties  # the farmer's duty names; another role passes its
 NOTIFY = ("every-round", "hourly", "daily", "never")
 # A foreman's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
 SERVANT_MODEL, SERVANT_EFFORT = "opus", "medium"
+# A role's own session (the wagon master, hal2 plan 0333, D4): its effort when it starts and after every clear.
+SESSION_EFFORT = "high"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 MODEL = re.compile(r"^[a-z][a-z0-9.\-]*(\[1m\])?$")
 MIN_TICK = 5
@@ -178,6 +182,10 @@ def schedule(role_text: str, known: tuple[str, ...] = DUTIES) -> tuple[dict[str,
     model, effort = fm.get("servant_model"), fm.get("servant_effort")
     settings["servant_model"] = str(model).strip() if model is not None else SERVANT_MODEL
     settings["servant_effort"] = str(effort).strip() if effort is not None else SERVANT_EFFORT
+    session = fm.get("session_effort")
+    settings["session_effort"] = str(session).strip() if session is not None else SESSION_EFFORT
+    if settings["session_effort"] not in EFFORTS:
+        problems.append(f"`session_effort:` is one of {', '.join(EFFORTS)}")
     if not MODEL.match(settings["servant_model"]):
         problems.append("`servant_model:` is a model alias (`opus`, `sonnet`, ...) or id (`claude-opus-5-5`)")
     if settings["servant_effort"] not in EFFORTS:

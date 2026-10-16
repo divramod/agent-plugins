@@ -21,8 +21,13 @@ listed worktree leaves the order when its landing's turn ends, or by `hal2-cli-g
 ## Run
 
 ```bash
-python3 $S/adapt.py <worktree>... [--note "<why>"] [--repo <dir>] [--instruct] --json
+python3 $S/adapt.py <worktree>... [--note "<why>"] [--by user] [--repo <dir>] [--instruct] --json
 ```
+
+The order is stamped with who set it (`hal2-cli-git worktree queue order ... --by <who>`, which `worktree queue` shows as
+"by ..."): by default this session's own field (`hal2/17`, `hal2/farmer-hal2`). Add `--by user` when you relay the user's
+own words (their `/adapt-merge-queue` or "12 first, then 18"): hal2 then shows `the user (via hal2/17)`. Never `--by user`
+for an order the session decided itself.
 
 Pass `--instruct` in the farmer session (the farmer's worktree `farmer-<repo>`): each message then carries the farmer's ack id
 and is logged as an instruction (the tick follows up on missing acks). Exit 2 names a missing hal2 CLI (`bash

@@ -130,12 +130,13 @@ script, a recurring failure class, a rule patch in `pending/`), it delegates:
    - a pending patch's path, when there is one.
 4. **Worktree**, the first free worktree counting from 00 (the user, 2026-10-13, plan 0270 D13: "the farmer should start
    in the first free worktree from 00"). The session started here runs the plan, so it is a foreman; its own servants
-   stay in 30-99 (skills plan 0013). Idle sessions first, including the ones the user started:
+   stay in 30-99 (skills plan 0013); a foreman itself never starts in 30-99 (the wagon master refuses its wagon, plan 0333
+   D11): none free in 00-29, the delegation waits ("no free field 00-29"). Idle sessions first, including the ones the user started:
    `python3 $K/list-free-worktrees/scripts/free.py` finds a running session that is idle and holds no work; take the
    one in the lowest numbered worktree. When it runs at
    `servant_model` and `servant_effort` (`python3 $K/plan/scripts/session.py --session <its session id>`), SendMessage
    the prompt below to it; otherwise `hal2-cli-agents switch <pane> --model <m> --effort <e> --prompt "<prompt>"
-   --detach`. Otherwise start a new one: `python3 $K/create-worktree-session/scripts/create.py --from 00 --model <m>
+   --detach`. Otherwise start a new one: `python3 $K/create-worktree-session/scripts/create.py --from 00 --to 29 --model <m>
    --effort <e> --prompt "<prompt>"`. Its first prompt runs `/mfm`, then the given prompt.
 5. **Role file**: `farmer.py delegate --brief <file> --title <title>` writes it on its own; by hand, fill
    [templates/SERVANT-ROLE.md](templates/SERVANT-ROLE.md) into `roles/farmer/servants/<title-slug>.md`

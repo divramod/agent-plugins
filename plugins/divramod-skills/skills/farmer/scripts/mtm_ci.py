@@ -48,7 +48,8 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
              # Plan 0349's jobs after the merge (its graph's column 04).
              "git-pull-main", "rust-install-apps-mac", "ts-install-desktop-mac", "git-deliver-record",
              "agents-publish", "tmux-publish-mac", "tmux-publish-linux", "nvim-publish",
-             "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host"}
+             "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host",
+             "hub-deploy"}  # the hub's deploy on mac-host-b (plan 0349 step 35)
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 # The macOS build jobs (the workflow's `mac-vm-build`, plan 0263 D64) build beside the checks what the delivery installs,
 # and `mac-vm-build-plan` names them on the Mac host before (D128): `gate` needs none of them, so a red one is no red of

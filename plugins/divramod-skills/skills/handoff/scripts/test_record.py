@@ -12,7 +12,6 @@ HERE = Path(__file__).resolve().parent
 PLAN = HERE.parents[1] / "plan" / "scripts" / "plan.py"
 sys.path.insert(0, str(PLAN.parent))
 import checker  # noqa: E402  (the plan skill's: hal2's records checker, hal2 plan 0214 step 6)
-from checker_probe import unless_brief_refused  # noqa: E402  (a checker that accepts a new plan's Brief)
 
 needs_checker = unittest.skipUnless(checker.binary(), f"{checker.NAME} is not installed and ${checker.ENV} is unset")
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -97,7 +96,6 @@ class RecordHandoffTest(unittest.TestCase):
         (self.repo / "plans" / "LEAD").write_text("30 0001-tiny 2\n")
         self.assertEqual((self.where()["file"], self.where()["form"]), ("HANDOFF.md", "legacy"))
 
-    @unless_brief_refused
     def test_stamp_writes_a_missing_handoff_and_says_where_it_was_written(self):
         plan = self.new_plan()
         sha = self.commit_all("the plan")
@@ -109,7 +107,6 @@ class RecordHandoffTest(unittest.TestCase):
         self.assertIn("\nbranch: main\n", text)
         self.assertEqual(self.checked(), "ok")
 
-    @unless_brief_refused
     def test_stamp_keeps_the_masterplan_and_row_of_a_plan_of_one_under_the_heading(self):
         self.run_in(sys.executable, str(PLAN), "new", "Masterplan farm", "--masterplan")
         out = self.run_in(sys.executable, str(PLAN), "new", "tools", "--parent", "1").stdout
@@ -145,7 +142,6 @@ class RecordHandoffTest(unittest.TestCase):
         self.assertIn("another session worked", out)
         self.assertNotIn("docs: the handoff", out)
 
-    @unless_brief_refused
     def test_the_ledger_is_the_decisions_index(self):
         plan = self.new_plan()
         ledger = plan.parent / "decisions.md"
@@ -171,7 +167,8 @@ class RecordHandoffTest(unittest.TestCase):
         plan = self.new_plan()
         q = plan.parent / "questions.md"
         q.write_text(q.read_text() + "\n## Q1 · 2026-10-08 · agent · answered 2026-10-08\n\n**Q:** Land tonight?\n"
-                     '**A:** "no"\n**Decision:** D1\n\n## Q2 · 2026-10-08 · agent · open\n\n**Q:** Which base?\n')
+                     '**A:** "no"\n**Decision:** D1\n\n## Q2 · 2026-10-08 · agent · open\n\n**Q:** Which base?\n'
+                     '  a) (Recommended) main\n  b) the branch\n  c) none\n')
         self.assertEqual(self.script("questions.py", "--check").stdout.strip(), "ok")
         out = json.loads(self.script("questions.py", "--json").stdout)
         self.assertEqual(([e["n"] for e in out["open"]], out["answered"], out["next"]), ([2], 1, 3))

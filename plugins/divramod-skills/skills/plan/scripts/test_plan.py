@@ -250,7 +250,8 @@ class PlanTest(unittest.TestCase):
 
     def test_new_plan_ends_with_the_uat_step_but_a_research_plan_does_not(self):
         info = self.plan("new", "plugin-plan 3 tabs")
-        self.assertEqual([s["step"].split(":")[0] for s in info["steps"]][-1], "Write the UATs")
+        self.assertEqual([s["step"].split(":")[0] for s in info["steps"]][-1], "Write the UATs and the changelog fragment")
+        self.assertIn("hal2-cli-changelog check", info["steps"][-1]["done_when"])
         research = self.plan("new", "Compare tabs", "--research")
         self.assertFalse(any("UAT" in s["step"] for s in research["steps"]))
 

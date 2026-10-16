@@ -45,7 +45,9 @@ class Wiring:
     `act` and `handoff` the commands typed into the role's session, `duties` the names its ROLE.md may opt in to,
     `subskills` a duty's subskill folder; `delegates`: its rounds place and follow up delegations (delegation.py);
     `carries(field)`: the role's field holds other fields' commits by design now (the wagon master's while a train
-    stands, hal2 plan 0294 D22), so the round neither refuses them, merges from main nor commits a role file edit."""
+    stands, hal2 plan 0294 D22), so the round neither refuses them, merges from main nor commits a role file edit;
+    `session_effort`: the role's session runs at its ROLE.md's `session_effort` (default high), also after a clear
+    (hal2 plan 0333 D4)."""
     role: str
     cli: Path
     skill: Path
@@ -55,6 +57,7 @@ class Wiring:
     subskills: Mapping[str, str]
     delegates: bool = False
     carries: Callable[[str], bool] | None = None
+    session_effort: bool = False
 
     @property
     def role_file(self) -> str:

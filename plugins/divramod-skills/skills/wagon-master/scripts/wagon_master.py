@@ -13,14 +13,20 @@
       log) are posted to the message board before and after it (board.py sync)
   wagon_master.py train --dry-run [--json] [--repo <dir>]
       the train that stands and the next one as the queue allows it now: the cars in order, the unhitched with
-      their reasons, who waits, alone or not (trains.py's steps 1 to 4), and what the yard would give it: the
+      their reasons, who waits, gate train or not (trains.py's steps 1 to 4), and what the yard would give it: the
       files placed and those left with their reasons (yard.py). Nothing is written, merged or sent
   wagon_master.py unhitch <field> --why <text> [--repo <dir>]
-      take a field's ready mark; for a car of a red train the rest forms again at the next round, and the tick
-      tells its foreman why. Refused for a car of a train that lands. `unhitch yard`: the yard's car of a red
-      train; its files stay in the yard and out of every train until they change, and the farmer is told
-  wagon_master.py retry --why <text> [--repo <dir>]
-      a red train lands again as it is at the next round (a flaky gate)
+      take a field's ready mark; for a car of a red train the duty `trains` goes on in the same call (chain.py):
+      the train broken up, its foreman told why, the rest formed again. Refused for a car of a train that lands.
+      `unhitch yard`: the yard's car of a red train; its files stay in the yard and out of every train until
+      they change, and the farmer is told
+  wagon_master.py chain [--in-tick] [--repo <dir>]
+      the duty `trains` again, right now, link after link until a wait (chain.py, plan 0333 step 6): what an
+      unhitch after red and a round that finds a train landed run, so the next train forms in the same call.
+      Only in timer mode, behind the tick lock (`--in-tick`: the round that holds it calls)
+  wagon_master.py retry --why <text> [--skip-pretest] [--repo <dir>]
+      a red train lands again as it is at the next round (a flaky gate); `--skip-pretest`: without its pretest (a
+      red pretest that is the Mac's, not a car's)
   wagon_master.py timer install|remove|status [--repo <dir>] [--dry-run] [--json]
       the external timer `local.wagon-master.<repo>` that runs `tick` at the loop's cron (the frame's timer.py);
       install switches the mode to `timer`, remove back to `claude`
@@ -39,6 +45,9 @@
       in the state folder); unsilence ends it. A dry run and --json stay full
   wagon_master.py mode [claude|timer] [--repo <dir>]
       who runs the rounds: the timer (`timer`) or nobody yet (`claude`, the default)
+  wagon_master.py checks busy|defer|dispatched|list|cancel|dispatch ... [--repo <dir>] [--json]
+      landings first on the runners (hal2 plan 0306, the duty `checks`: checks.py): ci-check asks `busy` and
+      defers while a landing runs; checks_cli.py's doc has every command
 
 The message board is board.py (`board.py list`, `post`, `sync`): roles/wagon-master/board.jsonl.
 
@@ -58,6 +67,9 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
 import boss
+import chain
+import checks
+import checks_cli
 import due
 import engine
 import learn
@@ -73,10 +85,12 @@ import wake
 HERE = Path(__file__).resolve().parent
 WIRING = roles.Wiring(
     role="wagon-master", cli=HERE / "wagon_master.py", skill=HERE.parent,
-    act="/wagon-master act", handoff="/wagon-master handoff", duties=("mtm", "trains", "learn"),
-    subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=train_state.carries)
+    act="/wagon-master act", handoff="/wagon-master handoff", duties=("mtm", "trains", "checks", "learn"),
+    subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=train_state.carries,
+    session_effort=True)
 # "duty:<name>" → (item, ctx) → actions
-HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:learn": learn.handler}
+HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:checks": checks.handler,
+                  "duty:learn": learn.handler}
 
 
 def last_tick(state: Path) -> dt.datetime | None:
@@ -123,7 +137,8 @@ def parser() -> argparse.ArgumentParser:
     train.add_argument("--dry-run", action="store_true", required=True)
     train.add_argument("--json", action="store_true")
     sub.add_parser("unhitch").add_argument("field")
-    sub.add_parser("retry")
+    sub.add_parser("chain").add_argument("--in-tick", action="store_true")
+    sub.add_parser("retry").add_argument("--skip-pretest", action="store_true")
     for name in ("unhitch", "retry"):
         sub.choices[name].add_argument("--why", required=True)
     for name in ("silence", "unsilence"):
@@ -131,11 +146,16 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("mode").add_argument("set", nargs="?", choices=role_cli.MODES)
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())
+    checks_cli.add_parser(sub)  # its commands take their own --repo
     return p
 
 
 def main(argv: list[str]) -> int:
-    args = parser().parse_args(argv)
+    rest = argv[argv.index("--") + 1:] if "--" in argv else []
+    args = parser().parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    if args.cmd == "checks":
+        args.argv = rest
+        return checks_cli.main(args, status, WIRING)
     if args.cmd == "start-check":
         return role_cli.print_start_check(*role_cli.start_check(args.repo, WIRING), args.json)
     if args.cmd == "status":
@@ -148,8 +168,12 @@ def main(argv: list[str]) -> int:
         return 0
     if args.cmd in ("unhitch", "retry"):
         code, text = (engine.unhitch(args.repo, args.field, args.why) if args.cmd == "unhitch"
-                      else engine.retry(args.repo, args.why))
+                      else engine.retry(args.repo, args.why, skip_pretest=args.skip_pretest))
         print(text, file=sys.stderr if code else sys.stdout)
+        return code or (go_on(args.repo) if args.cmd == "unhitch" else 0)
+    if args.cmd == "chain":
+        code, text = chain.run(args.repo, WIRING, trains.handler, args.in_tick)
+        print(text)
         return code
     if args.cmd in ("silence", "unsilence"):
         return silence.run(args, WIRING, args.cmd == "silence")
@@ -189,6 +213,17 @@ def silent_lines(main: str, r: dict, since: str, wiring: roles.Wiring = WIRING) 
         joined = [c["field"] for c in formed.get("cars", [])] + (["yard"] if any(e["kind"] == "yard" for e in mine) else [])
         out.append(silence.line(wiring.role, f"train {name}: {state}", joined))
     return out or [silence.line(wiring.role, "no train")]
+
+
+def go_on(repo: str) -> int:
+    """After an unhitch: a red train split by it is broken up and the rest formed again in this call (cause C)."""
+    train = train_state.standing(train_state.lines(mtm_scan.main_checkout(repo)))
+    if not train or train["state"] != "split":
+        return 0
+    code, text = chain.run(repo, WIRING, trains.handler)
+    print(text)
+    board.safely(mtm_scan.main_checkout(repo), "messages and acks", board.sync)
+    return code
 
 
 def tick(args) -> int:

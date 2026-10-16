@@ -1,5 +1,6 @@
 """questions.py finds a checkout's questions file, lists its open questions and checks its entries."""
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -36,8 +37,23 @@ class Questions(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_script(self, *args):
-        return subprocess.run(["python3", str(SCRIPT), *args], cwd=self.root, text=True, capture_output=True)
+    def run_script(self, *args, cli=None):
+        """The script with hal2-cli-plans pinned: `cli` (a stub script), else none (the fallback rule)."""
+        env = {**os.environ, "HAL2_CLI_PLANS": cli or str(self.root / "no-such-cli")}
+        return subprocess.run(["python3", str(SCRIPT), *args], cwd=self.root, text=True, capture_output=True, env=env)
+
+    def stub(self, stdout: str, code: int = 1) -> str:
+        """A fake hal2-cli-plans that prints `stdout` and exits `code`; it records its arguments."""
+        path = self.root / "stub-cli"
+        path.write_text(f"#!/bin/sh\necho \"$@\" > '{self.root}/stub-args'\ncat <<'EOF'\n{stdout}\nEOF\nexit {code}\n")
+        path.chmod(0o755)
+        return str(path)
+
+    def write_store(self, text: str) -> Path:
+        (self.root / "plans" / "CURRENT_PLAN").write_text("0003-x\n")
+        store = self.root / "plans" / "0003-x" / "questions.md"
+        store.write_text(text)
+        return store
 
     def test_the_file_is_the_current_plans(self):
         (self.root / "plans" / "CURRENT_PLAN").write_text("0003-x\n")
@@ -90,6 +106,44 @@ class Questions(unittest.TestCase):
         for part in ("Q1: answered, but no **A:** line", "Q1: the number is used twice",
                      "Q1: open, but it has an answer", "heading does not match", "Q3: no **Q:** line"):
             self.assertIn(part, out.stdout)
+
+    def test_check_fallback_reports_an_open_agent_question_not_in_the_q_form(self):
+        """Without hal2-cli-plans: inline options, a wrong count and a missing mark are problems of open agent
+        entries only (answered ones, the user's and the well-formed pass)."""
+        self.write_store(FILE + "\n## Q4 · 2026-10-14 · agent · open\n\n**Q:** Pick? a) yes b) no c) maybe\n"
+                         "\n## Q5 · 2026-10-14 · agent · open\n\n**Q:** Two?\n  a) (Recommended) yes\n  b) no\n"
+                         "\n## Q6 · 2026-10-14 · agent · open\n\n**Q:** No mark?\n  a) yes\n  b) no\n  c) so\n"
+                         "\n## Q7 · 2026-10-14 · agent · open\n\n**Q:** Fine?\n  a) (Recommended) yes\n  b) no\n  c) so\n")
+        out = self.run_script("--check")
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual(out.stdout.splitlines(), [
+            "Q4: its options a) b) c) are inline in the question; the Q form puts each on its own line",
+            "Q5: 2 option lines; the Q form needs exactly three, a) b) c), each on its own line",
+            'Q6: option a) is not marked "(Recommended)"; the Q form recommends the first'])
+
+    def test_a_sentence_that_mentions_a_letter_is_not_torn(self):
+        self.write_store("## Q1 · 2026-10-14 · agent · open\n\n**Q:** Is plan a) done?\n  a) (Recommended) yes\n"
+                         "  b) no\n  c) so\n")
+        self.assertEqual(self.run_script("--check").stdout.strip(), "ok")
+
+    def test_check_uses_the_cli_when_it_is_there(self):
+        store = self.write_store(FILE)
+        line = "Q2: 0 option lines; the Q form needs exactly three, a) b) c), each on its own line"
+        out = self.run_script("--check", cli=self.stub(json.dumps({"problems": [{"n": 2, "message": line[4:]}]})))
+        self.assertEqual((out.returncode, out.stdout.strip()), (1, line))
+        self.assertEqual((self.root / "stub-args").read_text().strip(), f"questions check --json --store {store}")
+
+    def test_check_uses_the_cli_json_when_it_is_there(self):
+        self.write_store(FILE)
+        cli = self.stub(json.dumps({"store": "x", "problems": [{"n": 4, "message": "inline"}, {"message": "bad head"}]}))
+        out = self.run_script("--check", cli=cli)
+        self.assertEqual((out.returncode, out.stdout.splitlines()), (1, ["Q4: inline", "bad head"]))
+        self.assertEqual(self.run_script("--check", cli=self.stub(json.dumps({"problems": []}), 0)).stdout.strip(), "ok")
+
+    def test_an_older_cli_without_questions_falls_back(self):
+        self.write_store(FILE + "\n## Q4 · 2026-10-14 · agent · open\n\n**Q:** Pick? a) yes b) no c) maybe\n")
+        out = self.run_script("--check", cli=self.stub("hal2-cli-plans: unknown command", 2))
+        self.assertIn("Q4: its options a) b) c) are inline", out.stdout)
 
 
 if __name__ == "__main__":

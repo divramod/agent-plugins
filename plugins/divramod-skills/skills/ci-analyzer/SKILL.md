@@ -1,6 +1,6 @@
 ---
 name: ci-analyzer
-description: Analyse hal2's CI for waste and bottlenecks — runs hal2's `ci-analyzer` unit (`code/python/scripts/ci-analyzer/main.py`) over the last N workflow runs (default 40), whose thirteen deterministic checks (empty runs, ugly job names, queue wait, critical path, cancelled runs, repeated checks, cache misses, flaky jobs, idle runners, Mac host load, slow steps, disk, token cost) rank findings by wall time, runner minutes and money; the skill only judges: merges duplicates, ranks the top bottlenecks with run and job ids and minutes, and turns the fixes into shots or one farmer brief. Read-only against GitHub, it never changes a workflow and never reruns, cancels or dispatches. Use when the user says /ci-analyzer, "analyse CI", "CI bottlenecks", "why is CI slow", "CI cost" or "where does CI waste minutes". `/ci-analyzer h` shows help.
+description: Analyse hal2's CI for waste and bottlenecks — runs hal2's `ci-analyzer` unit (`code/python/scripts/ci-analyzer/main.py`) over the last N workflow runs (default 40), whose sixteen deterministic checks (empty runs, ugly job names, queue wait, critical path, cancelled runs, repeated checks, cache misses, flaky jobs, idle runners, Mac host load, slow steps, disk, token cost, green markers that missed, setup overhead, unequal lanes of one stage) rank findings by wall time, runner minutes and money; the skill only judges: merges duplicates, ranks the top bottlenecks with run and job ids and minutes, and turns the fixes into shots or one farmer brief. Read-only against GitHub, it never changes a workflow and never reruns, cancels or dispatches. Use when the user says /ci-analyzer, "analyse CI", "CI bottlenecks", "why is CI slow", "CI cost" or "where does CI waste minutes". `/ci-analyzer h` shows help.
 ---
 
 # ci-analyzer
@@ -22,11 +22,18 @@ Subcommands of `main.py`: `fetch`, `checks`, `report`, `h`/`help`. Options (all 
 
 ## The checks
 
+For the numbers of one finished run (which lane, how long, which job) run `main.py lanes <run id>` (`--json` for data):
+each lane's stage, OS, runner, span and busy minutes with its jobs, and per stage and OS the gap and the job to move.
+Use it to check a c16 finding or before proposing a move; quote its numbers, do not recompute them.
+
 c01 empty-runs (runs that did nothing), c02 job-names (names breaking the runner-names rule), c03 queue-wait (time a job
 waited for a runner), c04 critical-path (the jobs that set the wall time), c05 cancelled (cancelled or superseded runs),
 c06 repeats (identical checks run again), c07 cache-misses, c08 flaky (jobs red then green), c09 idle-runners (idle or
 unparked runners), c10 mac-host-load, c11 slow-steps (against `budgets.toml`), c12 disk (disk and cleanup), c13
-token-cost (a proxy for the agents' token cost). Match them with `checks/c<NN>_<slug>.py` in the unit.
+token-cost (a proxy for the agents' token cost), c14 green-markers (a job that ran although its marker should
+have hit; `--keys` names the input that moved the key), c15 setup-overhead ("Set up job" over 20 s; `--logs` names the
+action downloads), c16 stage-balance (the lanes of one stage and OS busy far unequal, e.g. 04-mac-host-a 22 min beside an
+idle mac-host-b; names the job whose move evens them; `--lane-gap`, `--lane-solo`). Match them with `checks/c<NN>_<slug>.py` in the unit.
 
 ## Judge
 

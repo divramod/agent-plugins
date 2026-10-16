@@ -13,9 +13,8 @@ plan as JSON (`slug`, `path`, `research`, `grilled`, `done`, `total`, `next`, `l
 **A plan's `plan.md` holds, after the Goal, a `## Brief`** (`In`, `Out`, `Must`, `Proof`: about ten lines; more goes
 into a linked `design.md`), written from the plan's seed before any step; the Context line `- Seed: <seedbag>#<n>` links the seed (`new --seed`). A plan without the section is valid (old plans).
 
-Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first.
-A question is listed to the user only on `/q` or when the plan cannot continue without the answer; otherwise it is
-recorded in `questions.md` and the run goes on (the user, 2026-10-13: "they should only list questions, when they cannot continue").
+Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first. A question is listed to the user only on `/q` or when the plan cannot continue without the answer; otherwise it is
+recorded in `questions.md` and the run goes on (the user, 2026-10-13: "they should only list questions, when they cannot continue"), by `hal2-cli-plans questions add "<q>" --option <a> --option <b> --option <c>` and `questions answer <n> "<answer>"`; `plan.py check` reports an open agent question not in the Q form (`questions-q-form`; advisory without the CLI).
 
 **`plans/CURRENT_PLAN` names what the worktree works on**, so the statusline shows it: `new` and `use` write the
 plan's slug into it. Other work writes it too (a shot `<shotfile>/<n>/<title-slug>`, a task name); then `current`
@@ -38,10 +37,8 @@ in the same worktree (that plan's `Landing: auto` lands both), or when the user 
 plan to `auto`; only an implementation plan lands itself.
 
 **Every implementation plan ends with its UATs.** Its last step before the landing (the template's "Write the
-UATs") writes `plans/<NNNN>-<slug>/uat.md` (`plan.py uat` scaffolds it from `templates/uat.md`, typed `UAT`: its
-`status` is the file's, `active` or `archived`, never a check's; a legacy uat.md keeps its header lines): the user acceptance
-checks the user runs by hand on the default branch after the landing (`hal2-cli-plans uat next <plan>`, then `uat set <plan> <check> pass|fail|skip|blocked`). Only what a human must see
-goes there: derive the checks from the goal, each step's done-when and the diff (new panes, commands, keys, deep
+UATs") writes `plans/<NNNN>-<slug>/uat.md` (`plan.py uat` scaffolds it from `templates/uat.md`, typed `UAT`: its `status` is the file's, `active` or `archived`, never a check's; a legacy uat.md keeps its header lines): the user acceptance
+checks the user runs by hand on the default branch after the landing (`hal2-cli-plans uat next <plan>`, then `uat set <plan> <check> pass|fail|skip|blocked`). Only what a human must see goes there: derive the checks from the goal, each step's done-when and the diff (new panes, commands, keys, deep
 links), drop what the plan's tests and your own verification already proved, keep what needs eyes and hands (layout,
 feel, real data, other devices), riskiest first (`Priority: p1` = what the goal promises), at most about 10, each
 with `Open:` (a `hal9k://` deep link) or `Run:` (a command) when one exists, steps and the expected result; tag checks
@@ -51,6 +48,8 @@ Never write a verdict into a checkout or commit one: `uat set` queues it in hal2
 from that machine appends it to the plan's committed `uat-results.jsonl` and regenerates `plans/uats.md` in its
 candidate (hal2 plan 0214 step 12); a failed check becomes a shot in the plan's feature shotfile (the `shotfile`
 key). A research plan has no UATs (`new --research` leaves the step out).
+
+**Every implementation plan ends with its changelog fragment too**, in the same step (record `changelog-fragments`): `plan.py changelog` scaffolds `plans/<NNNN>-<slug>/changelog.md` (`hal2-cli-changelog new`), the landing collects it into CHANGELOG.md. User-facing words only: `- ` lines under Keep a Changelog's categories (`## Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`), each starting with its unit (`` `hal9k-desktop`: ``); without user-facing change the line `No user-facing change.` and no category. A plan that lands many times grows its one fragment; `hal2-cli-changelog check` checks it; a research plan writes none.
 
 **The step table is the plan's state.** `/plan`, `/handoff` and the statusline all read it; nothing else tracks
 progress. Update it the moment a step's check passes, never later.
@@ -106,7 +105,7 @@ four, each with a front matter envelope: `type`, `schema`, `title`, `description
 |---|---|---|
 | `plan.md` | the overview: goal, context, the step table, Pre-authorized, Notes on the whole plan; `status` is `done` exactly when no step is open (`plan.py status` keeps it, `finished` and the other three files' `status`) | amended in place |
 | `decisions.md` | the ledger of every decision taken while the plan is planned and run: `## D<n> · <date> · <user \| farmer \| lead \| agent> · <in-force \| promoted \| superseded \| ended <date>>`, then `**D:**` (one line), `**Words:**` (quoted; required unless `agent`), and where they apply `**Via:**`, `**Why:**`, `**From:** Q<n>`, `**Record:**` (a link to the decision record; exactly when `promoted`), `**By:** D<m>` (exactly when `superseded`) | appended, numbered on; only an entry's state and its Record and By lines ever change |
-| `questions.md` | every question, the agent's and the user's, with its answer (the handoff skill's entries), plus `**Decision:** D<n>` when the answer is a decision | appended |
+| `questions.md` | every question, the agent's and the user's, with its answer (the handoff skill's entries), plus `**Decision:** D<n>` when the answer is a decision; written with `hal2-cli-plans questions add\|answer` (the Q form: three options a) b) c), each on its own line), by hand in that stored format only where the CLI is not installed | appended |
 | `handoff.md` | the state a cleared session needs (Done, Next with its `Done when:`, Watch out, Start with); committed, so no PID, pane id, session name or absolute home path | overwritten by `/handoff` |
 
 Beside them, **each step has its file** `steps/<n>.md` (hal2's shaped kind Step: `# Step <n>: <title>`, `## Task`, then
@@ -159,6 +158,7 @@ and its steps are not committed (the folder is no repository) unless the user ke
 | `/plan migrate` | | `python3 $S/plan.py migrate`: give a running record plan the Window and Size columns and a three-word `run` ([`plan-steps-sized`](#model-effort-and-window-per-step)) |
 | `/plan use <slug or number>` | `/plan u <ref>` | `python3 $S/plan.py use <ref>`, then Status |
 | `/plan uat` | | `python3 $S/plan.py uat`: scaffold the current plan's `uat.md` (see above) |
+| `/plan changelog` | | `python3 $S/plan.py changelog`: scaffold the current plan's `changelog.md` fragment (see above) |
 | `/plan landing auto\|manual` | `/plan l a\|m` | `python3 $S/plan.py landing <auto\|manual>`: whether the current plan lands itself at its end |
 | `/plan new --parallel <idea>` | `/plan p <idea>` | a parallel plan: the step table gets Needs, Touches and Who; it runs as in [Run a parallel plan](#run-a-parallel-plan) |
 | `/plan ready` | | `python3 $S/plan.py ready --json`: the parallel plan's steps that can start now, and why the others wait |

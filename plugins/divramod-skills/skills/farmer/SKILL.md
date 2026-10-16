@@ -57,7 +57,7 @@ and itself, so the worktree's `git status` stays clean ([reference](reference.md
 | `/farmer` | one tick now: `python3 $S/farmer.py tick` |
 | `/farmer measure` | a full dry round with every duty and task due, where its time goes: `python3 $S/farmer.py tick --dry-run --all-due` (the `timing:` line) |
 | `/farmer check` | `python3 $S/due.py check`: roles/farmer/ROLE.md valid? Each duty and task with its cron and mode (machine or prose) |
-| `/farmer first <slot>... [why]` | the user's priority: these worktrees land first, each place reserved (`python3 $S/mtm_scan.py priority <slot>... --note <why> --role wagon-master` wraps `hal2-cli-git worktree queue order`, the request is kept in the wagon master's folder, which its boss reads; `first clear` ends it: `priority --clear --role wagon-master`); to tell the sessions their places too, use the skill `adapt-merge-queue` |
+| `/farmer first <slot>... [why]` | the user's priority: these worktrees land first, each place reserved (`python3 $S/mtm_scan.py priority <slot>... --note <why> --role wagon-master --by user` wraps `hal2-cli-git worktree queue order ... --by <who>` (`--by user` as the user's own words; without it the role's field `hal2/<role>-<repo>` is stamped), the request is kept in the wagon master's folder, which its boss reads; `first clear` ends it: `priority --clear --role wagon-master --by user`); to tell the sessions their places too, use the skill `adapt-merge-queue` |
 | `/farmer questions [a\|l]`, `/farmer q` | the open (`a` answered, `l` all) questions of the farmer, the log's open asks and every worktree, one list: `python3 $S/farmer.py questions [a\|l]`; print its output and nothing else (the same list as `/q` in this worktree) |
 | `/s` | the state of every worktree as one table: the skill `s`, for every session |
 | `/farmer status [<hours>]` | `farmer.py timer status`, `mtm_scan.py status`, the log's last hours (default 6), delegations, `latest.md` |
@@ -158,7 +158,7 @@ The user gave the farmer this authority on 2026-10-03 (hal2 INTENT.md). The farm
 - **start foreman sessions and give them plans**, autogrilled, run and landed, **without asking the user**
   ([Delegate](reference.md#delegate-a-fix)): each runs its plan as the plan's coordinator (every step in a subagent),
   started at ROLE.md's `servant_model` and `servant_effort` (the foreman's settings), in the first free worktree counting from 00 (these are the
-  foremen of the user's glossary; a foreman's own servants stay in 30-99); stop the
+  foremen of the user's glossary; a foreman starts only in a field 00-29, never in 30-99: with none free the delegation waits and says "no free field 00-29"; a foreman's own servants stay in 30-99); stop the
   sessions it started once their work has landed (only those: never a session it did not start);
 - have a test that fails only under load disabled (recorded, with a shot to bring it back);
 - review code, okay what a session waits for, and answer questions that the repository's decisions answer;

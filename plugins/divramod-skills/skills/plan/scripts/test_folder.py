@@ -19,14 +19,13 @@ SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
 
 import checker  # noqa: E402
-from checker_probe import needs_brief_checker  # noqa: E402
 import envelope  # noqa: E402
 import folder  # noqa: E402
 
 CHECKER = checker.binary()
 needs_any_checker = unittest.skipUnless(CHECKER, f"{checker.NAME} is not installed and ${checker.ENV} is unset")
 
-needs_checker = needs_brief_checker
+needs_checker = needs_any_checker
 
 ENTRY = """
 ## D1 · 2026-10-08 · user · in-force
@@ -35,6 +34,26 @@ ENTRY = """
 **Words:** "i do the mtm next morning"
 """
 
+
+import qstub  # noqa: E402
+
+_STUB = None
+
+
+def setUpModule():
+    """The questions CLI is pinned to a stub with no problems: the output is the same on every machine."""
+    global _STUB
+    _STUB = qstub.pin_module()
+
+
+def tearDownModule():
+    _STUB.cleanup()
+
+
+
+def records_only(out: str) -> str:
+    """`plan.py check`'s output without the questions line: its CLI is the machine's (qcheck), not this test's."""
+    return "".join(l for l in out.splitlines(keepends=True) if not l.startswith("questions unchecked"))
 
 class FolderTest(unittest.TestCase):
     def setUp(self):
@@ -203,11 +222,15 @@ class FolderTest(unittest.TestCase):
         env = {**os.environ, checker.ENV: str(self.root / "no-such-binary")}
         result = self.run_plan("check", env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "ok: no plan number is used twice\n" + checker.NOT_INSTALLED + "\n")
+        self.assertEqual(records_only(result.stdout), "ok: no plan number is used twice\n" + checker.NOT_INSTALLED + "\n")
         env = {k: v for k, v in os.environ.items() if k != checker.ENV}
-        env["PATH"] = "/usr/bin:/bin"  # git, never hal2-cli-records
+        hermetic = tempfile.TemporaryDirectory()  # only git on PATH: never a system hal2-cli-records
+        self.addCleanup(hermetic.cleanup)
+        bin_dir = Path(hermetic.name)
+        (bin_dir / "git").symlink_to(shutil.which("git"))
+        env["PATH"] = str(bin_dir)
         result = self.run_plan("check", str(plan.parent), env=env)
-        self.assertEqual((result.returncode, result.stdout), (0, checker.NOT_INSTALLED + "\n"))
+        self.assertEqual((result.returncode, records_only(result.stdout)), (0, checker.NOT_INSTALLED + "\n"))
 
     @needs_checker
     def test_a_named_folder_is_checked_alone_and_resolves_its_links_in_the_repository_around_it(self):
