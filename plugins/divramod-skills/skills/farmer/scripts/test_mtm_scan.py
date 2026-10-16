@@ -69,7 +69,7 @@ class Findings(unittest.TestCase):
         self.assertIn("reserved-idle", [f["kind"] for f in scan.findings(snap(queue=q, worktrees=w))])
 
     def test_a_reserved_holder_that_works_is_no_idle_reservation(self):
-        # hal2 plan 0169, 2026-10-06 21:37: 05 held the queue reserved between two dispatched land.yml runs of its
+        # hal2 plan 0169, 2026-10-06 21:37: 05 held the queue reserved between two dispatched landing runs of its
         # measurement; reserved-idle told it to land. Its turn had just ended, a shell waited, a run was unfinished.
         q = [{"slot": "05", "state": "held", "enqueued": "2026-10-03T02:33:17Z", "process_alive": False,
               "hold": {"reason": "reserved"}}]

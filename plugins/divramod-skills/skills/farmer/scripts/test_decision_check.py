@@ -82,7 +82,7 @@ class Check(unittest.TestCase):
 # redesign, version bumps" and got 22 back.
 REDESIGN = {"at": "2026-10-05T21:22:06", "kind": "decision", "slot": "12",
             "what": "1a gate+merge on a label shared by the Linux runner and the Mac host runner; 2a build+publish+deliver "
-                    "inside land.yml; 3a Copilot reviews off", "note": 'user: "1a, 2a, 3a" (to the farmer\'s 3 questions)'}
+                    "inside the landing workflow; 3a Copilot reviews off", "note": 'user: "1a, 2a, 3a" (to the farmer\'s 3 questions)'}
 DEPLOY = {"at": "2026-10-04T18:23:29", "kind": "decision", "slot": "12",
           "what": "user: go for hal2-ci-wake production deploy (1a), CCX33 (2a); runner parked whenever nothing merges",
           "note": "relayed to 12 ~18:40"}

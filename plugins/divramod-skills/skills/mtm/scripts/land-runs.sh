@@ -2,7 +2,7 @@
 # Wait until no run of the landing workflow is unfinished in the repository of <dir> (default .),
 # so a landing through CI (which reserves the queue first) never pushes a
 # candidate while another landing still runs or ships (references/ci.md). The workflow is
-# dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml, before plan 0263 land.yml:
+# dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml:
 # all are asked, a run started before a rename finishes under the old name. A run counts until its
 # status is `completed`: `queued` too (a ship job waiting for a runner is queued).
 #   land-runs.sh [--once] [--interval <s>] [--max-wait <minutes>] [<dir>]
@@ -55,7 +55,7 @@ unfinished_of() {
 # The unfinished runs of every name of the workflow file.
 unfinished() {
   local file runs rc known=0 all=""
-  for file in dev-merge-to-main.yml merge-to-main.yml land.yml; do
+  for file in dev-merge-to-main.yml merge-to-main.yml; do
     rc=0
     runs=$(unfinished_of "$file") || rc=$?
     case "$rc" in
@@ -67,7 +67,7 @@ unfinished() {
 }$runs"
   done
   if [ "$known" -eq 0 ]; then
-    echo "land-runs.sh: GitHub knows none of dev-merge-to-main.yml, merge-to-main.yml and land.yml in this repository" >&2
+    echo "land-runs.sh: GitHub knows none of dev-merge-to-main.yml and merge-to-main.yml in this repository" >&2
     return 1
   fi
   [ -z "$all" ] || echo "$all"

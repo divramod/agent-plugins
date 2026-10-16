@@ -10,8 +10,8 @@ orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) 
 ([merge-train](../merge-train/SUBSKILL.md)). Why landings fail:
 [reasons.md](reasons.md).
 
-**Through CI** (the default branch has `.github/workflows/dev-merge-to-main.yml`, `merge-to-main.yml` (its name
-before plan 0349 D52) or `land.yml` (before plan 0263); hal2 plan 0131): landings are candidates on
+**Through CI** (the default branch has `.github/workflows/dev-merge-to-main.yml` or `merge-to-main.yml` (its name
+before plan 0349 D52); hal2 plan 0131): landings are candidates on
 `land/<slot>` with a pull request each, tested by GitHub Actions. The scan reads them from GitHub (`ci: true`;
 `gh pr list --head 'land/'`, `gh run list --workflow <file>` for both names); a red candidate keeps the queue held for its
 worktree until its fix lands (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"): its session reads the red jobs, reproduces them with `gate/main.sh <job>`, fixes

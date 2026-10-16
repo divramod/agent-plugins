@@ -1,7 +1,7 @@
 # Landing through CI
 
 A repository whose default branch (or this worktree's `HEAD`) has `.github/workflows/dev-merge-to-main.yml` (or
-`merge-to-main.yml`, its name before hal2 plan 0349, or `land.yml`, before plan 0263) lands through
+`merge-to-main.yml`, its name before hal2 plan 0349) lands through
 GitHub Actions (hal2's plan 0131 and its decision record
 [landings-on-github-actions](https://github.com/divramod/hal2/blob/main/.adr/landings-on-github-actions.md)). Nothing is tested on this machine:
 `hal2-cli-git worktree merge-to-main` takes the worktree's turn in the merge queue, merges the default branch in,
@@ -32,7 +32,7 @@ ahead; a wait over 10 minutes loses its parked ticket, so it reruns at once):
    landing from starting while you wait; `merge-to-main` takes it over.
 2. `bash $S/land-runs.sh`, in the background too. It runs `gh run list --workflow <file> --limit 10 --json
    databaseId,headBranch,status --jq '.[] | select(.status != "completed")'` for `dev-merge-to-main.yml`,
-   `merge-to-main.yml` and `land.yml` every minute (a run started before a rename finishes under the old name; a
+   and `merge-to-main.yml` every minute (a run started before a rename finishes under the old name; a
    file GitHub does not know has no runs) and exits 0 once none
    prints anything; while it lists a run, an earlier landing still runs or ships (`queued` counts too: a run whose
    ship job waits for a runner is queued), so never push meanwhile. Exit 7: a run stayed unfinished for an hour
@@ -130,8 +130,8 @@ trust `red`, and do not rerun the run, fix the job:
 A job red for a reason outside the code (the runner offline, a network failure, a full disk, the runner's image) is
 no code fix and cannot be seen green locally: fix the environment (a runner image is built first:
 `code/bash/scripts/ci-runner-linux/main.sh image-build`), then check **that one job alone** on CI (`gh workflow run
-dev-merge-to-main.yml --ref <branch> -f ref=<sha> -f jobs=<job>`; `merge-to-main.yml` or `land.yml` where the
-repository still has an older name) and land only after it is green. Never rerun a whole landing on
+dev-merge-to-main.yml --ref <branch> -f ref=<sha> -f jobs=<job>`; `merge-to-main.yml` where the
+repository still has the older name) and land only after it is green. Never rerun a whole landing on
 hope; when the job alone stays red, report it and ask the user (the farmer's ci duty may already be on it). Keep going until the PR is merged: every fix is a new candidate, and the queue stays held for this worktree
 meanwhile, so every other landing waits on you: fix and run again at once.
 

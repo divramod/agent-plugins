@@ -1,8 +1,7 @@
 """Landings through GitHub Actions (hal2 plan 0131), for mtm_scan.py.
 
 A repository whose default branch has `.github/workflows/dev-merge-to-main.yml`
-(or `merge-to-main.yml`, its name before plan 0349 D52, or `land.yml`, before
-plan 0263) lands through CI: each landing is a run of that workflow on
+(or `merge-to-main.yml`, its name before plan 0349 D52) lands through CI: each landing is a run of that workflow on
 `land/<slot>`, green ones fast-forward the default branch, red ones keep the
 merge queue held for their worktree until its fix lands. Runs are read under
 every name: one started before a rename finishes under the old one, and the
@@ -35,7 +34,7 @@ import re
 import gh_runs
 
 # The landing workflow's file, the name to prefer first: the one place that names them all.
-LAND_NAMES = ["dev-merge-to-main.yml", "merge-to-main.yml", "land.yml"]
+LAND_NAMES = ["dev-merge-to-main.yml", "merge-to-main.yml"]
 LAND_FILES = [f".github/workflows/{name}" for name in LAND_NAMES]
 RED = {"failure", "timed_out", "startup_failure", "cancelled"}
 GREEN = {"success", "skipped", "neutral"}
@@ -72,7 +71,7 @@ STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, wit
 
 
 def ci_mode(run, main: str, default: str) -> bool:
-    """`dev-merge-to-main.yml`, `merge-to-main.yml` or `land.yml` is on origin's default branch."""
+    """`dev-merge-to-main.yml` or `merge-to-main.yml` is on origin's default branch."""
     return any(run(["git", "cat-file", "-t", f"origin/{default}:{f}"], main).strip() for f in LAND_FILES)
 
 

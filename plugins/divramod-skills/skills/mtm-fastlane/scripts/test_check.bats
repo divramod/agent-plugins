@@ -8,7 +8,7 @@ setup() {
   git init -q -b main "$tmp/repo"
   cd "$tmp/repo"
   mkdir -p .hal .github/workflows code/rust
-  echo 'on: push' > .github/workflows/land.yml
+  echo 'on: push' > .github/workflows/merge-to-main.yml
   git add . && git commit -q -m init
   fill "$here/templates/mtm-fastlane-worktree.sh" .hal/mtm-fastlane-worktree.sh \
     "if touches '^code/rust/'; then step rust-test cargo test; fi
@@ -26,8 +26,8 @@ teardown() { rm -rf "$tmp"; }
 
 fill() { # fill <template> <out> <body>: the placeholders as configure fills them
   BODY="$3" awk '/^@CHECKS@$|^@STEPS@$/ {print ENVIRON["BODY"]; next} {print}' "$1" \
-    | sed -e 's/@REPO@/repo/; s/@DATE@/2026-10-09/; s/@REPLACES@/land.yml rust-test/; s/@SKIPPED_NEEDS@/Linux/' \
-      -e 's/@SKIPPED@/linux-e2e/; s/@CI_COMMAND@/gh workflow run land.yml/; s/@LAND_WORKFLOWS@/land.yml/' \
+    | sed -e 's/@REPO@/repo/; s/@DATE@/2026-10-09/; s/@REPLACES@/merge-to-main.yml rust-test/; s/@SKIPPED_NEEDS@/Linux/' \
+      -e 's/@SKIPPED@/linux-e2e/; s/@CI_COMMAND@/gh workflow run merge-to-main.yml/; s/@LAND_WORKFLOWS@/merge-to-main.yml/' \
       -e 's|@FINGERPRINT_INPUTS@|.github/workflows/*|; s/@FINGERPRINT@/none/' > "$2"
 }
 
@@ -54,7 +54,7 @@ fill() { # fill <template> <out> <body>: the placeholders as configure fills the
   chmod -x .hal/mtm-fastlane-main.sh
   echo 'if then' >> .hal/mtm-fastlane-worktree.sh
   echo '# @CHECKS@' >> .hal/mtm-fastlane-worktree.sh
-  echo 'on: pull_request' > .github/workflows/land.yml && git commit -q -am ci
+  echo 'on: pull_request' > .github/workflows/merge-to-main.yml && git commit -q -am ci
   run bash "$here/check.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"mtm-fastlane-main.sh is not executable"* ]]

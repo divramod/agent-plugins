@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# landing-mode.sh: ci when dev-merge-to-main.yml, merge-to-main.yml or land.yml is in HEAD or origin's default branch.
+# landing-mode.sh: ci when dev-merge-to-main.yml or merge-to-main.yml is in HEAD or origin's default branch.
 
 setup() {
   here="$BATS_TEST_DIRNAME"
@@ -14,10 +14,10 @@ setup() {
 
 teardown() { rm -rf "$tmp"; }
 
-add_land() { # [<workflow file>...], default land.yml: one commit with them
+add_land() { # [<workflow file>...], default merge-to-main.yml: one commit with them
   local file
   mkdir -p .github/workflows
-  for file in "${@:-land.yml}"; do echo 'on: push' > ".github/workflows/$file"; done
+  for file in "${@:-merge-to-main.yml}"; do echo 'on: push' > ".github/workflows/$file"; done
   git add .github && git -c user.name=t -c user.email=t@t commit -q -m land
 }
 
@@ -30,20 +30,6 @@ add_land() { # [<workflow file>...], default land.yml: one commit with them
   add_land ci.yml
   run bash "$here/landing-mode.sh" "$tmp/wt"
   [ "$output" = local ]
-}
-
-@test "land.yml in HEAD lands through CI" {
-  add_land
-  run bash "$here/landing-mode.sh" "$tmp/wt"
-  [ "$output" = ci ]
-}
-
-@test "land.yml only on origin's default branch lands through CI" {
-  add_land
-  git push -q origin HEAD:main
-  git reset -q --hard HEAD~1
-  run bash "$here/landing-mode.sh" "$tmp/wt"
-  [ "$output" = ci ]
 }
 
 @test "dev-merge-to-main.yml in HEAD lands through CI" {
@@ -75,19 +61,19 @@ add_land() { # [<workflow file>...], default land.yml: one commit with them
 }
 
 @test "both workflow files in HEAD land through CI" {
-  add_land merge-to-main.yml land.yml
+  add_land merge-to-main.yml dev-merge-to-main.yml
   run bash "$here/landing-mode.sh" "$tmp/wt"
   [ "$output" = ci ]
 }
 
-@test "the rename on origin's default branch, land.yml still in HEAD: through CI" {
+@test "the rename on origin's default branch, merge-to-main.yml still in HEAD: through CI" {
   add_land
   git push -q origin HEAD:main
-  git mv .github/workflows/land.yml .github/workflows/merge-to-main.yml
+  git mv .github/workflows/merge-to-main.yml .github/workflows/dev-merge-to-main.yml
   git -c user.name=t -c user.email=t@t commit -q -m rename
   git push -q origin HEAD:main
   git reset -q --hard HEAD~1
-  [ -f .github/workflows/land.yml ]
+  [ -f .github/workflows/merge-to-main.yml ]
   run bash "$here/landing-mode.sh" "$tmp/wt"
   [ "$output" = ci ]
 }

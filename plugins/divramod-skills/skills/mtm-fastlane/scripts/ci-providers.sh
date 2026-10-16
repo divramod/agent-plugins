@@ -52,10 +52,9 @@ judge_jobs() {
   echo "$merged $queued_only"
 }
 
-# The landing workflow's names: dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml, before plan
-# 0263 land.yml. A run is under the name its commit had, so around a rename the unfinished runs are under any: where
-# one is a land workflow, all are.
-LAND_TWINS="dev-merge-to-main.yml merge-to-main.yml land.yml"
+# The landing workflow's names: dev-merge-to-main.yml, before hal2 plan 0349 (D52) merge-to-main.yml. A run is under
+# the name its commit had, so around a rename the unfinished runs are under any: where one is a land workflow, all are.
+LAND_TWINS="dev-merge-to-main.yml merge-to-main.yml"
 
 # The land workflows, words: the conf's LAND_WORKFLOWS, else those of the names the worktree or origin's default
 # branch has; then the other names where one is among them (a conf written before a rename).

@@ -7,7 +7,7 @@ description: merge-from-main — merge the latest default branch (main, master, 
 
 Brings the default branch into the current worktree. `hal2-cli-git` does the git work (fetch, stash around the
 merge, the setup tasks and the hook where the repo still has them, the push; a repository that lands through CI,
-`.github/workflows/dev-merge-to-main.yml` (or `merge-to-main.yml` or `land.yml`, its older names), has neither: the merge is plain git); this skill does what needs judgment: conflicts, a failing hook and the report.
+`.github/workflows/dev-merge-to-main.yml` (or `merge-to-main.yml`, its older name), has neither: the merge is plain git); this skill does what needs judgment: conflicts, a failing hook and the report.
 `S=<skill-dir>/scripts`. Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first.
 
 | Call | Does |

@@ -6,7 +6,7 @@
 # 1. hal2-cli-git: this worktree goes to the front of the queue's priority list, and
 #    another worktree's landing or reservation that holds the queue is stopped.
 # 2. Every unfinished land run (GitHub: the conf's LAND_WORKFLOWS, default the repository's
-#    dev-merge-to-main.yml, merge-to-main.yml or land.yml, and always all of these names where
+#    dev-merge-to-main.yml or merge-to-main.yml, and always all of these names where
 #    one is a land workflow: a run started before a rename is under the old one; GitLab: pipelines
 #    on LAND_REFS, default land/*) whose MERGE_JOB has not
 #    succeeded is cancelled; one that merged is waited for, and once SHIP_GRACE
@@ -72,7 +72,7 @@ fi
 provider=$(provider_of)
 case "$provider" in
   github) need gh
-    [ -n "$(github_workflows)" ] || say "no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml, merge-to-main.yml or land.yml): no land runs to stop" ;;
+    [ -n "$(github_workflows)" ] || say "no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml or merge-to-main.yml): no land runs to stop" ;;
   gitlab) need glab ;;
   *) say "origin is on neither GitHub nor GitLab: no land runs to stop" ;;
 esac

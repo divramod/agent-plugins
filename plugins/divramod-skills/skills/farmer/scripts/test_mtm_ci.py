@@ -287,17 +287,14 @@ class MtmCiTest(unittest.TestCase):
         seen = []
         self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: seen.append(argv) or "", "/m", "main"))  # none
         self.assertEqual([argv[-1] for argv in seen], ["origin/main:.github/workflows/dev-merge-to-main.yml",
-                                                       "origin/main:.github/workflows/merge-to-main.yml",
-                                                       "origin/main:.github/workflows/land.yml"])
+                                                       "origin/main:.github/workflows/merge-to-main.yml"])
         self.assertEqual(seen[0][:3], ["git", "cat-file", "-t"])
         self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n", "/m", "main"))  # both
 
     def test_ci_mode_accepts_either_workflow_file(self):
-        only_old = lambda argv, cwd: "blob\n" if argv[-1].endswith("/land.yml") else ""
         only_new = lambda argv, cwd: "blob\n" if argv[-1].endswith("/merge-to-main.yml") else ""
         only_dev = lambda argv, cwd: "blob\n" if argv[-1].endswith("/dev-merge-to-main.yml") else ""
         other = lambda argv, cwd: "blob\n" if argv[-1].endswith("/ci.yml") else ""
-        self.assertTrue(mtm_ci.ci_mode(only_old, "/m", "main"))
         self.assertTrue(mtm_ci.ci_mode(only_new, "/m", "main"))
         self.assertTrue(mtm_ci.ci_mode(only_dev, "/m", "main"))
         self.assertFalse(mtm_ci.ci_mode(other, "/m", "main"))
@@ -305,16 +302,17 @@ class MtmCiTest(unittest.TestCase):
     def test_runs_of_every_workflow_file_are_joined_newest_first(self):
         answers = {"dev-merge-to-main.yml": [run(5, "land/09", status="queued", conclusion="", at="2026-10-12T08:00:00Z")],
                    "merge-to-main.yml": [run(4, "land/08", status="queued", conclusion="", at="2026-10-12T07:00:00Z"),
-                                         run(2, "land/07", at="2026-10-12T06:00:00Z")],
-                   "land.yml": [run(3, "land/05", at="2026-10-12T06:30:00Z"),
-                                run(1, "land/03", status="in_progress", conclusion="", at="2026-10-11T06:00:00Z")]}
+                                         run(3, "land/05", at="2026-10-12T06:30:00Z"),
+                                         run(2, "land/07", at="2026-10-12T06:00:00Z"),
+                                         run(1, "land/03", status="in_progress", conclusion="",
+                                             at="2026-10-11T06:00:00Z")]}
         asked = []
         both = lambda args, cwd: asked.append(args) or answers[args[args.index("--workflow") + 1]]
         self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(both, "/m")], [5, 4, 3, 2, 1])
         self.assertEqual([a[a.index("--workflow") + 1] for a in asked],
-                         ["dev-merge-to-main.yml", "merge-to-main.yml", "land.yml"])
+                         ["dev-merge-to-main.yml", "merge-to-main.yml"])
         self.assertEqual(asked[0][:3] + asked[0][5:7], ["gh", "run", "list", "--limit", "100"])
-        self.assertEqual(mtm_ci.unfinished(both, "/m"), 3)  # one unfinished run of each file
+        self.assertEqual(mtm_ci.unfinished(both, "/m"), 3)  # the unfinished runs of both files
         rows = mtm_ci.landings(lambda args, cwd: answers[args[args.index("--workflow") + 1]]
                                if args[:3] == ["gh", "run", "list"] else {"jobs": []}, "/m", 0)
         self.assertEqual([(r["slot"], r["outcome"]) for r in rows],
@@ -323,13 +321,10 @@ class MtmCiTest(unittest.TestCase):
     def test_a_workflow_file_github_does_not_know_has_no_runs(self):
         old = [run(1, "land/03", status="in_progress", conclusion="", at="2026-10-11T06:00:00Z")]
         new = [run(2, "land/07", status="queued", conclusion="", at="2026-10-12T06:00:00Z"), run(3, "land/05")]
-        before = lambda args, cwd: old if "land.yml" in args else None  # the rename has not landed
-        after = lambda args, cwd: new if "merge-to-main.yml" in args else None  # land.yml is gone
+        before = lambda args, cwd: old if "merge-to-main.yml" in args and "dev-merge-to-main.yml" not in args else None
         renamed = lambda args, cwd: new if "dev-merge-to-main.yml" in args else None  # plan 0349 D52's name alone
         self.assertEqual((mtm_ci.unfinished(before, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(before, "/m")]),
                          (1, [1]))
-        self.assertEqual((mtm_ci.unfinished(after, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(after, "/m")]),
-                         (1, [2, 3]))
         self.assertEqual((mtm_ci.unfinished(renamed, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(renamed, "/m")]),
                          (1, [2, 3]))
         self.assertEqual((mtm_ci.unfinished(lambda args, cwd: None, "/m"), mtm_ci.runs_of(lambda args, cwd: None, "/m")),

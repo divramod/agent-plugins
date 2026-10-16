@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# land-runs.sh: no reserve or candidate push while a dev-merge-to-main.yml, merge-to-main.yml or land.yml run is
+# land-runs.sh: no reserve or candidate push while a dev-merge-to-main.yml or merge-to-main.yml run is
 # unfinished.
 
 setup() {
@@ -7,7 +7,7 @@ setup() {
   tmp="$(mktemp -d)"
   mkdir -p "$tmp/bin"
   # A fake gh: per call it prints the next line of the asked workflow's runs file (consumed; `|` separates runs),
-  # applying no filter: $tmp/runs for land.yml, $tmp/runs-new for merge-to-main.yml, $tmp/runs-dev for
+  # applying no filter: $tmp/runs for merge-to-main.yml, $tmp/runs-dev for
   # dev-merge-to-main.yml. A workflow file named in
   # $tmp/unknown gets GitHub's 404 (gh 2.92's words), one named in $tmp/broken another failure; $tmp/noise makes
   # every call warn on stderr.
@@ -30,8 +30,7 @@ if grep -qx "\$workflow" "$tmp/broken" 2>/dev/null; then
   exit 1
 fi
 case "\$workflow" in
-  land.yml) runs="$tmp/runs" ;;
-  merge-to-main.yml) runs="$tmp/runs-new" ;;
+  merge-to-main.yml) runs="$tmp/runs" ;;
   dev-merge-to-main.yml) runs="$tmp/runs-dev" ;;
   *) exit 0 ;;
 esac
@@ -40,7 +39,6 @@ exit 0
 EOF
   chmod +x "$tmp/bin/gh"
   : > "$tmp/runs"
-  : > "$tmp/runs-new"
   : > "$tmp/runs-dev"
   export PATH="$tmp/bin:$PATH"
 }
@@ -62,11 +60,10 @@ path_without_gh() {
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
-  grep -q -- "--workflow land.yml" "$tmp/calls"
   grep -q -- "--workflow merge-to-main.yml" "$tmp/calls"
   grep -q -- "--workflow dev-merge-to-main.yml" "$tmp/calls"
-  [ "$(wc -l < "$tmp/calls")" -eq 3 ]
-  [ "$(grep -c 'select(.status != "completed")' "$tmp/calls")" -eq 3 ]
+  [ "$(wc -l < "$tmp/calls")" -eq 2 ]
+  [ "$(grep -c 'select(.status != "completed")' "$tmp/calls")" -eq 2 ]
 }
 
 @test "--once lists an unfinished run and exits 6" {
@@ -80,13 +77,13 @@ path_without_gh() {
   printf '%s\n' "68 land/04 in_progress|69 land/02 queued" "68 land/04 queued" > "$tmp/runs"
   run bash "$here/land-runs.sh" --interval 0 "$tmp"
   [ "$status" -eq 0 ]
-  [ "$(grep -c -- "--workflow land.yml" "$tmp/calls")" -eq 3 ]
   [ "$(grep -c -- "--workflow merge-to-main.yml" "$tmp/calls")" -eq 3 ]
+  [ "$(grep -c -- "--workflow dev-merge-to-main.yml" "$tmp/calls")" -eq 3 ]
   [[ "$output" == *"68 land/04 in_progress, 69 land/02 queued"* ]]
 }
 
-@test "an unfinished run of merge-to-main.yml is waited for too" {
-  printf '%s\n' "70 land/05 in_progress" "70 land/05 queued" > "$tmp/runs-new"
+@test "an unfinished run of dev-merge-to-main.yml is waited for too" {
+  printf '%s\n' "70 land/05 in_progress" "70 land/05 queued" > "$tmp/runs-dev"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 6 ]
   [[ "$output" == *"land runs unfinished: 70 land/05 in_progress"* ]]
@@ -97,14 +94,14 @@ path_without_gh() {
 
 @test "unfinished runs of both workflow files are listed together" {
   echo "68 land/04 queued" > "$tmp/runs"
-  echo "70 land/05 in_progress|71 land/06 queued" > "$tmp/runs-new"
+  echo "70 land/05 in_progress|71 land/06 queued" > "$tmp/runs-dev"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 6 ]
   [ "$output" = "land runs unfinished: 70 land/05 in_progress, 71 land/06 queued, 68 land/04 queued" ]
 }
 
-@test "before the rename GitHub does not know merge-to-main.yml: it has no runs, land.yml's count" {
-  printf '%s\n' merge-to-main.yml dev-merge-to-main.yml > "$tmp/unknown"
+@test "before the rename GitHub does not know dev-merge-to-main.yml: it has no runs, merge-to-main.yml's count" {
+  echo dev-merge-to-main.yml > "$tmp/unknown"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
@@ -114,25 +111,14 @@ path_without_gh() {
   [ "$output" = "land runs unfinished: 68 land/04 queued" ]
 }
 
-@test "after the rename GitHub does not know land.yml: it has no runs, merge-to-main.yml's count" {
-  printf '%s\n' land.yml dev-merge-to-main.yml > "$tmp/unknown"
-  run bash "$here/land-runs.sh" --once "$tmp"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-  echo "70 land/05 in_progress" > "$tmp/runs-new"
-  run bash "$here/land-runs.sh" --once "$tmp"
-  [ "$status" -eq 6 ]
-  [ "$output" = "land runs unfinished: 70 land/05 in_progress" ]
-}
-
 @test "after the rename to dev-merge-to-main.yml its runs and the older name's count (plan 0349 D52)" {
-  echo land.yml > "$tmp/unknown"
+  : > "$tmp/unknown"
   echo "71 land/06 queued" > "$tmp/runs-dev"
-  echo "70 land/05 in_progress" > "$tmp/runs-new"
+  echo "70 land/05 in_progress" > "$tmp/runs"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 6 ]
   [ "$output" = "land runs unfinished: 71 land/06 queued, 70 land/05 in_progress" ]
-  printf '%s\n' land.yml merge-to-main.yml > "$tmp/unknown"
+  echo merge-to-main.yml > "$tmp/unknown"
   echo "72 land/07 queued" > "$tmp/runs-dev"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 6 ]
@@ -142,7 +128,7 @@ path_without_gh() {
 @test "an older gh's words for a file GitHub does not know count the same" {
   cat > "$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-case "$*" in *merge-to-main.yml*) echo "could not find any workflows named merge-to-main.yml" >&2; exit 1 ;; esac
+case "$*" in *dev-merge-to-main.yml*) echo "could not find any workflows named dev-merge-to-main.yml" >&2; exit 1 ;; esac
 echo "68 land/04 queued"
 EOF
   run bash "$here/land-runs.sh" --once "$tmp"
@@ -151,10 +137,10 @@ EOF
 }
 
 @test "GitHub knows no workflow file: nothing is known, no go" {
-  printf '%s\n' dev-merge-to-main.yml merge-to-main.yml land.yml > "$tmp/unknown"
+  printf '%s\n' dev-merge-to-main.yml merge-to-main.yml > "$tmp/unknown"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"knows none of dev-merge-to-main.yml, merge-to-main.yml and land.yml"* ]]
+  [[ "$output" == *"knows none of dev-merge-to-main.yml and merge-to-main.yml"* ]]
   [[ "$output" == *"do not push"* ]]
 }
 
@@ -171,8 +157,8 @@ EOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"HTTP 502"* ]]
   [[ "$output" == *"do not push"* ]]
-  echo land.yml > "$tmp/broken"
-  echo "70 land/05 in_progress" > "$tmp/runs-new"
+  echo dev-merge-to-main.yml > "$tmp/broken"
+  echo "70 land/05 in_progress" > "$tmp/runs"
   run bash "$here/land-runs.sh" --once "$tmp"
   [ "$status" -eq 1 ]
   [[ "$output" == *"do not push"* ]]

@@ -32,23 +32,18 @@ EOF
   chmod +x "$tmp/bin/hal2-cli-git"
 }
 
-# The help of the CLI before the rename and of the one that reads both names (their merge-to-main entries).
-old_cli() {
-  fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
-    "  the candidate merge commit and, when the repository has .github/workflows/land.yml, push it to land/<slot>" \
-    "  without land.yml the candidate is pushed straight to the default branch, untested (warning)"
-}
+# The help of a CLI that reads merge-to-main.yml (its merge-to-main entry).
 new_cli() {
   fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
-    "  the candidate merge commit and, when the repository has .github/workflows/merge-to-main.yml (or land.yml," \
-    "  its name before plan 0263), push it to land/<slot>"
+    "  the candidate merge commit and, when the repository has .github/workflows/merge-to-main.yml," \
+    "  push it to land/<slot>"
 }
 
 # The help of the CLI that reads dev-merge-to-main.yml too (hal2 plan 0349 D52).
 dev_cli() {
   fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
     "  the candidate merge commit and, when the repository has .github/workflows/dev-merge-to-main.yml (or" \
-    "  merge-to-main.yml, its name before plan 0349, or land.yml, before plan 0263), push it to land/<slot>"
+    "  merge-to-main.yml, its name before plan 0349), push it to land/<slot>"
 }
 
 add_workflow() { # <workflow file>...: one commit with them
@@ -71,7 +66,7 @@ path_without_cli() {
 }
 
 @test "neither workflow file: nothing to check, whatever the CLI" {
-  old_cli
+  new_cli
   run bash "$here/check-landing-cli.sh" "$tmp/wt"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
@@ -79,63 +74,6 @@ path_without_cli() {
   path_without_cli "$tmp/bare"
   PATH="$tmp/bare" run bash "$here/check-landing-cli.sh" "$tmp/wt"
   [ "$status" -eq 0 ]
-}
-
-@test "only land.yml: an old CLI lands it through CI, nothing to check" {
-  add_workflow land.yml
-  git push -q origin HEAD:main
-  old_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-}
-
-@test "only merge-to-main.yml in HEAD, an old CLI: stopped, the message says what and how to go on" {
-  add_workflow merge-to-main.yml
-  old_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 8 ]
-  [[ "$output" == *"nothing was landed"* ]]
-  [[ "$output" == *".github/workflows/merge-to-main.yml (in HEAD): "* ]]
-  [[ "$output" == *"$tmp/bin/hal2-cli-git (hal2-cli-git 0.13.0)"* ]]
-  [[ "$output" == *"as a plain merge, untested"* ]]
-  [[ "$output" == *"cargo install --locked --path <hal2 checkout>/code/rust/apps/hal2-cli-git"* ]]
-  [[ "$output" == *"then run /mtm again"* ]]
-}
-
-@test "merge-to-main.yml only on origin's default branch, an old CLI: stopped" {
-  add_workflow merge-to-main.yml
-  git push -q origin HEAD:main
-  git reset -q --hard HEAD~1
-  old_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 8 ]
-  [[ "$output" == *"merge-to-main.yml (in origin/main): "* ]]
-}
-
-@test "the rename on origin's default branch, land.yml still in HEAD, an old CLI: stopped" {
-  add_workflow land.yml
-  git push -q origin HEAD:main
-  git mv .github/workflows/land.yml .github/workflows/merge-to-main.yml
-  git -c user.name=t -c user.email=t@t commit -q -m rename
-  git push -q origin HEAD:main
-  git reset -q --hard HEAD~1
-  old_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 8 ]
-}
-
-@test "both workflow files, an old CLI: stopped; a new one passes" {
-  add_workflow merge-to-main.yml land.yml
-  git push -q origin HEAD:main
-  old_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 8 ]
-  [[ "$output" == *"merge-to-main.yml (in HEAD and origin/main): "* ]]
-  new_cli
-  run bash "$here/check-landing-cli.sh" "$tmp/wt"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
 }
 
 @test "only merge-to-main.yml, a CLI whose help names it: passes, in HEAD and on origin's default branch" {
@@ -181,7 +119,7 @@ path_without_cli() {
 @test "a help longer than a pipe's buffer, the name in its first line: still passes" {
   add_workflow merge-to-main.yml
   new_cli
-  { echo "lands through .github/workflows/merge-to-main.yml or land.yml"; yes "filler line of the help text" | head -n 20000; } > "$tmp/help"
+  { echo "lands through .github/workflows/merge-to-main.yml"; yes "filler line of the help text" | head -n 20000; } > "$tmp/help"
   run bash "$here/check-landing-cli.sh" "$tmp/wt"
   [ "$status" -eq 0 ]
 }
@@ -190,7 +128,7 @@ path_without_cli() {
   add_workflow merge-to-main.yml
   cat > "$tmp/bin/hal2-cli-git" <<'EOF'
 #!/usr/bin/env bash
-echo "usage: ... .github/workflows/merge-to-main.yml (or land.yml)" >&2
+echo "usage: ... .github/workflows/merge-to-main.yml" >&2
 exit 1
 EOF
   chmod +x "$tmp/bin/hal2-cli-git"
@@ -198,13 +136,13 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "in front of the landing an old CLI never starts it, a new one does" {
-  add_workflow merge-to-main.yml
-  old_cli
+@test "in front of the landing a CLI that does not know the file never starts it, one that does starts it" {
+  add_workflow dev-merge-to-main.yml
+  new_cli
   run bash -c "bash '$here/check-landing-cli.sh' && hal2-cli-git worktree merge-to-main --max-wait 100m --json"
   [ "$status" -eq 8 ]
   [ ! -e "$tmp/calls" ]
-  new_cli
+  dev_cli
   run bash -c "bash '$here/check-landing-cli.sh' && hal2-cli-git worktree merge-to-main --max-wait 100m --json"
   [ "$status" -eq 0 ]
   [ "$(cat "$tmp/calls")" = "worktree merge-to-main --max-wait 100m --json" ]
@@ -220,7 +158,7 @@ EOF
 }
 
 @test "a directory that is no git checkout exits 2, it is never taken for a repository without the workflow" {
-  old_cli
+  new_cli
   mkdir "$tmp/plain"
   run bash "$here/check-landing-cli.sh" "$tmp/plain"
   [ "$status" -eq 2 ]

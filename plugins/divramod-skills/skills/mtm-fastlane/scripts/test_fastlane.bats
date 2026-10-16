@@ -11,7 +11,7 @@ setup() {
   git clone -q "$tmp/origin.git" "$tmp/main" 2>/dev/null
   cd "$tmp/main"
   mkdir -p .hal .github/workflows
-  echo 'on: push' > .github/workflows/land.yml
+  echo 'on: push' > .github/workflows/merge-to-main.yml
   cat > .hal/mtm-fastlane-worktree.sh <<EOF
 #!/usr/bin/env bash
 echo "base=\$FASTLANE_BASE args=\$*" > "$tmp/worktree-ran"
@@ -50,7 +50,7 @@ work() { echo "$1" > "$1.txt" && git add "$1.txt" && git commit -q -m "$1"; }
 }
 
 @test "preflight: a changed CI input makes the fingerprint stale, a warning only" {
-  echo 'on: pull_request' > .github/workflows/land.yml && git commit -q -am ci
+  echo 'on: pull_request' > .github/workflows/merge-to-main.yml && git commit -q -am ci
   run bash "$here/fastlane.sh" preflight
   [ "$status" -eq 0 ]
   [[ "$output" == *"fingerprint: stale"* ]]

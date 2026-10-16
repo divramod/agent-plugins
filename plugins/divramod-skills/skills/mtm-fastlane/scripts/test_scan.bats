@@ -9,7 +9,7 @@ setup() {
   cd "$tmp/repo"
   git remote add origin https://github.com/someone/repo.git
   mkdir -p .github/workflows code/rust/apps/foo code/bash/scripts/bar code/typescript/libs/ui utils/cloudinit
-  cat > .github/workflows/land.yml <<'YML'
+  cat > .github/workflows/merge-to-main.yml <<'YML'
 on:
   push:
     branches: ['land/**']
@@ -42,8 +42,8 @@ teardown() { rm -rf "$tmp"; }
   [ "$status" -eq 0 ]
   json="$output"
   [ "$(echo "$json" | jq -r .provider)" = github ]
-  [ "$(echo "$json" | jq -c .land_workflows)" = '[".github/workflows/land.yml"]' ]
-  [ "$(echo "$json" | jq -c '[.workflows[] | select(.file == ".github/workflows/land.yml") | .jobs[].name]')" = '["rust-test","merge"]' ]
+  [ "$(echo "$json" | jq -c .land_workflows)" = '[".github/workflows/merge-to-main.yml"]' ]
+  [ "$(echo "$json" | jq -c '[.workflows[] | select(.file == ".github/workflows/merge-to-main.yml") | .jobs[].name]')" = '["rust-test","merge"]' ]
   [ "$(echo "$json" | jq -r '.workflows[] | select(.file | endswith("pr.yml")) | .jobs[0].runs_on')" = macos-latest ]
   [ "$(echo "$json" | jq -c '[.units[] | .name] | sort')" = '["bar","deliver","foo","ui"]' ]
   [ "$(echo "$json" | jq -c '.units[] | select(.name == "foo") | .manifests')" = '["Cargo.toml"]' ]
@@ -57,24 +57,24 @@ teardown() { rm -rf "$tmp"; }
 @test "scan without yq: the jobs' names and runs-on" {
   run env FASTLANE_NO_YQ=1 bash "$here/scan.sh"
   [ "$status" -eq 0 ]
-  [ "$(echo "$output" | jq -c '.workflows[] | select(.file | endswith("land.yml")) | .jobs')" \
+  [ "$(echo "$output" | jq -c '.workflows[] | select(.file | endswith("merge-to-main.yml")) | .jobs')" \
     = '[{"name":"rust-test","runs_on":"[self-hosted, linux]"},{"name":"merge","runs_on":"ubuntu-latest"}]' ]
 }
 
-@test "scan: after the rename merge-to-main.yml is the land workflow, found by the refs it runs on" {
-  git mv .github/workflows/land.yml .github/workflows/merge-to-main.yml && git commit -q -m rename
+@test "scan: after the rename dev-merge-to-main.yml is the land workflow, found by the refs it runs on" {
+  git mv .github/workflows/merge-to-main.yml .github/workflows/dev-merge-to-main.yml && git commit -q -m rename
   run bash "$here/scan.sh"
   [ "$status" -eq 0 ]
-  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/merge-to-main.yml"]' ]
-  [ "$(echo "$output" | jq -c '[.workflows[] | select(.file | endswith("merge-to-main.yml")) | .jobs[].name]')" = '["rust-test","merge"]' ]
+  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/dev-merge-to-main.yml"]' ]
+  [ "$(echo "$output" | jq -c '[.workflows[] | select(.file | endswith("dev-merge-to-main.yml")) | .jobs[].name]')" = '["rust-test","merge"]' ]
 }
 
 @test "scan: both workflow files are land workflows; with neither there is none" {
-  cp .github/workflows/land.yml .github/workflows/merge-to-main.yml
+  cp .github/workflows/merge-to-main.yml .github/workflows/dev-merge-to-main.yml
   run bash "$here/scan.sh"
   [ "$status" -eq 0 ]
-  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/land.yml",".github/workflows/merge-to-main.yml"]' ]
-  rm .github/workflows/land.yml .github/workflows/merge-to-main.yml
+  [ "$(echo "$output" | jq -c .land_workflows)" = '[".github/workflows/dev-merge-to-main.yml",".github/workflows/merge-to-main.yml"]' ]
+  rm .github/workflows/merge-to-main.yml .github/workflows/dev-merge-to-main.yml
   run bash "$here/scan.sh"
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | jq -c .land_workflows)" = '[]' ]

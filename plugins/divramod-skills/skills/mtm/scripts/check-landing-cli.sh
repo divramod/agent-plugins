@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The guard before a landing through CI (references/ci.md): a repository whose landing workflow is
 # .github/workflows/dev-merge-to-main.yml (hal2 plan 0349 D52) or merge-to-main.yml needs a hal2-cli-git that knows
-# that name. One that knows only an older name (merge-to-main.yml, or land.yml before hal2 plan 0263) finds no
+# that name. One that knows only an older name (merge-to-main.yml) finds no
 # workflow, takes the repository for one without CI and lands the worktree as a plain merge, untested, or waits for
 # a run of the old name that never comes.
 #   check-landing-cli.sh [<dir>]     <dir>: the worktree that lands (default .)

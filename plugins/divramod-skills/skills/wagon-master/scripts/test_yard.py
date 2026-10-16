@@ -145,7 +145,7 @@ class Sorting(Yard):
                               "GLOSSARY.md", ".taplo.toml", ".claude", "assets", "code", "INTENT.md", "HANDOFF.md",
                               "roles", "plans", "research", "shotfiles", "docs", "utils", "workflows", "projects",
                               ".secrets", ".gitsecret"}, roots)
-        self.assertFalse({r for r in roots if " " in r or "<" in r or r in ("cleanup", "CURRENT_PLAN", "land.yml")})
+        self.assertFalse({r for r in roots if " " in r or "<" in r or r in ("cleanup", "CURRENT_PLAN")})
 
     def test_the_file_s_own_reasons(self):
         self.write({"docs/b.md": "staged\n", "docs/big.bin": "12345", "docs/ignored.txt": "x", "docs/fine.md": "x",

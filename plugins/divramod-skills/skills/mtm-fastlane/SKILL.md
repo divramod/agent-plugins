@@ -77,8 +77,8 @@ cleanup); the command released the queue itself, so no `fastlane.sh release`. Th
 - `paused` (the slots it paused: they resume by themselves, no message to the farmer) and `took_over` (fastlanes
   whose verification it took over);
 - the CI jobs the fastlane skipped (`report`'s `ci` line) and the command that runs them once CI works again (hal2:
-  `gh workflow run dev-merge-to-main.yml -f ref=<default> -f jobs=<jobs>`, `merge-to-main.yml` or `land.yml` where
-  the repository still has an older name).
+  `gh workflow run dev-merge-to-main.yml -f ref=<default> -f jobs=<jobs>`, or `merge-to-main.yml` where
+  the repository still has the older name).
 
 ### Without `--fastlane`: the steps 3-8
 
@@ -115,7 +115,7 @@ cleanup); the command released the queue itself, so no `fastlane.sh release`. Th
    release` once nothing is left; CURRENT_PLAN; cleanup; the report. The report adds:
    - the CI jobs the fastlane skipped (Linux, Docker stacks, Windows, VMs; the worktree script lists them) and the
      command that runs them once CI works again (hal2: `gh workflow run dev-merge-to-main.yml -f ref=<default> -f
-     jobs=<jobs>`, `merge-to-main.yml` or `land.yml` where the repository still has an older name);
+     jobs=<jobs>`, or `merge-to-main.yml` where the repository still has the older name);
    - the worktrees whose landings `ci-stop.sh` stopped: send them to the repository's farmer in one line (SendMessage to
      the session in its worktree `farmer-<repo>`, `ListAgents`) so they land again later; no farmer: name them to the
      user. (This list stays only here: the one call above pauses, it stops nothing.)
@@ -141,7 +141,7 @@ while the deliver lock is held). The steps below write them for any other reposi
    skipped with the CI command for it; `@CHECKS@` and `@STEPS@` become `step <name> <command>` lines, each guarded
    with `if touches '<ERE>'; then ...; fi` (never `touches ... && step ...`: a false last line fails the script),
    and `skip <job> <why>` for every CI job that cannot run here. The conf: `LAND_WORKFLOWS` (the file names of
-   scan's `land_workflows`; of `dev-merge-to-main.yml`, `merge-to-main.yml` and `land.yml`, one workflow before and
+   scan's `land_workflows`; of `dev-merge-to-main.yml` and `merge-to-main.yml`, one workflow before and
    after its renames, `ci-stop.sh` asks all where one is listed, so a conf written before a rename still stops every
    land run),
    `LAND_REFS`,

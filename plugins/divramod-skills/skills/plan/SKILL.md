@@ -65,8 +65,8 @@ behaviour. A done-when tests only what the step changed: the crates or packages 
 a gate job for the branch's range (`gate/main.sh <job> --branch origin/main` in hal2). It never runs a whole-workspace
 test (`--workspace`, a bare `cargo nextest run`) or a full gate job (a release bundle, an e2e stack) on the Mac: those
 are the landing's CI; a check that needs one before then runs on the CI runner (hal2: `gh workflow run
-dev-merge-to-main.yml -f ref=<branch> -f jobs=<job>`, `merge-to-main.yml` or `land.yml` where the repository still
-has an older name; hal2 plan 0157).
+dev-merge-to-main.yml -f ref=<branch> -f jobs=<job>`, or `merge-to-main.yml` where the repository still
+has the older name; hal2 plan 0157).
 
 **Short and concise** (hal2's record plans-short-and-concise): one line per step, `plan.md` at most 150 lines, a
 table cell at most 200 characters, a step file at most 120 lines; link the research, records and code instead of

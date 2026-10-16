@@ -37,7 +37,7 @@ class Crops(unittest.TestCase):
         green.start()
         self.addCleanup(green.stop)
         self.g("init", "-q", "-b", "main")
-        self.write("main", {"a.rs": "a\n", "INTENT.md": "log\n", ".github/workflows/land.yml": "on: push\n"}, new=False)
+        self.write("main", {"a.rs": "a\n", "INTENT.md": "log\n", ".github/workflows/merge-to-main.yml": "on: push\n"}, new=False)
 
     def g(self, *a):
         return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=self.d, check=True,
@@ -130,11 +130,11 @@ class Draft(Crops):
 
     def test_the_alone_rule(self):
         # D11: the landing workflow, a gate job list, the runner setup.
-        for path in (".github/workflows/land.yml", ".github/hal2-runners.toml", "code/bash/scripts/gate/main.sh"):
+        for path in (".github/workflows/merge-to-main.yml", ".github/hal2-runners.toml", "code/bash/scripts/gate/main.sh"):
             self.assertTrue(trains.ALONE.match(path), path)
         for path in (".github/dependabot.yml", ".github/hal2-x/y.toml", "code/bash/scripts/gatekeeper/x.sh", "a.rs"):
             self.assertFalse(trains.ALONE.match(path), path)
-        q = self.queue(**{"07": {".github/workflows/land.yml": "on: pull_request\n"}, "09": {"nine.rs": "9\n"},
+        q = self.queue(**{"07": {".github/workflows/merge-to-main.yml": "on: pull_request\n"}, "09": {"nine.rs": "9\n"},
                           "11": {"eleven.rs": "11\n"}})
         first = self.draft(q)
         self.assertEqual((self.cars(first), first["alone"]), (["07"], True))
@@ -143,7 +143,7 @@ class Draft(Crops):
         later = self.draft([dict(q[1], position=0), dict(q[0], position=1), q[2]])
         self.assertEqual((self.cars(later), later["alone"], later["unhitched"]), (["09", "11"], False, []))
         self.assertEqual(later["waiting"],
-                         [{"field": "07", "why": "rides in the next train, a gate train (.github/workflows/land.yml)"}])
+                         [{"field": "07", "why": "rides in the next train, a gate train (.github/workflows/merge-to-main.yml)"}])
 
     def test_alone_cars_ride_as_one_gate_train(self):
         # Hal2 plan 0333 step 3 (D3), 2026-10-14: the gate cars 09, 05, 08, 14 and 21 rode as five trains of one.

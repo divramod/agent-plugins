@@ -16,17 +16,17 @@ setup() {
   git -C "$tmp/main" worktree add -q -b 07 "$tmp/wt/07"
   cd "$tmp/wt/07"
   mkdir -p .hal
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=0m\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\n' > .hal/mtm-fastlane.conf
   : > "$fake/runs"
-  # A run is a line `<id> <ref> <status> [<workflow file>]` of $FAKE/runs (no file: land.yml) and is listed only
+  # A run is a line `<id> <ref> <status> [<workflow file>]` of $FAKE/runs (no file: merge-to-main.yml) and is listed only
   # under its own workflow file. A file named in $FAKE/unknown gets GitHub's 404 (gh 2.92's words), one named in
-  # $FAKE/broken another failure. GitHub before the renames: it knows neither merge-to-main.yml nor
+  # $FAKE/broken another failure. GitHub before the rename (plan 0349 D52): it does not know
   # dev-merge-to-main.yml.
   # A run's jobs are gh's JSON in $FAKE/jobs-<id>, read with the script's own --jq; its attempt is 1, or what
   # $FAKE/attempt-<id> says. A cancel ends its run at once;
   # with $FAKE/linger (a number) a run only notes the request and every run ends after that many rounds (lists of
   # a known workflow file). $FAKE/refuses: the cancel fails.
-  printf '%s\n' merge-to-main.yml dev-merge-to-main.yml > "$fake/unknown"
+  echo dev-merge-to-main.yml > "$fake/unknown"
   cat > "$fake/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE/gh-calls"
@@ -49,7 +49,7 @@ case "$1 $2" in
     if [ -e "$FAKE/linger" ] && [ "$(grep -cx "$workflow" "$FAKE/rounds")" -gt "$(cat "$FAKE/linger")" ]; then
       awk '{$3 = "completed"} {print}' "$FAKE/runs" > "$FAKE/runs.new" && mv "$FAKE/runs.new" "$FAKE/runs"
     fi
-    awk -v w="$workflow" '$3 != "completed" && ($4 == "" ? "land.yml" : $4) == w {print $1, $2}' "$FAKE/runs" \
+    awk -v w="$workflow" '$3 != "completed" && ($4 == "" ? "merge-to-main.yml" : $4) == w {print $1, $2}' "$FAKE/runs" \
       | while read -r id ref; do echo "$id $ref $(cat "$FAKE/attempt-$id" 2>/dev/null || echo 1)"; done ;;
   "run view")
     filter="" prev=""
@@ -75,7 +75,7 @@ jobs() {
     | .conclusion |= (if . == "none" then "" else . end) | .steps = []' | jq -s '{jobs: .}'
 }
 
-# run_on <id> <ref> <job>...: an unfinished run of land.yml.
+# run_on <id> <ref> <job>...: an unfinished run of merge-to-main.yml.
 run_on() { echo "$1 $2 in_progress" >> "$fake/runs"; jobs "${@:3}" > "$fake/jobs-$1"; }
 
 # run_under <workflow file> <id> <ref> <job>...: an unfinished run of that workflow file.
@@ -139,7 +139,7 @@ path_without_gh() {
   run_on 42 land/04 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
-  [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ] # three rounds unfinished, the fourth finds them ended
+  [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 4 ] # three rounds unfinished, the fourth finds them ended
   [ "$(requests)" = "41 42" ]
   [ "$(grep -c "waiting for run 41 (land/03) to end: it was asked to cancel" <<<"$output")" -eq 1 ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[41,42],[]]" ]
@@ -190,7 +190,7 @@ path_without_gh() {
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ ! -e "$fake/cancelled" ]
-  [ "$(grep -cx land.yml "$fake/rounds")" -eq 3 ]
+  [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 3 ]
   [ "$(grep -c "run 45 (land/03) ends by itself" <<<"$output")" -eq 1 ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[],[45,46]]" ]
   [ "$(grep -c "^run view 45 " "$fake/gh-calls")" -eq 3 ] # a look per round for the list, one for the ending
@@ -300,17 +300,17 @@ path_without_gh() {
   run_on 54 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
-  [ "$(grep -cx land.yml "$fake/rounds")" -eq 4 ]
+  [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 4 ]
   [ "$(requests)" = 54 ]
 }
 
 @test "github: a merged run's queued jobs are cancelled after the grace, not before" {
   run_on 12 land/04 "completed success linux / merge" "queued none mac-host-ship / deliver"
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=0m\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 12 ]
@@ -319,7 +319,7 @@ path_without_gh() {
 
 @test "github: the merge job named by its stage and runner code (plan 0260) is the merge, its ship jobs wait for the grace" {
   run_on 15 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
@@ -327,7 +327,7 @@ path_without_gh() {
 
 @test "github: the merge job named with its position in its lane (plan 0349 D40) is the merge too" {
   run_on 17 land/06 "completed success 03-hz01-host-b/01-merge" "queued none 04-mac-host-a/01-git-pull-main"
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
@@ -342,7 +342,7 @@ path_without_gh() {
 
 @test "github: the merge job named by its matrix alias (plan 0349 D101, d2-01-git-merge) is the merge, also for MERGE_JOB=merge" {
   run_on 19 land/06 "completed success d2-01-git-merge" "queued none e2-01-git-pull-main"
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\nMERGE_JOB=merge\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\nMERGE_JOB=merge\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
@@ -351,7 +351,7 @@ path_without_gh() {
 @test "github: a run whose matrix-alias merge job has not run is cancelled, and no other job's success counts" {
   run_on 20 land/07 "completed success d1-01-stack-test" "completed success c2-01-git-merge-extra" \
     "queued none d2-01-git-merge"
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=0m\nMERGE_JOB=git-merge\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\nMERGE_JOB=git-merge\n' > .hal/mtm-fastlane.conf
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 20 ]
@@ -444,7 +444,7 @@ EOF
   run bash "$here/ci-stop.sh"
   [ "$status" -eq 0 ]
   [ "$(echo "$output" | tail -1 | jq -r .provider)" = none ]
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\n' > .hal/mtm-fastlane.conf
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\n' > .hal/mtm-fastlane.conf
   path_without_gh "$tmp/bare"
   ln -sf "$(command -v git)" "$(command -v jq)" "$tmp/bare/"
   run env PATH="$tmp/bare" bash "$here/ci-stop.sh"
@@ -452,40 +452,40 @@ EOF
   [[ "$output" == *"gh is missing"* ]]
 }
 
-@test "github: a conf written before the rename (LAND_WORKFLOWS=land.yml) also stops merge-to-main.yml's runs" {
-  printf '%s\n' land.yml dev-merge-to-main.yml > "$fake/unknown" # after the rename GitHub does not know land.yml
-  run_under merge-to-main.yml 31 land/03 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
+@test "github: a conf written before the rename (LAND_WORKFLOWS=merge-to-main.yml) also stops dev-merge-to-main.yml's runs" {
+  : > "$fake/unknown" # after the rename GitHub knows both
+  run_under dev-merge-to-main.yml 31 land/03 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 31 ]
-  [ "$(asked)" = "dev-merge-to-main.yml land.yml merge-to-main.yml" ]
+  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main.yml" ]
 }
 
 @test "github: unfinished runs of both workflow files are stopped, a merged one of either is waited for" {
   : > "$fake/unknown"
   run_on 32 land/04 "in_progress none 02-hz01-host-x/rust-test" "queued none 05-x-host-x/merge"
-  run_under merge-to-main.yml 33 land/05 "queued none 05-x-host-x/merge"
-  run_under merge-to-main.yml 34 land/06 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
+  run_under dev-merge-to-main.yml 33 land/05 "queued none 05-x-host-x/merge"
+  run_under dev-merge-to-main.yml 34 land/06 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
   run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
   [ "$status" -eq 7 ]
   [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "32 33" ]
   [[ "$output" == *"waiting for run 34 (land/06)"* ]]
 }
 
-@test "github: before the rename only land.yml has runs, merge-to-main.yml is asked and unknown" {
+@test "github: before the rename only merge-to-main.yml has runs, dev-merge-to-main.yml is asked and unknown" {
   run_on 35 land/03 "queued none merge"
   run bash "$here/ci-stop.sh" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"would cancel run 35"* ]]
-  [ "$(asked)" = "dev-merge-to-main.yml land.yml merge-to-main.yml" ]
+  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main.yml" ]
   [ ! -e "$fake/cancelled" ]
 }
 
 @test "github: GitHub knows neither land workflow: nothing is known, exit 1" {
-  printf '%s\n' dev-merge-to-main.yml merge-to-main.yml land.yml > "$fake/unknown"
+  printf '%s\n' dev-merge-to-main.yml merge-to-main.yml > "$fake/unknown"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 1 ]
-  [[ "$output" == *"GitHub knows none of the land workflows (land.yml dev-merge-to-main.yml merge-to-main.yml)"* ]]
+  [[ "$output" == *"GitHub knows none of the land workflows (merge-to-main.yml dev-merge-to-main.yml)"* ]]
   [[ "$output" == *"listing the github land runs failed"* ]]
 }
 
@@ -497,7 +497,7 @@ EOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"HTTP 502"* ]]
   [ ! -e "$fake/cancelled" ]
-  echo land.yml > "$fake/broken"
+  echo dev-merge-to-main.yml > "$fake/broken"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 1 ]
   [ ! -e "$fake/cancelled" ]
@@ -508,57 +508,46 @@ EOF
   [ -z "$(workflows)" ]
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
-  [[ "$output" == *"no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml, merge-to-main.yml or land.yml)"* ]]
+  [[ "$output" == *"no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml or merge-to-main.yml)"* ]]
   [ ! -e "$fake/gh-calls" ]
 }
 
-@test "github: without LAND_WORKFLOWS, only land.yml in the worktree: both names are asked, a merge-to-main.yml run is stopped" {
+@test "github: without LAND_WORKFLOWS, only merge-to-main.yml in the worktree: both names are asked, a dev-merge-to-main.yml run is stopped" {
   printf 'PROVIDER=github\n' > .hal/mtm-fastlane.conf
-  commit_workflow land.yml
-  [ "$(workflows)" = "land.yml dev-merge-to-main.yml merge-to-main.yml" ]
+  commit_workflow merge-to-main.yml
+  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
   : > "$fake/unknown" # main was renamed meanwhile: GitHub knows both, the running landing is under the new name
-  run_under merge-to-main.yml 37 land/03 "queued none 05-x-host-x/merge"
+  run_under dev-merge-to-main.yml 37 land/03 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 37 ]
 }
 
-@test "github: without LAND_WORKFLOWS, only merge-to-main.yml in the worktree: both names are asked, a land.yml run is stopped" {
-  printf 'PROVIDER=github\n' > .hal/mtm-fastlane.conf
-  commit_workflow merge-to-main.yml
-  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml land.yml" ]
-  : > "$fake/unknown" # the worktree renames it: main's running landing is still under the old name
-  run_on 38 land/04 "queued none merge"
-  run bash "$here/ci-stop.sh" --interval 1
-  [ "$status" -eq 0 ]
-  [ "$(cat "$fake/cancelled")" = 38 ]
-}
-
-@test "github: without LAND_WORKFLOWS, only dev-merge-to-main.yml in the worktree: every name is asked, its run is stopped" {
+@test "github: without LAND_WORKFLOWS, only dev-merge-to-main.yml in the worktree: both names are asked, a merge-to-main.yml run is stopped" {
   printf 'PROVIDER=github\n' > .hal/mtm-fastlane.conf
   commit_workflow dev-merge-to-main.yml
-  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml land.yml" ]
-  echo land.yml > "$fake/unknown" # after both renames: GitHub knows the two newer names
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  : > "$fake/unknown" # the worktree renames it: main's running landing is still under the old name
+  run_on 38 land/04 "queued none merge"
   run_under dev-merge-to-main.yml 39 land/05 "queued none 05-x-host-x/merge"
-  run_under merge-to-main.yml 40 land/06 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1
   [ "$status" -eq 0 ]
-  [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "39 40" ]
+  [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "38 39" ]
 }
 
-@test "github: the land workflows are the conf's, else the names found; one of them brings the others" {
+@test "github: the land workflows are the conf's, else the names found; one of them brings the other" {
   printf 'PROVIDER=github\n' > .hal/mtm-fastlane.conf
   commit_workflow merge-to-main.yml
-  commit_workflow land.yml
-  [ "$(workflows)" = "merge-to-main.yml land.yml dev-merge-to-main.yml" ]
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\n' > .hal/mtm-fastlane.conf
-  [ "$(workflows)" = "land.yml dev-merge-to-main.yml merge-to-main.yml" ]
+  commit_workflow dev-merge-to-main.yml
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\n' > .hal/mtm-fastlane.conf
+  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS="merge-to-main.yml local-macos-26-macbook-18.4.yml"\n' > .hal/mtm-fastlane.conf
-  [ "$(workflows)" = "merge-to-main.yml local-macos-26-macbook-18.4.yml dev-merge-to-main.yml land.yml" ]
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=.github/workflows/land.yml\n' > .hal/mtm-fastlane.conf
-  [ "$(workflows)" = ".github/workflows/land.yml dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml local-macos-26-macbook-18.4.yml dev-merge-to-main.yml" ]
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=.github/workflows/merge-to-main.yml\n' > .hal/mtm-fastlane.conf
+  [ "$(workflows)" = ".github/workflows/merge-to-main.yml dev-merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS=dev-merge-to-main.yml\n' > .hal/mtm-fastlane.conf
-  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml land.yml" ]
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS="deploy.yml release.yml"\n' > .hal/mtm-fastlane.conf
   [ "$(workflows)" = "deploy.yml release.yml" ]
 }
@@ -573,5 +562,5 @@ EOF
   git remote set-head origin main
   git reset -q --hard HEAD~1
   [ ! -e .github/workflows/merge-to-main.yml ]
-  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml land.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
 }
