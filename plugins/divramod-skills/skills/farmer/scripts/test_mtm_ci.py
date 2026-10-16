@@ -100,6 +100,27 @@ class MtmCiTest(unittest.TestCase):
         jobs[1].append({"name": "02-hz01-host-b/03-rust-lint", "conclusion": "failure"})
         self.assertEqual(mtm_ci.red_jobs(jobs[1]), ["02-hz01-host-b/03-rust-lint"])
 
+    def test_the_matrix_alias_names_since_d101(self):
+        # Plan 0349 D101: `<stage letter><matrix digit>-<NN>-<job>`, the merge as git-merge; the older names still parse.
+        self.assertEqual([mtm_ci.job_part(n) for n in ("d2-01-git-merge", "c3-03-rust-lint", "d1-01-stack-test",
+                                                       "a1-01-ci-route", "g1-02-ci-cache-clean-mac-host")],
+                         ["git-merge", "rust-lint", "stack-test", "ci-route", "ci-cache-clean-mac-host"])
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-02-ci-cache-clean-mac-host", "e2-01-git-pull-main",
+                                                         "e3-01-agents-publish", "e4-01-hub-deploy")))
+        self.assertFalse(mtm_ci.is_ship("d2-01-git-merge"))
+        self.assertTrue(all(mtm_ci.is_build(n) for n in ("c1-01-tmux-build-mac", "c4-02-tmux-test-mac")))
+        self.assertFalse(mtm_ci.is_build("c4-01-bash-test"))
+        jobs = [{"name": "d2-01-git-merge", "conclusion": "success"},
+                {"name": "g1-02-ci-cache-clean-mac-host", "conclusion": "failure"},
+                {"name": "c1-02-rust-build-mac", "conclusion": "failure"}]
+        self.assertTrue(mtm_ci.merged(jobs))
+        self.assertEqual(mtm_ci.red_jobs(jobs), [])
+        jobs[0]["conclusion"] = "failure"
+        self.assertFalse(mtm_ci.merged(jobs))
+        self.assertEqual(mtm_ci.red_jobs(jobs), [], "a red git-merge is main moved, as a red merge was")
+        jobs.append({"name": "c3-03-rust-lint", "conclusion": "failure"})
+        self.assertEqual(mtm_ci.red_jobs(jobs), ["c3-03-rust-lint"])
+
     def test_a_job_that_stops_its_run_fails_it_at_once_and_the_cancelled_jobs_only_stopped(self):
         # `gh run view --json jobs`, shaped after land run 38215106904 with the lanes' stop step; the job that stops
         # its run mostly ends `cancelled` itself (gate jobs 113753096365, 114169773542), its failed step `failure`.

@@ -6,7 +6,7 @@ GitHub Actions (hal2's plan 0131 and its decision record
 [landings-on-github-actions](https://github.com/divramod/hal2/blob/main/.adr/landings-on-github-actions.md)). Nothing is tested on this machine:
 `hal2-cli-git worktree merge-to-main` takes the worktree's turn in the merge queue, merges the default branch in,
 builds the `--no-ff` candidate, pushes the branch and `land/<slot>`, opens or updates the landing's pull request
-(`land/<slot>` → the default branch) and waits until that workflow has tested the candidate: green, its `merge` job
+(`land/<slot>` → the default branch) and waits until that workflow has tested the candidate: green, its `git-merge` job
 fast-forwards the default branch to the candidate (the PR shows merged); red, the queue stays held for this worktree
 until its fix lands (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"). There
 is no attempts counter, and `reserve` only holds the queue while `land-runs.sh` waits (below): SKILL.md's steps 2 and 5 to 8 apply as they are, this page replaces steps

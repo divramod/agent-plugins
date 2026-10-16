@@ -39,7 +39,8 @@ LAND_NAMES = ["dev-merge-to-main.yml", "merge-to-main.yml", "land.yml"]
 LAND_FILES = [f".github/workflows/{name}" for name in LAND_NAMES]
 RED = {"failure", "timed_out", "startup_failure", "cancelled"}
 GREEN = {"success", "skipped", "neutral"}
-NOT_COUNTED = {"park", "merge"}  # park's state is no verdict; a red merge is "main moved"
+NOT_COUNTED = {"park", "merge", "git-merge"}  # park's state is no verdict; a red merge is "main moved"
+MERGE_JOBS = {"merge", "git-merge"}  # the merge job's part: `git-merge` since plan 0349 D101, `merge` before
 # The workflow's ship jobs run after merge: a delivery never reddens or delays a landing. A fixed set of job parts since
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
 SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linux-host-ship-start",
@@ -57,10 +58,13 @@ SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 BUILD_JOBS = {"rust-bundle-apps-macos", "ts-bundle-desktop-macos", "mac-vm-build-plan",
               # Plan 0349: the one VM lane's jobs after bash-test (D17-D20).
               "tmux-build-mac", "tmux-test-mac", "rust-build-mac", "ts-bundle-desktop-mac"}
-# Since plan 0349 (D40) the job part of today's names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
-# the job is the bare one, as in the names without it.
-BUILD_NAME = re.compile(r"^\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?(?P<job>.+)$")  # today's names only: no older run had these jobs
-NAME = re.compile(r"^(?:\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?|(?P<lane>\S+) / )?(?P<job>.+)$")
+# Since plan 0349 (D40) the job part of the names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
+# the job is the bare one, as in the names without it. Since D101 a name is `<matrix alias>-<NN>-<job>` (`c3-03-rust-lint`:
+# the stage's letter, the matrix's place in it, the job's position): the old forms stay for the runs before it.
+NEW = r"[a-z][1-9]-\d\d-"
+OLD = r"\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?"
+BUILD_NAME = re.compile(rf"^(?:{NEW}|{OLD})(?P<job>.+)$")  # these names only: no older run had these jobs
+NAME = re.compile(rf"^(?:{NEW}|{OLD}|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
 CANCEL_STEP = "fail fast: cancel the run"  # the stop job's step (plan 0319 D9), hal2-git's CANCEL_STEP
@@ -92,7 +96,8 @@ def outcome(run: dict) -> str:
 
 
 def job_part(name: str) -> str:
-    """The job of a display name: `05-xxx1hx/merge`, `03-hz01-host-b/01-merge` and `linux / merge` -> `merge`, `merge` -> `merge`."""
+    """The job of a display name: `05-xxx1hx/merge`, `03-hz01-host-b/01-merge` and `linux / merge` -> `merge`, `merge` -> `merge`,
+    `d2-01-git-merge` -> `git-merge`."""
     return NAME.match(name or "")["job"]
 
 
@@ -103,7 +108,7 @@ def is_ship(name: str) -> bool:
 
 
 def is_build(name: str) -> bool:
-    """A macOS build job, `04-mac-vm-x/rust-bundle-apps-macos`, or the build's plan: red or not, it fails no candidate."""
+    """A macOS build job, `c1-02-rust-build-mac` or `04-mac-vm-x/rust-bundle-apps-macos`, or the build's plan: red or not, it fails no candidate."""
     m = BUILD_NAME.match(name or "")
     return bool(m) and m["job"] in BUILD_JOBS
 
@@ -186,8 +191,8 @@ def red_jobs(jobs: list[dict]) -> list[str]:
 
 
 def merged(jobs: list[dict]) -> bool:
-    """`merge` succeeded: the landing is decided whatever its ship jobs still do."""
-    return any(job_part(j.get("name", "")) == "merge" and j.get("conclusion") == "success" for j in jobs)
+    """`git-merge` (`merge` before D101) succeeded: the landing is decided whatever its ship jobs still do."""
+    return any(job_part(j.get("name", "")) in MERGE_JOBS and j.get("conclusion") == "success" for j in jobs)
 
 
 def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:

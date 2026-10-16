@@ -56,6 +56,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [farmer](skills/farmer/SKILL.md) | the repository's helper session: CI, unsticking sessions, servants for fixes; `silence` / `unsilence` (`scripts/silence.py`, also the wagon master's): one table line per round with a joined column |
 | [fix-autoclear](skills/fix-autoclear/SKILL.md) | analyses and fixes an autoclear failure |
 | [fix-loc](skills/fix-loc/SKILL.md) | the loop that brings files under 300 code lines |
+| [fix-tart](skills/fix-tart/SKILL.md) | analyses and fixes a Mac VM (Tart) runner incident: evidence, known cases, doctor (`scripts/evidence.py`, `sources.py`, `signatures.py`) |
 | [grill](skills/grill/SKILL.md) | questions a plan until every branch is decided |
 | [halverse](skills/halverse/SKILL.md) | `/hv`: shows the ontology (`ontology`), checks the halverse files (`check`), adds, changes and retires a term in four languages (`add`, `change`, `retire`), sets short forms (`short`), counts old words against farm words (`learn`), syncs VoiceInk, prints its correction prompt and writes its import file (`voiceink [status\|restore\|prompt\|export]`) |
 | [handoff](skills/handoff/SKILL.md) | writes the handoff before a clear and continues from it |

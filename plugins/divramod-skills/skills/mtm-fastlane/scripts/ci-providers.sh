@@ -23,17 +23,26 @@ provider_of() { # github, gitlab or none, by the conf's PROVIDER or origin's URL
   esac
 }
 
-# The jobs (`<status> <conclusion> <name>` lines) of a run → `<merged> <queued_only>`.
+# Is the job name $1 the merge job $2? `merge`, `linux / merge`, `03-hz01-host-b/merge`, since hal2 plan 0349 D40
+# `03-hz01-host-b/01-merge`, since D101 `d2-01-<job>` (the matrix alias and the job's position).
+is_merge_job() {
+  case "$1" in
+    "$2"|*" / $2"|*"/$2"|*/[0-9][0-9]-"$2"|[a-z][1-9]-[0-9][0-9]-"$2") return 0 ;;
+  esac
+  return 1
+}
+
+# The jobs (`<status> <conclusion> <name>` lines) of a run → `<merged> <queued_only>`. MERGE_JOB may name several
+# jobs; one naming `merge` also means `git-merge`, its name since hal2 plan 0349 D101 (runs before it say `merge`).
 judge_jobs() {
-  local merge_job merged=0 queued_only=1 status conclusion name
-  merge_job=$(conf_get MERGE_JOB merge)
+  local merge_jobs job merged=0 queued_only=1 status conclusion name
+  merge_jobs=$(conf_get MERGE_JOB merge)
+  case " $merge_jobs " in *" merge "*) merge_jobs="$merge_jobs git-merge" ;; esac
   while read -r status conclusion name; do
     [ -n "$status" ] || continue
-    case "$name" in
-      # `merge`, `linux / merge`, `03-hz01-host-b/merge` and, since hal2 plan 0349 D40, `03-hz01-host-b/01-merge`.
-      "$merge_job"|*" / $merge_job"|*"/$merge_job"|*/[0-9][0-9]-"$merge_job")
-        [ "$conclusion" = success ] && merged=1 ;;
-    esac
+    for job in $merge_jobs; do
+      is_merge_job "$name" "$job" && [ "$conclusion" = success ] && merged=1
+    done
     case "$status" in
       completed|success|failed|canceled|cancelled|skipped|manual) ;;
       queued|waiting|pending|requested|created|waiting_for_resource|preparing|scheduled) ;;

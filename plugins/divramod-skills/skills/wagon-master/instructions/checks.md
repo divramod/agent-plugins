@@ -12,7 +12,7 @@ for nobody).
    `push` run of merge-to-main.yml on `land/**` is unfinished or a ticket waits; not while a red landing holds the
    queue (`held`: nothing moves, the checks may run).
 2. **Busy: cancel what costs nothing.** A `workflow_dispatch` run `[<slot>] ci-check ...` that is queued or in progress
-   and has started no job but `route` and `changes` is cancelled (`gh run cancel`) and recorded as deferred again.
+   and has started no job but `ci-route` and `ci-changes` (`route`, `changes` before plan 0349 D101) is cancelled (`gh run cancel`) and recorded as deferred again.
    A check that runs lane jobs is **never** cancelled; a run not recorded in the store (`checks dispatched` was not
    called for it) is **never** cancelled, it is left alone and said so in the log.
 3. **Not busy: dispatch.** The oldest pending worktree's **newest** deferral is dispatched, **one per round**; the worktree's

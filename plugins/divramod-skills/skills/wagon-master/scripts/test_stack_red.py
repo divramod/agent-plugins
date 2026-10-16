@@ -113,6 +113,17 @@ class Watch(unittest.TestCase):
         self.assertEqual(shape(out)[0], ("stack-red", "run", "-"))
         self.assertIn("03-hz01-host-a/01-stack-test is red", out[1]["text"])
 
+    def test_a_red_stack_test_of_the_matrix_alias_names_counts(self):
+        # Plan 0349 D101: `<matrix alias>-<NN>-<job>`, the merge as `d2-01-git-merge`.
+        new = {"name": "d1-01-stack-test", "tests": ["hub::tenant_rls"]}
+        self.assertEqual(stack_red.red_jobs({**LANDED, "red": [new]}), [new])
+        for name in ("d2-01-git-merge", "c3-03-rust-lint", "d1-01-stack-test-extra", "d1-01-stack"):
+            self.assertEqual(stack_red.red_jobs({**LANDED, "red": [{"name": name}]}), [], name)
+        out, _ = self.watch([{"name": "d2-01-git-merge", "status": "completed", "conclusion": "success"},
+                             {"name": "d1-01-stack-test", "status": "completed", "conclusion": "failure"}])
+        self.assertEqual(shape(out)[0], ("stack-red", "run", "-"))
+        self.assertIn("d1-01-stack-test is red", out[1]["text"])
+
     def test_a_running_stack_test_waits_and_a_green_one_ends_the_watch(self):
         running = [{"name": "03-hz01-host-a/stack-test", "status": "in_progress", "conclusion": ""}]
         self.assertEqual(self.watch(running)[0], [])

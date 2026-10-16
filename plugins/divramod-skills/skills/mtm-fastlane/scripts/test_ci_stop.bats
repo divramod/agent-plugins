@@ -340,6 +340,23 @@ path_without_gh() {
   [ "$(cat "$fake/cancelled")" = 18 ]
 }
 
+@test "github: the merge job named by its matrix alias (plan 0349 D101, d2-01-git-merge) is the merge, also for MERGE_JOB=merge" {
+  run_on 19 land/06 "completed success d2-01-git-merge" "queued none e2-01-git-pull-main"
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=15m\nMERGE_JOB=merge\n' > .hal/mtm-fastlane.conf
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  [ "$status" -eq 7 ]
+  [ ! -e "$fake/cancelled" ]
+}
+
+@test "github: a run whose matrix-alias merge job has not run is cancelled, and no other job's success counts" {
+  run_on 20 land/07 "completed success d1-01-stack-test" "completed success c2-01-git-merge-extra" \
+    "queued none d2-01-git-merge"
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=land.yml\nSHIP_GRACE=0m\nMERGE_JOB=git-merge\n' > .hal/mtm-fastlane.conf
+  run bash "$here/ci-stop.sh" --interval 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$fake/cancelled")" = 20 ]
+}
+
 @test "github: a run whose merge job named by stage and runner code has not run is cancelled" {
   run_on 16 land/07 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 1

@@ -31,17 +31,18 @@ TEXT = ("wagon-master (wagon train): train {train} is in the barn, but {job} is 
 
 
 def bare(name: object) -> str:
-    """A job's own part of its display name: `03-hz01-host-a/01-stack-test` (the job's position in its lane since plan
-    0349 D40), `03-hz01-host-a/stack-test` and a bare `stack-test` give `stack-test`; the matrix values GitHub appended
-    to a matrix job of a fixed name in older runs (`stack-test (stack-test)`) go."""
+    """A job's own part of its display name: `d1-01-stack-test` (the matrix alias and the job's position, plan 0349
+    D101), the older `03-hz01-host-a/01-stack-test` (the position in its lane since D40), `03-hz01-host-a/stack-test`
+    and a bare `stack-test` give `stack-test`; the matrix values GitHub appended to a matrix job of a fixed name in
+    older runs (`stack-test (stack-test)`) go."""
     name = re.sub(r"\s*\([^)]*\)$", "", str(name or ""))
-    staged = re.match(r"^\d\d-[^/]*/(?:\d\d-)?(.+)$", name)
+    staged = re.match(r"^(?:[a-z][1-9]-\d\d-|\d\d-[^/]*/(?:\d\d-)?)(.+)$", name)
     return (staged[1] if staged else name.rsplit("/", 1)[-1]).strip()
 
 
 def red_jobs(result: dict | None) -> list[dict]:
-    """The landing result's red jobs whose name ends in `stack-test` (`03-hz01-host-a/01-stack-test`, or without the
-    position `03-hz01-host-a/stack-test`), also with the matrix values older runs have
+    """The landing result's red jobs whose job is `stack-test` (`d1-01-stack-test`; older `03-hz01-host-a/01-stack-test`,
+    or without the position `03-hz01-host-a/stack-test`), also with the matrix values older runs have
     (`03-hz01-host-a/stack-test (stack-test)`)."""
     return [j for j in (result or {}).get("red") or [] if bare(j.get("name", "")) == STACK]
 
@@ -96,8 +97,8 @@ def run_id(run: str | None) -> str | None:
 
 
 def stack_job(jobs: list[dict]) -> dict | None:
-    """The run's stack-test job (`03-hz01-host-a/01-stack-test`, or older `03-hz01-host-a/stack-test`, with or without
-    GitHub's matrix suffix)."""
+    """The run's stack-test job (`d1-01-stack-test`, or older `03-hz01-host-a/01-stack-test` and
+    `03-hz01-host-a/stack-test`, with or without GitHub's matrix suffix)."""
     return next((j for j in jobs if red_jobs({"red": [j]})), None)
 
 

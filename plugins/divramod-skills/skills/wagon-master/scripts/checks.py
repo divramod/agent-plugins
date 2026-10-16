@@ -52,7 +52,7 @@ KINDS = ("deferred", "dispatched", "cancelled", "superseded", "failed")
 WORKFLOW = "merge-to-main.yml"
 CHECK = re.compile(r"^\[(?P<slot>[^\]]+)\] ci-check\b")
 FIELDS = "databaseId,event,status,headBranch,displayTitle,url,createdAt"
-FREE_JOBS = ("route", "changes")  # what may have run on a check that is still cancelled (D5)
+FREE_JOBS = ("ci-route", "ci-changes", "route", "changes")  # what may have run on a check still cancelled (D5; D101 names first)
 CLI = Path(__file__).with_name("wagon_master.py")
 RETRY = dt.timedelta(minutes=10)  # a failed cancel or dispatch is planned again after this
 TRIES = 3  # failed dispatches of one deferral before it is given up
@@ -172,7 +172,7 @@ def unfinished_checks(all_runs: list[dict] | None) -> list[dict]:
 
 
 def lane_started(jobs: list[dict]) -> bool:
-    """Has a job but `route` and `changes` taken a runner (in progress or done, not skipped)?"""
+    """Has a job but `ci-route` and `ci-changes` (D101; `route`, `changes`) taken a runner (not skipped)?"""
     return any(j.get("status") in ("in_progress", "completed") and j.get("conclusion") != "skipped"
                and mtm_ci.job_part(j.get("name") or "") not in FREE_JOBS for j in jobs)
 

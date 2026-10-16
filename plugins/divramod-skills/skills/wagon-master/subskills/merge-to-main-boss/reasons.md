@@ -126,7 +126,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 
 ## C4 · A green candidate is not fast-forwarded
 
-- **Signature**: the `land` run is green but its `merge` job is skipped; the default branch stays; the lander takes
+- **Signature**: the `land` run is green but its `git-merge` job (`merge` before plan 0349 D101) is skipped; the default branch stays; the lander takes
   it for "main moved" and retests.
 - **Occurrences**:
   - 2026-10-05 06:07Z · probe 3 (`land/12-probe`): `if:` without a status function, so the implicit `success()`

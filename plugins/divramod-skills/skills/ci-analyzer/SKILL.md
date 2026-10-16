@@ -32,8 +32,8 @@ c06 repeats (identical checks run again), c07 cache-misses, c08 flaky (jobs red 
 unparked runners), c10 mac-host-load, c11 slow-steps (against `budgets.toml`), c12 disk (disk and cleanup), c13
 token-cost (a proxy for the agents' token cost), c14 green-markers (a job that ran although its marker should
 have hit; `--keys` names the input that moved the key), c15 setup-overhead ("Set up job" over 20 s; `--logs` names the
-action downloads), c16 stage-balance (the lanes of one stage and OS busy far unequal, e.g. 04-mac-host-a 22 min beside an
-idle mac-host-b; names the job whose move evens them; `--lane-gap`, `--lane-solo`). Match them with `checks/c<NN>_<slug>.py` in the unit.
+action downloads), c16 stage-balance (the lanes of one stage and OS busy far unequal, e.g. e2-mac-host-b 22 min beside an idle
+e4-mac-host-c; names the job whose move evens them; `--lane-gap`, `--lane-solo`). Match them with `checks/c<NN>_<slug>.py` in the unit.
 
 ## Judge
 

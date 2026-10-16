@@ -76,6 +76,10 @@ class Busy(unittest.TestCase):
     def test_a_check_counts_as_started_only_with_a_lane_job(self):
         self.assertFalse(checks.lane_started([ROUTE, CHANGES, SKIPPED, {"name": "x/rust-test", "status": "queued"}]))
         self.assertTrue(checks.lane_started([ROUTE, CHANGES, LANE]))
+        # The names since plan 0349 D101: `<matrix alias>-<NN>-<job>`, route and changes as ci-route and ci-changes.
+        route, changes = {**ROUTE, "name": "a1-01-ci-route"}, {**CHANGES, "name": "b1-01-ci-changes"}
+        self.assertFalse(checks.lane_started([route, changes, {**SKIPPED, "name": "c2-08-rust-test"}]))
+        self.assertTrue(checks.lane_started([route, changes, {**LANE, "name": "c2-08-rust-test"}]))
 
 
 class Holds(Store):
