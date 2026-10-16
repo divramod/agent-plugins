@@ -103,12 +103,11 @@ class Ci(unittest.TestCase):
         self.assertEqual(kinds(plan), [("send", "slot-red", "05"), ("run", "handled", "05"), ("wake", "queued-long", "main")])
 
 
-    def test_a_long_queued_job_runs_the_wake_tool(self):
-        wake = {**red("queued-wake", "land/12"), "tool": "/r/code/bash/scripts/ci-wake/main.sh"}
-        plan = duties.plan_ci({}, ctx(), {"findings": [wake]})
-        self.assertEqual(kinds(plan), [("run", "queued-wake", "-")])
-        self.assertEqual(plan[0]["argv"], ["bash", "/r/code/bash/scripts/ci-wake/main.sh", "start"])
-        self.assertEqual(plan[0]["window"], 600)
+    def test_a_long_queued_run_is_reported_never_woken(self):
+        # Plan 0349 D83: the CI supervisor wakes the machines; the farmer only reports a run queued too long.
+        plan = duties.plan_ci({}, ctx(), {"findings": [red("queued-long", "land/12")]})
+        self.assertEqual(kinds(plan), [("wake", "queued-long", "land/12")])
+        self.assertFalse(any("argv" in a and "ci-wake" in " ".join(a["argv"]) for a in plan))
 
 def incident(action, cls="F1", **kw):
     return {"id": f"{cls}:s1:t", "class": cls, "name": "n", "session": "s1", "slot": "04", "pane": "%4",

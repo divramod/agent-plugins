@@ -31,10 +31,9 @@ import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 MINUTE = 60
+# A run queued this long is reported (`queued-long`); the farmer wakes no runner: hal2's CI supervisor
+# (hal2-daemon's role on the Mac, plan 0349 D83) is the one system that wakes and parks the CI machines.
 QUEUED_TOO_LONG = 20 * MINUTE
-# A job queued this long wakes the repository's parked runner, when it has a wake tool (hal2's webhook missed it).
-WAKE_AFTER = 5 * MINUTE
-WAKE_TOOL = "code/bash/scripts/ci-wake/main.sh"
 QUEUED = ("queued", "waiting", "pending", "requested")
 RUNNING_TOO_LONG = 90 * MINUTE
 RED = {"failure", "timed_out", "startup_failure", "action_required"}
@@ -105,18 +104,6 @@ def findings(latest: list[dict], default: str, now: float, done: set[int]) -> li
     return sorted(out, key=lambda f: order[f["kind"]])
 
 
-def waiting(runs: list[dict], now: float) -> dict | None:
-    """The oldest run of any branch queued longer than WAKE_AFTER: one wake serves them all."""
-    old = [r for r in runs if r.get("status") in QUEUED and now - parse_time(r.get("createdAt")) > WAKE_AFTER]
-    if not old:
-        return None
-    r = min(old, key=lambda r: parse_time(r.get("createdAt")))
-    age = int((now - parse_time(r.get("createdAt"))) // 60)
-    return {"run": r.get("databaseId"), "workflow": r.get("workflowName"), "branch": r.get("headBranch"),
-            "url": r.get("url"), "sha": (r.get("headSha") or "")[:8], "handled": False, "kind": "queued-wake",
-            "why": f"{r.get('workflowName')} queued {age} min on {r.get('headBranch')}: waking the runner"}
-
-
 def failed_jobs(jobs: list[dict]) -> list[str]:
     """`<job>: <its first failed step>` of a run's red jobs."""
     return [f"{j.get('name')}: {next((s.get('name') for s in j.get('steps') or [] if s.get('conclusion') == 'failure'), '?')}"
@@ -149,9 +136,6 @@ def scan(repo: str, show_all: bool) -> dict:
     found = findings(latest_runs(runs, default), default, time.time(), handled(main))
     if not show_all:
         found = [f for f in found if not f["handled"]]
-    wake = waiting(runs, time.time()) if (Path(main) / WAKE_TOOL).exists() else None
-    if wake:
-        found.insert(0, {**wake, "tool": str(Path(main) / WAKE_TOOL)})
     red = [f for f in found if f["kind"].endswith("-red")]
     long = [f for f in found if f["kind"] == "running-long"]
     jobs = gh_runs.jobs([f["run"] for f in red + long], {f["run"] for f in red}, gh_runs.view_jobs(run_json, main))

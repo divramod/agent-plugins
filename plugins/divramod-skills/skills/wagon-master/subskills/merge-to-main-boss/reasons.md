@@ -153,13 +153,16 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 
 ## C1 · Jobs wait for a parked runner
 
-- **Signature**: a `land` run's jobs queued for minutes, the Linux runner offline (parked), no wake in the
-  receiver's log.
+- **Signature**: a `land` run's jobs queued for minutes, the Linux runner offline (parked), no wake in the CI
+  supervisor's log (`<state root>/ci-supervisor/power.log` on the Mac; the receiver hal2-ci-wake's until plan 0349).
 - **Occurrences**:
   - 2026-10-05 · hal9k was deployed from a branch without `hal2-ci-wake`; the farmer's 5-min fallback woke it.
   - 2026-10-05 ~06:00Z · after the redeploy Caddy kept its old Caddyfile (GitHub's webhook got 502).
-- **Remedy**: the ci duty's wake fallback (`ci-wake/main.sh`); check `hal9k-hal2-ci-wake-1` and Caddy's route.
-- **Lasting fix**: hal9k's deploy restarts what changed even after a failed deploy (plan 0131, `36f33b2d`).
+- **Remedy**: since plan 0349 D83 the CI supervisor (hal2-daemon's role on the Mac) is the one waker: check that
+  hal2-daemon runs on the Mac with the role on and read its power log; by hand, `hal2-cli-hetzner servers wake
+  hal2-ci-runner --project hal9k-ci`. The farmer's ci duty only reports a run queued too long (`queued-long`).
+- **Lasting fix**: plan 0349 D83 (one waker, the supervisor; hal2-ci-wake, its webhook and the farmer's fallback
+  retired); before it, hal9k's deploy restarted what changed even after a failed deploy (plan 0131, `36f33b2d`).
 
 ## R12 · A delivery step fails because a script was committed without +x
 

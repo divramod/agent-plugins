@@ -1,5 +1,6 @@
 import time
 import unittest
+from pathlib import Path
 
 import ci_scan as ci
 
@@ -69,15 +70,11 @@ class Stuck(unittest.TestCase):
         self.assertFalse(ci.stuck(long(), [gate("success"), stopper("failure")])["ending"])  # refused: cancel it
 
 
-class Wake(unittest.TestCase):
-    def test_the_oldest_run_queued_over_five_minutes_of_any_branch_wakes(self):
-        runs = [run(1, "land", "land/12", status="queued", conclusion=None, ago=400),
-                run(2, "land", "land/07", status="queued", conclusion=None, ago=900),
-                run(3, "main", "main", status="queued", conclusion=None, ago=60),
-                run(4, "main", "main", status="in_progress", conclusion=None, ago=4000)]
-        w = ci.waiting(runs, time.time())
-        self.assertEqual((w["kind"], w["run"], w["branch"]), ("queued-wake", 2, "land/07"))
-        self.assertIsNone(ci.waiting(runs[2:], time.time()))
+class NoWake(unittest.TestCase):
+    def test_the_farmer_wakes_no_runner_the_ci_supervisor_does(self):
+        # Plan 0349 D83: no wake tool, no `queued-wake` finding; a run queued too long is only reported.
+        self.assertFalse(hasattr(ci, "waiting") or hasattr(ci, "WAKE_TOOL"))
+        self.assertNotIn("ci-wake", Path(ci.__file__).read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

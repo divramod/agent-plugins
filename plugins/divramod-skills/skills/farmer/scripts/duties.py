@@ -110,11 +110,7 @@ def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) ->
     for f in scan.get("findings", []):
         kind, run, key = f["kind"], f["run"], f"ci:{f['run']}"
         record = [sys.executable, str(HERE / "ci_scan.py"), "record", str(run)]
-        if kind == "queued-wake":
-            # Deterministic: the wake tool is a no-op for a running runner; again after 10 min while still queued.
-            out.append(act("ci", kind, "run", "-", key=f"ci-wake:{run}", window=600,
-                           argv=["bash", f["tool"], "start"], text=f["why"]))
-        elif kind == "main-red":
+        if kind == "main-red":
             tail = (log_failed(run) or "")[-20000:]
             transient = TRANSIENT.search(tail)
             if transient:
