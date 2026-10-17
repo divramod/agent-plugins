@@ -176,6 +176,28 @@ class Cases(unittest.TestCase):
         found = signatures.find(ctx(daemon=[(at(5, 0), line)]))
         self.assertEqual([(f["case"], f["slug"]) for f in found], [(5, "labels")])
 
+    def test_a_runner_github_still_holds_with_a_dead_job(self):
+        refused = ("registering arm64_loc_macbookpro_18.4_01_macos_26_vm_a on divramod/hal2\n/opt/homebrew/bin/gh exited "
+                   "with code 1: gh: Bad request - Runner arm64_loc_macbookpro_18.4_01_macos_26_vm_a is currently running "
+                   "a job and cannot be deleted. (HTTP 422)\n")
+        tasks = [task(at(5, 0), at(5, 0, 2), refused), task(at(5, 1), at(5, 1, 2), refused)]
+        found = signatures.find(ctx(tasks=tasks))
+        self.assertEqual([(f["case"], f["slug"]) for f in found], [(6, "held-runner")])
+        self.assertIn("2 runner tasks", found[0]["detail"])
+        stand_in = task(at(5, 2), at(5, 9), "registering x on o/r\nx still holds a job on GitHub: registering x_1 instead\n")
+        self.assertEqual([f["slug"] for f in signatures.find(ctx(tasks=[stand_in]))], ["stand-in"])
+
+
+    def test_a_watchdog_restart_that_tore_down_a_running_job(self):
+        # The incident of 2026-10-17 00:06:38 (land run 38984579934): the restart 3 s into c4-01-bash-test.
+        killed = task(at(0, 5, 27), at(0, 6, 41), "registering x on o/r\n2026-10-17 00:06:35Z: Running job: c4-01-bash-test\n"
+                      "command: 35.1s\n$ tart delete y\nremoving x from o/r\n")
+        restart = [(at(0, 6, 38), "WARN hal2_ci_supervisor: ci supervisor: mac vm runner restarted (off, on), attempt 1")]
+        found = [f for f in signatures.find(ctx(tasks=[killed], daemon=restart)) if f["case"] == 7]
+        self.assertEqual([f["slug"] for f in found], ["watchdog-kill"])
+        self.assertIn("c4-01-bash-test", found[0]["detail"])
+        ended = task(at(0, 5, 27), at(0, 6, 0), "Running job: a\n")  # ended before the restart: no kill
+        self.assertEqual([f for f in signatures.find(ctx(tasks=[ended], daemon=restart)) if f["case"] == 7], [])
 
 class Cli(unittest.TestCase):
     def setUp(self):

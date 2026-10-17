@@ -94,7 +94,9 @@ As of hal2 plan 0349 (steps 34, 40, 42). Keep this true: `$E selfcheck`.
 `supervise` per instance (`code/rust/libs/hal2-vm-node/src/runner.rs`; instance 1+ waits until the instances below
 have jobs, `code/rust/libs/hal2-vm-node/src/lazy.rs`; leftover clones are adopted or retired by
 `code/rust/libs/hal2-vm-node/src/orphans.rs`). Each round runs one job, `run_runner_job`
-(`code/rust/libs/hal2-vm/src/runner.rs`): `drop_leftover` (a runner of that name GitHub still lists), `register`
+(`code/rust/libs/hal2-vm/src/runner.rs`): `drop_leftover` (a runner of that name GitHub still lists; one GitHub
+refuses to remove because it still runs a dead clone's job, `HTTP 422`, stays, and the round registers a stand-in
+`<name>_<job id's last 8>` with the same labels: `<name> still holds a job on GitHub: registering ... instead`), `register`
 (`gh api .../generate-jitconfig`, task log `registering <name> on divramod/hal2`), then `run_job`
 (`code/rust/libs/hal2-vm/src/job.rs`), each phase timed in the task log as `<phase>: <s>s`: `slot`, `clone`
 (`$ tart clone <image> <clone>`, `code/rust/libs/hal2-vm/src/tart.rs`), `copy in`, `boot`
@@ -127,7 +129,8 @@ had a VM job) → off (`mac vm runner off (park), 0 jobs waiting`), parked only 
 park shows no job of any run for the VM. **The watchdog** (step 42, `VmBook` in
 `code/rust/libs/hal2-ci-supervisor/src/decide/vm.rs`, acted on by `checks/mac_vm.rs`): a queued VM job without a VM job or clone starting
 within `start_grace` (30 s), or a start not online on GitHub within `wake_grace` (300 s), is torn down and started
-again (off, on; `mac vm runner restarted`), at most `max_restarts` (3) per stuck stretch, then said once as a
+again (off, on; `mac vm runner restarted`; a VM runner GitHub lists online and busy is ready and never torn down, an
+online one is a start under way: case 7), at most `max_restarts` (3) per stuck stretch, then said once as a
 warning (`mac vm: start still not online`) and tried again after `restart_pause` (1800 s). **Keep-awake** (step 42): while a VM job is queued, running, or its run
 holds the VM, the supervisor holds `caffeinate -i -s -w <daemon pid>` (macOS), logged `ci supervisor: mac kept
 awake` / `ci supervisor: mac may sleep again`. Labels unfinished jobs want beyond the VM's are said once (`mac vm:
@@ -150,7 +153,8 @@ the clone's id), `hal2-daemon vms runner <vm> on|off`, `tart list`, `pmset -g lo
 <!-- strings -->
 `registering `, `booted in `, `copy in`, `removing `, `generate-jitconfig`, `ci-supervisor/power.log`,
 `mac vm runner `, `off (park)`, `on (wake)`, `(mac_vm.labels) lacks`, `mac vm runner restarted`,
-`mac vm: start still not online`, `mac kept awake`, `mac may sleep again`, `gh-token`
+`mac vm: start still not online`, `mac kept awake`, `mac may sleep again`, `gh-token`,
+`still holds a job on GitHub`
 <!-- /strings -->
 
 **Traps**: `vms runner ... on` while it is on does nothing (a dead start stays dead until off, on); `vms list`

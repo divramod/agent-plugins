@@ -18,10 +18,13 @@ WAKE = "mac vm runner on (wake)"
 RESTARTED = "mac vm runner restarted"
 GAVE_UP = "mac vm: start still not online"
 LABELS = "(mac_vm.labels) lacks"
+HELD = "currently running a job and cannot be deleted"  # GitHub's 422 on a dead clone's busy runner
+KILL_WITHIN = timedelta(seconds=20)  # a job task's last write this soon after a watchdog restart: it tore the job down
+STAND_IN = "still holds a job on GitHub"  # hal2-vm registered a stand-in for it (the fix)
 # The literal pieces of hal2's code the needles above and the task-log reading depend on (selfcheck greps
 # hal2's Rust sources for each: one gone means a signature reads nothing).
 FRAGMENTS = ["registering ", "booted in ", "copy in", "mac vm runner ", "off (park)", "on (wake)",
-             RESTARTED, GAVE_UP, LABELS, "mac kept awake", "mac may sleep again"]
+             RESTARTED, GAVE_UP, LABELS, STAND_IN, "mac kept awake", "mac may sleep again"]
 
 
 def fmt(dt):
@@ -117,9 +120,33 @@ def labels(ctx):
     return [{"case": 5, "slug": "labels", "at": hits[0][0], "detail": msg(hits[-1][1])}]
 
 
+def held_runner(ctx):
+    """Case 6: GitHub keeps a dead clone's fixed runner busy; the starts fail on its removal or register a stand-in."""
+    out = []
+    for slug, needle in (("held-runner", HELD), ("stand-in", STAND_IN)):
+        hits = [t for t in ctx["tasks"] if any(needle in l for l in t["lines"])]
+        if hits:
+            out.append({"case": 6, "slug": slug, "at": hits[0]["start"],
+                        "detail": f"{len(hits)} runner tasks: {needle} ({fmt(hits[0]['start'])} to {fmt(hits[-1]['start'])})"})
+    return out
+
+
+def watchdog_kill(ctx):
+    """Case 7: a watchdog restart tore down a clone whose runner was running a GitHub job."""
+    restarts = [t for t, line in ctx["daemon"] if RESTARTED in line]
+    out = []
+    for t in ctx["tasks"]:
+        job = next((l for l in t["lines"] if "Running job: " in l), None)
+        hit = next((r for r in restarts if t["start"] <= r <= t["end"] <= r + KILL_WITHIN), None)
+        if job and hit:
+            out.append({"case": 7, "slug": "watchdog-kill", "at": hit,
+                        "detail": f"the restart at {fmt(hit)} tore down task {t['name'][:8]} mid-job ({job.split('Running job: ')[-1]})"})
+    return out
+
+
 def find(ctx):
     """Every known case's finding in the context, by case number then time."""
     found = []
-    for check in (gh_auth, dead_starts, watchdog, slept, park_wake, labels):
+    for check in (gh_auth, dead_starts, watchdog, slept, park_wake, labels, held_runner, watchdog_kill):
         found += check(ctx)
     return sorted(found, key=lambda f: (f["case"], f["at"]))
