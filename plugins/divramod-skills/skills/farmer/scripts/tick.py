@@ -30,7 +30,7 @@ summary, in round order; farmer.py prints them as one `timing:` line (tick.log).
 The frame runs for one role (hal2 plan 0294): `wiring` (roles.Wiring, the farmer's by default) names its worktree
 `<role>-<project>`, role file, duties, state folder and log, and whether its rounds delegate; a handler finds it as
 `ctx["wiring"]`. A `delegate` action of a role that does not delegate becomes a `wake` (nothing would place it).
-While `wiring.carries` says the worktree holds other worktrees' commits by design (the wagon master's train, D22), the
+While `wiring.carries` says the worktree holds other worktrees' commits by design (the tollman's train, D22), the
 round takes it as it is: no check of what it holds, no merge-from-main, no commit of a role file edit.
 """
 
@@ -131,8 +131,10 @@ def role_edit(top: str, wiring: roles.Wiring = roles.FARMER) -> tuple[list[dict]
                     text=f"{name} edit not committed, nothing runs: " + "; ".join(problems))], False
     files = [f for f in wiring.role_files if (Path(top) / f).exists()]
     return [act("frame", "role-add", "run", argv=["git", "add", "--", *files], text=f"staged the user's {name} edit"),
-            act("frame", "role-commit", "run", argv=["git", "commit", "-q", "-m", f"{role}-role: the user's change",
-                                                    "--", *files], text=f"committed the user's {name} edit")], True
+            act("frame", "role-commit", "run",
+                argv=["git", "commit", "-q", "-m", f"chore(roles): apply the user's change to the {role}'s role file",
+                      "-m", f"Worktree: {Path(top).name}", "--", *files],  # the subject says what, the trailer where
+                text=f"committed the user's {name} edit")], True
 
 
 def due_items(top: str, now: dt.datetime | None = None, all_due: bool = False,

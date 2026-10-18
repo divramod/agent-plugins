@@ -9,6 +9,9 @@ import delegation
 import mtm_scan
 import tick
 
+import sys
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 NOW = dt.datetime(2026, 10, 3, 10, 0)
 MAIN = "/x/hal2"
 
@@ -194,7 +197,7 @@ class Delegation(Ledger):
 
 
 class ForemanFields(Ledger):
-    """Plan 0333 step 9 (D11): a foreman never starts in a field 30-99, where the wagon master refuses its wagon."""
+    """Plan 0333 step 9 (D11): a foreman never starts in a field 30-99, where the tollman refuses its wagon."""
 
     def create_says(self, code, out):
         """create.py answers `(code, out)`, every other call as in Ledger.setUp."""
@@ -301,9 +304,8 @@ class ServantSlots(Ledger):
         self.assertEqual(create[0][2:6], ["--repo", MAIN, "--from", "00"])
 
     def test_a_foremans_servants_still_work_only_in_30_to_99(self):
-        import prune
-        self.assertEqual(prune.SUBSERVANTS_FROM, 30)
-        record = Path(delegation.__file__).parents[5] / ".adr" / "subservants-in-slots-30-99.md"
+        self.assertEqual(delegation.TO + 1, 30, "a foreman's fields end where the servants' begin")
+        record = repo_root(delegation.__file__) / ".adr" / "subservants-in-slots-30-99.md"
         if record.exists():  # the repository's record stays as it is
             self.assertIn("A servant MUST work only in a worktree from 30 to 99", record.read_text())
 

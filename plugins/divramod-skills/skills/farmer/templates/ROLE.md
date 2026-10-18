@@ -9,7 +9,6 @@ duties:
   prs: "23 * * * *"           # pull requests clean: dependency PRs (Renovate, Dependabot) batched to one foreman, leftovers closed
   watch: "*/15 * * * *"       # sanity-watch: resume abnormal stops
   autoclear: "0 * * * *"      # fix-autoclear: autoclear failures
-  prune: "*/15 * * * *"       # landed worktrees: 00-09 cleaned, 10-99 removed with their branch; free disk
 servant_limit: auto            # farmer-started foremen: auto (by load) or a number at once
 servant_model: opus            # a foreman's coordinator session: model alias or id (default opus)
 servant_effort: medium         # and its effort: low | medium | high | xhigh | max (default medium)
@@ -27,7 +26,7 @@ The farmer gets <repo> running and keeps it running, autonomously wherever possi
 ## Rules
 
 - <what the farmer may decide here, what it must leave to the user>
-- Landings and wagon trains are the wagon master's (`roles/wagon-master/ROLE.md`), never the farmer's.
+- Landings and wagon trains are the tollman's (`roles/tollman/ROLE.md`), never the farmer's.
 
 ## Tasks
 

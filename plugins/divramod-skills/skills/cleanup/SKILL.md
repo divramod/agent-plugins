@@ -37,8 +37,19 @@ name it explicitly when the user wants it gone).
   (`node_modules/`, `.venv/`, `Pods/`), the rest is unknown. Suggest writing a `.hal/cleanup` for the repo.
 
 Protected, never listed or deleted: `.git`, `.hal/` (worktree runtime state), `.secrets/`, `.env*`, `plans/`
-(`CURRENT_PLAN`), `shotfiles/`, `*.machine.toml`. `delete` also refuses a path that is not git-ignored, holds a
-tracked file, lies outside the worktree or does not exist.
+(`CURRENT_PLAN`), `shotfiles/`, `*.machine.toml`. A folder with such a path below it (an `app/` holding only an
+ignored `.env`) is listed `kept`, reason "holds a protected path", and `delete` refuses it, also when named.
+`delete` also refuses a path that is not git-ignored, holds a tracked file, lies outside the worktree or does not
+exist.
+
+**The hal2 CLI.** Where the installed `hal2-cli-git` knows `worktree cleanup` (the first line of `hal2-cli-git
+worktree cleanup --help` is `usage: hal2-cli-git worktree cleanup`; an older CLI exits 0 on any `--help`, so the
+exit code alone proves nothing), `cleanup.py` hands its arguments to it unchanged (`--worktree` too) and prints its
+output and exits with its code; `HAL_CLEANUP_CLI` names another program (empty: none). Everywhere else (hal2
+missing or older, the program not startable) the script's own Python runs: the same rule, the same commands, the
+same output and exit codes (`scripts/cli.py` is the hand-over). Only the sizes differ: the CLI's are what `du`
+counts (allocated space), the script's the files' apparent bytes. hal2's cases for the rule
+(`code/rust/libs/hal2-git/tests/fixtures/cleanup/cases.json`) hold both.
 
 Outside the worktree and **not** touched: an installed app (`~/Applications/hal2-macos-<worktree>.app`), the
 checkout's test simulator (`hal2-<worktree>`), published builds (`~/.local/state/hal2/builds/`), Xcode's

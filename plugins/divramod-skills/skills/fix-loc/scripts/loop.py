@@ -35,7 +35,9 @@ DEFAULTS = {"coordinator_model": "claude-sonnet-5-5", "coordinator_effort": "med
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 STEP_MODELS = ("haiku", "sonnet", "opus", "fable")  # the Agent tool's aliases (plan 0016's D6)
 PROMPT = Path(__file__).resolve().parent.parent / "servant-prompt.md"
-CREATE = Path(__file__).resolve().parents[2] / "create-worktree-session" / "scripts" / "create.py"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+CREATE = sibling("create-worktree-session") / "scripts" / "create.py"
 FINISHED = re.compile(r"^Finished:", re.MULTILINE)
 
 

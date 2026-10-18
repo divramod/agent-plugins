@@ -38,11 +38,11 @@ def paused(log: list[dict], now: dt.datetime) -> set[str]:
 
 
 def paused_by_any_boss(main: str, now: dt.datetime) -> set[str]:
-    """The worktrees paused by the merge-to-main boss, whose log is the wagon master's (the farmer's before plan 0294).
-    The wagon master's folder is only read here, never created."""
+    """The worktrees paused by the merge-to-main boss, whose log is the tollman's (the farmer's before plan 0294).
+    The tollman's folder is only read here, never created."""
     roles = mtm_scan.roles
     if mtm_scan.DATA is not None:
-        path = mtm_scan.DATA / roles.main_checkout(main).name / "wagon-master" / "log.jsonl"
+        path = mtm_scan.DATA / roles.main_checkout(main).name / "tollman" / "log.jsonl"
     else:
-        path = roles.slot_dir(main, "wagon-master") / "roles" / "wagon-master" / "log.jsonl"
+        path = roles.slot_dir(main, "tollman") / "roles" / "tollman" / "log.jsonl"
     return paused(read_log(main), now) | paused(mtm_scan.entries(path), now)

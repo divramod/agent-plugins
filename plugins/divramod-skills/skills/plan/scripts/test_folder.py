@@ -253,5 +253,26 @@ class FolderTest(unittest.TestCase):
         self.assertEqual(self.run_plan("check", str(self.root / "docs")).returncode, 1)
 
 
+    def spec_folder(self, name: str = "0002-login") -> Path:
+        """A spec-only folder as the spec skill and the design skill leave it (hal2 plan 0364 D8): no plan.md."""
+        spec = self.root / "plans" / name
+        (spec / "design" / "login" / "flow" / "v1").mkdir(parents=True)
+        (spec / "spec.md").write_text("---\ntype: Spec\nschema: 1\nid: 2\ntitle: \"Login\"\ndescription: \"x\"\n"
+                                      "status: draft\ncreated: 2026-10-18\n---\n\n# Spec 0002: Login\n\n## Problem\n\nx\n")
+        (spec / "design.html").write_text("<!doctype html><title>design</title>\n")
+        (spec / "design" / "login" / "flow" / "v1" / "flow.mmd").write_text("flowchart LR\n  a --> b\n")
+        return spec
+
+    @needs_checker
+    def test_a_spec_folder_without_plan_md_passes_and_keeps_its_number(self):
+        """A spec folder passes the whole check and a named check, and its number is taken for the next plan."""
+        self.new("Tiny")
+        spec = self.spec_folder()
+        self.assertEqual(self.check(), (0, "ok: 4 records\n"))
+        self.assertEqual(self.check(str(spec)), (0, "ok: 4 records\n"))
+        self.assertEqual(self.new("Next").parent.name, "0003-next")
+        self.assertEqual(self.run_plan("check", str(self.root / "plans" / "0003-next" / "steps")).returncode, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

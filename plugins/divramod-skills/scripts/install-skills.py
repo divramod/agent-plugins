@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Link every skill of this repo into the agents' skill folders.
 
-  python3 scripts/install-skills.py [--dry-run] [--check] [--quiet] [--target DIR ...]
+  python3 scripts/install-skills.py [--dry-run] [--check] [--unlink] [--quiet] [--target DIR ...]
 
 Default targets: ~/.claude/skills (Claude Code) and ~/.agents/skills (Codex and the other CLIs that read the
-shared folder). For each skills/<name> it creates <target>/<name> as a symlink to the skill. Links that point into
-this repo but no longer match a skill (renamed or removed skills) are deleted. Anything else in a target (real
+shared folder). For each skills/<name> or skills/<category>/<name> it creates <target>/<name> as a symlink to the
+skill (flat, whatever the category). Links that point into this repo but no longer match a skill (renamed, moved or
+removed skills, also a link that went dangling at a move) are relinked or deleted; a link into any skills unit of
+this repository (code/*/apps/skills/, so also one left in the old folder of a unit that moved, plan 0360) is ours. Anything else in a target (real
 folders, links to other places) is never touched; a name clash is a warning on stderr and skipped (exit 0, so a
-delivery never fails on it). --check changes nothing: exit 1 naming each skill not linked to this repo (missing,
-clash) and each stale link, else exit 0. --quiet prints only changes (nothing when all is linked).
+delivery never fails on it). Two skills of one name in different categories are an error that links nothing (exit 1).
+--unlink removes every link into this repo and nothing else. --check changes nothing: exit 1 naming each skill not linked to this repo (missing, clash) and each stale link, else
+exit 0. --quiet prints only changes (nothing when all is linked).
 """
 import argparse
 import sys
@@ -18,15 +21,50 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TARGETS = ("~/.claude/skills", "~/.agents/skills")
 
 
+class DuplicateSkills(Exception):
+    """Two skills of one name in different categories."""
+
+
 def skills() -> dict[str, Path]:
-    return {p.name: p for p in sorted((ROOT / "skills").iterdir()) if (p / "SKILL.md").is_file()}
+    """name -> folder: skills/<name>/ (flat) and skills/<category>/<name>/ (a folder with SKILL.md is a skill, else
+    a category looked into one level). The link name is the folder name; two of one name raise DuplicateSkills."""
+    found: dict[str, list[Path]] = {}
+    for top in sorted((ROOT / "skills").iterdir()):
+        if (top / "SKILL.md").is_file():
+            found.setdefault(top.name, []).append(top)
+        elif top.is_dir():
+            for sub in sorted(top.iterdir()):
+                if (sub / "SKILL.md").is_file():
+                    found.setdefault(sub.name, []).append(sub)
+    dupes = {name: paths for name, paths in found.items() if len(paths) > 1}
+    if dupes:
+        raise DuplicateSkills("; ".join(f"{name} is in {' and '.join(str(p) for p in paths)}"
+                                        for name, paths in sorted(dupes.items())))
+    return {name: paths[0] for name, paths in sorted(found.items())}
+
+
+def repo_root(start: Path) -> Path | None:
+    """The first folder from start upwards holding .git (a folder, or a file in a worktree)."""
+    for folder in (start, *start.parents):
+        if (folder / ".git").exists():
+            return folder
+    return None
 
 
 def points_into_repo(link: Path) -> bool:
+    """Whether link is ours: its target lies under ROOT, or under a skills unit of ROOT's repository
+    (code/<category>/apps/skills/), so the links of a unit that moved to another category folder are relinked."""
     target = Path(link.readlink())
     if not target.is_absolute():
         target = link.parent / target
-    return ROOT.resolve() in target.resolve(strict=False).parents
+    target = target.resolve(strict=False)
+    if ROOT.resolve() in target.parents:
+        return True
+    repo = repo_root(ROOT.resolve())
+    if repo is None or repo not in target.parents:
+        return False
+    parts = target.relative_to(repo).parts
+    return len(parts) > 4 and parts[0] == "code" and parts[2:4] == ("apps", "skills")
 
 
 def plan(target: Path, wanted: dict[str, Path]) -> list[tuple[str, Path, Path | None]]:
@@ -65,14 +103,21 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true", help="print what would change, change nothing")
     parser.add_argument("--check", action="store_true", help="change nothing; exit 1 when a skill is not linked")
+    parser.add_argument("--unlink", action="store_true", help="remove every link into this repo (link-skills.sh --unlink)")
     parser.add_argument("--quiet", action="store_true", help="print only what changes")
     parser.add_argument("--target", action="append", help="skill folder to install into (repeatable)")
     args = parser.parse_args(argv)
 
-    wanted = skills()
+    try:
+        wanted = skills()
+    except DuplicateSkills as e:
+        print(f"error: two skills share a link name, nothing linked: {e}", file=sys.stderr)
+        return 1
     targets = [Path(raw).expanduser() for raw in args.target or DEFAULT_TARGETS]
     if args.check:
         return check(targets, wanted)
+    if args.unlink:
+        wanted = {}  # nothing is wanted: every link into this repo is stale and goes
     for target in targets:
         for action, link, source in plan(target, wanted):
             if action == "clash":

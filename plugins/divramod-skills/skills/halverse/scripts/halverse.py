@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `check` words the check of the halverse files; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270); `voiceink [status|restore|prompt|export]` syncs the words into VoiceInk through hal2-cli-voiceink (plan 0273); `add`, `change`, `retire` and `short` write a term or a short form through hal2-cli-halverse (plan 0276).
+"""halverse: `ontology [<term>]` shows the user's ontology and glossary; `check` words the check of the halverse files; `learn [--days n] [--json]` counts the user's old words against their farm words (plan 0270); `voiceink [status|restore|prompt|export]` syncs the words into VoiceInk through hal2-cli-voiceink (plan 0273); `add`, `change`, `retire` and `short` write a term or a short form through hal2-cli-halverse (plan 0276); `christen`, `rechristen`, `swap`, `move`, `avatar` and `who` keep and look up the roles' names through hal2-cli-halverse (plan 0283).
 
 Reads the user's typed prompts of the last n days (transcripts.py) and, through hal2-cli-halverse (sources.py), the
 halverse files; prints a table, the ambiguous forms and the three words to practise. `check` words the CLI's
@@ -16,12 +16,16 @@ import check
 import cli
 import halverse_args
 import learn
+import names
 import ontology
 import prompt
 import sources
 import term
 import transcripts
 import voiceink
+
+
+NAMES = ("christen", "rechristen", "swap", "move", "avatar", "who")
 
 
 def coverage(pairset: learn.PairSet) -> List[str]:
@@ -86,6 +90,21 @@ def run_short(args: argparse.Namespace) -> Tuple[str, int]:
     return term.short_list(args.json)
 
 
+def run_names(args: argparse.Namespace) -> Tuple[str, int]:
+    """`christen`, `rechristen`, `swap`, `move`, `avatar` and `who`: one call of `hal2-cli-halverse names`."""
+    if args.command == "christen":
+        return names.christen(args.name, args.field, args.avatar, args.json)
+    if args.command == "rechristen":
+        return names.rechristen(args.name, args.new, args.json)
+    if args.command == "swap":
+        return names.swap(args.first, args.second, args.json)
+    if args.command == "move":
+        return names.move(args.name, args.to, args.json)
+    if args.command == "avatar":
+        return names.avatar(args.name, args.number, args.json)
+    return names.who(args.name, args.json)
+
+
 def run_voiceink(args: argparse.Namespace) -> Tuple[str, int]:
     if args.action == "prompt":
         return prompt.run(args.json)
@@ -107,6 +126,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         text, code = run_voiceink(args)
     elif args.command == "short":
         text, code = run_short(args)
+    elif args.command in NAMES:
+        text, code = run_names(args)
     else:
         text, code = run_term(args)
     print(text, file=sys.stderr if code else sys.stdout)

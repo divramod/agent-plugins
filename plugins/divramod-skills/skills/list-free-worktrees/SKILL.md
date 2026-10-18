@@ -23,4 +23,4 @@ once and retry. Exit 1: report the message.
 
 A Markdown table, one row per worktree: Worktree, Pane, State, Behind main, Context % (with `--all` also Free and Why). Below it one line, `<n> free worktrees in <repo>` (none: say so and that `/create-worktree-session`
 starts a session in a worktree without one). Point to the next steps: send a
-task to a free worktree's session (e.g. `/shoot` there), `/delete-worktree-session <worktree>` to stop it.
+task to a free worktree's session (e.g. `/shoot` there), `/delete-field <worktree>` to stop it.

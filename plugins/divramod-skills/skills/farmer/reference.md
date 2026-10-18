@@ -72,8 +72,6 @@ What keeps a round short:
   (`cache/run-jobs/<id>.json`, 7 days), a running run's are read again next round; uncached runs are read in
   parallel.
 - **No second process for the built-in checks**: a task's `farmer check flaky|orphans` runs inside the tick.
-- **du never inside a round**: prune's disk sizes come from a detached `prune.py sizes` (`disk.json`), reported the
-  round after it finished.
 
 ## The farmer branch
 
@@ -87,14 +85,14 @@ The farmer branch `farmer-<repo>` is main plus the user's `roles/farmer/ROLE.md`
   merges the new main into the farmer's worktree after each landing. The farmer also merges main every round.
 - **The user's edits:** each round, when `roles/farmer/ROLE.md` in the worktree differs from the committed one,
   `python3 $S/due.py check` decides:
-  - valid: commit it with the role folder's `.gitignore`, those files alone (`farmer-role: the user's change`), and
+  - valid: commit it with the role folder's `.gitignore`, those files alone (`chore(roles): apply the user's change to the farmer's role file`, the field in a `Worktree:` trailer), and
     log it;
   - invalid: leave it uncommitted, notify the user with the problems, and run nothing this round.
 - **Missing hooks:** when the repository lacks either hook, the farmer delegates one foreman to add them from the
   templates (logged). Until they have landed, the farmer's commits only reach main when the user lands them.
 - **The `sync` duty** (opt-in, `role_sync.py`): when main's `roles/farmer/ROLE.md` differs from the farmer branch's, one
   foreman is told directly, without a plan: `/mfm`, then `git merge --no-edit farmer-<repo>`, then `/mtm` (the boss's "land
-  now"; where the farm has a wagon master that `/mtm` hitches and the train lands it). One sync at a time; the next round's stay-current brings the new main back into the farmer branch. It needs no hooks.
+  now"; where the farm has a tollman that `/mtm` hitches and the train lands it). One sync at a time; the next round's stay-current brings the new main back into the farmer branch. It needs no hooks.
 
 ## The log
 
@@ -130,7 +128,7 @@ script, a recurring failure class, a rule patch in `pending/`), it delegates:
    - a pending patch's path, when there is one.
 4. **Worktree**, the first free worktree counting from 00 (the user, 2026-10-13, plan 0270 D13: "the farmer should start
    in the first free worktree from 00"). The session started here runs the plan, so it is a foreman; its own servants
-   stay in 30-99 (skills plan 0013); a foreman itself never starts in 30-99 (the wagon master refuses its wagon, plan 0333
+   stay in 30-99 (skills plan 0013); a foreman itself never starts in 30-99 (the tollman refuses its wagon, plan 0333
    D11): none free in 00-29, the delegation waits ("no free field 00-29"). Idle sessions first, including the ones the user started:
    `python3 $K/list-free-worktrees/scripts/free.py` finds a running session that is idle and holds no work; take the
    one in the lowest numbered worktree. When it runs at
@@ -157,7 +155,7 @@ script, a recurring failure class, a rule patch in `pending/`), it delegates:
    flaky ledger), note `running (<slot>)`.
 7. **Follow up** in later rounds. The `lead` duty (the development foreman) helps the foreman like any session. When its plan has
    landed, record `landed`, set the case to `landed <plan> <date>`, and stop the session with
-   `python3 $K/delete-worktree-session/scripts/stop.py stop <slot>` when it is idle. Its worktree is free again.
+   `python3 $K/delete-field/scripts/stop.py stop <slot>` when it is idle. Its worktree is free again.
    Only the farmer's own foremen (its ledger `delegations.jsonl`): a session it did not start is never its to
    stop.
 
@@ -185,16 +183,6 @@ From the grill with the user on 2026-10-03. They are recorded for the repositori
   carries it to main, and main flows back into the farmer branch (two hooks). It is the user's word and may widen authority per task. Only the user edits it; the farmer
   commits the edit.
 - sanity-watch and fix-autoclear run as the farmer's duties, replacing their own loops.
-- **Landed worktrees go** (the user, 2026-10-06, hal2 plan 0143): the `prune` duty cleans a landed worktree 00-09's
-  build artifacts once per landing and removes one landed worktree 10-99 per round, with its local branch and
-  `origin/<NN>` once merged; it may end any idle session there that holds no work, also the user's own (never one
-  with a draft, a busy agent or one active in the last 30 minutes). Main, role worktrees and other names are never
-  touched. `/mtm` cleans its own worktree after a landing (`after-landing.sh`) and tells the farmer when a 10-99 worktree is
-  done.
-- **Servants' worktrees go too** (skills plan 0013): a worktree marked `plans/LEAD` (the foreman's marker) never lands on main, so it is
-  measured against its foreman's branch: a marked worktree 30-99 is removed once HEAD, `origin/NN` and every side branch
-  `NN-*` are in `origin/<foreman's branch>`, nothing is uncommitted, no ticket or busy agent, no session active and no
-  `plans/LEAD` written in the last hour (the foreman may reuse the worktree meanwhile) and no build runs; `remove` fetches
-  and checks again, removes with `--force` and deletes `origin/NN` once it is in `origin/<foreman's branch>`. A marked worktree
-  below 30 is never pruned.
+- **Landed worktrees go** (the user, 2026-10-06, hal2 plan 0143): the tollman's duty `prune` since hal2 plan 0360
+  step 7 ([its instructions](../tollman/instructions/prune.md)); the farmer prunes nothing.
 - A busy session without `plans/CURRENT_PLAN` is told to fill it in (the `lead` duty).

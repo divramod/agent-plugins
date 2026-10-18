@@ -32,7 +32,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PLAN_SCRIPTS = HERE.parents[1] / "plan" / "scripts"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+PLAN_SCRIPTS = sibling("plan") / "scripts"
 sys.path.insert(0, str(PLAN_SCRIPTS))
 sys.path.insert(0, str(HERE))
 

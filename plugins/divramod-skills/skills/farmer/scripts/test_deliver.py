@@ -1,5 +1,5 @@
 """The frame's typing into a session (deliver.py) and a refused send (tick.execute). These tests lived in
-test_boss.py until the boss moved to the wagon master skill (hal2 plan 0294 step 5); deliver.run is a fake."""
+test_boss.py until the boss moved to the tollman skill (hal2 plan 0294 step 5); deliver.run is a fake."""
 
 import unittest
 from unittest import mock

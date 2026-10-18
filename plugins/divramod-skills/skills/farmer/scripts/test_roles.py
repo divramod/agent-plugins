@@ -7,7 +7,10 @@ from unittest import mock
 
 import roles
 
-RUST_ROLES = Path(__file__).resolve().parents[7] / "code/rust/libs/hal2-core/src/roles.rs"
+import sys
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+RUST_ROLES = repo_root(__file__) / "code/rust/libs/hal2-core/src/roles.rs"
 
 
 def git(cwd, *args):
@@ -22,8 +25,8 @@ class Names(unittest.TestCase):
         block = re.search(r"PROTECTED_SLOTS: &\[&str\] = &\[(.*?)\];", RUST_ROLES.read_text(), re.S).group(1)
         self.assertEqual(tuple(re.findall(r'"([^"]+)"', block)), roles.ROLES)
 
-    def test_wagon_master_is_a_role(self):
-        self.assertIn("wagon-master", roles.ROLES)
+    def test_tollman_is_a_role(self):
+        self.assertIn("tollman", roles.ROLES)
         self.assertIn("farmer", roles.ROLES)
 
     def test_the_project_is_the_remote_s_last_segment(self):
@@ -45,17 +48,17 @@ class Repo(unittest.TestCase):
         no_override.start()
         self.addCleanup(no_override.stop)
 
-    def test_the_wagon_master_s_slot_and_state_folder(self):
-        self.assertEqual(roles.slot_name(self.main, "wagon-master"), "wagon-master-hal2")
-        slot = self.tmp / ".hal/git/worktree/hal2/wagon-master-hal2"
-        self.assertEqual(roles.slot_dir(self.main, "wagon-master"), slot)
-        self.assertEqual(roles.state_dir(self.main, role="wagon-master"), slot / "roles/wagon-master")
+    def test_the_tollman_s_slot_and_state_folder(self):
+        self.assertEqual(roles.slot_name(self.main, "tollman"), "tollman-hal2")
+        slot = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
+        self.assertEqual(roles.slot_dir(self.main, "tollman"), slot)
+        self.assertEqual(roles.state_dir(self.main, role="tollman"), slot / "roles/tollman")
         self.assertFalse(slot.exists(), "the slot folder is never created here")
 
     def test_the_state_folder_of_an_existing_slot_gets_the_gitignore(self):
-        slot = self.tmp / ".hal/git/worktree/hal2/wagon-master-hal2"
+        slot = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
         slot.mkdir(parents=True)
-        d = roles.state_dir(self.main, role="wagon-master")
+        d = roles.state_dir(self.main, role="tollman")
         self.assertEqual((d / ".gitignore").read_text(), roles.GITIGNORE)
 
     def test_the_farmer_s_names_are_unchanged(self):
@@ -64,30 +67,30 @@ class Repo(unittest.TestCase):
             roles.state_dir(self.main), self.tmp / ".hal/git/worktree/hal2/farmer-hal2/roles/farmer")
 
     def test_is_slot_follows_the_role(self):
-        slot = self.tmp / ".hal/git/worktree/hal2/wagon-master-hal2"
-        self.assertEqual(roles.slot_name(self.main, "wagon-master"), slot.name)
-        self.assertFalse(roles.is_farmer_label("wagon-master-hal2"))
+        slot = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
+        self.assertEqual(roles.slot_name(self.main, "tollman"), slot.name)
+        self.assertFalse(roles.is_farmer_label("tollman-hal2"))
         self.assertTrue(roles.is_farmer_label("farmer-hal2"))
 
-    def test_the_boss_is_the_wagon_master_s_only_when_the_check_says_yes(self):
+    def test_the_boss_is_the_tollman_s_only_when_the_check_says_yes(self):
         def check(body: str) -> Path:
             f = self.tmp / "check.sh"
             f.write_text(body)
             return f
         self.assertEqual(roles.boss(self.main, check('echo "$1" > "$0.arg"\necho yes\n')),
-                         "wagon-master (merge-to-main boss)")
+                         "tollman (merge-to-main boss)")
         self.assertEqual((self.tmp / "check.sh.arg").read_text().strip(), str(self.main))
         for doubt in ("echo no\n", "echo yes\nexit 1\n", "echo yes please\n", "exit 0\n"):
             self.assertEqual(roles.boss(self.main, check(doubt)), "merge-to-main boss", doubt)
         self.assertEqual(roles.boss(self.main, self.tmp / "missing.sh"), "merge-to-main boss")
 
     def test_the_real_check_answers_no_outside_a_repository(self):
-        self.assertTrue(roles.WAGON_MASTER_CHECK.is_file(), roles.WAGON_MASTER_CHECK)
+        self.assertTrue(roles.TOLLMAN_CHECK.is_file(), roles.TOLLMAN_CHECK)
         self.assertEqual(roles.boss(self.tmp / "nowhere"), "merge-to-main boss")
 
     def test_a_field_s_role_is_the_longest_role_name_that_fits(self):
-        self.assertEqual([roles.role_of(n) for n in ("farmer-hal2", "farmer", "wagon-master-hal2", "i-hal2")],
-                         ["farmer", "farmer", "wagon-master", "i"])
+        self.assertEqual([roles.role_of(n) for n in ("farmer-hal2", "farmer", "tollman-hal2", "i-hal2")],
+                         ["farmer", "farmer", "tollman", "i"])
         self.assertEqual([roles.role_of(n) for n in ("07", "30", "farmers", "07-farmer", "index")], [None] * 5)
 
 

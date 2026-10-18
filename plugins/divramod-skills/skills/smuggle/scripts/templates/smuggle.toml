@@ -1,0 +1,14 @@
+# The units /smuggle may land in @REPO@ without a warning (/smuggle configure, @DATE@). units.py reads this file
+# from the smuggling branch's HEAD; a change with a path outside every unit and outside `free` warns with the CI jobs
+# it would have run and lands only on the user's yes. Each unit: `name`, `paths` (a path, a folder above it or an
+# fnmatch glob), `checks`, `build`, `install` (bash commands from the repository's top; env SMUGGLE_BASE, SMUGGLE_YARD
+# the main checkout, SMUGGLE_FILES the unit's changed paths). Write `free` before the first [[unit]].
+free = [@FREE@]
+
+# e.g.
+#   [[unit]]
+#   name = "nvim-plugin"
+#   paths = ["code/lua/apps/my-plugin"]
+#   checks = ["cd code/lua/apps/my-plugin && stylua --check ."]
+#   install = []
+@UNITS@

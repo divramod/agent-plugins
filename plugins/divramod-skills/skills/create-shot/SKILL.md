@@ -6,7 +6,7 @@ description: create-shot — write a new open shot (`## shot <n> <title>` with i
 # create-shot
 
 The user's words become a shot in a shotfile, exactly as hal2-nvim writes one, so the shot shows up in `/shoot`,
-`<space>fp` and every worktree. `S=<skill-dir>/../digest-todolist-picture/scripts` (its `shots.py` finds the
+`<space>fp` and every worktree. `S=<skill-dir>/../digest-todolist/scripts` (its `shots.py` finds the
 shotfiles, numbers and writes shots; never edit a shotfile by hand). The skill captures work, it does not start it:
 it writes nothing but the shot (no `plans/CURRENT_PLAN`, no commit; shotfiles are working notes, hal2-nvim does not
 commit them either); implementing it happens in another session, after the [offer](#6-offer-to-implement). Ask any question by the global question
@@ -118,7 +118,7 @@ Written: <repo>:<shotfile> shot <n> (id <id>, `/shoot <id>` sends it)
 ## 6. Offer to implement
 
 After the report (not for `--dry-run` or `--no-implement`), offer to start the shot now in another session, the way
-`/shoot` does from main, so this session stays free. `I=<skill-dir>/../digest-todolist-picture/scripts/implement.py`.
+`/shoot` does from main, so this session stays free. `I=<skill-dir>/../digest-todolist/scripts/implement.py`.
 
 1. Find idle sessions of the shot's repository (for a global shot: the current repository, where it will be
    carried out; outside a repository there is nowhere to run it, so skip the offer and point to `/shoot g`):
@@ -144,7 +144,7 @@ After the report (not for `--dry-run` or `--no-implement`), offer to start the s
    (`--pane` for an idle session; without it a new session starts through create-worktree-session, which skips
    worktrees holding work). It sends hal2-nvim's shot template (run `/mfm`, make the shot a plan, carry it out), then
    marks the shot sent (`## x shot ... [<slot>]`). Exit 2 names a missing hal2 CLI: run
-   `bash <skill-dir>/../digest-todolist-picture/scripts/install-prerequisites.sh` once and retry; exit 1: report
+   `bash <skill-dir>/../digest-todolist/scripts/install-prerequisites.sh` once and retry; exit 1: report
    that shot (it stays written and open) and go on.
 4. Report one line per shot, `<file> shot <n> → worktree <slot> (<pane>, idle | new session)`, and copy
    `hal2-cli-agents attach <repo>/<slot>` of the first into both clipboards (`pbcopy`, `tmux set-buffer` when a

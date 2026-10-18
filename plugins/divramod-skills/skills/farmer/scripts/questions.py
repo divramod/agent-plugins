@@ -25,8 +25,9 @@ from pathlib import Path
 import mtm_scan
 import roles
 
-SKILLS = Path(__file__).resolve().parent.parent.parent
-S_SCRIPTS, Q_SCRIPTS = SKILLS / "s" / "scripts", SKILLS / "q" / "scripts"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+S_SCRIPTS, Q_SCRIPTS = sibling("get-state") / "scripts", sibling("get-open-questions") / "scripts"
 FILE, SCHEMA = "questions.jsonl", 1
 STATES = ("open", "answered", "dropped")
 MODES = {"open": "open", "a": "answered", "answered": "answered", "l": "all", "list": "all"}

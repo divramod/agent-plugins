@@ -18,9 +18,10 @@ import pr_scan
 from tick import act
 
 HERE = Path(__file__).resolve().parent
-SKILLS = HERE.parents[1]
-sys.path.insert(0, str(SKILLS / "sanity-watch" / "scripts"))
-sys.path.insert(0, str(SKILLS / "fix-autoclear" / "scripts"))
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+sys.path.insert(0, str(sibling("sanity-watch") / "scripts"))
+sys.path.insert(0, str(sibling("fix-autoclear") / "scripts"))
 import evidence  # noqa: E402  (fix-autoclear)
 import scan as watch_scan  # noqa: E402  (sanity-watch)
 
@@ -57,11 +58,6 @@ TEXT = {
 # A last message that just announces the next step: the session stopped by accident, not to wait.
 GOING_ON = re.compile(r"\b(next,? I'?ll|now I'?ll|I'?ll now|moving on to|continuing with)\b", re.I)
 WAITS = re.compile(r"\b(wait|waiting|once|when it|until|your go|you decide|\?)", re.I)
-# CI failures that a rerun fixes: the network, a registry, a lost runner, a cancelled job.
-TRANSIENT = re.compile(r"ECONNRESET|ETIMEDOUT|EAI_AGAIN|Could not resolve host|TLS handshake timeout|"
-                       r"connection (reset|refused|timed out)|50[234] (Bad Gateway|Service Unavailable|Gateway)|"
-                       r"rate limit|The runner has received a shutdown signal|lost communication with the server|"
-                       r"The operation was canceled|toomanyrequests", re.I)
 DAY = dt.timedelta(days=1)
 # A session idle in its plan or waiting for an answer: the wake comes back every hour while it stays (plan 0137).
 REWAKE = {"asks", "idle-in-plan"}
@@ -104,24 +100,16 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
 
 
 def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) -> list[dict]:
+    """The farmer's CI findings: a red worktree branch is told, a runner fault wakes. A red main is the tollman's
+    (its duty `mainred`, hal2 plan 0360 step 8, D9, D30): skipped here, `log_failed` is never called."""
     scan = scan if scan is not None else ci_scan.scan(ctx["top"], False)
-    log_failed = log_failed or (lambda run: ci_scan.run(["gh", "run", "view", str(run), "--log-failed"], ctx["main"]))
     out, slots = [], set(ctx.get("panes", {}))
     for f in scan.get("findings", []):
         kind, run, key = f["kind"], f["run"], f"ci:{f['run']}"
         record = [sys.executable, str(HERE / "ci_scan.py"), "record", str(run)]
         if kind == "main-red":
-            tail = (log_failed(run) or "")[-20000:]
-            transient = TRANSIENT.search(tail)
-            if transient:
-                out.append(act("ci", "rerun", "run", "-", key=key, argv=["gh", "run", "rerun", str(run), "--failed"],
-                               text=f"reran {f['workflow']} (transient: {transient.group(0)})"))
-                out.append(act("ci", "handled", "run", "-", argv=record + ["rerun --failed", "--repo", ctx["top"]],
-                               after=key))
-            else:
-                out.append(act("ci", "main-red", "delegate", "-", key=key, text=f"main is red: {f['why']}",
-                               brief={"finding": f, "log_tail": tail[-4000:]}))
-        elif kind == "slot-red" and f["branch"] in slots:
+            continue
+        if kind == "slot-red" and f["branch"] in slots:
             text = TEXT["slot-red"].format(workflow=f["workflow"], jobs=", ".join(f.get("failed_jobs", [])), url=f["url"])
             out.append(act("ci", kind, "send", f["branch"], pane=ctx["panes"][f["branch"]], text=text, key=key))
             out.append(act("ci", "handled", "run", f["branch"], argv=record + ["told the worktree", "--repo", ctx["top"]],
@@ -142,7 +130,7 @@ def plan_watch(item: dict, ctx: dict, incidents: list[dict] | None = None) -> li
     out = []
     for i in incidents:
         slot, action = i.get("slot") or "-", i["action"]
-        record = [sys.executable, str(SKILLS / "sanity-watch/scripts/scan.py"), "record", i["id"]]
+        record = [sys.executable, str(sibling("sanity-watch") / "scripts/scan.py"), "record", i["id"]]
         landing = slot in ctx.get("landing", set())
         if action == "resume" and i.get("pane") and not landing:
             error = (i["evidence"].get("api_error") or {}).get("text") or i["name"]

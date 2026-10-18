@@ -9,6 +9,7 @@
 # files like any other doc. Nothing else is committed:
 # other staged or unstaged changes stay as they are (the commit is built in a
 # temporary index). Git hooks run as usual.
+# The message is the subject (and body) only: the script adds the trailers `Worktree:` and `Plan:`.
 # Usage: commit-handoff.sh <message> [file ...]   (a HANDOFF.md among the files is skipped)
 # Exit 0: committed (or nothing to commit). Exit 1: usage or git error. Exit 2: git missing.
 set -euo pipefail
@@ -89,6 +90,19 @@ fi
 if git rev-parse -q --verify HEAD >/dev/null && with_commit_index diff --cached --quiet HEAD --; then
   echo "nothing to commit: ${docs[*]:-HANDOFF.md} unchanged"
   exit 0
+fi
+# The subject says what changed; the origin goes into trailers (hal2 plan 0355): Worktree: <NN>, and Plan: <NNNN>-<slug>
+# when plans/CURRENT_PLAN names a plan. Before the attribution lines, which stay the message's last lines.
+attribution="$(printf '%s\n' "$message" | grep -E '^(Co-Authored-By|Claude-Session):' || true)"
+message="$(printf '%s\n' "$message" | grep -vE '^(Co-Authored-By|Claude-Session):' || true)"
+trailer_args=(--trailer "Worktree: $(basename "$root")")
+current="$(head -n1 "$root/plans/CURRENT_PLAN" 2>/dev/null || true)"
+if [[ "$current" =~ ^[0-9]{4}-[a-z0-9][a-z0-9-]*$ ]]; then
+  trailer_args+=(--trailer "Plan: $current")
+fi
+message="$(printf '%s\n' "$message" | git interpret-trailers --if-exists doNothing "${trailer_args[@]}")"
+if [[ -n "$attribution" ]]; then
+  message="$message"$'\n'"$attribution"
 fi
 with_commit_index commit --quiet -m "$message"
 # The real index follows the new commit for these paths only.

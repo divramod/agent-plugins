@@ -182,7 +182,7 @@ them.
    >
    > Every row names its Model, Effort, Window and Size (the plan skill's rubric): the regression test and the fix
    > at opus high 1m, the logs and the uat at sonnet medium 1m, each Size under 35% of its Window; `plan.py check`
-   > passes. Autogrill the plan twice: two full /grill passes in which you decide every branch yourself by
+   > passes. Autogrill the plan twice: two full /grill-plan passes in which you decide every branch yourself by
    > INTENT.md, the ADRs and the rule "the more professional, battle-tested option", with no question and no
    > confirmation, every decision recorded in its home. Then run `plan.py grilled` and run the plan with /plan n to
    > its end; it lands itself (Landing: auto). You are the plan's coordinator: you never do a step yourself; each

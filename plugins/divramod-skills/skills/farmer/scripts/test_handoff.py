@@ -74,7 +74,7 @@ class Handoff(Repo):
         self.assertEqual(code, 0, out)
         self.assertEqual(self.calls, [("clear-and-continue", "--pane", "%9", "--prompt", "/farmer act",
                                        "--without-plan", "--detach", "--json", "--session", "s1")])
-        # wagon-master-decides-trains: only a role with Wiring.session_effort (the wagon master) passes --effort
+        # .adr/tollman-decides-trains.md: only a role with Wiring.session_effort (the tollman) passes --effort
         self.assertNotIn("--effort", self.calls[0], "the farmer's clear passes none (hal2 plan 0333)")
         self.assertEqual(self.log()[-1]["kind"], "handoff-clear")
         self.answer = (1, '{"status": "refused", "reason": "already-running"}')

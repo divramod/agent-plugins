@@ -43,7 +43,7 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    exists (`prepared`) and the target is kept (its `plans/CURRENT_PLAN` holds `transplant-from-<from>`). Anything
    else: say the reason with its advice, end.
 3. **Free the target.** `$T free <from> <to>`: an idle session in the target is stopped by signal through
-   [delete-worktree-session](../delete-worktree-session/SKILL.md)'s `stop.py`. Exit 3: it refused (a draft,
+   [delete-field](../delete-field/SKILL.md)'s `stop.py`. Exit 3: it refused (a draft,
    background tasks, a session that started to work) and cancelled the transplant itself, nothing was moved: tell
    the user the `refused` text, end. A stopped session is not restarted.
 4. **Hand off and commit** (only where this session is in `<from>`; for a field without a session skip to 5). Running
@@ -61,7 +61,7 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    <to>`, tell the user, end. The transplant stays prepared (a `conflict`: `/mfm` in the source, commit, run
    the same command again) or is cancelled as the JSON says; **never reset a field by hand**: a drive whose process
    died halfway is adopted by running the same command again, and `/transplant cancel` ends a prepared one.
-   While a transplant is open (`prepared` or `driven`) the wagon master never takes its two fields for orphans, however
+   While a transplant is open (`prepared` or `driven`) the tollman never takes its two fields for orphans, however
    old it is, and never starts `/handoff c` in the source of a `driven` one; one open for over 60 minutes it reports
    to the farmer once, who finishes it by the same command or ends it with `/transplant cancel <from>` (plan 0294).
 7. **Push the target.** `$T push <from> <to>`: the target's branch (`git push -u origin HEAD` in it); and, only from

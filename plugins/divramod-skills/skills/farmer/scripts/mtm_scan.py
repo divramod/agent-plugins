@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One snapshot of a repository's road to main, for the merge-to-main boss (the wagon master skill's `boss.py`).
+"""One snapshot of a repository's road to main, for the merge-to-main boss (the tollman skill's `boss.py`).
 
   scan.py scan [--repo <dir>] [--hours 24] [--json]
       the merge queue (holder, its process, its agent, attempts, why it failed),
@@ -239,11 +239,11 @@ def session_works(w: dict) -> bool:
     return agent in BUSY or agent.startswith("blocked") or bool(w.get("agent_tasks"))
 
 
-def fastlane_owned(t: dict) -> bool:
-    """A ticket of the user's fastlane (`fastlane` in `queue --json`) or one a fastlane paused (`paused_by`: a landing
-    that resumes by itself within seconds of the fastlane's release, or a verification taken over): not a stuck
-    holder. The boss never wakes, releases or counts it, and never starts or releases a fastlane."""
-    return bool(t.get("fastlane") or t.get("paused_by"))
+def smuggle_owned(t: dict) -> bool:
+    """A ticket of the user's smuggle (`smuggle` in `queue --json`) or one a smuggle paused (`paused_by`: a landing
+    that resumes by itself within seconds of the smuggle's release, or a verification taken over): not a stuck
+    holder. The boss never wakes, releases or counts it, and never starts or releases a smuggle."""
+    return bool(t.get("smuggle") or t.get("paused_by"))
 
 
 def orphaned_subservant(w: dict) -> dict:
@@ -259,7 +259,7 @@ def findings(snap: dict) -> list[dict]:
     queue, by_slot = snap["queue"], {w["slot"]: w for w in snap["worktrees"]}
     # A servant never lands (plans/LEAD): its ticket wakes the farmer, the landing findings skip it.
     marked = {s: w["lead"] for s, w in by_slot.items() if w.get("lead")}
-    head = queue[0] if queue and queue[0]["slot"] not in marked and not fastlane_owned(queue[0]) else None
+    head = queue[0] if queue and queue[0]["slot"] not in marked and not smuggle_owned(queue[0]) else None
     for slot in (snap.get("priority") or {}).get("slots", []):
         w, t = by_slot.get(slot, {}), next((t for t in queue if t["slot"] == slot), None)
         state = "reserved, waits for its landing" if t and t.get("awaiting_slot") else (t or {}).get("state")
@@ -278,7 +278,7 @@ def findings(snap: dict) -> list[dict]:
     if head and head.get("awaiting_slot"):
         if f := reservation_waits(head, by_slot.get(head["slot"], {}), now):
             out.append(f)
-    # A role's own worktree (the wagon master's, the carrier of every train) is held by its train: the engine's to move.
+    # A role's own worktree (the tollman's, the carrier of every train) is held by its train: the engine's to move.
     # Nor is a leaving ticket anyone's to wake or release (`waits_for`, hal2 plan 0263 D129): it ended and goes by
     # itself once no run of its worktree goes.
     if head and head["state"] == "held" and not roles.role_of(head["slot"]) and not head.get("waits_for"):
@@ -309,7 +309,7 @@ def findings(snap: dict) -> list[dict]:
                     "busy_slots": [w["slot"] for w in snap["worktrees"]
                                    if w.get("agent_state") in BUSY and w["slot"] != head["slot"]]})
     # A hitched worktree and a standing train wait for nobody's turn (hal2 plan 0294): the train engine's, no waiters.
-    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked and not fastlane_owned(t)
+    waiting = [t for t in queue if t["state"] == "waiting" and t["slot"] not in marked and not smuggle_owned(t)
                and not t.get("ready") and not t.get("train")]
     for t in waiting:
         if not t.get("process_alive") and not t.get("parked") and not t.get("reserved"):
@@ -383,7 +383,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
             "slot": t.get("slot"), "state": t.get("state"), "seq": t.get("seq"),
             "enqueued": t.get("enqueued"), "landing": t.get("landing"), "hold": t.get("hold"),
             "process_alive": pid_alive(t.get("pid")), "parked": bool(t.get("parked_until")),
-            "fastlane": t.get("fastlane"), "paused_by": t.get("paused_by"), "kept_by": t.get("kept_by"),
+            "smuggle": t.get("smuggle"), "paused_by": t.get("paused_by"), "kept_by": t.get("kept_by"),
             "reserved": t.get("reserved"), "awaiting_slot": bool(t.get("reserved")) and not t.get("pid"),
             "ready": t.get("ready"),  # hitched (`worktree queue ready`): no process waits for it, by design
             "train": t.get("train"),  # a carrier's mark: a standing train's ticket has no process either

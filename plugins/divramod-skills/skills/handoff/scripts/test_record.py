@@ -8,8 +8,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
-PLAN = HERE.parents[1] / "plan" / "scripts" / "plan.py"
+PLAN = sibling("plan") / "scripts" / "plan.py"
 sys.path.insert(0, str(PLAN.parent))
 import checker  # noqa: E402  (the plan skill's: hal2's records checker, hal2 plan 0214 step 6)
 

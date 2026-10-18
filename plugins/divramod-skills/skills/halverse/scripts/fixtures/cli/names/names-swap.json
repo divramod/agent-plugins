@@ -1,0 +1,51 @@
+{
+  "named": [
+    {
+      "id": 1,
+      "name": "Ilse",
+      "since": "2026-10-14T09:00:00Z",
+      "avatar": 12,
+      "earlier": [],
+      "postings": [
+        {
+          "place": {
+            "farm": "/farms/barley",
+            "farm_name": "barley",
+            "field": "07",
+            "folder": "/farms/barley/wt/07"
+          },
+          "role": "foreman",
+          "from": "2026-10-14T09:00:00Z",
+          "to": null,
+          "plans": [
+            {
+              "label": "0042-sample-plan",
+              "first_seen": "2026-10-14T09:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Mira",
+      "since": "2026-10-14T09:00:00Z",
+      "avatar": 5,
+      "earlier": [],
+      "postings": [
+        {
+          "place": {
+            "farm": "/farms/barley",
+            "farm_name": "barley",
+            "field": "09",
+            "folder": "/farms/barley/wt/09"
+          },
+          "role": "foreman",
+          "from": "2026-10-14T10:00:00Z",
+          "to": null,
+          "plans": []
+        }
+      ]
+    }
+  ]
+}

@@ -8,10 +8,12 @@ from pathlib import Path
 
 import adapt
 
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
 # hal2's hal2-cli-git with `worktree queue order ... --by` (plans 0143, 0313 step 11): this worktree's own build, else
 # the one in HAL2_CLI_GIT; the installed one may predate it.
-HAL2_CLI_GIT = os.environ.get("HAL2_CLI_GIT") or str(HERE.parents[6] / "code/rust/target/debug/hal2-cli-git")
+HAL2_CLI_GIT = os.environ.get("HAL2_CLI_GIT") or str(repo_root(__file__) / "code/rust/target/debug/hal2-cli-git")
 
 
 def has_by(binary: str) -> bool:
@@ -46,16 +48,16 @@ class Messages(unittest.TestCase):
         out = adapt.messages({"queue": []}, after, "", lambda w: w == "/w/18")
         self.assertEqual(out[0]["kind"], "land")
         self.assertEqual(out[0]["text"], "merge-to-main boss: land now. The user put worktree 18 at place 1 of 1 in "
-                         "the merge queue: run /mtm now, it takes this reserved place and lands when its turn "
+                         "the merge queue: run /merge-to-main now, it takes this reserved place and lands when its turn "
                          "comes. What is committed lands; unfinished steps land after it.")
 
-    def test_on_a_farm_with_a_wagon_master_its_boss_says_land_now(self):
+    def test_on_a_farm_with_a_tollman_its_boss_says_land_now(self):
         after = {"queue": [ticket("18", 0, True)], "priority": {"slots": ["18"]}}
-        out = adapt.messages({"queue": []}, after, "", lambda w: True, lambda: adapt.roles.WAGON_MASTER_BOSS)
+        out = adapt.messages({"queue": []}, after, "", lambda w: True, lambda: adapt.roles.TOLLMAN_BOSS)
         self.assertEqual(out[0]["kind"], "land")
-        self.assertTrue(out[0]["text"].startswith("wagon-master (merge-to-main boss): land now. The user put worktree "
+        self.assertTrue(out[0]["text"].startswith("tollman (merge-to-main boss): land now. The user put worktree "
                                                   "18 at place 1 of 1"), out[0]["text"])
-        self.assertIn("run /mtm now, it reports your work ready at this reserved place and the wagon master's next "
+        self.assertIn("run /merge-to-main now, it reports your work ready at this reserved place and the tollman's next "
                       "train lands it.", out[0]["text"])
 
     def test_the_boss_is_asked_only_for_a_slot_told_to_land(self):

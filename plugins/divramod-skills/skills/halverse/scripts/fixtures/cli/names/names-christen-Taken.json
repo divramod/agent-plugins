@@ -1,0 +1,19 @@
+{
+  "error": {
+    "code": "refused",
+    "exit": 4,
+    "message": "Mira is the foreman of barley field 07 since 2026-10-14",
+    "hint": "hal2-cli-halverse names ideas offers names nobody has or had",
+    "details": {
+      "reason": "NAME_IN_USE",
+      "holder": {
+        "id": 1,
+        "name": "Mira",
+        "role": "foreman",
+        "farm_name": "barley",
+        "field": "07",
+        "since": "2026-10-14T09:00:00Z"
+      }
+    }
+  }
+}

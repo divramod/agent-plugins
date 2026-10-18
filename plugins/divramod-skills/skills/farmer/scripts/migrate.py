@@ -98,7 +98,8 @@ class Migration:
         if (self.old / rel).is_dir():
             self.must(self.old, "add", "--", str(rel))
         if git(self.old, "diff", "--cached", "--quiet")[0]:
-            self.must(self.old, "commit", "-q", "-m", f"roles: {self.role}'s role file into {rel}/ (farmer.py migrate)")
+            self.must(self.old, "commit", "-q", "-m", f"chore(roles): move the {self.role}'s role file into {rel}/",
+                      "-m", "Written by farmer.py migrate.", "-m", f"Worktree: {self.old.name}")
             self.steps.append(f"committed {rel}/ in {self.old}")
 
     def default_ref(self) -> str:

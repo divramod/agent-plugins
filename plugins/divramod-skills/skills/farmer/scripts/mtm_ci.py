@@ -43,7 +43,7 @@ MERGE_JOBS = {"merge", "git-merge"}  # the merge job's part: `git-merge` since p
 # The workflow's ship jobs run after merge: a delivery never reddens or delays a landing. A fixed set of job parts since
 # plan 0260 (a job's name is `<NN>-<code>/<job>`, before it `<lane> / <job>`, older `ship / <job>`).
 SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linux-host-ship-start",
-             "laptops-start", "publish-claude-plugins", "tmux-publish-hal9k",
+             "laptops-start", "publish-agent-plugins", "tmux-publish-hal9k",
              "docker-publish-github-runner-image",
              # Plan 0349's jobs after the merge (its graph's column 04).
              "git-pull-main", "rust-install-apps-mac", "ts-install-desktop-mac", "git-deliver-record",
@@ -148,7 +148,7 @@ def ending(jobs: list[dict]) -> bool:
     job's request follows; or a job at its limit's own request), or the job concluded `cancelled`. A hand-off stops
     counting once a cancel step ended `failure` while no request is out (a stop step `success` in a job with no
     `cancelled` step is a hand-off, no request): nobody has cancelled the run, a reader may. Such a run can no longer
-    merge. A stop step still to come and a cancelled job without the step are none: mtm-fastlane's GITHUB_ENDING,
+    merge. A stop step still to come and a cancelled job without the step are none: the smuggle skill's GITHUB_ENDING,
     hal2-git's `Needs::ending`, the workflow's own look (gate/lib/stop-run.sh)."""
     cancels = [s for job in jobs or [] for s in steps_named(job, CANCEL_STEP)]
     if any(s.get("status") == "in_progress" or s.get("conclusion") == "success" for s in cancels):

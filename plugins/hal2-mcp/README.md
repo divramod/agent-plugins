@@ -3,11 +3,11 @@
 The plugin `hal2-mcp` (Claude Code and Codex): it declares the MCP server `hal2-mcp`, which starts `hal2-cli-mcp mcp` over stdio.
 
 The plugin installs only that entry; the binary `hal2-cli-mcp` comes from hal2's installer and must be on `PATH` (without it the client shows the server as failed to start). Published to
-[divramod/divramod-claude-code-plugins](https://github.com/divramod/divramod-claude-code-plugins) as
+[divramod/agent-plugins](https://github.com/divramod/agent-plugins) as
 `plugins/hal2-mcp` by the publish job ([claude-code-plugins](../../../../.adr/claude-code-plugins.md)).
 
 ```
-claude plugin install hal2-mcp@divramod-claude-code-plugins
+claude plugin install hal2-mcp@agent-plugins
 ```
 
 In Claude Code the server is `plugin:hal2-mcp:hal2-mcp`, its tools `mcp__plugin_hal2-mcp_hal2-mcp__<tool>`.

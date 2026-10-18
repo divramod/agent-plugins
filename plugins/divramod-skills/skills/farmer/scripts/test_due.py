@@ -94,7 +94,7 @@ class Role(unittest.TestCase):
 
 
     def test_the_role_s_own_session_effort_defaults_to_high_and_is_validated(self):
-        # Hal2 plan 0333 (D4), record wagon-master-decides-trains: the wagon master's session starts and restarts at effort high.
+        # Hal2 plan 0333 (D4), record .adr/tollman-decides-trains.md: the tollman's session starts and restarts at effort high.
         self.assertEqual(due.SESSION_EFFORT, "high")
         _, settings, problems = due.schedule(ROLE)
         self.assertEqual((settings["session_effort"], problems), ("high", []))

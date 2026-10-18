@@ -91,12 +91,13 @@ def red(kind="main-red", branch="main"):
 
 
 class Ci(unittest.TestCase):
-    def test_transient_main_red_reruns_once_a_real_one_is_delegated(self):
-        rerun = duties.plan_ci({}, ctx(), {"findings": [red()]}, lambda run: "x\ncurl: ECONNRESET\n")
-        self.assertEqual(kinds(rerun), [("run", "rerun", "-"), ("run", "handled", "-")])
-        self.assertEqual(rerun[0]["argv"], ["gh", "run", "rerun", "9", "--failed"])
-        real = duties.plan_ci({}, ctx(), {"findings": [red()]}, lambda run: "assert 1 == 2")
-        self.assertEqual(kinds(real), [("delegate", "main-red", "-")])
+    def test_a_red_main_is_the_tollman_s_the_farmer_plans_nothing_for_it(self):
+        """Plan 0360 step 8 (D9, D30): no rerun, no delegation, not even a read of the failed log."""
+        def never(run):
+            raise AssertionError("the farmer reads no main-red log")
+        for log in ("x\ncurl: ECONNRESET\n", "assert 1 == 2"):
+            self.assertEqual(duties.plan_ci({}, ctx(), {"findings": [red()]}, never), [], log)
+        self.assertFalse(hasattr(duties, "TRANSIENT"), "the patterns moved to the tollman (transient.py)")
 
     def test_a_red_slot_is_told_runners_wake(self):
         plan = duties.plan_ci({}, ctx(), {"findings": [red("slot-red", "05"), red("queued-long", "main")]})

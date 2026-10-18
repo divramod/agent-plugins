@@ -91,7 +91,7 @@ that rule);
 with more shots than free worktrees, say that the rest get new sessions. Read the answer leniently (`1`, `new`, `free`,
 `here`, a worktree number for 2).
 
-For 1 and 2, with `I=<skill-dir>/../digest-todolist-picture/scripts/implement.py`, per shot in the order picked:
+For 1 and 2, with `I=<skill-dir>/../digest-todolist/scripts/implement.py`, per shot in the order picked:
 `python3 $I send --repo <main> --shotfile <file> --number <number> [--global] [--pane <pane>] [--model <m>]
 [--effort <e>]` (`--pane` with the next free worktree's pane for 2; without it a new session starts through
 create-worktree-session's `create.py`, which skips worktrees holding work). It sends hal2-nvim's shot template (run

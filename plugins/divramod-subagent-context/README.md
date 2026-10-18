@@ -3,12 +3,12 @@
 The Claude Code mod `divramod-subagent-context`: a live pane of every subagent of the session with its model, effort, context fill, peak and compactions.
 
 Imported from the mods repository by plan 0233 (its `import.sh`); published to
-[divramod/divramod-claude-code-plugins](https://github.com/divramod/divramod-claude-code-plugins) as
+[divramod/agent-plugins](https://github.com/divramod/agent-plugins) as
 `plugins/divramod-subagent-context` by the publish job ([claude-code-plugins](../../../../.adr/claude-code-plugins.md)).
 Install it (more in that repository's README):
 
 ```
-/plugin install divramod-subagent-context --marketplace divramod/divramod-claude-code-plugins
+/plugin install divramod-subagent-context --marketplace divramod/agent-plugins
 ```
 
 ![The pane: one row per subagent, running rows cyan, a warning row yellow, a compacted one red](docs/screenshot.svg)

@@ -4,6 +4,7 @@
 `add` and `change` take an action each: `check <word>...` (the fit), `show <term>` (the term as the files have it),
 `propose --from <file>` (the dry run) and `write --from <file> --confirmed <number>` (the one writing call). `retire`
 takes `show`, `propose` and `write` with the term and `--by`; `short` lists, `short set` and `short rm` write at once.
+Plan 0283 adds `christen`, `rechristen`, `swap`, `move`, `avatar` (names.py) and `who`.
 Python stdlib only.
 """
 import argparse
@@ -67,6 +68,31 @@ def _voiceink(cmd: argparse.ArgumentParser) -> None:
     cmd.add_argument("--json", action="store_true", help=JSON_HELP)
 
 
+def _names(sub) -> None:
+    """The commands of plan 0283: christen, rechristen, swap, move, avatar and the lookup `who`."""
+    cmds = {}
+    for name, text in (("christen", "christen the field's role: with a name the CLI's call, without one name ideas"),
+                       ("rechristen", "give a named one a new name; without it name ideas"),
+                       ("swap", "two named ones swap their names"),
+                       ("move", "move a named one to another field, also of another farm"),
+                       ("avatar", "give a named one another of the 50 avatars"),
+                       ("who", "find a named one by a current or earlier name, or <farm>/<field>: its farm and field")):
+        cmds[name] = sub.add_parser(name, help=text)
+        cmds[name].add_argument("--json", action="store_true", help=JSON_HELP)
+    cmds["christen"].add_argument("name", nargs="?", help="the name; without it the ideas are listed")
+    cmds["christen"].add_argument("--field", help="the field's folder (default: the working directory's checkout)")
+    cmds["christen"].add_argument("--avatar", type=int, help="the avatar's number, 1 to 50 (default: the field's own)")
+    cmds["rechristen"].add_argument("name", help="the current name, or <farm>/<field>")
+    cmds["rechristen"].add_argument("new", nargs="?", help="the new name; without it the ideas are listed")
+    cmds["swap"].add_argument("first", help="a current name or <farm>/<field>")
+    cmds["swap"].add_argument("second", help="a current name or <farm>/<field>")
+    cmds["move"].add_argument("name", help="the current name, or <farm>/<field>")
+    cmds["move"].add_argument("--to", required=True, help="the other field's folder")
+    cmds["avatar"].add_argument("name", help="the current name, or <farm>/<field>")
+    cmds["avatar"].add_argument("number", type=int, help="the avatar's number, 1 to 50")
+    cmds["who"].add_argument("name", help="a current or earlier name, or <farm>/<field>")
+
+
 def parser(description: str) -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(prog="halverse.py", description=description)
     sub = top.add_subparsers(dest="command", required=True)
@@ -84,4 +110,5 @@ def parser(description: str) -> argparse.ArgumentParser:
     _document_actions(sub.add_parser("change", help="change a term in the nine halverse files"), "change")
     _retire_actions(sub.add_parser("retire", help="retire a term: it leaves the files and joins its successor's _Avoid_"))
     _short_actions(sub.add_parser("short", help="the short forms: list them, set one, remove one"))
+    _names(sub)
     return top

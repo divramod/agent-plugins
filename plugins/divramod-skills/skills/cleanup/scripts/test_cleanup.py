@@ -1,7 +1,13 @@
-"""cleanup.py lists a worktree's git-ignored build artifacts and deletes only those."""
+"""cleanup.py lists a worktree's git-ignored build artifacts and deletes only those.
+
+Every test runs twice (plan 0284, D22): with HAL_CLEANUP_CLI="" (the Python rule) and with a fake `hal2-cli-git`
+on PATH that knows `worktree cleanup`, records its arguments and runs the same Python behind it, so the
+arguments must arrive unchanged and its exit code is the skill's.
+"""
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -9,11 +15,37 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent / "cleanup.py"
-ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-       "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+CASES = "code/rust/libs/hal2-git/tests/fixtures/cleanup/cases.json"
+GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+ENV = {**os.environ, **GIT_ENV}
+FAKE_USAGE = "usage: hal2-cli-git worktree cleanup list [--json] [--worktree NAME|PATH]"
+FAKE = """#!{python}
+import json, os, subprocess, sys
+args = sys.argv[1:]
+if args[:3] == ["worktree", "cleanup", "--help"]:
+    print({usage!r})
+    sys.exit({help_code})
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(json.dumps(args) + "\\n")
+if "FAKE_CODE" in os.environ:
+    print("fake says hi")
+    sys.exit(int(os.environ["FAKE_CODE"]))
+env = {{**os.environ, "HAL_CLEANUP_CLI": ""}}
+sys.exit(subprocess.run([{python!r}, {script!r}, *args[2:]], env=env).returncode)
+"""
 
 
-class CleanupTest(unittest.TestCase):
+def fake_cli(folder: Path, usage=FAKE_USAGE, help_code=0) -> Path:
+    """A `hal2-cli-git` in folder: it answers --help with usage and exit help_code, else logs and runs cleanup.py."""
+    path = folder / "hal2-cli-git"
+    path.write_text(FAKE.format(python=sys.executable, usage=usage, help_code=help_code, script=str(SCRIPT)))
+    path.chmod(0o755)
+    return path
+
+
+class Cases:
+    """The tests, run by the two flavours below."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(os.path.realpath(self.tmp.name))
@@ -31,6 +63,15 @@ class CleanupTest(unittest.TestCase):
         self.write("dist/out.js", "x")
         self.write(".secrets/00/TOKEN", "secret")
         self.write("notes.txt", "mine")
+        bin_ = tempfile.TemporaryDirectory()
+        self.addCleanup(bin_.cleanup)
+        self.bin = Path(os.path.realpath(bin_.name))
+        self.log = self.bin / "log"
+        self.env = {**ENV, **self.prepare()}
+
+    def prepare(self) -> dict:
+        """The environment of this flavour on top of the process's."""
+        raise NotImplementedError
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -41,7 +82,7 @@ class CleanupTest(unittest.TestCase):
         p.write_text(text)
 
     def run_(self, *args):
-        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.repo / "code", env=ENV,
+        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.repo / "code", env=self.env,
                               text=True, capture_output=True)
 
     def listing(self, *args):
@@ -130,6 +171,157 @@ class CleanupTest(unittest.TestCase):
         r = self.run_("busy", "--worktree", "07")
         self.assertEqual(r.returncode, 1)
         self.assertIn("no worktree named 07", r.stderr)
+
+    def test_a_folder_holding_a_protected_path_is_kept_and_refused(self):
+        """D32: also deep below an artifact folder, also when named."""
+        self.write(".gitignore", "target/\nnode_modules/\ndist/\n.secrets/\nnotes.txt\nbuild/\napp/.env\n")
+        self.write("build/sub/.env.local", "A=1\n")
+        self.write("build/out.o", "x")
+        self.write("app/.env", "A=3\n")
+        rows = self.listing()
+        self.assertEqual((rows["build"]["kind"], rows["build"]["rebuild"]), ("kept", "holds a protected path"))
+        self.assertFalse(rows["build"]["selected"])
+        self.assertEqual(rows["app"]["kind"], "kept")
+        self.run_("delete")
+        for rel in ("build/sub/.env.local", "app/.env"):
+            self.assertTrue((self.repo / rel).exists(), rel)
+        for rel in ("build", "app"):
+            r = self.run_("delete", rel)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn(f"skip    {rel}: holds a protected path", r.stdout)
+
+    def test_the_shared_cases(self):
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=SCRIPT.parent, text=True,
+                             capture_output=True).stdout.strip()
+        cases = Path(top) / CASES if top else None
+        if not cases or not cases.is_file():
+            self.skipTest("the shared cases are hal2's: code/rust/libs/hal2-git/tests/fixtures/cleanup")
+        for case in json.loads(cases.read_text())["cases"]:
+            if case["links"] and sys.platform == "win32":
+                continue
+            with self.subTest(case=case["name"]), tempfile.TemporaryDirectory() as tmp:
+                self.hold_case(Path(os.path.realpath(tmp)), case)
+
+    def hold_case(self, top, case):
+        def git(*args):
+            subprocess.run(["git", *args], cwd=top, env={**os.environ, **GIT_ENV}, check=True)
+
+        def put(rel, text):
+            (top / rel).parent.mkdir(parents=True, exist_ok=True)
+            (top / rel).write_text(text)
+
+        git("init", "-q")
+        put(".gitignore", case["gitignore"])
+        if case["cleanup"] is not None:
+            put(".hal/cleanup", case["cleanup"])
+        for rel, text in case["tracked"].items():
+            put(rel, text)
+        git("add", "-A")
+        for rel in case["tracked"]:
+            git("add", "-f", rel)
+        git("commit", "-qm", "init")
+        for rel, text in case["files"].items():
+            put(rel, text)
+        for rel, target in case["links"].items():
+            os.symlink(target, top / rel)
+
+        def run(*args):
+            return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=top, env=self.env, text=True,
+                                  capture_output=True)
+
+        def paths(out):
+            return sorted(m.group(1) for m in re.finditer(r"^(?:would delete|deleted)\s+\S+\s+(.*)$", out, re.M))
+
+        for rel, why in case["refused"].items():
+            r = run("delete", rel)
+            self.assertEqual((r.returncode, f"skip    {rel}: {why}" in r.stdout), (1, True), (rel, r.stdout))
+        listed = json.loads(run("list", "--json").stdout)["artifacts"]
+        self.assertEqual({a["path"]: a["kind"] for a in listed}, case["list"])
+        wanted = sorted(case["deleted"])
+        dry = run("delete", "--dry-run")
+        self.assertEqual((dry.returncode, paths(dry.stdout)), (0, wanted), dry.stdout)
+        self.assertTrue(all((top / p).exists() for p in wanted), "a dry run deleted")
+        done = run("delete")
+        self.assertEqual((done.returncode, paths(done.stdout)), (0, wanted), done.stdout)
+        self.assertFalse(any((top / p).exists() for p in wanted))
+        for rel in case["kept"] + list(case["tracked"]):
+            self.assertTrue((top / rel).exists(), f"{rel} was deleted")
+        if case["named"]:
+            named = run("delete", *case["named"])
+            self.assertEqual((named.returncode, paths(named.stdout)), (0, sorted(case["named"])), named.stdout)
+
+
+class PythonTest(Cases, unittest.TestCase):
+    """HAL_CLEANUP_CLI="": the Python rule alone."""
+
+    def prepare(self):
+        return {"HAL_CLEANUP_CLI": ""}
+
+
+class FakeCliTest(Cases, unittest.TestCase):
+    """A fake hal2-cli-git on PATH, found by PATH alone."""
+
+    def prepare(self):
+        fake_cli(self.bin)
+        env = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(self.log)}
+        self.removed = os.environ.get("HAL_CLEANUP_CLI")
+        return env
+
+    def run_(self, *args):
+        self.env.pop("HAL_CLEANUP_CLI", None)
+        return super().run_(*args)
+
+    def logged(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def test_the_arguments_arrive_unchanged_and_its_exit_code_is_the_skills(self):
+        self.run_("list", "--json", "--worktree", "03")
+        self.run_("delete", "--dry-run", "a b", "c")
+        self.run_("busy")
+        self.assertEqual(self.logged(), [["worktree", "cleanup", "list", "--json", "--worktree", "03"],
+                                         ["worktree", "cleanup", "delete", "--dry-run", "a b", "c"],
+                                         ["worktree", "cleanup", "busy"]])
+        self.env["FAKE_CODE"] = "7"
+        r = self.run_("delete")
+        self.assertEqual((r.returncode, r.stdout), (7, "fake says hi\n"))
+
+    def test_a_cli_that_fails_help_makes_the_python_run(self):
+        fake_cli(self.bin, help_code=2)
+        self.env["FAKE_CODE"] = "7"
+        r = self.run_("list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.logged(), [])
+        self.assertIn("artifacts", json.loads(r.stdout))
+
+    def test_an_older_cli_exiting_0_on_any_help_makes_the_python_run(self):
+        """D32: the exit code alone is no proof; the first line of the help is."""
+        fake_cli(self.bin, usage="usage: hal2-cli-git status [--json] [--repo <dir>]")
+        self.env["FAKE_CODE"] = "7"
+        r = self.run_("list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.logged(), [])
+
+    def test_a_cli_that_cannot_be_started_makes_the_python_run(self):
+        broken = self.bin / "broken"
+        broken.write_text("not a program")
+        broken.chmod(0o755)
+        self.env["HAL_CLEANUP_CLI"] = str(broken)
+        self.env["FAKE_CODE"] = "7"
+        r = super().run_("list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("artifacts", json.loads(r.stdout))
+
+    def test_hal_cleanup_cli_names_the_program_and_empty_means_none(self):
+        other = self.bin / "other"
+        other.mkdir()
+        fake_cli(other)
+        self.env["PATH"] = os.environ["PATH"]  # nothing on PATH
+        self.env["HAL_CLEANUP_CLI"] = str(other / "hal2-cli-git")
+        self.env["FAKE_CODE"] = "7"
+        self.assertEqual(super().run_("busy").returncode, 7)
+        self.env["HAL_CLEANUP_CLI"] = ""
+        self.env["PATH"] = f"{self.bin}{os.pathsep}{os.environ['PATH']}"
+        self.assertNotEqual(super().run_("busy").returncode, 7)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,12 @@ What counts: the repo's `.hal/cleanup` (one glob per line relative to the worktr
 `**` across folders; `!glob` keeps; a trailing `# ...` says how it comes back), or without that file generic
 build folders (target/, build/, .build/, dist/, __pycache__/, ...; fetched dependencies like node_modules/ are
 kept). Ignored paths no rule names are `unknown` and never deleted in bulk. Protected, never listed or deleted:
-.git, .hal, .secrets, .env*, plans/, shotfiles/, *.machine.toml. Exit 2: git is missing.
+.git, .hal, .secrets, .env*, plans/, shotfiles/, *.machine.toml; a folder holding such a path (`app/` with
+only an ignored `.env`) is `kept` and never deleted, also when named. Exit 2: git is missing.
+
+Where the installed `hal2-cli-git worktree cleanup` exists (its --help starts `usage: hal2-cli-git worktree
+cleanup`; HAL_CLEANUP_CLI names another, empty: none) the arguments go to it unchanged and its output and exit
+code are this script's; its sizes are allocated space, this script's apparent bytes. Else the code below runs.
 
 --worktree works on another checkout of the current repository than the one it runs in: a worktree's folder name
 or branch (`03`, `main`) as `git worktree list` shows it, or a path to any checkout.
@@ -124,6 +129,21 @@ def protected(rel: str) -> bool:
     return any(fnmatch.fnmatch(rel, p) for p in PROTECTED)
 
 
+HOLDS_PROTECTED = "holds a protected path"
+
+
+def holds_protected(top: Path, rel: str) -> bool:
+    """Whether the real folder top/rel has a protected path below it (D32); a file or link holds none."""
+    path = top / rel
+    if path.is_symlink() or not path.is_dir():
+        return False
+    for dirpath, dirs, files in os.walk(path):
+        base = os.path.relpath(dirpath, top).replace(os.sep, "/")
+        if any(protected(f"{base}/{name}") for name in dirs + files):
+            return True
+    return False
+
+
 def size(path: Path) -> int:
     if path.is_symlink() or path.is_file():
         return path.lstat().st_size
@@ -165,6 +185,8 @@ def artifacts(top: Path):
         path = top / rel
         if not path.exists() and not path.is_symlink():
             continue
+        if holds_protected(top, rel):
+            kind, how = "kept", HOLDS_PROTECTED
         rows.append({"path": rel, "kind": kind, "size": size(path), "rebuild": how, "selected": kind == "artifact"})
     return rows, listed is not None
 
@@ -210,6 +232,8 @@ def check(top: Path, rel: str):
         return "does not exist"
     if git("-C", str(top), "ls-files", "--", rel).strip():
         return "holds tracked files"
+    if holds_protected(top, rel):
+        return HOLDS_PROTECTED
     if subprocess.run(["git", "-C", str(top), "check-ignore", "-q", rel]).returncode != 0:
         return "not git-ignored"
     return None
@@ -245,6 +269,12 @@ COMMANDS = {"list": cmd_list, "busy": cmd_busy, "delete": cmd_delete}
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
+    if argv and argv[0] in COMMANDS:
+        import cli  # the hal2 CLI where it knows `worktree cleanup`, else the code above
+
+        code = cli.run(argv)
+        if code is not None:
+            sys.exit(code)
     if "--worktree" in argv:
         i = argv.index("--worktree")
         if i + 1 >= len(argv):

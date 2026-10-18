@@ -6,10 +6,11 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 here="$PWD"
+root="$here"; until [ -e "$root/.git" ] || [ "$root" = / ]; do root="$(dirname "$root")"; done  # any depth
 cli="${HAL2_CLI_HALVERSE:-hal2-cli-halverse}"
 voiceink="${HAL2_CLI_VOICEINK:-hal2-cli-voiceink}"
-tests="../../../../../../../../rust/apps/hal2-cli-halverse/tests/fixtures"
-store_builder="$here/../../../../../../../../../research/0075-halverse-plugin-the-voiceink-dictionary-store-and-the-plugin/fixture.py"
+tests="$root/code/rust/apps/hal2-cli-halverse/tests/fixtures"
+store_builder="$root/research/0075-halverse-plugin-the-voiceink-dictionary-store-and-the-plugin/fixture.py"
 (cd ../sources && for command in terms ontology check; do
   "$cli" "$command" --json --glossary GLOSSARY.md --ontology ontology.md --dictation dictation.md \
     > "../cli/sources/$command.json" || [ "$command" = check ]

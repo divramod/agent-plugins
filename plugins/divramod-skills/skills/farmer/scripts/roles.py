@@ -1,6 +1,6 @@
 """Where a role works and keeps its files (hal2's .adr/roles-folder.md, hal2 plan 0143).
 
-A role (the farmer, lord, i, chancellor, duke, king, pope, marshall, wagon-master) works in the worktree and branch
+A role (the farmer, lord, i, chancellor, duke, king, pope, marshall, tollman) works in the worktree and branch
 `<role>-<project>` of its repository (`farmer-hal2`), so two repositories' farmers never share a session name.
 `<project>` is the origin remote's repository name, else the main checkout's folder name (lowercase; other
 characters than letters, digits and `-` become `-`), as hal2_git::worktree::Layout computes it. The role file is
@@ -11,21 +11,22 @@ characters than letters, digits and `-` become `-`), as hal2_git::worktree::Layo
 The round frame (tick, wake, timer, due, acks, handoff) runs for one role, named by a `Wiring` its CLI passes down
 (hal2 plan 0294, D7): `FARMER` is the farmer's and every frame function's default; another role's CLI builds its
 own and passes it at every call (a call without it acts as the farmer). The duties `mtm` (the merge-to-main
-boss) and `trains` are the wagon master's since step 5: its skill `wagon-master` builds its wiring in
-`wagon_master.py`.
+boss) and `trains` are the tollman's since step 5: its skill `tollman` builds its wiring in
+`tollman.py`.
 
-`boss` names who tells a worktree to land now: the wagon master's merge-to-main boss on a farm that has a working
-wagon master, the old line on a farm without (the farmer's sync duty, the adapt-merge-queue skill).
+`boss` names who tells a worktree to land now: the tollman's merge-to-main boss on a farm that has a working
+tollman, the old line on a farm without (the farmer's sync duty, the adapt-merge-queue skill).
 """
 
 import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-ROLES = ("farmer", "lord", "i", "chancellor", "duke", "king", "pope", "marshall", "wagon-master")
+ROLES = ("farmer", "lord", "i", "chancellor", "duke", "king", "pope", "marshall", "tollman")
 ROLE = "farmer"
 ROLE_FILE = f"roles/{ROLE}/ROLE.md"
 ROLE_IGNORE = f"roles/{ROLE}/.gitignore"
@@ -33,9 +34,11 @@ GITIGNORE = ("# The role's folder (hal2 .adr/roles-folder.md): ROLE.md is commit
              "*\n!.gitignore\n!ROLE.md\n")
 OVERRIDE = Path(os.environ["FARMER_DIR"]) if os.environ.get("FARMER_DIR") else None
 LEGACY = Path.home() / "skills" / "farmer"  # the state root before plan 0143: <LEGACY>/<repo>/
-BOSS = "merge-to-main boss"  # who says `land now` on a farm without a wagon master
-WAGON_MASTER_BOSS = f"wagon-master ({BOSS})"  # as the wagon master's boss signs its messages (its boss.py)
-WAGON_MASTER_CHECK = Path(__file__).resolve().parents[2] / "mtm" / "scripts" / "wagon-master.sh"
+BOSS = "merge-to-main boss"  # who says `land now` on a farm without a tollman
+TOLLMAN_BOSS = f"tollman ({BOSS})"  # as the tollman's boss signs its messages (its boss.py)
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+TOLLMAN_CHECK = sibling("merge-to-main") / "scripts" / "tollman.sh"
 
 
 @dataclass(frozen=True)
@@ -44,10 +47,10 @@ class Wiring:
     (`<cli> tick --repo <field>`), `skill` the folder whose instructions/ and subskills/ a woken session reads,
     `act` and `handoff` the commands typed into the role's session, `duties` the names its ROLE.md may opt in to,
     `subskills` a duty's subskill folder; `delegates`: its rounds place and follow up delegations (delegation.py);
-    `carries(field)`: the role's field holds other fields' commits by design now (the wagon master's while a train
+    `carries(field)`: the role's field holds other fields' commits by design now (the tollman's while a train
     stands, hal2 plan 0294 D22), so the round neither refuses them, merges from main nor commits a role file edit;
     `session_effort`: the role's session runs at its ROLE.md's `session_effort` (default high), also after a clear
-    (hal2 plan 0333 D4)."""
+    (hal2 plan 0333 D4); `env`: the variables, besides PATH, the timer's unit passes on to the tick (plan 0311)."""
     role: str
     cli: Path
     skill: Path
@@ -58,6 +61,7 @@ class Wiring:
     delegates: bool = False
     carries: Callable[[str], bool] | None = None
     session_effort: bool = False
+    env: tuple[str, ...] = ("FARMER_DIR",)
 
     @property
     def role_file(self) -> str:
@@ -72,7 +76,7 @@ class Wiring:
 FARMER = Wiring(
     role=ROLE, cli=Path(__file__).resolve().parent / "farmer.py", skill=Path(__file__).resolve().parents[1],
     act="/farmer act", handoff="/farmer handoff",
-    duties=("lead", "ci", "prs", "sync", "watch", "autoclear", "prune"),
+    duties=("lead", "ci", "prs", "sync", "watch", "autoclear"),
     subskills={"lead": "development-lead", "ci": "ci", "watch": "sanity-watch", "autoclear": "fix-autoclear"},
     delegates=True)
 
@@ -137,16 +141,16 @@ def state_dir(repo: str | Path, override: Path | None = None, role: str = ROLE) 
     return d
 
 
-def boss(repo: str | Path, check: Path = WAGON_MASTER_CHECK) -> str:
-    """Who tells a worktree of `repo` to land now (`<boss>: land now`): the wagon master's boss where the farm has
-    a working wagon master (the mtm skill's wagon-master.sh prints `yes`: hal2 plan 0294, D13; the worktree's /mtm
-    then reports its work ready and the wagon master's train lands it), else the line every /mtm knows. Every doubt
+def boss(repo: str | Path, check: Path = TOLLMAN_CHECK) -> str:
+    """Who tells a worktree of `repo` to land now (`<boss>: land now`): the tollman's boss where the farm has
+    a working tollman (the mtm skill's tollman.sh prints `yes`: hal2 plan 0294, D13; the worktree's /mtm
+    then reports its work ready and the tollman's train lands it), else the line every /mtm knows. Every doubt
     (no check, a failure, a slow answer) is that old line."""
     try:
         p = subprocess.run(["bash", str(check), str(repo)], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return BOSS
-    return WAGON_MASTER_BOSS if p.returncode == 0 and p.stdout.strip() == "yes" else BOSS
+    return TOLLMAN_BOSS if p.returncode == 0 and p.stdout.strip() == "yes" else BOSS
 
 
 def is_role_label(slot: str, role: str = ROLE) -> bool:

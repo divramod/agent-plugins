@@ -68,26 +68,25 @@ import role_sync
 import roles
 import silence
 import migrate
-import prune
 import questions
+import queue_mode
 import tasks
 import tick
 
 WIRING = roles.FARMER  # the role these rounds run for, passed to every call of the frame (hal2 plan 0294)
 MODES = role_cli.MODES
 HANDLERS: dict = {  # "duty:<name>" / "task:<name>" → (item, ctx) → planned actions
-    "duty:lead": duties.plan_lead,
+    "duty:lead": queue_mode.plan_lead,  # plan 0360 step 25: + the smuggle mode's "run /mtm now"
     "duty:ci": duties.plan_ci,
     "duty:prs": duties.plan_prs,
     "duty:sync": role_sync.plan_sync,
     "duty:watch": duties.plan_watch,
     "duty:autoclear": duties.plan_autoclear,
-    "duty:prune": prune.handler,
     "task:*": tasks.plan_task,
 }
 
 
-# The commands every role's CLI has live in role_cli.py (the wagon master's wagon_master.py calls the same ones):
+# The commands every role's CLI has live in role_cli.py (the tollman's tollman.py calls the same ones):
 # these are the farmer's, under their old names.
 def state(repo: str) -> Path:
     return role_cli.state(repo, WIRING)

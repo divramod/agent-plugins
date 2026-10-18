@@ -7,9 +7,9 @@
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
 names nothing, no uncommitted changes, no commits not on main, no landing in the merge queue (behind main is
-fine: the first prompt runs /mfm). The agent starts detached through `hal2-cli-git worktree run <NN> --detach`, in
-a hal2 terminal host (`--tmux`: a window of hal-<repo>), with a new session whose first prompt runs /mfm, then the
-given prompt (`--exact`: the prompt as given, without /mfm). `--model` and `--effort` go to the agent's process
+fine: the first prompt runs /merge-from-main). The agent starts detached through `hal2-cli-git worktree run <NN> --detach`, in
+a hal2 terminal host (`--tmux`: a window of hal-<repo>), with a new session whose first prompt runs /merge-from-main, then the
+given prompt (`--exact`: the prompt as given, without /merge-from-main). `--model` and `--effort` go to the agent's process
 (saved nowhere). Prints JSON: slot, pane, worktree, the attach command, the model and effort asked for (null: the
 agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 3 when no free and clean
 worktree is left in the range, 1 for any other failure.
@@ -148,7 +148,7 @@ def start(repo: Path, slot: str, argv: list[str], prompt: str) -> dict:
 def first_prompt(prompt: str | None, exact: bool) -> str:
     if exact and prompt:
         return prompt
-    return f"Run /mfm (merge-from-main) first, then:\n\n{prompt}" if prompt else "/mfm"
+    return f"Run /merge-from-main first, then:\n\n{prompt}" if prompt else "/merge-from-main"
 
 
 def arg(argv: list[str], flag: str) -> str | None:

@@ -4,7 +4,7 @@
   "keep_names": ["pause", "shoot", "grill", "autogrill", "hand off", "continue", "cockcrow", "wagon", "harvest", "christen", "christening"],
   "pairs": [
     {
-      "new": "bring in", "since": "2026-10-13", "command": "/mtm", "practise": true,
+      "new": "bring in", "since": "2026-10-13", "command": "/merge-to-main", "practise": true,
       "old_label": "merge-to-main, mtm, land on main",
       "old": ["merge[- ]to[- ]main", "mtm", "land(?:s|ed|ing)? +(?:on|to|onto|in) +main"],
       "new_forms": ["br(?:ings?|inging|ought) +(?:\\S+ +)?in"],
@@ -14,14 +14,14 @@
       ]
     },
     {
-      "new": "smuggle", "since": "2026-10-13", "command": "/mtm-fastlane", "practise": true,
-      "old_label": "mtm-fastlane, fastlane",
-      "old": ["mtm[- ]fastlane", "fastlane"],
+      "new": "smuggle", "since": "2026-10-13", "command": "/smuggle", "practise": true,
+      "old_label": "fast lane, the old name of /smuggle",
+      "old": ["mtm[- ]fast[- ]?lane", "fast[- ]?lane"],
       "new_forms": ["smuggl(?:e|es|ed|ing)"],
       "ambiguous": []
     },
     {
-      "new": "restock", "since": "2026-10-13", "command": "/mfm", "practise": true,
+      "new": "restock", "since": "2026-10-13", "command": "/merge-from-main", "practise": true,
       "old_label": "merge-from-main, mfm",
       "old": ["merge[- ]from[- ]main", "mfm"],
       "new_forms": ["restock(?:s|ed|ing)?"],

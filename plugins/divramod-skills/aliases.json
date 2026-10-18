@@ -2,5 +2,12 @@
   "h": {"skill": "handoff", "args": ""},
   "c": {"skill": "handoff", "args": "continue"},
   "hv": {"skill": "halverse", "args": ""},
-  "daily": {"skill": "daybook", "args": ""}
+  "daily": {"skill": "daybook", "args": ""},
+  "mfm": {"skill": "merge-from-main", "args": ""},
+  "mtm": {"skill": "merge-to-main", "args": ""},
+  "q": {"skill": "get-open-questions", "args": ""},
+  "s": {"skill": "get-state", "args": ""},
+  "uat": {"skill": "user-acceptance-tests", "args": ""},
+  "gp": {"skill": "git-push", "args": ""},
+  "d": {"skill": "design", "args": ""}
 }

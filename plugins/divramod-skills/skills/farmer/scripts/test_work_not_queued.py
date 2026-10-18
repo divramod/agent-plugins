@@ -1,6 +1,6 @@
 """`work-not-queued` never reads a working session as sleeping (hal2 plan 0313 step 3).
 
-Replays the wagon master's wrong wakes of 2026-10-14 (its roles/wagon-master/log.jsonl, local times): 07 at 10:54
+Replays the tollman's wrong wakes of 2026-10-14 (its roles/tollman/log.jsonl, local times): 07 at 10:54
 ("agent sleeping for 54 min", a shell running), 00 at 11:22 ("sleeping for 38 min", mid-plan, a step's subagent
 running) and 02 at 12:14 ("sleeping for 31 min", background waits on its deploy). The sessions are given as
 `hal2-cli-agents list --json` entries and go through the scan's own `worktree_entry` into `findings`.

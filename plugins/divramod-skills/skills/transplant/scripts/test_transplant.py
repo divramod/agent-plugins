@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """Tests for transplant.py with fake hal2 CLIs on PATH and a fake login shell (nothing real is started or stopped)."""
 import importlib.util
+import sys
 import unittest
+from pathlib import Path
 
 from test_support import HERE, OK, Scratch
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import unit_root  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 
 # D6's words and `not-prepared`: every refusal the CLI's JSON can carry.
 REASONS = ("same", "main", "role", "no-source", "servant", "nothing", "off-branch", "dirty", "at-the-gate",
            "target-taken", "target-busy", "conflict", "side-branch", "prepared-elsewhere", "not-prepared")
-GATE = HERE.parents[2] / "scripts" / "check-agent-starts.py"
+GATE = unit_root(__file__) / "scripts" / "check-agent-starts.py"
 
 
 def refused(reason, rc=7):

@@ -1,0 +1,19 @@
+{
+  "error": {
+    "code": "refused",
+    "exit": 4,
+    "message": "Odd was a name of Mira until 2026-10-14: a name given once stays theirs",
+    "hint": "hal2-cli-halverse names ideas offers names nobody has or had",
+    "details": {
+      "reason": "NAME_RESERVED",
+      "holder": {
+        "id": 1,
+        "name": "Mira",
+        "role": "foreman",
+        "farm_name": "barley",
+        "field": "07",
+        "since": "2026-10-14T09:00:00Z"
+      }
+    }
+  }
+}

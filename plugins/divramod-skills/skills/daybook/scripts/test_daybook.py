@@ -15,9 +15,12 @@ import dayfile
 import farm
 import watchfile
 
+import sys
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
 FIXTURE = HERE / "fixtures" / "jobsearch" / "daily"
-PLAN_PY = HERE.parent.parent / "plan" / "scripts" / "plan.py"
+PLAN_PY = sibling("plan") / "scripts" / "plan.py"
 OLD = """# Daybook 2026-10-10 (Saturday)
 
 ## Today

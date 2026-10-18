@@ -10,8 +10,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
-PLAN = HERE.parents[1] / "plan" / "scripts" / "plan.py"
+PLAN = sibling("plan") / "scripts" / "plan.py"
 SKILL = HERE.parent / "SKILL.md"
 SESSION = "fake-session"
 CLEARED = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_EFFORT", "CLAUDE_CONTEXT_WINDOW", "CLAUDE_CODE_DISABLE_1M_CONTEXT",

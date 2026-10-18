@@ -43,12 +43,12 @@ class Cron(unittest.TestCase):
         self.assertNotIn("KillMode", service, "the farmer's unit is as it was")
 
     def test_a_role_that_carries_keeps_what_its_tick_started(self):
-        """Plan 0294, D24: the wagon master's tick starts the train's landing detached; systemd's default would
+        """Plan 0294, D24: the tollman's tick starts the train's landing detached; systemd's default would
         kill it with the unit's control group when the tick ends."""
-        carrier = dataclasses.replace(roles.FARMER, role="wagon-master", carries=lambda main: False)
-        service, _ = timer.systemd("hal2", "/w/wagon-master", Path("/s"), "2-59/5 * * * *", carrier)
-        self.assertIn("[Service]\nType=oneshot\nKillMode=process\nWorkingDirectory=/w/wagon-master\n", service)
-        self.assertIn("Description=wagon-master tick for hal2", service)
+        carrier = dataclasses.replace(roles.FARMER, role="tollman", carries=lambda main: False)
+        service, _ = timer.systemd("hal2", "/w/tollman", Path("/s"), "2-59/5 * * * *", carrier)
+        self.assertIn("[Service]\nType=oneshot\nKillMode=process\nWorkingDirectory=/w/tollman\n", service)
+        self.assertIn("Description=tollman tick for hal2", service)
 
 
 class Install(Repo):

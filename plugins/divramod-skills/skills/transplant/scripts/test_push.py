@@ -8,7 +8,10 @@ import unittest
 
 from test_support import HERE, Scratch, commit, sh
 
-WHERE = HERE.parents[1] / "handoff" / "scripts" / "where.py"
+from pathlib import Path
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+WHERE = sibling("handoff") / "scripts" / "where.py"
 PLAN = "---\ntype: Plan\nschema: 1\nid: 1\ntitle: Demo\ndescription: A demo\nstatus: open\n---\n\n# Plan 0001\n"
 
 

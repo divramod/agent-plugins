@@ -7,7 +7,7 @@ import cli
 import fake_cli
 from fake_cli import FakeCli
 
-EXPECTED = os.path.join(fake_cli.HERE, *[os.pardir] * 6, "rust", "apps", "hal2-cli-halverse", "tests", "fixtures", "expected")
+EXPECTED = os.path.join(fake_cli.HERE, *[os.pardir] * 7, "rust", "apps", "hal2-cli-halverse", "tests", "fixtures", "expected")
 
 
 def error(code, message, detail=None):

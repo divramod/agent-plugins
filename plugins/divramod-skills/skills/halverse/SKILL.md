@@ -1,6 +1,6 @@
 ---
 name: halverse
-description: Show and maintain the user's halverse, the model of their agent system — `/halverse add [<term>]`, `/halverse change <term>` and `/halverse retire <term>` check a term against every term there is, word it in English, German, Dutch and European Portuguese, propose the exact lines in the Q form and, only on the user's yes, write it into the glossary, the ontology, their companion files, DICTATION.md and VoiceInk at once; `/halverse short <short> = <word>` sets a short form (`--farm` a farm's, `--spoken` one VoiceInk hears); `/halverse ontology [<term>]` prints the ontology's sections with their status, or one term with its glossary entry, its old word and its command; `/halverse check` counts the files' errors and notes and lists what is untranslated per language; `/halverse learn [--days <n>]` counts the old words against the farm words in the user's own typed prompts and names three to practise; `/halverse voiceink [status|restore|prompt|export]` syncs the words into VoiceInk, shows the difference, puts a backup back, prints the correction prompt for dictation or writes VoiceInk's import file. Every file is read and written only through `hal2-cli-halverse` and `hal2-cli-voiceink`. Use when the user says /halverse, /hv, "add the term", "a new farm word", "rename the term", "retire the word", "a short form for", "sync VoiceInk", "check the glossary", "what does <farm word> mean", "show the ontology" or "which farm words do I still not use". `/halverse h` shows help.
+description: Show and maintain the user's halverse, the model of their agent system — `/halverse add [<term>]`, `/halverse change <term>` and `/halverse retire <term>` check a term against every term there is, word it in English, German, Dutch and European Portuguese, propose the exact lines in the Q form and, only on the user's yes, write it into the glossary, the ontology, their companion files, DICTATION.md and VoiceInk at once; `/halverse short <short> = <word>` sets a short form (`--farm` a farm's, `--spoken` one VoiceInk hears); `/halverse ontology [<term>]` prints the ontology's sections with their status, or one term with its glossary entry, its old word and its command; `/halverse check` counts the files' errors and notes and lists what is untranslated per language; `/halverse learn [--days <n>]` counts the old words against the farm words in the user's own typed prompts and names three to practise; `/halverse voiceink [status|restore|prompt|export]` syncs the words into VoiceInk, shows the difference, puts a backup back, prints the correction prompt for dictation or writes VoiceInk's import file. `/halverse christen [<name>]` christens the role of a field with a name, or lists name ideas to pick from, and `rechristen`, `swap`, `move` and `avatar` change a named one; `/halverse who <name>` finds a named one by its current or an earlier name and gives its farm and field, the way to reach it. Every file is read and written only through `hal2-cli-halverse` and `hal2-cli-voiceink`. Use when the user says /halverse, /hv, "add the term", "a new farm word", "rename the term", "retire the word", "a short form for", "sync VoiceInk", "check the glossary", "what does <farm word> mean", "show the ontology" or "which farm words do I still not use", "christen the foreman", "rechristen", "give the farmer a name", "who is <name>" or "call <name>". `/halverse h` shows help.
 ---
 
 # halverse
@@ -21,6 +21,12 @@ description: Show and maintain the user's halverse, the model of their agent sys
 | `/halverse voiceink restore` | `/hv voiceink restore` | put the newest backup of VoiceInk's store back |
 | `/halverse voiceink prompt` | `/hv voiceink prompt` | the correction prompt for dictation |
 | `/halverse voiceink export` | `/hv voiceink export` | VoiceInk's import file, without opening its store |
+| `/halverse christen [<name>] [--field <folder>] [--avatar <n>]` | `/hv christen` | christen the role of a field; without a name, ideas to pick from |
+| `/halverse rechristen <name> [<new name>]` | `/hv rechristen` | a new name for a named one |
+| `/halverse swap <name> <name>` | `/hv swap` | two named ones swap their names |
+| `/halverse move <name> --to <folder>` | `/hv move` | a named one to another field, also of another farm |
+| `/halverse avatar <name> <n>` | `/hv avatar` | another of the 50 avatars |
+| `/halverse who <name>` | `/hv who` | farm, field and the way to reach a named one, or "not posted now" |
 | `/halverse h` | `/hv h` | print this table and stop |
 
 A bare `/halverse` prints this table and stops.
@@ -236,3 +242,47 @@ Relay the report unchanged (the lines written, the backup, what VoiceInk got). E
 short form (it is a term itself, it stands in the other table, it cannot be spoken); say the script's reason, and
 only then ask one question in the Q form with three options that fit the refusal, the recommended first (another
 short form you name, the one that stands replaced, nothing changed). Exit 4 `locked`: call again in a moment.
+
+## 8. christen
+
+Every role with a field of a farm gets a name the user chooses.
+The names are kept by `hal2-cli-halverse names`, in hal2's state folder and never in a file of a repository; a name is
+given only once (one that was anyone's stays theirs), and a rechristened one keeps its earlier names, so `/hv who` finds
+it by any of them. You never write a name into a file, a note or a commit yourself, and an example you give uses an
+invented name, never one the user chose.
+
+- `/hv christen <name> [--field <folder>] [--avatar <n>]`: `python3 $S/halverse.py christen <name> ...`. The field is
+  the working directory's checkout unless `--field` names another's folder; the avatar (1 to 50) is the field's own
+  unless `--avatar` gives one. Written at once: the user named exactly this.
+- `/hv christen` without a name: the script lists 20 ideas, numbered, none taken and none an earlier name. Ask the user
+  in the Q form of `~/AGENTS.md`, `Q<n>`, exactly three options, the recommended first: a) (Recommended) the first
+  idea, b) the second idea, c) another name, which the user types or picks by its number from the list; show the
+  numbered list before the question (end the reply with it, as a plain-text question; the question tool would hide the
+  list). On the answer run the call the script printed, with the chosen name. "Other ideas": run the same command again.
+- `/hv rechristen <name> [<new name>]` (the name is a current one, or `<farm>/<field>`), `/hv swap <name> <name>`,
+  `/hv move <name> --to <folder>` and `/hv avatar <name> <n>` call the CLI at once; `rechristen` without the new name
+  lists ideas as `christen` does. A move may go to a field of another farm (its folder); the name, avatar and history
+  move with it.
+- Relay the script's lines unchanged. For a christening say which role and field it was and that `/hv who <name>` finds
+  it. `--json` prints the CLI's data.
+
+A refusal is the CLI's reason worded by the script, with the holder's name, and its exit code is the script's (4
+refused: `NAME_IN_USE`, `NAME_RESERVED`, `BAD_NAME`, `PLACE_HELD`, `NOT_A_FIELD`, `SAME_NAME`; 3 nobody is so named; 5
+busy; 1 failed; 2 the CLI is not installed or the call was wrong). Nothing was changed on any of them. Relay the
+script's text, then, for a name that is taken, reserved or no name, ask the user one question in the Q form with three
+options that fit it, the recommended first (another idea you name from `christen`'s list, ask for other ideas, leave it
+as it is). Exit 5: call again in a moment. Exit 2 with "not installed": say it and stop; never edit a store yourself.
+
+## 9. who
+
+`/hv who <name>`: `python3 $S/halverse.py who <name>`, the CLI's `names lookup`. The name is a current name, an earlier
+name or `<farm>/<field>` (who holds or held that field). Use it when the user names an agent by its christened name
+("tell Mira ...", "what is Mira working on"): look it up first, then reach the field it names.
+
+- A name posted now: the script gives the role, the farm, the field, the field's folder, since when and the plans seen
+  there. To reach it: ListAgents shows the session whose working folder is that field's; send to it with SendMessage
+  (the farmer of a farm is `farmer-<repo>`). Never guess a session by its name alone.
+- A name not posted now: "not posted now" with its last posting (role, field, dates, plans). Say that nobody works
+  under that name at the moment, and offer what the posting shows (the field's plans); do not send anything.
+- Found by an earlier name: the script says so; use the current name in your reply.
+- Exit 3: nobody is or was so named. Say so and offer `/hv christen`. Other exits as in section 8.

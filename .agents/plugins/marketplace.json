@@ -1,5 +1,5 @@
 {
-  "name": "divramod-claude-code-plugins",
+  "name": "agent-plugins",
   "interface": {
     "displayName": "divramod Claude Code plugins"
   },

@@ -41,9 +41,9 @@ def argv(top: str, wiring: roles.Wiring = roles.FARMER) -> list[str]:
     return [sys.executable, str(wiring.cli), "tick", "--repo", top]
 
 
-def env() -> dict[str, str]:
-    """What the tick needs from this shell: PATH (hal2's CLIs), FARMER_DIR when set."""
-    return {k: os.environ[k] for k in ("PATH", "FARMER_DIR") if k in os.environ}
+def env(wiring: roles.Wiring = roles.FARMER) -> dict[str, str]:
+    """What the tick needs from this shell: PATH (hal2's CLIs), the wiring's variables (FARMER_DIR) when set."""
+    return {k: os.environ[k] for k in ("PATH", *wiring.env) if k in os.environ}
 
 
 def plist(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = roles.FARMER) -> str:
@@ -55,7 +55,7 @@ def plist(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = ro
             f'<plist version="1.0"><dict><key>Label</key>{s(label(name, wiring))}'
             f'<key>ProgramArguments</key><array>{"".join(s(a) for a in argv(top, wiring))}</array>'
             f'<key>WorkingDirectory</key>{s(top)}'
-            f'<key>EnvironmentVariables</key><dict>{"".join(f"<key>{k}</key>{s(v)}" for k, v in env().items())}</dict>'
+            f'<key>EnvironmentVariables</key><dict>{"".join(f"<key>{k}</key>{s(v)}" for k, v in env(wiring).items())}</dict>'
             f'<key>StartCalendarInterval</key><array>{times}</array>'
             f'<key>StandardOutPath</key>{s(state / "tick.log")}<key>StandardErrorPath</key>{s(state / "tick.log")}'
             '</dict></plist>\n')
@@ -63,11 +63,11 @@ def plist(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = ro
 
 def systemd(name: str, top: str, state: Path, cron: str, wiring: roles.Wiring = roles.FARMER) -> tuple[str, str]:
     mins, what = ",".join(f"{m:02d}" for m in minutes(cron)), f"{wiring.role} tick for {name}"
-    # A role whose tick leaves a process behind (the wagon master's detached landing, plan 0294 D24) must not lose
+    # A role whose tick leaves a process behind (the tollman's detached landing, plan 0294 D24) must not lose
     # it to systemd's default, which kills the unit's whole control group when the tick ends.
     keep = "KillMode=process\n" if wiring.carries else ""
     service = (f"[Unit]\nDescription={what}\n\n[Service]\nType=oneshot\n{keep}WorkingDirectory={top}\n"
-               + "".join(f"Environment={k}={v}\n" for k, v in env().items())
+               + "".join(f"Environment={k}={v}\n" for k, v in env(wiring).items())
                + f"ExecStart={' '.join(argv(top, wiring))}\n"
                f"StandardOutput=append:{state / 'tick.log'}\nStandardError=append:{state / 'tick.log'}\n")
     timer = (f"[Unit]\nDescription={what}\n\n[Timer]\nOnCalendar=*-*-* *:{mins}:00\n"

@@ -110,7 +110,7 @@ masterplan and its `handoff.md`; then, in place of the first **Next** task:
    order is the foreman's, and `ready` knows Needs and Touches, not urgency. The handoff names none: say so and stop.
 2. `python3 <plan-skill-dir>/scripts/plan.py ready --json` must list that plan's row under `ready`. Otherwise say
    why (its `why` under `waiting`, or that the row is `running` or `blocked`) and stop.
-3. `plan.py use <that plan>`, then one autogrill round on it (`/grill auto`) against the landed work of the rows it
+3. `plan.py use <that plan>`, then one autogrill round on it (`/grill-plan auto`) against the landed work of the rows it
    needs: what those plans really built, not what they planned. Then `plan.py status <row> next --plan <the
    masterplan>`, and both `plan.md` files go into one commit.
 4. Continue as for any plan (step 5 above): the plan was approved with its masterplan.
@@ -380,9 +380,12 @@ python3 $S/decisions.py --check    # exit 1: one problem per line (no section, n
 ### 5. Commit the decision docs, the questions and a plan's handoff, never the root handoff
 
 ```bash
-bash $S/commit-handoff.sh "docs: record decisions" [plans/<plan>/plan.md plans/<plan>/decisions.md plans/<plan>/questions.md plans/<plan>/handoff.md .adr/<new>.md ...]
+bash $S/commit-handoff.sh "docs(plans): <what you recorded, e.g. the decisions and handoff of plan <NNNN>>" [plans/<plan>/plan.md plans/<plan>/decisions.md plans/<plan>/questions.md plans/<plan>/handoff.md .adr/<new>.md ...]
 ```
 
+The message is a descriptive Conventional Commits subject saying what the commit holds (never the worktree or the
+plan in it); the script adds the trailers `Worktree: <NN>` and, when `plans/CURRENT_PLAN` names a plan, `Plan:
+<NNNN>-<slug>` (hal2 plan 0355), before any `Co-Authored-By:`/`Claude-Session:` lines you pass.
 It commits exactly the docs you changed in steps 1, 2, 3b and 4 (the questions file too, when it changed; a record
 plan's `handoff.md` is one of them, its `plan.md` when step 3b changed `run`, and a decision record goes with its regenerated index: the `adr` skill),
 leaving everything else staged or unstaged as it was, and

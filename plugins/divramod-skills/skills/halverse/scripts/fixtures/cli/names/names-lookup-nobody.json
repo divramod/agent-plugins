@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "not_found",
+    "exit": 3,
+    "message": "nobody is named nobody",
+    "hint": "hal2-cli-halverse names lookup <name or farm/field>",
+    "details": {
+      "reason": "NO_NAMED",
+      "holder": null
+    }
+  }
+}

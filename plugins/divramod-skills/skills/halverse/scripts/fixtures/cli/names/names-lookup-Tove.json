@@ -1,0 +1,35 @@
+{
+  "named": [
+    {
+      "id": 2,
+      "name": "Tove",
+      "since": "2026-10-01T08:00:00Z",
+      "avatar": 31,
+      "earlier": [],
+      "postings": [
+        {
+          "place": {
+            "farm": "/farms/barley",
+            "farm_name": "barley",
+            "field": "03",
+            "folder": "/farms/barley/wt/03"
+          },
+          "role": "servant",
+          "from": "2026-10-01T08:00:00Z",
+          "to": "2026-10-10T17:00:00Z",
+          "plans": [
+            {
+              "label": "0040-old-plan",
+              "first_seen": "2026-10-01T08:00:00Z"
+            },
+            {
+              "label": "0041-next-plan",
+              "first_seen": "2026-10-01T08:00:00Z"
+            }
+          ]
+        }
+      ],
+      "by": "name"
+    }
+  ]
+}

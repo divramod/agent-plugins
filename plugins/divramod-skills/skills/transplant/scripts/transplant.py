@@ -11,7 +11,7 @@
 
 Every call prints JSON (advice: a line). Exit 0 done, 1 a stop (`stop` is a code, `advice` the way out), 2 a missing
 tool, 3 a refused `free`. A session starts only through create-worktree-session's `start` (`hal2-cli-git worktree
-run`) and stops only through delete-worktree-session's `stop.py` (by signal): never `claude` itself, never `/exit`.
+run`) and stops only through delete-field's `stop.py` (by signal): never `claude` itself, never `/exit`.
 """
 import argparse
 import importlib.util
@@ -26,9 +26,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import fieldgit  # noqa: E402
 
-SKILLS = HERE.parents[1]
-STOP = SKILLS / "delete-worktree-session/scripts/stop.py"
-CREATE = SKILLS / "create-worktree-session/scripts/create.py"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+STOP = sibling("delete-field") / "scripts/stop.py"
+CREATE = sibling("create-worktree-session") / "scripts/create.py"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 OPEN = ("driven", "arrived")
 ADVICE = {
@@ -88,7 +89,7 @@ def cli_json(repo: Path, *args: str) -> tuple[int, dict]:
 
 
 def sessions(main: Path) -> list[dict]:
-    """delete-worktree-session's `stop.py list`: the repository's running sessions."""
+    """delete-field's `stop.py list`: the repository's running sessions."""
     r = subprocess.run([sys.executable, str(STOP), "list", "--repo", str(main)], capture_output=True, text=True)
     if r.returncode != 0:
         fieldgit.die(f"stop.py list failed: {(r.stderr or r.stdout).strip()[-300:]}", 2 if r.returncode == 2 else 1)
@@ -124,7 +125,7 @@ def cmd_check(a) -> int:
              "another session", f"relay the user's order to it as a decision; it runs `/transplant {to}` itself")
     if to not in fieldgit.fields(main) and create_module().free_gb(main) < a.min_free_gb:
         halt("disk", f"field {to} must be created and fewer than {a.min_free_gb:g} GB are free",
-             "prune a field first (the farmer's prune duty), then run the same command again")
+             "prune a field first (the tollman's prune duty), then run the same command again")
     code, dry = cli_json(here, "worktree", "transplant", frm, to, "--dry-run", "--json")
     if dry.get("status") == "refused":
         refused = dry.get("refused") or {}

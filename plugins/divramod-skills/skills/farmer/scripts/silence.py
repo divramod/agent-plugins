@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Silence for a role's rounds (hal2 plan 0349 step 10, decision D6): `silence` / `unsilence` on `farmer.py` and
-`wagon_master.py`, kept in the marker file `silent` of the role's state folder (gitignored with the rest of it).
+`tollman.py`, kept in the marker file `silent` of the role's state folder (gitignored with the rest of it).
 
 A silenced round prints nothing but table lines, `| <role> | <what> | joined <fields> |`: the farmer one per round,
-the wagon master one per train (`joined`: the fields that rode it). A dry run, `--json` and the foremen stay as
+the tollman one per train (`joined`: the fields that rode it). A dry run, `--json` and the foremen stay as
 they are. A woken session of a silenced role keeps to the lines too and uses the fewest tool calls
-(`silent_lines` is the wagon master's own list, `round_lines` the default).
+(`silent_lines` is the tollman's own list, `round_lines` the default).
 """
 
 import sys

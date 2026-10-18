@@ -37,7 +37,9 @@ CHRONICLE = STATE_ROOT / "agents-chronicle"
 RECORDS = STATE_ROOT / "agents"
 PROJECTS = Path(os.environ.get("CLAUDE_PROJECTS_DIR", HOME / ".claude/projects"))
 DATA = Path(os.environ.get("SANITY_WATCH_DIR", HOME / "skills/sanity-watch"))
-PLAN_PY = Path(__file__).resolve().parents[2] / "plan" / "scripts" / "plan.py"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+PLAN_PY = sibling("plan") / "scripts" / "plan.py"
 
 MINUTE = 60_000
 RESUME_BUDGET = 2  # resumes per session ...

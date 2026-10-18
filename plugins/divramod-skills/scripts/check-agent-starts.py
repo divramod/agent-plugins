@@ -25,6 +25,8 @@ COMMENT = ("#",)
 TESTS = re.compile(r"(^|/)(tests?|fixtures)/|(^|/)test_[^/]*\.py$")
 ALLOWED = {
     "scripts/check-agent-starts.py": "this check's own patterns",
+    "skills/actions/lookout/scripts/judge.py":
+        "lookout's judge: a one-shot, tool-less print run without session persistence, no session (hal2 plan 0311 D22)",
 }
 
 

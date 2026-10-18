@@ -1,0 +1,38 @@
+/* get-state's table component (hal2 plan 0369, D5, D6): the grid section, its tools, filters and column menu. */
+.grid-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.grid-head h2 { flex: 1; }
+.grid-tools { position: relative; display: flex; gap: 6px; margin: 28px 0 8px; }
+.grid-note { margin: 0 0 8px; color: var(--muted); }
+.grid-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.grid-filters:empty { display: none; }
+.grid-tools button, .grid-filter, .page-refresh {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 10px; cursor: pointer; line-height: 1.5;
+}
+.grid-tools button:hover, .grid-filter:hover, .page-refresh:hover { background: var(--head); }
+.grid-filter.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.grid-filter .count { opacity: .75; font-size: 12px; }
+.grid-refresh.busy { opacity: .5; cursor: progress; }
+.grid-refresh.failed { border-color: #d70015; color: #d70015; }
+.page-refresh { position: absolute; top: 20px; right: 32px; }
+.grid-table th, .grid-table td { white-space: normal; overflow-wrap: anywhere; word-break: normal; text-overflow: clip; }
+.grid-table th { position: relative; cursor: pointer; user-select: none; padding-right: 18px; }
+.grid-table th.over { box-shadow: inset 3px 0 0 var(--accent); }
+.grid-table th .arrow { margin-left: 4px; color: var(--accent); }
+.grid-table th .grip { position: absolute; top: 0; right: 0; width: 6px; height: 100%; cursor: col-resize; }
+.grid-table th .grip:hover { background: var(--line); }
+.grid-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; min-width: 230px; padding: 6px 0;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18); font-size: 13px;
+}
+.grid-menu .menu-title { padding: 6px 12px 2px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.grid-menu .menu-item { display: flex; align-items: center; gap: 6px; padding: 3px 12px; cursor: pointer; }
+.grid-menu .menu-item:hover { background: var(--head); }
+.grid-menu .menu-item.off { color: var(--muted); cursor: default; }
+.grid-menu .menu-item.off:hover { background: none; }
+.grid-menu .check { width: 14px; flex: none; }
+.grid-menu .label { flex: 1; }
+.grid-menu .mv { border: 0; background: none; color: var(--fg); padding: 0 3px; cursor: pointer; font: inherit; }
+.grid-menu .mv:disabled { color: var(--line); cursor: default; }
+.grid-menu .menu-sep { height: 1px; margin: 6px 12px; background: var(--line); }

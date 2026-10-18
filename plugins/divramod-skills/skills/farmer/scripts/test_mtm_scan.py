@@ -3,7 +3,7 @@ import unittest
 
 import mtm_scan as scan
 import test_farmer
-import test_prune
+import worktree_farm
 
 
 def snap(**over):
@@ -86,22 +86,22 @@ class Findings(unittest.TestCase):
         w = [{"slot": "12", "ahead": 2, "agent_state": "working"}]
         self.assertEqual(scan.findings(snap(queue=q, worktrees=w)), [])
 
-    def test_a_landing_paused_by_a_fastlane_and_the_fastlane_itself_are_no_stuck_holders(self):
-        # hal2 plan 0228: the user's fastlane pauses the holder in place (`paused_by`), the holder resumes by itself;
-        # a chained fastlane's verification taken over is a paused fastlane ticket. None is woken or released.
+    def test_a_landing_paused_by_a_smuggle_and_the_smuggle_itself_are_no_stuck_holders(self):
+        # hal2 plan 0228: the user's smuggle pauses the holder in place (`paused_by`), the holder resumes by itself;
+        # a chained smuggle's verification taken over is a paused smuggle ticket. None is woken or released.
         held = {"slot": "12", "state": "held", "process_alive": False, "enqueued": "2026-10-03T02:33:17Z",
                 "hold": {"reason": "failed", "step": "gate", "attempts": 3}}
         w = [{"slot": "12", "ahead": 2, "agent_state": "sleeping", "agent_idle_seconds": 9000},
              {"slot": "41", "ahead": 1, "agent_state": "working"}]
         kinds = lambda q: [f["kind"] for f in scan.findings(snap(queue=q, worktrees=w))]  # noqa: E731
         by = {"slot": "41", "seq": 7, "since": "2026-10-12T10:00:00Z"}
-        fastlane = {"slot": "41", "state": "held", "process_alive": False, "hold": {"reason": "interrupted"},
-                    "fastlane": {"phase": "verifying", "since": "2026-10-12T10:01:00Z", "run": 5}}
+        smuggle = {"slot": "41", "state": "held", "process_alive": False, "hold": {"reason": "interrupted"},
+                    "smuggle": {"phase": "verifying", "since": "2026-10-12T10:01:00Z", "run": 5}}
         self.assertIn("held-idle", kinds([held]))
-        self.assertNotIn("held-idle", kinds([dict(held, paused_by=by), fastlane]))
-        self.assertNotIn("held-idle", kinds([fastlane]), "the user's fastlane is never released")
-        self.assertNotIn("held-idle", kinds([dict(fastlane, paused_by=by)]), "a verification taken over")
-        waiter = {"slot": "41", "state": "waiting", "process_alive": False, "fastlane": {"phase": "queued"}}
+        self.assertNotIn("held-idle", kinds([dict(held, paused_by=by), smuggle]))
+        self.assertNotIn("held-idle", kinds([smuggle]), "the user's smuggle is never released")
+        self.assertNotIn("held-idle", kinds([dict(smuggle, paused_by=by)]), "a verification taken over")
+        waiter = {"slot": "41", "state": "waiting", "process_alive": False, "smuggle": {"phase": "queued"}}
         self.assertNotIn("waiter-gone", kinds([dict(held, process_alive=True), waiter]))
 
     def test_high_load_during_a_landing_names_the_busy_slots(self):
@@ -380,13 +380,13 @@ class Priority(unittest.TestCase):
             argv = self.order("12", stdout=out, role=role, **kw)[1]
             return argv[argv.index("--by") + 1], argv[-1]
         self.assertEqual(by(), ("hal2/farmer-hal2", "--json"))
-        self.assertEqual(by(role="wagon-master"), ("hal2/wagon-master-hal2", "--json"))
+        self.assertEqual(by(role="tollman"), ("hal2/tollman-hal2", "--json"))
         self.assertEqual(by(by="user"), ("user", "--json"), "the farmer relaying the user's words")
-        self.assertEqual(scan.setter("/x/hal2", "wagon-master"), "hal2/wagon-master-hal2")
+        self.assertEqual(scan.setter("/x/hal2", "tollman"), "hal2/tollman-hal2")
 
 
 class Roles(unittest.TestCase):
-    """Hal2 plan 0294 step 5: the scan serves the wagon master's boss too. A hitched ticket (`worktree queue ready`,
+    """Hal2 plan 0294 step 5: the scan serves the tollman's boss too. A hitched ticket (`worktree queue ready`,
     no process by design) is no gone waiter, a role's field is no worktree with work to land, and the command line
     writes the folder of the role it is told."""
 
@@ -414,11 +414,11 @@ class Roles(unittest.TestCase):
                          [("waiter-gone", "07")])
 
     def test_a_standing_train_and_the_hitched_are_no_waiters_and_a_role_s_hold_is_its_own(self):
-        # Hal2 plan 0294 step 6: the wagon master's field carries every train; its ticket and the cars' have no
+        # Hal2 plan 0294 step 6: the tollman's field carries every train; its ticket and the cars' have no
         # process by design, and its red train's hold is the train engine's to move, never released by the boss.
         import tempfile
-        train = {"carrier": "wagon-master-hal2", "cars": [{"field": "07"}, {"field": "09"}, {"field": "11"}]}
-        q = [{"slot": "wagon-master-hal2", "state": "waiting", "pid": 0, "train": train}]
+        train = {"carrier": "tollman-hal2", "cars": [{"field": "07"}, {"field": "09"}, {"field": "11"}]}
+        q = [{"slot": "tollman-hal2", "state": "waiting", "pid": 0, "train": train}]
         q += [{"slot": s, "state": "waiting", "pid": 0, "ready": self.READY} for s in ("07", "09", "11")]
         with tempfile.TemporaryDirectory() as d:
             got = self.scan(d, q, [])
@@ -454,7 +454,7 @@ class Roles(unittest.TestCase):
         import tempfile
         from pathlib import Path
         with tempfile.TemporaryDirectory() as d:
-            names = ("04", "farmer-hal2", "wagon-master-hal2", "farmer")
+            names = ("04", "farmer-hal2", "tollman-hal2", "farmer")
             for n in names:
                 (Path(d) / n).mkdir()
             got = self.scan(d, [], [{"path": str(Path(d) / n), "branch": n} for n in names])
@@ -494,22 +494,22 @@ class Roles(unittest.TestCase):
         from unittest import mock
         with tempfile.TemporaryDirectory() as d, mock.patch.object(scan, "DATA", Path(d) / "state"), \
                 mock.patch.object(scan.shutil, "which", return_value="/bin/x"), mock.patch("sys.stdout"):
-            repo, wm = str(Path(d) / "hal2"), scan.state_dir(str(Path(d) / "hal2"), "wagon-master")
+            repo, wm = str(Path(d) / "hal2"), scan.state_dir(str(Path(d) / "hal2"), "tollman")
             Path(repo).mkdir()
             farmers = scan.state_dir(repo)
             (wm / "priority.json").write_text(json.dumps({"slots": ["07", "09"], "note": "n"}))
             for argv in (["pause", "--note", "ci is down"], ["record", "train", "07", "formed"],
                          ["priority", "--done", "07"]):
-                self.assertEqual(scan.main([*argv, "--repo", repo, "--role", "wagon-master"]), 0, argv)
+                self.assertEqual(scan.main([*argv, "--repo", repo, "--role", "tollman"]), 0, argv)
             self.assertEqual(json.loads((wm / "paused.json").read_text())["note"], "ci is down")
             self.assertEqual(json.loads((wm / "priority.json").read_text())["slots"], ["09"])
             self.assertEqual([e["kind"] for e in scan.entries(wm / "log.jsonl")], ["pause", "train", "priority"])
-            self.assertEqual(sorted(f.name for f in farmers.iterdir()), ["wagon-master"], "nothing of the farmer's")
+            self.assertEqual(sorted(f.name for f in farmers.iterdir()), ["tollman"], "nothing of the farmer's")
             self.assertEqual(scan.main(["record", "lead", "07", "told", "--repo", repo]), 0)
             self.assertEqual([e["kind"] for e in scan.entries(farmers / "log.jsonl")], ["lead"], "the default")
 
 
-class SubservantWork(test_prune.MarkedSlots):
+class SubservantWork(worktree_farm.MarkedSlots):
     """Review 1 finding 3: a marked worktree's work is measured against origin/<foreman>, never main, so a servant whose
     step its foreman merged is not restarted with /handoff c every 3 hours. 31: merged into origin/02; 32: not."""
 

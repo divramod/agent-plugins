@@ -70,7 +70,7 @@ class MtmCiTest(unittest.TestCase):
                               lambda rid: jobs.get(rid, []), 0)
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
                          [("07", "landed", ""), ("03", "failed", "04-xxx1hx/gate, 02-vhl1hx/rust-test")])
-        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("ship / deliver", "08-lmm1ha/linux-host-ship-start", "x / publish-claude-plugins",
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("ship / deliver", "08-lmm1ha/linux-host-ship-start", "x / publish-agent-plugins",
                                                          "06-lmm1ha/tmux-publish-hal9k")))
         self.assertFalse(mtm_ci.is_ship("06-xxx1hx/all-tag-versions"))
         self.assertEqual([mtm_ci.job_part(n) for n in ("merge", "a / merge", "05-xxx1hx/merge", "park")],
@@ -210,7 +210,7 @@ class MtmCiTest(unittest.TestCase):
         self.assertFalse(mtm_ci.cause(asking))  # not yet: it is one once its stop step ended
         rows = mtm_ci.summary([run(1, "land/01", status="in_progress", conclusion="")], lambda rid: [asking], 0)
         self.assertEqual([(r["outcome"], r["task"]) for r in rows], [("running", "")])
-        # Ending as mtm-fastlane's GITHUB_ENDING tells it: the stop step ended `success`, a gate job was cancelled.
+        # Ending as the smuggle skill's GITHUB_ENDING tells it: the stop step ended `success`, a gate job was cancelled.
         self.assertTrue(mtm_ci.ending([job("", failed, (stop, "success", "completed"))]))
         cut, skipped = (work, "cancelled", "completed"), (stop, "skipped", "completed")
         self.assertTrue(mtm_ci.ending([job("success", done, skipped), job("cancelled", cut, skipped)]))

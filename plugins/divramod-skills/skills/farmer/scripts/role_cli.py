@@ -1,6 +1,6 @@
 """What every role's command line shares over the round frame (hal2 plan 0294, step 5): the start check, a tick
-behind its lock and its mode gate, the timer, the wake items and the handoff. `farmer.py` and the wagon master
-skill's `wagon_master.py` call these with their own `roles.Wiring` and handlers, so neither copies the other.
+behind its lock and its mode gate, the timer, the wake items and the handoff. `farmer.py` and the tollman
+skill's `tollman.py` call these with their own `roles.Wiring` and handlers, so neither copies the other.
 
 State: the role's state folder (`roles/<role>/` of its field `<role>-<repo>`, roles.state_dir). Exit codes as
 farmer.py names them: 0 ok (also `busy`), 1 an invalid role file, 2 a tool missing, 3 no role file, 4 not the

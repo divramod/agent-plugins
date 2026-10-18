@@ -5,9 +5,11 @@
 
 aliases.json maps a shortcut to a skill and the arguments it puts in front of the user's own:
 {"c": {"skill": "handoff", "args": "continue"}} makes `/c` run `/handoff continue`. Each shortcut becomes
-skills/<shortcut>/SKILL.md, a stub that hands over to the target skill; it is model-invocation disabled, so only the
-user's typed `/<shortcut>` runs it. Stubs of shortcuts removed from aliases.json are deleted, and
-.claude-plugin/plugin.json lists exactly the skills on disk. --check changes nothing and exits 1 when anything is
+skills/<shortcut>/SKILL.md (flat tree), a stub that hands over to the target skill; it is model-invocation disabled, so only the
+user's typed `/<shortcut>` runs it. In a tree with categories (skills/actions/ exists) the stubs go to
+skills/shortcuts/<shortcut>/ (plan 0360, D55); the target is found flat or in any category, and the stub links it in
+the flat installed form `../<skill>/SKILL.md` (D19). Stubs of shortcuts removed from aliases.json are deleted, and
+.claude-plugin/plugin.json lists exactly the skills on disk by their real paths, sorted. --check changes nothing and exits 1 when anything is
 out of date (check-plugins.py runs it).
 """
 import json
@@ -37,30 +39,49 @@ def stub(alias: str, skill: str, args: str) -> str:
     )
 
 
+def skill_files(root: Path) -> list[Path]:
+    """Every SKILL.md of skills/<name>/ and skills/<category>/<name>/."""
+    return sorted([*(root / "skills").glob("*/SKILL.md"), *(root / "skills").glob("*/*/SKILL.md")])
+
+
+def find_skill(root: Path, name: str) -> Path | None:
+    """The SKILL.md of skill `name`, flat or in any category (skillpath's rules)."""
+    for path in [root / "skills" / name, *sorted((root / "skills").glob(f"*/{name}"))]:
+        if (path / "SKILL.md").is_file():
+            return path / "SKILL.md"
+    return None
+
+
+def stub_dir(root: Path, alias: str) -> Path:
+    """skills/shortcuts/<alias>/ in a tree with categories, else skills/<alias>/."""
+    categories = (root / "skills" / "actions").is_dir()
+    return root / "skills" / ("shortcuts" if categories else "") / alias
+
+
 def wanted_files(root: Path = ROOT) -> dict[Path, str]:
     """SKILL.md path -> content for every alias; raises ValueError on a bad entry."""
     files = {}
     for alias, entry in load_aliases(root).items():
         skill = entry.get("skill", "")
-        target = root / "skills" / skill / "SKILL.md"
-        if not target.is_file() or MARKER in target.read_text():
+        target = find_skill(root, skill)
+        if target is None or MARKER in target.read_text():
             raise ValueError(f"alias '{alias}': '{skill}' is not a skill of this repo")
-        own = root / "skills" / alias / "SKILL.md"
-        if own.is_file() and MARKER not in own.read_text():
-            raise ValueError(f"alias '{alias}' clashes with the skill skills/{alias}")
+        own = stub_dir(root, alias) / "SKILL.md"
+        existing = find_skill(root, alias)
+        if existing is not None and MARKER not in existing.read_text():
+            raise ValueError(f"alias '{alias}' clashes with the skill {existing.parent.relative_to(root)}")
         files[own] = stub(alias, skill, entry.get("args", ""))
     return files
 
 
 def stale_stubs(root: Path, wanted: dict[Path, str]) -> list[Path]:
-    return [p for p in sorted((root / "skills").glob("*/SKILL.md")) if MARKER in p.read_text() and p not in wanted]
+    return [p for p in skill_files(root) if MARKER in p.read_text() and p not in wanted]
 
 
 def plugin_skills(root: Path, wanted: dict[Path, str], stale: list[Path]) -> list[str]:
-    on_disk = {p.parent.name for p in (root / "skills").glob("*/SKILL.md")}
-    on_disk |= {p.parent.name for p in wanted}
-    on_disk -= {p.parent.name for p in stale}
-    return [f"./skills/{name}" for name in sorted(on_disk)]
+    on_disk = {p.parent for p in skill_files(root)} | {p.parent for p in wanted}
+    on_disk -= {p.parent for p in stale}
+    return sorted(f"./{p.relative_to(root).as_posix()}" for p in on_disk)
 
 
 def main(argv: list[str], root: Path = ROOT) -> int:
@@ -92,6 +113,8 @@ def main(argv: list[str], root: Path = ROOT) -> int:
     for p in stale:
         shutil.rmtree(p.parent)
         print(f"remove {p.parent.relative_to(root)}")
+        if p.parent.parent.name == "shortcuts" and not any(p.parent.parent.iterdir()):
+            p.parent.parent.rmdir()
     if manifest.get("skills") != skills:
         listing = "".join(f'\n    "{s}",' for s in skills).rstrip(",")
         # rewrite only the skills array, so the rest of the manifest keeps its formatting

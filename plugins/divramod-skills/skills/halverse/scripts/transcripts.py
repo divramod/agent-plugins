@@ -43,11 +43,11 @@ _SLASH_FIRST = re.compile(r"^\s*/[A-Za-z][\w:.-]*(?=\s|$)")
 _GENERATED = re.compile(
     r"^\s*(?:"
     r"hal2 (?:stopped|resumed|watcher)\b"
-    r"|run /mfm(?: \([^)]*\))? first, then:"
-    r"|/mfm, then\b"
+    r"|run /(?:mfm|merge-from-main)(?: \([^)]*\))? first, then:"
+    r"|/(?:mfm|merge-from-main), then\b"
     r"|you are (?:a|an|the) [\w -]{0,30}(?:servant|agent|foreman|farmer|coordinator|steward)\b"
     r"|(?:owner|farmer|coordinator|project manager|merge-to-main boss)\b[^:\n]{0,60}:"
-    r"|wagon-master [^:\n]{0,60}:"  # the wagon master's messages: `wagon-master [<id>] (wagon train): ...`
+    r"|tollman [^:\n]{0,60}:"  # the tollman's messages: `tollman [<id>] (wagon train): ...`
     r"|# post watch digest"
     r"|<!--"
     r")", re.I)

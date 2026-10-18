@@ -1,4 +1,4 @@
-# divramod-claude-code-plugins
+# agent-plugins
 
 divramod's Claude Code plugins, one marketplace: agent skills and live panes for Claude Code.
 
@@ -11,13 +11,13 @@ divramod's Claude Code plugins, one marketplace: agent skills and live panes for
 ## Install
 
 ```
-claude plugin marketplace add divramod/divramod-claude-code-plugins
-claude plugin install divramod-skills@divramod-claude-code-plugins
-claude plugin install divramod-subagent-context@divramod-claude-code-plugins
-claude plugin install hal2-mcp@divramod-claude-code-plugins
+claude plugin marketplace add divramod/agent-plugins
+claude plugin install divramod-skills@agent-plugins
+claude plugin install divramod-subagent-context@agent-plugins
+claude plugin install hal2-mcp@agent-plugins
 ```
 
-In a session the same works as `/plugin marketplace add divramod/divramod-claude-code-plugins`, then `/plugin`.
+In a session the same works as `/plugin marketplace add divramod/agent-plugins`, then `/plugin`.
 Codex finds its marketplace in `.agents/plugins/marketplace.json` (the skills and hal2-mcp) when this repository is added
 as a Codex marketplace.
 
@@ -26,10 +26,10 @@ as a Codex marketplace.
 An installed plugin updates when its version changes:
 
 ```
-claude plugin marketplace update divramod-claude-code-plugins
-claude plugin update divramod-skills@divramod-claude-code-plugins
-claude plugin update divramod-subagent-context@divramod-claude-code-plugins
-claude plugin update hal2-mcp@divramod-claude-code-plugins
+claude plugin marketplace update agent-plugins
+claude plugin update divramod-skills@agent-plugins
+claude plugin update divramod-subagent-context@agent-plugins
+claude plugin update hal2-mcp@agent-plugins
 ```
 
 Restart Claude Code afterwards, or turn on auto-update for this marketplace in `/plugin` under Marketplaces.
@@ -37,7 +37,7 @@ Restart Claude Code afterwards, or turn on auto-update for this marketplace in `
 ## How it is released
 
 This repository is a mirror. Every plugin is developed in [divramod/hal2](https://github.com/divramod/hal2)
-(`code/claude-code/apps/<name>`), and every landing there that changes a plugin publishes it here: the plugin's
+(`code/agents/apps/<name>`), and every landing there that changes a plugin publishes it here: the plugin's
 tracked files go to `plugins/<name>/`, the marketplace files are generated from the plugins' `plugin.json`, and one
 commit names the hal2 commit it came from (`Hal2-Source`, `Hal2-Tree` trailers). hal2's landing bumps a plugin's
 version and the publish tags it (`<plugin>--v<version>`).

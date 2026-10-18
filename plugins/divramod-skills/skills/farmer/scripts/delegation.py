@@ -1,7 +1,7 @@
 """Delegation as code (SKILL.md "Delegate a fix", plan 0007 step 4): a brief from a template, the foreman limit, an
 idle session first (list-free-worktrees' free.py) or a new one (create-worktree-session's create.py), the foreman's
 prompt, the ledger `delegations.jsonl`, and the follow-up: a foreman whose plan has landed is recorded and its idle
-session stopped (delete-worktree-session's stop.py).
+session stopped (delete-field's stop.py).
 
 The sessions the farmer hands plans to (the user's glossary: foremen; `servant_*` in the names here) work in the first free
 worktree counting from 00 (plan 0270, D13: "the farmer should start in the first free worktree from 00"): a free
@@ -33,14 +33,15 @@ import mtm_scan
 import roles
 import transplants
 
-SKILLS = Path(__file__).resolve().parents[2]
-FREE = [sys.executable, str(SKILLS / "list-free-worktrees/scripts/free.py")]
-CREATE = [sys.executable, str(SKILLS / "create-worktree-session/scripts/create.py")]
-STOP = [sys.executable, str(SKILLS / "delete-worktree-session/scripts/stop.py"), "stop"]
-SESSION = [sys.executable, str(SKILLS / "plan/scripts/session.py")]
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+FREE = [sys.executable, str(sibling("list-free-worktrees") / "scripts/free.py")]
+CREATE = [sys.executable, str(sibling("create-worktree-session") / "scripts/create.py")]
+STOP = [sys.executable, str(sibling("delete-field") / "scripts/stop.py"), "stop"]
+SESSION = [sys.executable, str(sibling("plan") / "scripts/session.py")]
 SWITCH = ["hal2-cli-agents", "switch"]
 FROM = 0  # the first worktree a farmer-started session may work in (plan 0270, D13); a foreman's own servants: 30-99
-TO = 29  # the last one: a foreman never works in 30-99, where the wagon master refuses its wagon (plan 0333, D11)
+TO = 29  # the last one: a foreman never works in 30-99, where the tollman refuses its wagon (plan 0333, D11)
 NO_FIELD = f"no free field {FROM:02d}-{TO:02d}"
 NO_FREE_EXIT = 3  # create.py: no free and clean worktree in its range
 SETTLE = dt.timedelta(minutes=30)  # a foreman younger than this has not started its plan yet

@@ -7,8 +7,8 @@
     "name": "Arvid Petermann",
     "url": "https://github.com/divramod"
   },
-  "homepage": "https://github.com/divramod/divramod-claude-code-plugins/tree/main/plugins/divramod-subagent-context",
-  "repository": "https://github.com/divramod/divramod-claude-code-plugins",
+  "homepage": "https://github.com/divramod/agent-plugins/tree/main/plugins/divramod-subagent-context",
+  "repository": "https://github.com/divramod/agent-plugins",
   "license": "MIT",
   "keywords": [
     "claude-code-mod",

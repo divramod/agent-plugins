@@ -18,9 +18,9 @@ whose reservation went. It sends nothing: the caller does (SendMessage).
 --instruct stamps every message with the farmer's ack id (acks.py instruct: the farmer session). Exit 2 when
 hal2-cli-git is missing, 1 when hal2 refuses the order.
 
-A `land` message is the boss's go (`<boss>: land now`): on a farm with a working wagon master (hal2 plan 0294; the
-farmer skill's roles.boss asks the mtm skill's wagon-master.sh) it is sent in the wagon master's boss's name and says
-that /mtm reports the work ready for the next train; on a farm without one it is the line as ever.
+A `land` message is the boss's go (`<boss>: land now`): on a farm with a working tollman (hal2 plan 0294; the
+farmer skill's roles.boss asks the mtm skill's tollman.sh) it is sent in the tollman's boss's name and says
+that /merge-to-main reports the work ready for the next train; on a farm without one it is the line as ever.
 """
 import argparse
 import json
@@ -30,14 +30,16 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-FARMER = Path(__file__).resolve().parents[2] / "farmer" / "scripts"
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+FARMER = sibling("farmer") / "scripts"
 ACKS = FARMER / "acks.py"
 sys.path.insert(0, str(FARMER))
 import roles  # noqa: E402  (the farmer skill's: who says `land now`)
 
 BOSS = roles.BOSS
 LANDS = {roles.BOSS: "it takes this reserved place and lands when its turn comes. What is committed lands",
-         roles.WAGON_MASTER_BOSS: "it reports your work ready at this reserved place and the wagon master's next "
+         roles.TOLLMAN_BOSS: "it reports your work ready at this reserved place and the tollman's next "
                                   "train lands it. What is committed and pushed lands"}
 
 
@@ -113,12 +115,12 @@ def messages(before: dict, after: dict, note: str, is_finished, boss=lambda: BOS
             pure = bool(t.get("reserved")) and not t.get("pid")
             if pure and is_finished(t["worktree"]):
                 who = boss()
-                kind, text = "land", (f"{who}: land now. The user put worktree {slot} at {of}{why}: run /mtm now, "
+                kind, text = "land", (f"{who}: land now. The user put worktree {slot} at {of}{why}: run /merge-to-main now, "
                                       f"{LANDS[who]}; unfinished steps land after it.")
             elif pure:
                 kind, text = "reserved", (f"farmer: the user reserved {of} for worktree {slot}{why}. Keep working: your "
-                                          "plan's end (/mtm) takes this place. It lands there, and at the front the "
-                                          "queue waits for you; where the farm has a wagon master it reports your "
+                                          "plan's end (/merge-to-main) takes this place. It lands there, and at the front the "
+                                          "queue waits for you; where the farm has a tollman it reports your "
                                           "work ready at this place and the next wagon train brings it in.")
             else:
                 kind, text = "place", (f"farmer: the user moved your landing to {of}{why}. Where the farm has a wagon "
@@ -134,7 +136,7 @@ def messages(before: dict, after: dict, note: str, is_finished, boss=lambda: BOS
         if t.get("reserved") and not t.get("pid") and t["slot"] not in gone:
             out.append({"slot": t["slot"], "kind": "unreserved", "worktree": t["worktree"],
                         "text": f"farmer: the user took worktree {t['slot']}'s reserved place out of the merge queue; "
-                                "land with /mtm as usual when your work is done."})
+                                "land with /merge-to-main as usual when your work is done."})
     return out
 
 

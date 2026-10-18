@@ -1,0 +1,42 @@
+{
+  "named": [
+    {
+      "id": 1,
+      "name": "Mira",
+      "since": "2026-10-14T09:00:00Z",
+      "avatar": 12,
+      "earlier": [],
+      "postings": [
+        {
+          "place": {
+            "farm": "/farms/barley",
+            "farm_name": "barley",
+            "field": "07",
+            "folder": "/farms/barley/wt/07"
+          },
+          "role": "foreman",
+          "from": "2026-10-14T09:00:00Z",
+          "to": null,
+          "plans": [
+            {
+              "label": "0042-sample-plan",
+              "first_seen": "2026-10-14T09:00:00Z"
+            }
+          ]
+        },
+        {
+          "place": {
+            "farm": "/farms/meadow",
+            "farm_name": "meadow",
+            "field": "02",
+            "folder": "/farms/meadow/wt/02"
+          },
+          "role": "foreman",
+          "from": "2026-10-15T09:00:00Z",
+          "to": null,
+          "plans": []
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,7 @@ instruction is sent once more; still none ACK_AFTER later, the farmer is woken (
 `ack` and `ack-resend:<id>` entries.
 
 Another role (hal2 plan 0294) stamps with its own name and keeps its own log: `--role <role>` here, `role` in
-`stamp`, `stamped_id` and `stamp_send` (`wagon-master [<id>]: ...`, replies to the wagon-master session).
+`stamp`, `stamped_id` and `stamp_send` (`tollman [<id>]: ...`, replies to the tollman session).
 """
 
 import argparse

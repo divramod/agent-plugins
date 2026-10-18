@@ -19,7 +19,7 @@ Land worktree 04's cleanup train (04 + 06, 08, 11, 16, 20, 22) on main, so every
 
 - [CLAUDE.md](CLAUDE.md): layout, commands, rules
 - [INTENT.md](INTENT.md): 2026-10-06 rows (Swift abandoned, the cleanup train, a red landing keeps the queue)
-- [docs/ci.md](docs/ci.md) "Landings", `~/.claude/skills/mtm/references/ci.md` (watch the run every 5 min)
+- [docs/ci.md](docs/ci.md) "Landings", `~/.claude/skills/merge-to-main/references/ci.md` (watch the run every 5 min)
 
 ## Done
 

@@ -6,8 +6,8 @@
     "name": "Arvid Petermann",
     "url": "https://github.com/divramod"
   },
-  "homepage": "https://github.com/divramod/divramod-claude-code-plugins/tree/main/plugins/hal2-mcp",
-  "repository": "https://github.com/divramod/divramod-claude-code-plugins",
+  "homepage": "https://github.com/divramod/agent-plugins/tree/main/plugins/hal2-mcp",
+  "repository": "https://github.com/divramod/agent-plugins",
   "license": "MIT",
   "keywords": ["mcp", "hal2", "mcp-server"]
 }

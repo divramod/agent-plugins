@@ -29,7 +29,7 @@ class Sources(FakeCli):
         data, known = ontology.lookup(sources.load(), "bring in")
         self.assertTrue(known)
         self.assertEqual(data["glossary"]["terms"], ["landing", "bring in"])
-        self.assertEqual(data["pair"]["command"], "/mtm")
+        self.assertEqual(data["pair"]["command"], "/merge-to-main")
 
 
 class Cli(FakeCli):
@@ -55,7 +55,7 @@ class Cli(FakeCli):
         self.assertEqual(code, 0)
         self.assertIn("glossary (landing, bring in)", out)
         self.assertIn("ontology, Activities: bring in", out)
-        self.assertIn("command: /mtm", out)
+        self.assertIn("command: /merge-to-main", out)
 
     def test_an_old_word_finds_its_pair(self):
         _, out, _ = self.call("mtm", "--json")

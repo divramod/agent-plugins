@@ -36,6 +36,29 @@ class CommitHandoffTest(unittest.TestCase):
         lines = run(self.repo, "git", "show", "--name-status", "--format=%s", "HEAD").stdout.split("\n")
         return lines[0], sorted(filter(None, lines[1:]))
 
+    def message(self):
+        return run(self.repo, "git", "log", "-1", "--format=%B").stdout.rstrip("\n")
+
+    def test_the_origin_goes_into_trailers_before_the_attribution(self):
+        (self.repo / "plans").mkdir()
+        (self.repo / "plans" / "CURRENT_PLAN").write_text("0355-commit-standards\n")
+        (self.repo / "INTENT.md").write_text("# Intent\n")
+        attribution = "Co-Authored-By: C <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_1"
+
+        result = self.commit(f"docs(plans): record the decisions of plan 0355\n\n{attribution}", "INTENT.md")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.message(), "docs(plans): record the decisions of plan 0355\n\n"
+                         f"Worktree: {self.repo.name}\nPlan: 0355-commit-standards\n{attribution}")
+
+    def test_without_a_plan_only_the_worktree_trailer_and_a_given_one_is_kept(self):
+        (self.repo / "INTENT.md").write_text("# Intent\n")
+        self.assertEqual(self.commit("docs: note\n\nWorktree: 07", "INTENT.md").returncode, 0)
+        self.assertEqual(self.message(), "docs: note\n\nWorktree: 07")
+        (self.repo / "INTENT.md").write_text("# Intent 2\n")
+        self.assertEqual(self.commit("docs: note again", "INTENT.md").returncode, 0)
+        self.assertEqual(self.message(), f"docs: note again\n\nWorktree: {self.repo.name}")
+
     def test_commits_only_the_docs_and_ignores_the_handoff(self):
         (self.repo / "code.txt").write_text("staged\n")
         run(self.repo, "git", "add", "code.txt")

@@ -20,6 +20,9 @@ description: The farm's daybook, a daily list of what the user does not want to 
 | `... --farm <dir>` | another farm; `--date YYYY-MM-DD` another day, `--json` data |
 | `/daybook h` | print this table and stop |
 
+A watch a script can check runs in lookout (`/lookout`, the lookout skill: 0 tokens while quiet, plan 0311); the
+daybook's own CronCreate watches are for prompt-only checks.
+
 ## Run
 
 1. Run the call. Print its output as it is; a ref matching several items (exit 2) lists the candidates: ask the user

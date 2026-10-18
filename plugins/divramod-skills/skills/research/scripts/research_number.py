@@ -16,7 +16,9 @@ Run inside the repository or pass --root. Other clones are seen only through rem
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "plan" / "scripts"))
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+sys.path.insert(0, str(sibling("plan") / "scripts"))
 import plan_number  # noqa: E402  (the plan skill's numbering, shared)
 
 DIRS = ("research",)

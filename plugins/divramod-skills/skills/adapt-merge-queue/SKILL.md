@@ -39,10 +39,10 @@ hub): report it and stop.
 For each entry of `messages` (`slot`, `kind`, `worktree`, `text`): find the session working in `worktree`
 (ListAgents: the row whose path is that folder) and send `text` verbatim by SendMessage. No session there: say so in
 the report; the reservation still holds. Never edit a message: a `land` message's first line (`merge-to-main boss:
-land now`) is the user's go to land, as the boss sends it. In a repository with a working wagon master (the mtm
-skill's `scripts/wagon-master.sh` prints `yes`) the script writes that line in the wagon master's boss's name
-(`wagon-master (merge-to-main boss): land now`): the worktree's `/mtm` then reports its work ready at the reserved
-place and the wagon master's train lands it.
+land now`) is the user's go to land, as the boss sends it. In a repository with a working tollman (the mtm
+skill's `scripts/tollman.sh` prints `yes`) the script writes that line in the tollman's boss's name
+(`tollman (merge-to-main boss): land now`): the worktree's `/mtm` then reports its work ready at the reserved
+place and the tollman's train lands it.
 
 ## Report
 

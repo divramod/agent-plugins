@@ -14,6 +14,9 @@ import duties
 import lead_scan
 import tick
 
+import sys
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 IDLE_SINCE = dt.datetime(2026, 10, 4, 21, 24)
 NOW = dt.datetime(2026, 10, 5, 6, 45)
 SESSION = "2f91aa8a-412f-4ea2-95e0-fbe1bc07510b"
@@ -79,9 +82,8 @@ class SlotTwelveOvernight(unittest.TestCase):
 
 class RelayedGo(unittest.TestCase):
     def test_the_marker_is_documented_verbatim_where_it_is_accepted(self):
-        skills = Path(__file__).resolve().parents[2]
-        for doc in ("farmer/SKILL.md", "farmer/instructions/lead.md", "plan/SKILL.md", "mtm/SKILL.md"):
-            self.assertIn(duties.USER_DECIDED, (skills / doc).read_text(), doc)
+        for doc in ("farmer/SKILL.md", "farmer/instructions/lead.md", "plan/SKILL.md", "merge-to-main/SKILL.md"):
+            self.assertIn(duties.USER_DECIDED, (sibling(doc.split("/")[0]) / doc.split("/", 1)[1]).read_text(), doc)
 
     def test_a_relayed_go_quotes_the_users_words(self):
         self.assertEqual(duties.user_decided("12-3", 'go "1a" 2a'), "farmer [12-3]: the user decided: \"go '1a' 2a\"")

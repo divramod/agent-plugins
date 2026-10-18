@@ -12,7 +12,7 @@ import term_report
 import voiceink
 from fake_cli import REFUSED, TERM, InFolder, fixture
 
-RUST = os.path.join(fake_cli.HERE, *[os.pardir] * 6, "rust")
+RUST = os.path.join(fake_cli.HERE, *[os.pardir] * 7, "rust")
 STATES = ("no-store", "unknown-schema", "store-unavailable", "write-failed")
 
 

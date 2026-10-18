@@ -1,6 +1,6 @@
-"""The round's one scan (hal2 plan 0333 step 7): `duty:mtm` (the wagon master's `boss.handler`) takes a
+"""The round's one scan (hal2 plan 0333 step 7): `duty:mtm` (the tollman's `boss.handler`) takes a
 `mtm_scan.snapshot` and writes it to the role's `last-scan.json`; the round's summary and the orphans check used to
-take a second one (63 of the wagon master's 168 tick minutes on 2026-10-14). `scan` reads that file back when it is
+take a second one (63 of the tollman's 168 tick minutes on 2026-10-14). `scan` reads that file back when it is
 fresh and takes a new snapshot only when it is missing, unreadable or stale.
 
 Fresh: written during this round (its mtime at or after `since`, the round's start) or, without a round start,

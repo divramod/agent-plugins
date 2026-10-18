@@ -7,7 +7,7 @@ from unittest import mock
 
 import lead_marker
 import lead_scan as lead
-import test_prune
+import worktree_farm
 from test_farmer import git
 
 
@@ -115,7 +115,7 @@ class Transcript(unittest.TestCase):
             "-Users-mod--hal-git-worktree-hal2-04/x.jsonl"))
 
 
-class StepDone(test_prune.MarkedSlots):
+class StepDone(worktree_farm.MarkedSlots):
     """Review 1 finding 12: lead_marker.step_done on real worktrees (foreman 02, plan 0013-parallel-plans, step 4).
     31: merged into origin/02 without a report; 32: not merged."""
 

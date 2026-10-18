@@ -2,7 +2,9 @@
 
 `terms --json` prints `terms.json`, `terms --json --lang de` `terms-de.json`, `ontology --json` `ontology.json`, `check --json`
 `check.json`; a `term` call the file of its words, `term add --from - --dry-run` `term-add-dry.json`, `term short set`
-`term-short-set.json` (plan 0276 step 11). The exit code is the CLI's: 1 for a check whose `ok` is false, 2 for a file
+`term-short-set.json` (plan 0276 step 11). A `names <leaf>` call prints `names-<leaf>.json`, or `names-<leaf>-<its first
+argument>.json` where that file exists (plan 0283 step 4; hand-written in `fixtures/cli/names/` after the CLI's shapes,
+every name invented); a file holding an `error` is printed on stderr with the error's own `exit`. The exit code is the CLI's: 1 for a check whose `ok` is false, 2 for a file
 with an `error` or one that is missing, and for a `term` call's error the code's own (3 refused, 4 `changed-meanwhile`
 and `locked`, 5 `failed`). Every call's arguments are appended to the log, and the document of a `--from -` to the
 documents' log. `answer` is a program that prints one answer whatever it is asked. The real CLI and the user's files
@@ -23,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CONTRACT = os.path.join(HERE, "fixtures", "cli", "contract")  # copies of the CLI's expected files
 SOURCES = os.path.join(HERE, "fixtures", "cli", "sources")  # the CLI's answers for fixtures/sources
 TERM = os.path.join(HERE, "fixtures", "cli", "term")  # the writing calls on the CLI's own fixtures, each going through
+NAMES = os.path.join(HERE, "fixtures", "cli", "names")  # the `names` commands' answers, invented names
 REFUSED = os.path.join(HERE, "fixtures", "cli", "term-refused")  # the same calls refused
 DOCUMENTS = os.path.join(HERE, "fixtures", "cli", "documents")  # the terms' documents the answers were recorded with
 
@@ -35,12 +38,19 @@ if "--from" in args:
 name = args[0] + ("-" + args[args.index("--lang") + 1] if "--lang" in args else "")
 if name == "term":
     name = "-".join(args[:3 if args[1] == "short" else 2]) + ("-dry" if "--dry-run" in args else "")
+if name == "names":
+    name = "names-" + args[1]
+    if len(args) > 2 and os.path.isfile(os.path.join({folder!r}, name + "-" + args[2] + ".json")):
+        name += "-" + args[2]
 path = os.path.join({folder!r}, name + ".json")
 if not os.path.isfile(path):
     print(json.dumps({{"error": {{"code": "usage", "message": "no fixture " + name, "detail": {{}}}}}}))
     sys.exit(2)
 text = open(path, encoding="utf-8").read()
 data = json.loads(text)
+if args[0] == "names" and "error" in data:
+    sys.stderr.write(text)
+    sys.exit(data["error"]["exit"])
 sys.stdout.buffer.write(text.encode("utf-8"))
 sys.stdout.flush()
 refused = {{"usage": 2, "unreadable": 2, "changed-meanwhile": 4, "locked": 4, "failed": 5}}

@@ -144,7 +144,7 @@ class Round(Repo):
         (self.slot / tick.ROLE).write_text(ROLE.replace("servant_limit: 2", "servant_limit: 3"))
         r = self.run_round()
         last = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=self.slot, capture_output=True, text=True)
-        self.assertEqual(last.stdout.strip(), "farmer-role: the user's change")
+        self.assertEqual(last.stdout.strip(), "chore(roles): apply the user's change to the farmer's role file")
         self.assertEqual(set(due.last_runs(str(self.slot))), {"duty:lead", "task:probe"})
         self.assertEqual([a["kind"] for a in r["wake"]], ["no-handler", "no-handler"])
         self.assertTrue(all(e["by"] == "tick" for e in self.log()))

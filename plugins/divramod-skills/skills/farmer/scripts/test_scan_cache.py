@@ -1,5 +1,5 @@
 """Plan 0333 step 7: a tick round takes one `mtm_scan.snapshot`, not two (the summary reuses the scan the mtm duty
-wrote to last-scan.json this round; 63 of the wagon master's 168 tick minutes on 2026-10-14 were the second one)."""
+wrote to last-scan.json this round; 63 of the tollman's 168 tick minutes on 2026-10-14 were the second one)."""
 
 import json
 import os

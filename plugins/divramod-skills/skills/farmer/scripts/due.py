@@ -42,7 +42,7 @@ DUTIES = roles.FARMER.duties  # the farmer's duty names; another role passes its
 NOTIFY = ("every-round", "hourly", "daily", "never")
 # A foreman's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
 SERVANT_MODEL, SERVANT_EFFORT = "opus", "medium"
-# A role's own session (the wagon master, hal2 plan 0333, D4): its effort when it starts and after every clear.
+# A role's own session (the tollman, hal2 plan 0333, D4): its effort when it starts and after every clear.
 SESSION_EFFORT = "high"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 MODEL = re.compile(r"^[a-z][a-z0-9.\-]*(\[1m\])?$")
