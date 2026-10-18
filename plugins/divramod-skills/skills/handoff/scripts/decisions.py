@@ -282,12 +282,12 @@ def main(argv: list[str]) -> int:
         print("decisions.py: git is missing; run install-prerequisites.sh", file=sys.stderr)
         return 2
     root = Path(git("rev-parse", "--show-toplevel") or ".").resolve()
-    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    main_name = Path(common).parent.name if common else root.name
     if args.check:
         problems = check(root)
         print("\n".join(problems) or "ok")
         return 1 if problems else 0
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")  # the main checkout's name, not --check's
+    main_name = Path(common).parent.name if common else root.name
     r = collect(root, main_name, args.farmer_repo)
     if args.json:
         print(json.dumps(r, indent=1))

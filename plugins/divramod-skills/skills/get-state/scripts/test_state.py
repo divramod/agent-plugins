@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import datetime as dt
 import io
@@ -41,6 +42,56 @@ def now_iso(minutes_ago: int = 0) -> str:
     return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes_ago)).isoformat()
 
 
+def build_farm(root: Path) -> None:
+    """The fixture's git part, built once per process (`template`) and copied per test (`copy_farm`)."""
+    origin, main, wt = root / "proj.git", root / "proj", root / "wt"
+    git(root, "init", "-q", "--bare", "-b", "main", str(origin))
+    git(root, "clone", "-q", str(origin), str(main))
+    for k, v in (("user.email", "t@t"), ("user.name", "t")):
+        git(main, "config", k, v)
+    (main / "README").write_text("x")
+    git(main, "add", ".")
+    git(main, "commit", "-qm", "init")
+    git(main, "push", "-q", "origin", "main")
+    git(main, "remote", "set-head", "origin", "main")
+    for name in ("10", "02", "1", "farmer-x", ".deliver", "gone"):
+        git(main, "worktree", "add", "-q", "-b", name.lstrip("."), str(wt / name))
+    shutil.rmtree(wt / "gone")  # prunable
+    plan_dir = wt / "02/plans/0042-the-answer"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text(PLAN)
+    (wt / "02/plans/CURRENT_PLAN").write_text("0042-the-answer\n")
+    (wt / "10/plans").mkdir()
+    (wt / "10/plans/CURRENT_PLAN").write_text("my-shots/3/fix-the-thing\n")
+    (wt / "1/plans").mkdir()
+    (wt / "1/plans/CURRENT_PLAN").write_text("")
+
+
+_TEMPLATE: list[Path] = []
+
+
+def template() -> Path:
+    if not _TEMPLATE:
+        root = Path(tempfile.mkdtemp())
+        atexit.register(shutil.rmtree, root, True)
+        build_farm(root)
+        _TEMPLATE.append(root)
+    return _TEMPLATE[0]
+
+
+def copy_farm(source: Path, dest: Path) -> None:
+    """A copy of the template whose absolute links (the origin's url, each worktree's gitdir both ways) name `dest`."""
+    shutil.copytree(source, dest, symlinks=True, dirs_exist_ok=True)
+    new = os.path.realpath(dest)
+    links = [dest / "proj/.git/config", *(dest / "proj/.git/worktrees").glob("*/gitdir"),
+             *(w / ".git" for w in (dest / "wt").iterdir() if (w / ".git").is_file())]
+    for f in links:
+        text = f.read_text()
+        for old in (os.path.realpath(source), str(source)):
+            text = text.replace(old, new)
+        f.write_text(text)
+
+
 class Fixture(unittest.TestCase):
     """A main checkout `proj` with an origin, worktrees 02, 10, 1 and farmer-x beside it (not under ~/.hal), a dot
     checkout `.deliver` and a prunable `gone`; the outside tools are mocked."""
@@ -48,27 +99,9 @@ class Fixture(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        origin, self.main, self.wt = self.tmp / "proj.git", self.tmp / "proj", self.tmp / "wt"
-        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(origin))
-        git(self.tmp, "clone", "-q", str(origin), str(self.main))
-        for k, v in (("user.email", "t@t"), ("user.name", "t")):
-            git(self.main, "config", k, v)
-        (self.main / "README").write_text("x")
-        git(self.main, "add", ".")
-        git(self.main, "commit", "-qm", "init")
-        git(self.main, "push", "-q", "origin", "main")
-        git(self.main, "remote", "set-head", "origin", "main")
-        for name in ("10", "02", "1", "farmer-x", ".deliver", "gone"):
-            git(self.main, "worktree", "add", "-q", "-b", name.lstrip("."), str(self.wt / name))
-        shutil.rmtree(self.wt / "gone")  # prunable
+        self.main, self.wt = self.tmp / "proj", self.tmp / "wt"
+        copy_farm(template(), self.tmp)
         self.plan_dir = self.wt / "02/plans/0042-the-answer"
-        self.plan_dir.mkdir(parents=True)
-        (self.plan_dir / "plan.md").write_text(PLAN)
-        (self.wt / "02/plans/CURRENT_PLAN").write_text("0042-the-answer\n")
-        (self.wt / "10/plans").mkdir()
-        (self.wt / "10/plans/CURRENT_PLAN").write_text("my-shots/3/fix-the-thing\n")
-        (self.wt / "1/plans").mkdir()
-        (self.wt / "1/plans/CURRENT_PLAN").write_text("")
         self.data = self.tmp / "state"
         self.mock(fl.roles, "OVERRIDE", self.data)
         self.set_tools()

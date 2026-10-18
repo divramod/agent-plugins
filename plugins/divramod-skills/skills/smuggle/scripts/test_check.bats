@@ -1,12 +1,13 @@
 #!/usr/bin/env bats
 # check.sh on the templates filled in a scratch repository.
 
-setup() {
+load test_helper
+
+# The template (test_helper.bash): a repository with the filled scripts and conf, on the branch feature.
+build() {
   here="$BATS_TEST_DIRNAME"
-  tmp="$(cd "$(mktemp -d)" && pwd -P)"
-  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
   git init -q -b main "$tmp/repo"
-  cd "$tmp/repo"
+  cd "$tmp/repo" || return
   mkdir -p .hal .github/workflows code/rust
   echo 'on: push' > .github/workflows/merge-to-main.yml
   git add . && git commit -q -m init
@@ -22,7 +23,21 @@ skip linux-e2e \"needs Linux and Docker\""
   echo 'fn main() {}' > code/rust/main.rs && git add . && git commit -q -m rust
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  cd "$tmp/repo" || return
+}
+
+teardown() { fixture_drop; }
 
 fill() { # fill <template> <out> <body>: the placeholders as configure fills them
   BODY="$3" awk '/^@CHECKS@$|^@STEPS@$/ {print ENVIRON["BODY"]; next} {print}' "$1" \

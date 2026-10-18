@@ -53,6 +53,32 @@ class SmuggleMode(unittest.TestCase):
         self.assertEqual(planned({"queue": self.QUEUE}), [])
         self.assertEqual(planned({"queue": self.QUEUE, "mode": dict(SMUGGLE, mode="production")}), [])
 
+    def test_the_effective_mode_of_an_entry(self):
+        smuggle, production = {"mode": "smuggle"}, {"mode": "production"}
+        self.assertEqual(queue_mode.effective({}, smuggle), "smuggle", "no field: the queue's")
+        self.assertEqual(queue_mode.effective({}, {}), "production")
+        self.assertEqual(queue_mode.effective({"mode": "smuggle"}, production), "smuggle", "an older CLI: its own mode")
+        self.assertEqual(queue_mode.effective({"mode": None, "effective_mode": "production"}, smuggle), "production")
+        self.assertEqual(queue_mode.effective({"mode": "smuggle", "effective_mode": "smuggle"}, production), "smuggle")
+
+    def test_an_entry_set_to_smuggle_is_told_in_production_mode_once(self):
+        doc = {"queue": [hitched("07", mode="smuggle", effective_mode="smuggle", seq=41),
+                         hitched("09", mode=None, effective_mode="production", seq=42)]}
+        out = planned(doc)
+        self.assertEqual([(a["slot"], a["key"]) for a in out], [("07", "smuggle-mode:07:entry41")])
+        self.assertIn("set to smuggle", out[0]["text"])
+        self.assertTrue(out[0]["text"].startswith(queue_mode.LEAD + ": smuggle mode: run /merge-to-main now"))
+        log = [{"at": NOW.isoformat(), "key": out[0]["key"]}]
+        self.assertEqual(planned(doc, log), [], "told once")
+        self.assertEqual(len(planned({"queue": [hitched("07", mode="smuggle", seq=43)]}, log)), 1, "a new entry")
+
+    def test_an_entry_in_production_is_not_told_in_smuggle_mode(self):
+        doc = {"mode": SMUGGLE, "queue": [hitched("07", mode="production", effective_mode="production", seq=1),
+                                           hitched("09", mode=None, effective_mode="smuggle", seq=2),
+                                           hitched("12")]}
+        self.assertEqual([a["slot"] for a in planned(doc)], ["09", "12"], "12: no fields, the queue's mode")
+        self.assertEqual(planned(doc)[0]["key"], "smuggle-mode:09:2026-10-17T12:00:00Z")
+
     def test_the_lead_round_carries_it(self):
         self.assertIs(farmer.HANDLERS["duty:lead"], queue_mode.plan_lead)
         out = queue_mode.plan_lead({}, ctx(), {"queue": [hitched("07")], "mode": SMUGGLE}, {"needs_help": []})

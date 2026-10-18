@@ -208,12 +208,17 @@ def alive(pid) -> bool:
     to another process since, after a restart of the machine, is not it). Where `ps` cannot say, the pid decides."""
     if not mtm_scan.pid_alive(pid):
         return False
-    try:
-        command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True,
-                                 timeout=10).stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
-        return True
+    command = command_of(pid)
     return not command or "engine.py" in command
+
+
+def command_of(pid) -> str | None:
+    """`ps`'s command line of the process `pid`: "" when it names none, None when `ps` cannot run."""
+    try:
+        return subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 def result(main: str) -> dict | None:

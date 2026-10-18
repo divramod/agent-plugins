@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 import halverse
+import fake_cli
 import voiceink
 
 SYNC = {"dry_run": False, "changed": True, "backup": "/state/backups/20261013T120000.store",
@@ -31,6 +32,7 @@ class Fake(unittest.TestCase):
     """A fake hal2-cli-voiceink: a script printing fixture JSON and exiting with D15's codes. The real CLI and store are never touched."""
 
     def setUp(self):
+        fake_cli.in_process(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.tmp.name, "hal2-cli-voiceink")
         self.log = os.path.join(self.tmp.name, "args.txt")

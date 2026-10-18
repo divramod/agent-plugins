@@ -53,7 +53,7 @@ def start_check(repo: str, wiring: roles.Wiring) -> tuple[int, dict]:
     problem = tick.slot_problem(repo, wiring)
     if problem:
         return 4, {"ok": False, "problems": [problem]}
-    top = tick.git(repo, "rev-parse", "--show-toplevel")
+    top = tick.toplevel(repo)
     role = Path(top) / wiring.role_file
     if not role.exists():
         hint = " (template: templates/ROLE.md)" if (wiring.skill / "templates/ROLE.md").exists() else ""
@@ -133,7 +133,7 @@ def follow_cron(repo: str, wiring: roles.Wiring) -> None:
     code, check = start_check(repo, wiring)
     st = state(repo, wiring)
     if code == 0 and timer.installed(st).get("cron") not in (None, check["loop_cron"]):
-        timer.install(due.repo_name(repo), tick.git(repo, "rev-parse", "--show-toplevel"), st, check["loop_cron"],
+        timer.install(due.repo_name(repo), tick.toplevel(repo), st, check["loop_cron"],
                       wiring=wiring)
         print(f"timer: loop cron now {check['loop_cron']}")
 
@@ -152,7 +152,7 @@ def run_timer(args, wiring: roles.Wiring) -> int:
         if code:
             print("\n".join(f"- {x}" for x in check["problems"]), file=sys.stderr)
             return code
-        top = tick.git(args.repo, "rev-parse", "--show-toplevel")
+        top = tick.toplevel(args.repo)
         try:
             cmds = timer.install(name, top, st, check["loop_cron"], args.dry_run, wiring)
         except (RuntimeError, ValueError) as e:
@@ -186,7 +186,7 @@ def run_handoff(args, wiring: roles.Wiring) -> int:
     if not args.clear:
         print(handoff.show(main, wiring))
         return 0
-    top = tick.git(args.repo, "rev-parse", "--show-toplevel") or args.repo
+    top = tick.toplevel(args.repo) or args.repo
     code, what = handoff.clear(top, main, datetime.datetime.now(), wiring)
     print(what)
     return code

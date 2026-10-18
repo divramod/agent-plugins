@@ -6,6 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
@@ -23,8 +24,11 @@ class TriageCli(unittest.TestCase):
     def setUp(self):
         self.main = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.main, True)
+        home = Path(tempfile.mkdtemp())  # the tollman's field lies under the home: never the real ~/.hal
+        self.addCleanup(shutil.rmtree, home, True)
         for p in (mock.patch.object(triage.mtm_scan, "main_checkout", lambda top: self.main),
-                  mock.patch.object(triage, "main_head", lambda main: "")):
+                  mock.patch.object(triage, "main_head", lambda main: ""),
+                  mock.patch.object(Path, "home", return_value=home)):
             p.start()
             self.addCleanup(p.stop)
         train_state.folder(self.main).mkdir(parents=True)

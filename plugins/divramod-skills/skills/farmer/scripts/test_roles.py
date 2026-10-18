@@ -48,6 +48,25 @@ class Repo(unittest.TestCase):
         no_override.start()
         self.addCleanup(no_override.stop)
 
+    def test_the_main_checkout_and_the_origin_are_asked_once_per_folder_while_it_exists(self):
+        """A round asks them for every state file it touches: one `git` spawn per folder, not per call."""
+        real, asked = roles.git, []
+        sub, plain = self.main / "sub", self.tmp / "plain"
+        sub.mkdir()
+        plain.mkdir()
+        with mock.patch.object(roles, "git", lambda repo, *a: asked.append(a[0]) or real(repo, *a)):
+            for _ in range(3):
+                self.assertEqual(roles.main_checkout(sub).resolve(), self.main.resolve())
+                self.assertEqual(roles.project(sub), "hal2")
+                self.assertEqual(roles.main_checkout(plain), plain)
+            self.assertEqual(asked.count("remote"), 1)
+            self.assertEqual(asked.count("rev-parse"), 1 + 3, "sub once, the folder outside git each time")
+            git(plain, "init", "-q")
+            self.assertEqual(roles.main_checkout(plain).resolve(), plain.resolve(), "found once it is a repository")
+            sub.rmdir()
+            self.assertEqual(roles.main_checkout(sub), sub, "a folder that is gone is asked again")
+        self.assertEqual(asked.count("rev-parse"), 1 + 3 + 2)
+
     def test_the_tollman_s_slot_and_state_folder(self):
         self.assertEqual(roles.slot_name(self.main, "tollman"), "tollman-hal2")
         slot = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"

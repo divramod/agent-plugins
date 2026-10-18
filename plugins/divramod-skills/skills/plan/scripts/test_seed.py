@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import testkit
+
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
@@ -34,7 +36,7 @@ class SeedTest(unittest.TestCase):
         base = Path(self.tmp.name).resolve()
         self.root, self.log = base / "repo", base / "log"
         self.root.mkdir()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
         self.cli = base / "fake-shooter"
         self.cli.write_text(FAKE)
         self.cli.chmod(0o755)
@@ -45,8 +47,8 @@ class SeedTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def new(self, *args, **env) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "new", "Tiny", *args],
-                              capture_output=True, text=True, env={**self.env, **env}, cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), "new", "Tiny", *args], env={**self.env, **env},
+                           cwd=self.root)
 
     def calls(self) -> list[str]:
         return self.log.read_text().splitlines() if self.log.exists() else []

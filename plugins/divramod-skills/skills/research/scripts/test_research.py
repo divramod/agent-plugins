@@ -1,7 +1,9 @@
 """research.py: scaffolding from the template, the front matter subset parser, check, set, log; the workflow's
 control flow through workflow_harness.mjs; every doc `new` writes passes hal2's records checker (hal2 plan 0214
 step 6: `$HAL2_CLI_RECORDS`, else `hal2-cli-records` on PATH; those tests are skipped without it)."""
+import contextlib
 import datetime as dt
+import io
 import json
 import os
 import re
@@ -11,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -95,8 +98,19 @@ class RepoTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_cli(self, *args):
-        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.root, env=ENV, text=True,
-                              capture_output=True)
+        """`research.py <args>` in the repository, run in this process (its main); the advisory test runs it as a
+        program."""
+        out, err, here = io.StringIO(), io.StringIO(), os.getcwd()
+        with mock.patch.dict(os.environ, ENV, clear=True), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            os.chdir(self.root)
+            try:
+                code = research.main(list(args))
+            except SystemExit as e:
+                code = e.code if isinstance(e.code, int) else int(e.code is not None)
+            finally:
+                os.chdir(here)
+        return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
 
     def cli_json(self, *args):
         result = self.run_cli(*args)

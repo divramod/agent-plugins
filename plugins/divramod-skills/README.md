@@ -111,6 +111,8 @@ The skills repository's own rules (its AGENTS.md), kept for this unit:
   (`check-agent-starts.py`).
 - **Verify**: build and run what you changed, run its tests, add a test where none covers it, say what you could not
   verify.
+- **Tests**: fast on CI, never by dropping one ([fast-tests](../../../../.adr/fast-tests.md)); how, with this plugin's
+  helpers (`testkit.py`, `handoff_testkit.py`, `test_helper.bash`): [docs/fast-tests.md](../../../../docs/fast-tests.md).
 
 ## Develop
 

@@ -5,7 +5,13 @@ from unittest import mock
 
 import cli
 import fake_cli
-from fake_cli import FakeCli
+from fake_cli import FakeCli as InProcess
+
+
+class FakeCli(InProcess):
+    """The cases of the CLI boundary itself run the fake as a real process (fake_cli.py)."""
+
+    IN_PROCESS = False
 
 EXPECTED = os.path.join(fake_cli.HERE, *[os.pardir] * 7, "rust", "apps", "hal2-cli-halverse", "tests", "fixtures", "expected")
 
@@ -84,7 +90,7 @@ class Failures(FakeCli):
 
     def test_a_timeout_is_named(self):
         self.script("#!%s\nimport time\ntime.sleep(10)\n" % fake_cli.sys.executable)
-        with mock.patch.object(cli, "TIMEOUT", 0.5), self.assertRaises(cli.CliError) as caught:
+        with mock.patch.object(cli, "TIMEOUT", 0.1), self.assertRaises(cli.CliError) as caught:
             cli.call(["terms"])
         self.assertIn("no answer within", caught.exception.text)
         self.assertEqual(caught.exception.code, 1)

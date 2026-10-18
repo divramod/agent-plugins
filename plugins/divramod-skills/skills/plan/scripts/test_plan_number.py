@@ -1,5 +1,6 @@
 """plan_number.py: numbers stay unique across worktrees, branches, remotes and concurrent calls."""
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -20,19 +21,31 @@ def git(cwd, *args):
 
 
 class PlanNumberTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """The repository every test starts from, made once: main with plans/0001-first.md committed."""
+        cls.template = tempfile.TemporaryDirectory()
+        main = Path(cls.template.name) / "main"
+        main.mkdir()
+        git(main, "init", "-q", "-b", "main")
+        cls.add_plan(main, "0001-first.md", commit=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.template.cleanup()
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
         self.main = base / "main"
-        self.main.mkdir()
-        git(self.main, "init", "-q", "-b", "main")
-        self.add_plan(self.main, "0001-first.md", commit=True)
+        shutil.copytree(Path(self.template.name) / "main", self.main, symlinks=True)
         self.base = base
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def add_plan(self, tree, name, commit=False):
+    @staticmethod
+    def add_plan(tree, name, commit=False):
         plans = tree / "plans"
         plans.mkdir(parents=True, exist_ok=True)
         (plans / name).write_text(f"# {name}\n")

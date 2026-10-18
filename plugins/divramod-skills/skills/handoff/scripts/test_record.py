@@ -14,6 +14,7 @@ HERE = Path(__file__).resolve().parent
 PLAN = sibling("plan") / "scripts" / "plan.py"
 sys.path.insert(0, str(PLAN.parent))
 import checker  # noqa: E402  (the plan skill's: hal2's records checker, hal2 plan 0214 step 6)
+import handoff_testkit as kit  # noqa: E402
 
 needs_checker = unittest.skipUnless(checker.binary(), f"{checker.NAME} is not installed and ${checker.ENV} is unset")
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -41,15 +42,13 @@ class RecordHandoffTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(self.tmp.name).resolve()
-        self.run_in("git", "init", "-q", "-b", "main")
-        (self.repo / "a.txt").write_text("1\n")
-        self.commit_all("init")
+        kit.seed(self.repo, {"a.txt": "1\n"})
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_in(self, *args, check=True) -> subprocess.CompletedProcess:
-        return subprocess.run(args, cwd=self.repo, env=ENV, text=True, capture_output=True, check=check)
+        return kit.run(args, cwd=self.repo, env=ENV, check=check)
 
     def script(self, name: str, *args) -> subprocess.CompletedProcess:
         runner = ["bash"] if name.endswith(".sh") else [sys.executable]

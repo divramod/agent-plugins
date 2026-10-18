@@ -39,7 +39,8 @@ done
 need git
 repo_paths
 
-# Who started it (hal2 plan 0360 D53, D76): the user, or /mtm (--from-mtm) only in the queue's smuggle mode.
+# Who started it (hal2 plan 0360 D53, D76; 0365 D5): the user, or /mtm (--from-mtm) only while this worktree's mode (its entry's
+# own, else the queue's: `queue mode --slot`) is smuggle.
 started_by() {
   if [ "$from_mtm" = 0 ]; then
     echo "started by: the user"
@@ -47,8 +48,8 @@ started_by() {
   fi
   local mode
   mode=$(queue_mode)
-  [ "$mode" = smuggle ] || die 6 "refused: /mtm started this smuggle, but the merge queue is in $mode mode: \
-only the user starts a smuggle there; /mtm hitches or lands"
+  [ "$mode" = smuggle ] || die 6 "refused: /mtm started this smuggle, but this worktree's entry in the merge queue is in $mode mode \
+(its own mode, else the queue's): only the user starts a smuggle there; /mtm hitches or lands"
   echo "started by: /mtm in smuggle mode"
 }
 

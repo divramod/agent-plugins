@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import handoff_testkit as kit
+
 SCRIPT = Path(__file__).resolve().parent / "since.sh"
 ENV = {
     **os.environ,
@@ -21,10 +23,7 @@ class SinceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(self.tmp.name)
-        git(self.repo, "init", "-q", "-b", "main")
-        (self.repo / "a.txt").write_text("1\n")
-        git(self.repo, "add", ".")
-        git(self.repo, "commit", "-qm", "init")
+        kit.seed(self.repo, {"a.txt": "1\n"})
         self.sha = git(self.repo, "rev-parse", "--short", "HEAD").strip()
         self.handoff = self.repo / "HANDOFF.md"
 

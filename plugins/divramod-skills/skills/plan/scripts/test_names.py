@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import testkit
+
 import names
 
 
@@ -51,7 +53,7 @@ class ProblemsTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "repo"
         self.root.mkdir()
-        git(self.root, "init", "-q", "-b", "main")
+        testkit.init_repo(self.root)
         self.long = "0002-this-name-has-way-too-many-words"
 
     def tearDown(self):

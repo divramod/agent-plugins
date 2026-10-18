@@ -1,10 +1,12 @@
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import git_seed
 import migrate
 import roles
 
@@ -21,21 +23,11 @@ class Repo(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
         self.origin, self.main = self.tmp / "hal2.git", self.tmp / "a" / "hal2"
-        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.origin))
-        git(self.tmp, "clone", "-q", str(self.origin), str(self.main))
-        for k, v in (("user.email", "t@t"), ("user.name", "t")):
-            git(self.main, "config", k, v)
-        (self.main / "FARMER-ROLE.md").write_text(ROLE)
-        (self.main / ".gitignore").write_text("plans/CURRENT_PLAN\n")
-        git(self.main, "add", ".")
-        git(self.main, "commit", "-qm", "init")
-        git(self.main, "push", "-q", "origin", "main")
-        git(self.main, "remote", "set-head", "origin", "main")
         self.old = self.tmp / ".hal/git/worktree/hal2/farmer"
         self.new = self.old.parent / "farmer-hal2"
-        git(self.main, "worktree", "add", "-q", "-b", "farmer", str(self.old))
-        git(self.old, "push", "-q", "-u", "origin", "farmer")
+        git_seed.grow(self.tmp, type(self), self.grow)
         legacy = self.tmp / "skills/farmer"
         (legacy / "hal2/briefs").mkdir(parents=True)
         (legacy / "hal2/log.jsonl").write_text('{"kind": "x"}\n')
@@ -52,6 +44,21 @@ class Repo(unittest.TestCase):
                   mock.patch.object(migrate.deliver, "cli", lambda *a: (0, json.dumps(self.agents)))):
             p.start()
             self.addCleanup(p.stop)
+
+    def grow(self):
+        """The main checkout, its origin and the old farmer worktree, grown once per process (git_seed)."""
+        git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.origin))
+        git(self.tmp, "clone", "-q", str(self.origin), str(self.main))
+        for k, v in (("user.email", "t@t"), ("user.name", "t")):
+            git(self.main, "config", k, v)
+        (self.main / "FARMER-ROLE.md").write_text(ROLE)
+        (self.main / ".gitignore").write_text("plans/CURRENT_PLAN\n")
+        git(self.main, "add", ".")
+        git(self.main, "commit", "-qm", "init")
+        git(self.main, "push", "-q", "origin", "main")
+        git(self.main, "remote", "set-head", "origin", "main")
+        git(self.main, "worktree", "add", "-q", "-b", "farmer", str(self.old))
+        git(self.old, "push", "-q", "-u", "origin", "farmer")
 
     def migrate(self, dry=False):
         return migrate.Migration(self.main).run(dry)

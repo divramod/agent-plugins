@@ -18,17 +18,19 @@ Three uses:
 2. **The local machine is broken and the fix must land now**: a broken CLI, daemon, hook or install stops the agent
    sessions (or the landing itself); the fix lands through the smuggle and the main script's delivery installs it,
    which gets everything running again.
-3. **The merge queue is in smuggle mode**: the user switched it (`hal2-cli-git worktree queue mode smuggle`), the
-   tollman sleeps and every `/mtm` smuggles (below).
+3. **The worktree's mode is smuggle**: the user switched the whole merge queue (`hal2-cli-git worktree queue mode smuggle`)
+   or set this worktree's entry (`queue entry-mode <slot> smuggle`, hal2 plan 0365 D5); the tollman leaves it out of its
+   trains and its `/mtm` smuggles (below).
 
 ## Who starts it
 
 **The user** (the skill's command in this session), **or `/mtm` in smuggle mode** (hal2 plan 0360 D53, D75,
-D76): when `hal2-cli-git worktree queue mode` prints `smuggle`, the user switched the queue to smuggle mode, the
-tollman sleeps, and [mtm](../merge-to-main/SKILL.md) (its **Smuggle mode**) runs this skill's [land](#land) in place
+D76; 0365 D5): when `hal2-cli-git worktree queue mode --slot <this worktree>` prints `smuggle` (its entry's own mode,
+else the queue's; an older hal2-cli-git without `--slot`: the queue's), the user switched the queue or this entry to
+smuggle mode, the tollman brings no train of it, and [mtm](../merge-to-main/SKILL.md) (its **Smuggle mode**) runs this skill's [land](#land) in place
 of a hitch, whoever started that `/mtm`: the user, a plan's `Landing: auto`, or the farmer's message
 `farmer (development foreman): smuggle mode: run /mtm now`. `/mtm` passes `--from-mtm` to the preflight, whose
-guard refuses (exit 6) while the queue is in production mode: then never a plan's landing, never the farmer's
+guard refuses (exit 6) while the worktree's mode is production: then never a plan's landing, never the farmer's
 merge-to-main boss, never another session's message; they land with `/mtm`. Without `--from-mtm` the preflight takes
 the start as the user's: run the skill without the flag only on the user's own `/smuggle` (or their words above). It
 pauses other worktrees' landings, which resume by themselves (hal2: merge-queue-policy, amendment of 2026-10-10;
@@ -55,7 +57,7 @@ hal2's smuggle guide in docs/).
 | Call | Does |
 |---|---|
 | `/smuggle` | [land](#land) this worktree |
-| `/smuggle --from-mtm` | [land](#land), started by `/mtm` in smuggle mode: the guard refuses it in production mode |
+| `/smuggle --from-mtm` | [land](#land), started by `/mtm` in smuggle mode: the guard refuses it while the worktree's mode is production |
 | `/smuggle --dry-run` | `merge-to-main --smuggle --dry-run` (the holder it pauses, the runs it cancels, the phases, the scripts' dry runs; nothing changed); without hal2's `--smuggle`: preflight, `ci-stop.sh --dry-run`, `checks --dry-run` |
 | `/smuggle configure` | [write the two scripts](#configure) for this repository |
 | `/smuggle h` | print this table and stop |

@@ -6,6 +6,7 @@ The CLI is faked by a stub (qstub.py); one test runs the real binary when `$HAL2
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ sys.path.insert(0, str(HERE))
 
 import qcheck  # noqa: E402
 import qstub  # noqa: E402
+import testkit  # noqa: E402
 
 INLINE = ("\n## Q1 · 2026-10-14 · agent · open\n\n**Q:** Where are the apps built? a) (Recommended) by hand b) in "
           "every landing c) never\n")
@@ -27,18 +29,30 @@ LINE = ("plans/0001-tiny/questions.md: Q1: its options a) b) c) are inline in th
 
 
 class QCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """The repository every test starts from, made once: `plan.py new Tiny` with its Brief written."""
+        cls.template = tempfile.TemporaryDirectory()
+        root = Path(cls.template.name).resolve() / "repo"
+        testkit.init_repo(root)
+        result = testkit.run(SCRIPT, ["--root", str(root), "new", "Tiny"], cwd=root)
+        assert result.returncode == 0, result.stderr
+        cls.plan_path = json.loads(result.stdout)["path"]
+        plan = root / cls.plan_path
+        plan.write_text(re.sub(r"^- (Out|Proof): <.*>$", r"- \1: written", plan.read_text(), flags=re.M)
+                        .replace("- Seed: <seedbag>#<n>\n", ""))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.template.cleanup()
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.bin = self.root.parent / (self.root.name + "-bin")
         self.bin.mkdir()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
-        result = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "new", "Tiny"],
-                                capture_output=True, text=True, cwd=self.root)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.plan = self.root / json.loads(result.stdout)["path"]
-        self.plan.write_text(re.sub(r"^- (Out|Proof): <.*>$", r"- \1: written", self.plan.read_text(), flags=re.M)
-                             .replace("- Seed: <seedbag>#<n>\n", ""))
+        shutil.copytree(Path(self.template.name).resolve() / "repo", self.root, symlinks=True, dirs_exist_ok=True)
+        self.plan = self.root / self.plan_path
         self.store = self.plan.parent / "questions.md"
 
     def tearDown(self):

@@ -5,22 +5,17 @@
 # The tollman skill's own `tollman.py status` is run over a scratch HOME; launchctl, systemctl and
 # hal2-cli-git are fakes on PATH: no real timer, queue or session is read.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(cd "$(mktemp -d)" && pwd -P)"
-  export HOME="$tmp/home" ERR="$tmp/err"
-  unset FARMER_DIR
-  mkdir -p "$HOME" "$tmp/bin" "$tmp/a"
-  export PATH="$tmp/bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null
+load test_helper
+
+# The template (test_helper.bash): a scratch HOME, origin, the main checkout a/demo with its worktree 07 in the
+# HOME's fields, and the fakes on PATH.
+build() {
+  mkdir -p "$tmp/home" "$tmp/bin" "$tmp/a"
   git init -q --bare -b main "$tmp/demo.git"
   git clone -q "$tmp/demo.git" "$tmp/a/demo" 2>/dev/null
-  main="$tmp/a/demo"
-  git -C "$main" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
-  git -C "$main" push -q origin HEAD:main
-  slots="$HOME/.hal/git/worktree/demo"
-  git -C "$main" worktree add -q -b 07 "$slots/07"
-  field="$slots/tollman-demo"
-  state="$field/roles/tollman"
+  git -C "$tmp/a/demo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  git -C "$tmp/a/demo" push -q origin HEAD:main
+  git -C "$tmp/a/demo" worktree add -q -b 07 "$tmp/home/.hal/git/worktree/demo/07"
   # The timer's probe: loaded while $tmp/loaded exists (macOS: launchctl print, Linux: systemctl is-active).
   for tool in launchctl systemctl; do
     printf '#!/usr/bin/env bash\n[ -e "%s/loaded" ]\n' "$tmp" > "$tmp/bin/$tool"
@@ -29,7 +24,26 @@ setup() {
   chmod +x "$tmp/bin/"*
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  export GIT_CONFIG_GLOBAL=/dev/null
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  export HOME="$tmp/home" ERR="$tmp/err"
+  unset FARMER_DIR
+  export PATH="$tmp/bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null
+  main="$tmp/a/demo"
+  slots="$HOME/.hal/git/worktree/demo"
+  field="$slots/tollman-demo"
+  state="$field/roles/tollman"
+}
+
+teardown() { fixture_drop; }
 
 cli() { # <a line of its help>...: the fake hal2-cli-git
   printf '%s\n' "$@" > "$tmp/help"

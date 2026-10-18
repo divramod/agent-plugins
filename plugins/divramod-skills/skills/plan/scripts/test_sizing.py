@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import testkit
+
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
@@ -46,7 +48,7 @@ class SizingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
         self.home = self.root / "home"
         (self.home / "bin").mkdir(parents=True)
         (self.home / "bin" / "ps").write_text("#!/bin/sh\n")
@@ -63,8 +65,7 @@ class SizingTest(unittest.TestCase):
         return env
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, env=self.env(), cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), *args], env=self.env(), cwd=self.root)
 
     def plan(self, *args) -> dict:
         result = self.run_plan(*args)

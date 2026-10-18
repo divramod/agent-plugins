@@ -5,6 +5,7 @@ Every test works in a scratch repository; none needs hal2 (test_masterplan.py's 
 import unittest
 
 import test_masterplan as base
+import testkit
 
 MASTER = base.MASTER
 TOOLS, VIEW = "0002-tools", "0003-view"
@@ -17,10 +18,16 @@ class KeepTest(unittest.TestCase):
     write, farm = base.MasterplanTest.write, base.MasterplanTest.farm
 
     def two_plans(self):
-        """A masterplan with the plans 0002-tools (row 1) and 0003-view (row 2, the current plan); its plan.md."""
-        master = self.farm()
-        self.plan("new", "view", "--parent", "1")
-        return master
+        """A masterplan with the plans 0002-tools (row 1) and 0003-view (row 2, the current plan); its plan.md. Made
+        once by `new`, later tests start from a copy (testkit.fill_once)."""
+        def build():
+            self.farm()
+            self.plan("new", "view", "--parent", "1")
+        if self.plans.exists():
+            build()
+        else:
+            testkit.fill_once("two_plans", self.root, build)
+        return self.plans / MASTER / "plan.md"
 
     def row(self, master, number: str) -> str:
         """The Status cell of the masterplan's row `number`."""

@@ -88,10 +88,13 @@ class Gate:
 class Farm(Field):
     """The tollman in timer mode with the duty `trains` alone; every round is due."""
 
-    def setUp(self):
-        super().setUp()
+    def grow(self):
+        super().grow()
         self.commit(self.main, tollman.WIRING.role_file, ROLE, push=True)
         git(self.wm, "merge", "-q", "--ff-only", "main")
+
+    def setUp(self):
+        super().setUp()
         self.gate, self.spawned, self.alive, self.typed, self.panes = Gate(), [], set(), [], {}
         self.fields = {}
         real = tick.sh
@@ -121,6 +124,7 @@ class Farm(Field):
                   mock.patch.object(mtm_scan, "run_json", lambda args, cwd=None: self.gate.queue()
                                     if args[:3] == ["hal2-cli-git", "worktree", "queue"] else None),
                   mock.patch.object(mtm_scan, "pid_alive", lambda pid: pid in self.alive),
+                  mock.patch.object(train_state, "command_of", lambda pid: ""),  # the fake pid: never the host's ps
                   mock.patch.object(tick.deliver, "send", lambda pane, text, s=None: self.typed.append((pane, text))),
                   mock.patch.object(tick.due, "is_due", return_value=True)):
             p.start()

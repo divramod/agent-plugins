@@ -235,7 +235,7 @@ def state(main: str, run_json, tickets: list[dict] | None = None, sessions: set 
     doc = {"queue": tickets} if tickets is not None else run_json(modes.QUEUE, main) or {}  # + the mode (step 25)
     tickets, all_runs, now = doc.get("queue", []), runs(run_json, main), now or dt.datetime.now(dt.timezone.utc)
     train, who = train_state.standing(train_state.lines(main)), sessions_of(main) if sessions is None else sessions
-    held = modes.busy(modes.of(doc)) or busy(tickets, train, all_runs, now, who)  # smuggle mode holds every check
+    held = modes.busy(modes.of(doc), tickets, modes.flag(main)) or busy(tickets, train, all_runs, now, who)  # asleep (smuggle mode, the sleep flag) holds every check
     return {"tickets": tickets, "runs": all_runs, "busy": held, "rows": lines(main)}
 
 

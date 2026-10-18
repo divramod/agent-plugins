@@ -436,9 +436,9 @@ time limit ended, or exit 5 `interrupted`, its process gone and not the user, is
    report; the failed landing keeps holding the queue until the user acts. A successful landing only reports. In a
    repository with a working tollman (mtm's `scripts/tollman.sh` prints `yes`, its check before step 1) this
    `/mtm` hitches instead of landing: the work is reported ready, the session ends its turn, and the plan's end (the
-   after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the tollman's "in the barn". In the merge
-   queue's smuggle mode (`hal2-cli-git worktree queue mode` prints `smuggle`) this `/mtm` smuggles instead (mtm's
-   "Smuggle mode", hal2 plan 0360 D75, D76): the plan's landing runs the smuggle skill's flow, asking nothing.
+   after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the tollman's "in the barn". When the
+   worktree's mode is smuggle (`hal2-cli-git worktree queue mode --slot <worktree>` prints `smuggle`: its entry's own
+   mode, else the merge queue's) this `/mtm` smuggles instead (mtm's "Smuggle mode", hal2 plan 0360 D75, D76; 0365 D5): the plan's landing runs the smuggle skill's flow, asking nothing.
 
 ## Finish a step
 

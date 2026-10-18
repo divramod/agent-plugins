@@ -14,6 +14,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import testkit
+
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
@@ -59,14 +61,13 @@ class FolderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_plan(self, *args, env: dict | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, env=env, cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), *args], env=env, cwd=self.root)
 
     def new(self, *args, brief: bool = True) -> Path:
         """`plan.py new`, the plan's Brief written (a fresh one holds placeholders, which `check` reports)."""

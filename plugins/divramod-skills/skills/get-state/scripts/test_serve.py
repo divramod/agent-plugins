@@ -34,7 +34,8 @@ class Base(unittest.TestCase):
     def start(self, **kw) -> serve.ThreadingHTTPServer:
         server = serve.make_server(0, collect=kw.pop("collect", self.collect), page_fn=self.page, table=self.table,
                                    roles=("farmer", "foreman"), **kw)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        # A short poll: `stop`'s shutdown waits for it, 0.5 s by default in every test.
+        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         thread.start()
         server.thread = thread
         self.addCleanup(thread.join, 5)

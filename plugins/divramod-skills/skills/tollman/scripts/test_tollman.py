@@ -79,8 +79,7 @@ class Field(Repo):
 
     def setUp(self):
         super().setUp()
-        self.commit(self.main, WIRING.role_file, ROLE, push=True)
-        self.wm = self.field("tollman-hal2")
+        self.wm = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
         self.wm_state, self.cmds, self.loaded = self.data / "hal2" / "tollman", [], False
 
         def launchctl(cmd):
@@ -92,6 +91,11 @@ class Field(Repo):
                   mock.patch.object(role_cli.shutil, "which", return_value="/bin/x")):
             p.start()
             self.addCleanup(p.stop)
+
+    def grow(self):
+        super().grow()
+        self.commit(self.main, WIRING.role_file, ROLE, push=True)
+        self.wm = self.field("tollman-hal2")
 
     def commit(self, cwd, name, text, push=False):
         (Path(cwd) / name).parent.mkdir(parents=True, exist_ok=True)

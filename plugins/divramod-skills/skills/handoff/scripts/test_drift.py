@@ -13,6 +13,8 @@ from pathlib import Path
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import handoff_testkit as kit  # noqa: E402
 PLAN = sibling("plan") / "scripts" / "plan.py"
 SKILL = HERE.parent / "SKILL.md"
 SESSION = "fake-session"
@@ -37,15 +39,13 @@ class DriftTest(unittest.TestCase):
         self.env.update({"HOME": str(self.home), "HANDOFF_ROOT": str(base / "data"),
                          "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
-        self.git("init", "-q", "-b", "main")
-        (self.repo / "a.txt").write_text("1\n")
-        self.commit_all("init")
+        kit.seed(self.repo, {"a.txt": "1\n"})
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_in(self, *args, env=None) -> subprocess.CompletedProcess:
-        return subprocess.run(args, cwd=self.repo, env=env or self.env, text=True, capture_output=True)
+        return kit.run(args, cwd=self.repo, env=env or self.env)
 
     def git(self, *args) -> str:
         out = self.run_in("git", *args)

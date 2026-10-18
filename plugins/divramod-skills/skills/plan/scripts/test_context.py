@@ -1,11 +1,11 @@
 """context.py: context-window fill from a Claude Code transcript."""
 import json
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "context.py"
 
@@ -45,8 +45,7 @@ class ContextTest(unittest.TestCase):
         full_env = {"HOME": str(self.home), "PATH": f"{self.home / 'bin'}:{os.environ.get('PATH', '')}",
                     "HAL2_CLI_AGENTS": str(self.home / "no-hal2-cli-agents")}
         full_env.update(env or {})
-        out = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
-                             env=full_env, check=True, cwd=cwd or self.home)
+        out = testkit.run(SCRIPT, args, env=full_env, check=True, cwd=cwd or self.home)
         return json.loads(out.stdout)
 
     def test_uses_the_last_main_chain_call(self):

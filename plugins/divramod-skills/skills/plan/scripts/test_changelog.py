@@ -3,10 +3,11 @@ import json
 import os
 import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
 
@@ -15,7 +16,7 @@ class ChangelogTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -25,8 +26,7 @@ class ChangelogTest(unittest.TestCase):
         env.pop("HAL2_CLI_CHANGELOG", None)
         if cli:
             env["HAL2_CLI_CHANGELOG"] = str(cli)
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, env=env, cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), *args], env=env, cwd=self.root)
 
     def plan(self, *args, cli=None) -> dict:
         result = self.run_plan(*args, cli=cli)

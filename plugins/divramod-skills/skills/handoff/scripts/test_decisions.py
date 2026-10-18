@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import handoff_testkit as kit
+
 SCRIPT = Path(__file__).resolve().parent / "decisions.py"
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
        "GIT_COMMITTER_EMAIL": "t@t"}
@@ -58,8 +60,7 @@ class DecisionsTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_it(self, *args):
-        p = subprocess.run(["python3", str(SCRIPT), "--json", *args], cwd=self.slot, env=ENV, text=True,
-                           capture_output=True)
+        p = kit.run(["python3", str(SCRIPT), "--json", *args], cwd=self.slot, env=ENV)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(p.stdout)
 
@@ -82,7 +83,7 @@ class DecisionsTest(unittest.TestCase):
         (self.slot / "plans" / "LEAD").write_text("02 0003-x 4\n")
 
         self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0003-x", "step": "4"})
-        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
         self.assertIn("foreman: worktree 02, plan 0003-x, step 4: a servant, continue that one step only", text)
 
     def test_a_masterplans_servant_continues_the_plan_of_its_row(self):
@@ -96,13 +97,13 @@ class DecisionsTest(unittest.TestCase):
 
         self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0001-masterplan-farm", "step": "2",
                                                  "row_plan": "0003-x"})
-        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
         self.assertIn("foreman: worktree 02, masterplan 0001-masterplan-farm, row 2: a servant, continue the plan of that "
                       "row, 0003-x, each of its steps in a hand", text)
         self.assertNotIn("that one step only", text)
         # a plan of a masterplan whose slug carries the word is a plan (D34): its marker names a step
         master.write_text(master.read_text().replace("status: open\n", "status: open\nparent: 274\n"))
-        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
         self.assertIn("plan 0001-masterplan-farm, step 2: a servant, continue that one step only", text)
 
     def test_a_broken_marker_still_marks_the_slot(self):
@@ -112,7 +113,7 @@ class DecisionsTest(unittest.TestCase):
             lead = self.run_it()["lead"]
             self.assertTrue(lead["bad"], broken)
             self.assertIn("plans/LEAD is not `<lead-slot> <plan> <step>`", lead["error"])
-        text = subprocess.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV, text=True, capture_output=True).stdout
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
         self.assertIn("foreman: broken marker (plans/LEAD is not", text)
         self.assertIn("never the plan, never a landing", text)
 
@@ -175,7 +176,7 @@ class IndexTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_it(self, *args):
-        return subprocess.run(["python3", str(SCRIPT), *args], cwd=self.slot, env=ENV, text=True, capture_output=True)
+        return kit.run(["python3", str(SCRIPT), *args], cwd=self.slot, env=ENV)
 
     def check(self, handoff):
         (self.slot / "HANDOFF.md").write_text(handoff)

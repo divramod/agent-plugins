@@ -89,9 +89,41 @@ def git(repo: str | Path, *args: str) -> str:
     return p.stdout.strip() if p.returncode == 0 else ""
 
 
+_COMMON: dict[str, str] = {}  # a folder -> its repository's common git dir, while the folder exists
+_TOP: dict[str, str] = {}  # a folder -> its checkout's top folder, while the folder exists
+_ORIGIN: dict[str, str] = {}  # a main checkout -> its origin's url, while the folder exists
+
+
+def folder_fact(table: dict[str, str], repo: str | Path, ask: Callable[[], str]) -> str:
+    """What `ask()` (a `git rev-parse` of the folder `repo`'s place: its common git dir, its top folder) answers, ""
+    outside git: asked once per folder and process while the folder exists. A round asks it for every state file it
+    touches, a `git` spawn each."""
+    if not repo:
+        return ask()
+    key = os.path.abspath(repo)
+    found = table.get(key) if os.path.isdir(key) else None
+    if found is None:
+        found = ask()
+        if found:
+            table[key] = found
+        else:
+            table.pop(key, None)
+    return found
+
+
+def common_dir(repo: str | Path, ask: Callable[[], str]) -> str:
+    """The absolute common git dir of the repository holding `repo` ("" outside git), `ask()` once (folder_fact)."""
+    return folder_fact(_COMMON, repo, ask)
+
+
+def toplevel(repo: str | Path, ask: Callable[[], str]) -> str:
+    """The top folder of the checkout holding `repo` ("" outside git), `ask()` once (folder_fact)."""
+    return folder_fact(_TOP, repo, ask)
+
+
 def main_checkout(repo: str | Path) -> Path:
     """The main checkout of the repository containing `repo` (`repo` itself outside git)."""
-    common = git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    common = common_dir(repo, lambda: git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     return Path(common).parent if common else Path(repo)
 
 
@@ -106,7 +138,13 @@ def project_of(text: str) -> str | None:
 def project(repo: str | Path) -> str:
     """The repository's project name: origin's repository name, else the main checkout's folder."""
     main = main_checkout(repo)
-    return project_of(git(main, "remote", "get-url", "origin")) or project_of(main.name) or main.name
+    key = str(main)
+    url = _ORIGIN.get(key) if main.is_dir() else None
+    if url is None:
+        url = git(main, "remote", "get-url", "origin")
+        if url:
+            _ORIGIN[key] = url
+    return project_of(url) or project_of(main.name) or main.name
 
 
 def slot_name(repo: str | Path, role: str = ROLE) -> str:

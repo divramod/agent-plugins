@@ -2,6 +2,8 @@
 # land-runs.sh: no reserve or candidate push while a dev-merge-to-main.yml or merge-to-main.yml run is
 # unfinished.
 
+load test_helper
+
 setup() {
   here="$BATS_TEST_DIRNAME"
   tmp="$(mktemp -d)"
@@ -46,15 +48,7 @@ EOF
 teardown() { rm -rf "$tmp"; }
 
 # A PATH directory with every tool of /usr/bin and /bin except gh: a Linux runner has gh in /usr/bin itself.
-path_without_gh() {
-  local dir=$1 d f
-  mkdir -p "$dir"
-  for d in /usr/bin /bin; do
-    for f in "$d"/*; do
-      [ "${f##*/}" = gh ] || [ -e "$dir/${f##*/}" ] || ln -s "$f" "$dir/${f##*/}"
-    done
-  done
-}
+path_without_gh() { link_tools_except "$1" gh; }
 
 @test "no unfinished run: go at once, every workflow file asked" {
   run bash "$here/land-runs.sh" --once "$tmp"

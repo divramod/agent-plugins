@@ -124,11 +124,14 @@ def failed_task(message: str) -> str:
 
 
 def main_checkout(repo: str) -> str:
-    common = run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], repo).strip()
+    common = roles.common_dir(repo, lambda: run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                                                repo).strip())
     return str(Path(common).parent) if common else repo
 
 
-def worktrees(main: str) -> list[dict]:
+def worktrees(main: str, heads: bool = False) -> list[dict]:
+    """The repository's worktrees but `main` (path, branch; with `heads` also `head`, the commit its HEAD names, ""
+    on an unborn branch: what `git rev-parse HEAD` in it prints)."""
     out, items, cur = run(["git", "worktree", "list", "--porcelain"], main), [], {}
     for line in out.splitlines() + [""]:
         if not line:
@@ -137,6 +140,8 @@ def worktrees(main: str) -> list[dict]:
             cur = {}
         elif line.startswith("worktree "):
             cur["path"] = line[9:]
+        elif line.startswith("HEAD ") and heads:
+            cur["head"] = line[5:] if line[5:].strip("0") else ""  # all zeros: an unborn branch
         elif line.startswith("branch "):
             cur["branch"] = line[7:].removeprefix("refs/heads/")
         elif line.startswith("prunable"):

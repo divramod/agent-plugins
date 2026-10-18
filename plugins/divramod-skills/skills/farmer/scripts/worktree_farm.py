@@ -14,6 +14,10 @@ class Slots(Repo):
     def setUp(self):
         super().setUp()
         self.base = self.tmp / ".hal/git/worktree/hal2"
+
+    def grow(self):
+        super().grow()
+        self.base = self.tmp / ".hal/git/worktree/hal2"
         for name in ("03", "04", "05", "06", "07", "13", "14", "00-train-wt", "owner"):
             git(self.main, "worktree", "add", "-q", "-b", name, str(self.base / name), "origin/main")
         (self.base / "04/new.txt").write_text("x")
@@ -32,6 +36,10 @@ class MarkedSlots(Slots):
 
     def setUp(self):
         super().setUp()
+        self.lead = self.base / "02"
+
+    def grow(self):
+        super().grow()
         self.lead = self.base / "02"
         git(self.main, "worktree", "add", "-q", "-b", "02", str(self.lead), "origin/main")
         git(self.lead, "commit", "-q", "--allow-empty", "-m", "the lead's plan")

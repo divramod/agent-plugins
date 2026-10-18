@@ -67,11 +67,15 @@ hal2_smuggle_bin() {
   echo "$bin"
 }
 
-# The merge queue's mode (`hal2-cli-git worktree queue mode --json`): smuggle or production; production without
-# hal2-cli-git, an older one or any error (HAL2_CLI_GIT names the binary).
+# The mode that brings this worktree in (plan 0365 D5): `hal2-cli-git worktree queue mode --slot <slot> --json`, the
+# worktree's own mode if its entry has one, else the queue's. An older hal2-cli-git without --slot reads the queue's
+# (`queue mode --json`); smuggle or production, production without hal2-cli-git or on any error (HAL2_CLI_GIT names
+# the binary). `queue_mode [<slot>]`: <slot> is the worktree's folder name (the current one without an argument).
 queue_mode() {
-  local json
-  json=$("${HAL2_CLI_GIT:-hal2-cli-git}" worktree queue mode --json 2>/dev/null) || { echo production; return; }
+  local json cli="${HAL2_CLI_GIT:-hal2-cli-git}" slot="${1:-}"
+  [ -n "$slot" ] || slot=$(basename "${top:-$(pwd)}")
+  json=$("$cli" worktree queue mode --slot "$slot" --json 2>/dev/null) \
+    || json=$("$cli" worktree queue mode --json 2>/dev/null) || { echo production; return; }
   case "$json" in
     *'"mode":"smuggle"'*) echo smuggle ;;
     *) echo production ;;

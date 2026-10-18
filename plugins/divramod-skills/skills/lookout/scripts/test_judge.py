@@ -90,7 +90,7 @@ class JudgeTest(unittest.TestCase):
 
     def test_timeout_kills_the_run(self):
         (self.tmp / "bin" / "sleep").write_text("30")
-        with mock.patch.object(judge, "TIMEOUT", 1):
+        with mock.patch.object(judge, "TIMEOUT", 0.3):
             verdict = self.run_judge()
         self.assertEqual(verdict, {"ok": False, "reason": "timeout", "skipped": False})
         self.assertEqual(paths.read_log(self.log)[-1]["subtype"], "timeout")

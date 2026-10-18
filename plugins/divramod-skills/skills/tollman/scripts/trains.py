@@ -248,13 +248,16 @@ def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) 
 
 
 def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict, alive=None,
-         result=None, mode: dict | None = None) -> list[dict]:
+         result=None, mode: dict | None = None, sleep_flag: dict | None = None) -> list[dict]:
     """The round's actions for the tollman's field `top` (see the module doc). `alive(pid)` and `result(main)`
     are train_state's (the train's detached process, its last word) unless a test says otherwise; a ticket's pid is
-    a landing's own process (mtm_scan.pid_alive). `mode`: the queue's (modes.py); in smuggle mode the tollman sleeps."""
-    if modes.asleep(mode):  # plan 0360 step 25 (D75 2): a landing train goes on, nothing new starts
+    a landing's own process (mtm_scan.pid_alive). `mode`: the queue's (modes.py); the tollman sleeps in smuggle mode
+    while no hitched entry is production, and while the sleep flag `sleep_flag` stands (plan 0365 D3, D9); a hitched
+    entry whose effective mode is smuggle is no car."""
+    if modes.asleep(mode, tickets, sleep_flag):  # plan 0360 step 25 (D75 2): a landing train goes on, nothing new starts
         return modes.sleep(mode, train_state.standing(rows),
-                           lambda: plan(top, main, tickets, rows, panes, alive, result))
+                           lambda: plan(top, main, tickets, rows, panes, alive, result), sleep_flag)
+    tickets = modes.trainable(tickets, mode, Path(top).name)
     landing, waiter, result = alive or train_state.alive, alive or mtm_scan.pid_alive, result or train_state.result
     own, default = Path(top).name, default_ref(main)
     mine = next((t for t in tickets if t.get("slot") == own), {})
@@ -296,8 +299,9 @@ def handler(item: dict, ctx: dict) -> list[dict]:
     tickets, mode, rows, log = doc.get("queue", []), modes.of(doc), train_state.lines(main), ctx.get("log", [])
     if not ctx.get("dry"):
         board.safely(main, "ready tickets", board.on_ready, tickets)  # a ready ticket seen first (step 7)
-    turn, stop = modes.turn(top, main, mode, tickets, rows, panes)  # the mode noted; awake again: the barn first
+    flag = modes.flag(main)  # the tollman's sleep flag (plan 0365 D3)
+    turn, stop = modes.turn(top, main, mode, tickets, rows, panes, flag)  # the mode noted; awake again: the barn first
     if stop:
         return turn
-    return turn + plan(top, main, tickets, rows, panes, mode=mode) + yard_report.settled_actions(main, rows, panes) \
+    return turn + plan(top, main, tickets, rows, panes, mode=mode, sleep_flag=flag) + yard_report.settled_actions(main, rows, panes) \
         + stack_red.watch(top, main, rows, panes, log) + orders.answers(top, rows, log)  # `fixed <sha>` (step 6)

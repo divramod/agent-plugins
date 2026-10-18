@@ -1,14 +1,31 @@
 #!/usr/bin/env bats
 # subservant-guard.sh: a servant's field (plans/LEAD) never lands, and is told who does.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(mktemp -d)"
+load test_helper
+
+# The template (test_helper.bash): a repository wt with a folder sub, and a hal2-cli-git on PATH that fails: a
+# name resolves through git's worktree list, never through the installed CLI and the user's own worktrees. A test
+# about the CLI writes its own.
+build() {
   git init -q "$tmp/wt"
-  mkdir -p "$tmp/wt/sub"
+  mkdir -p "$tmp/wt/sub" "$tmp/bin"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/bin/hal2-cli-git"
+  chmod +x "$tmp/bin/hal2-cli-git"
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  export PATH="$tmp/bin:$PATH"
+}
+
+teardown() { fixture_drop; }
 
 @test "a worktree without the marker passes silently" {
   run bash "$here/subservant-guard.sh" "$tmp/wt"
@@ -49,7 +66,7 @@ teardown() { rm -rf "$tmp"; }
   git -C "$tmp/wt" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
   git -C "$tmp/wt" worktree add -q -b 31 "$tmp/slots/31"
   mkdir -p "$tmp/slots/31/plans" && echo "30 0013-parallel 4" > "$tmp/slots/31/plans/LEAD"
-  cd "$tmp/wt"
+  cd "$tmp/wt" || return
   run bash "$here/subservant-guard.sh" 31
   [ "$status" -eq 1 ]
   [[ "$output" == *"the foreman in field 30 (plans/LEAD: plan 0013-parallel, step or row 4)"* ]]
@@ -59,14 +76,14 @@ teardown() { rm -rf "$tmp"; }
   git -C "$tmp/wt" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
   git -C "$tmp/wt" worktree add -q -b 32 "$tmp/slots/32"
   mkdir -p "$tmp/wt/plans" && echo "07 0001-x 9" > "$tmp/wt/plans/LEAD"
-  cd "$tmp/wt"
+  cd "$tmp/wt" || return
   run bash "$here/subservant-guard.sh" 32
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "an unknown worktree name exits 3" {
-  cd "$tmp/wt"
+  cd "$tmp/wt" || return
   run bash "$here/subservant-guard.sh" 99
   [ "$status" -eq 3 ]
   [[ "$output" == *"named '99'"* ]]
@@ -78,7 +95,7 @@ teardown() { rm -rf "$tmp"; }
   echo "30 0013-parallel 2" > "$tmp/slots/farmer-hal2/plans/LEAD"
   printf '#!/usr/bin/env bash\necho %s\n' "'{\"worktrees\":[{\"name\":\"farmer-hal2\",\"path\":\"$tmp/slots/farmer-hal2\"}]}'" > "$tmp/bin/hal2-cli-git"
   chmod +x "$tmp/bin/hal2-cli-git"
-  cd "$tmp/wt"
+  cd "$tmp/wt" || return
   PATH="$tmp/bin:$PATH" run bash "$here/subservant-guard.sh" farmer-hal2
   [ "$status" -eq 1 ]
   [[ "$output" == *"field 30"* ]]
@@ -99,7 +116,7 @@ teardown() { rm -rf "$tmp"; }
   git -C "$tmp/wt" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
   git -C "$tmp/wt" worktree add -q -b 02 "$tmp/slots/02"
   mkdir -p "$tmp/bin" && printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/bin/hal2-cli-git" && chmod +x "$tmp/bin/hal2-cli-git"
-  cd "$tmp/wt"
+  cd "$tmp/wt" || return
   PATH="$tmp/bin:$PATH" run bash "$here/subservant-guard.sh" 2
   [ "$status" -eq 3 ]
 }

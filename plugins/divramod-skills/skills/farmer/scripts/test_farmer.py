@@ -3,6 +3,7 @@ import datetime as dt
 import fcntl
 import io
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 import due
+import git_seed
 import mtm_scan
 import farmer
 import role_cli
@@ -42,7 +44,22 @@ class Repo(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        origin, self.main = self.tmp / "hal2.git", self.tmp / "hal2"
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.main = self.tmp / "hal2"
+        self.slot = self.tmp / ".hal/git/worktree/hal2/farmer-hal2"  # roles.slot_dir with the home at tmp
+        git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
+        self.data = self.tmp / "state"
+        patches = [mock.patch.object(m, "DATA", self.data) for m in (due, mtm_scan)]
+        patches += [mock.patch.object(tick.deliver, "cli", return_value=(0, "[]")),
+                    mock.patch.object(mtm_scan, "run_json", return_value=None)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def grow(self):
+        """The git tree every test of the class starts from, grown once per process (git_seed): a subclass that
+        commits more for all its tests extends this, not setUp."""
+        origin = self.tmp / "hal2.git"
         git(self.tmp, "init", "-q", "--bare", "-b", "main", str(origin))
         git(self.tmp, "clone", "-q", str(origin), str(self.main))
         for k, v in (("user.email", "t@t"), ("user.name", "t")):
@@ -53,15 +70,7 @@ class Repo(unittest.TestCase):
         git(self.main, "commit", "-qm", "init")
         git(self.main, "push", "-q", "origin", "main")
         git(self.main, "remote", "set-head", "origin", "main")
-        self.slot = self.tmp / ".hal/git/worktree/hal2/farmer-hal2"  # roles.slot_dir with the home at tmp
         git(self.main, "worktree", "add", "-q", "-b", "farmer-hal2", str(self.slot))
-        self.data = self.tmp / "state"
-        patches = [mock.patch.object(m, "DATA", self.data) for m in (due, mtm_scan)]
-        patches += [mock.patch.object(tick.deliver, "cli", return_value=(0, "[]")),
-                    mock.patch.object(mtm_scan, "run_json", return_value=None)]
-        for p in patches:
-            p.start()
-            self.addCleanup(p.stop)
 
     def log(self):
         f = self.data / "hal2" / "log.jsonl"

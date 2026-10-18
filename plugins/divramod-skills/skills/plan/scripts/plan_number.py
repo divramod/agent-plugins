@@ -69,8 +69,9 @@ def refs(root: Path) -> list[str]:
     return [ref for ref in out.splitlines() if not ref.endswith("/HEAD")]
 
 
-def taken(root: Path, dirs: tuple[str, ...] = PLAN_DIRS, file: str = RESERVATIONS) -> dict[int, dict[str, set[str]]]:
-    """number -> {slug -> places it was seen}."""
+def taken(root: Path, dirs: tuple[str, ...] = PLAN_DIRS, file: str = RESERVATIONS,
+          common: Path | None = None) -> dict[int, dict[str, set[str]]]:
+    """number -> {slug -> places it was seen}; `common` is the git common dir when the caller knows it already."""
     found: dict[int, dict[str, set[str]]] = {}
 
     def add(name: str, place: str) -> None:
@@ -88,13 +89,13 @@ def taken(root: Path, dirs: tuple[str, ...] = PLAN_DIRS, file: str = RESERVATION
         for plans in dirs:
             for name in git(root, "ls-tree", "--name-only", f"{ref}:{plans}", check=False).splitlines():
                 add(name, ref.removeprefix("refs/heads/").removeprefix("refs/"))
-    for slug in reservations(root, file):
+    for slug in reservations(root, file, common):
         add(slug, "reserved")
     return found
 
 
-def reservations(root: Path, file: str = RESERVATIONS) -> dict[str, dict]:
-    folder = common_dir(root)
+def reservations(root: Path, file: str = RESERVATIONS, common: Path | None = None) -> dict[str, dict]:
+    folder = common or common_dir(root)
     path = folder / file if folder else None
     if not path or not path.is_file():
         return {}
@@ -121,7 +122,7 @@ def next_number(root: Path, slug: str = "", reserve: bool = True, dirs: tuple[st
         for existing, info in booked.items():
             if slug and existing.split("-", 1)[1] == slug:
                 return info["number"]  # same plan asked twice: same number
-        number = max(taken(root, dirs, file), default=0) + 1
+        number = max(taken(root, dirs, file, path.parent), default=0) + 1
         key = f"{number:04d}-{slug or 'reserved'}"
         booked[key] = {"number": number, "at": dt.datetime.now().isoformat(timespec="seconds"),
                        "worktree": str(root)}

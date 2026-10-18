@@ -92,13 +92,16 @@ def held(slot: str, ctx: dict) -> str | None:
     return None
 
 
-def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=build_running) -> str | None:
-    """Why the worktree `w` (path, `slot`) may not be pruned now, None when it may."""
+def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=None, base=None) -> str | None:
+    """Why the worktree `w` (path, `slot`) may not be pruned now, None when it may. `build` defaults to
+    `build_running`, looked up at the call so a test can stub it; `base`, origin's default branch, to the worktree's
+    (`base()` asks it: every worktree of a repository shares it, so a scan asks once)."""
+    build = build or build_running
     slot, path = w["slot"], w["path"]
     lead = marker(path)
     if lead is not None:
         return subservant_refusal(w, lead, ctx, agents, now_ms, build)
-    why = unsaved(path, slot, tick.default_ref(path))
+    why = unsaved(path, slot, base() if base else tick.default_ref(path))
     if why:
         return "; ".join(why)
     why = held(slot, ctx)
@@ -145,13 +148,20 @@ def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict], now_m
 def slots(main: str) -> list[dict]:
     """The repository's numbered worktrees (path, `slot`, head)."""
     out = []
-    for w in mtm_scan.worktrees(main):
+    for w in mtm_scan.worktrees(main, heads=True):
         name = Path(w["path"]).name
         if NUMBERED.fullmatch(name):
-            out.append({"path": w["path"], "slot": name, "head": git(w["path"], "rev-parse", "HEAD")})
+            head = w["head"] if "head" in w else git(w["path"], "rev-parse", "HEAD")
+            out.append({"path": w["path"], "slot": name, "head": head})
     return sorted(out, key=lambda w: w["slot"])
 
 
-def scan(main: str, ctx: dict, agents: list[dict], now_ms: float | None = None, build=build_running) -> list[dict]:
+def scan(main: str, ctx: dict, agents: list[dict], now_ms: float | None = None, build=None) -> list[dict]:
     now_ms = now_ms if now_ms is not None else time.time() * 1000
-    return [{**w, "why": refusal(w, ctx, agents, now_ms, build)} for w in slots(main)]
+    known = []
+
+    def base():
+        if not known:
+            known.append(tick.default_ref(main))
+        return known[0]
+    return [{**w, "why": refusal(w, ctx, agents, now_ms, build, base)} for w in slots(main)]

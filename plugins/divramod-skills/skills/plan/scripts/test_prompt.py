@@ -1,10 +1,11 @@
 """plan.py prompt (prompt.py, plan 0016 step 3): the Agent call that runs one step in one subagent."""
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 import prompt
 
@@ -74,8 +75,7 @@ class PromptTest(unittest.TestCase):
         return step
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "prompt", *args],
-                              capture_output=True, text=True, cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), "prompt", *args], cwd=self.root)
 
     def call(self, *args) -> dict:
         out = self.run_plan(*args)
@@ -147,8 +147,7 @@ class PromptTest(unittest.TestCase):
 
     def test_a_scaffolded_step_file_names_its_size_and_is_refused_until_written(self):
         self.record.write_text(RECORD.replace("| 120k | next |", "| 120k | |"))
-        out = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "status", "1", "next"],
-                             capture_output=True, text=True, cwd=self.root)
+        out = testkit.run(SCRIPT, ["--root", str(self.root), "status", "1", "next"], cwd=self.root)
         self.assertEqual(out.returncode, 0, out.stderr)
         step = self.root / json.loads(out.stdout)["step_file"]
 
@@ -196,8 +195,7 @@ class PromptTest(unittest.TestCase):
         self.assertEqual(self.call("1", "--plan", "2", "--model", "sonnet")["model"], "sonnet")
 
     def test_the_fixture_from_plan_new_prints_row_1(self):
-        out = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "new", "fresh work"],
-                             capture_output=True, text=True, cwd=self.root)
+        out = testkit.run(SCRIPT, ["--root", str(self.root), "new", "fresh work"], cwd=self.root)
         self.assertEqual(out.returncode, 0, out.stderr)
         plan = self.root / json.loads(out.stdout)["path"]
         self.task(plan, "1")

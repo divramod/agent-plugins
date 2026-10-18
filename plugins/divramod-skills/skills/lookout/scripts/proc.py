@@ -9,6 +9,8 @@ import signal
 import subprocess
 import time
 
+DRAIN = 5  # seconds to read what a killed child left in its pipes; a grandchild may hold them open
+
 
 def _spawn_options():
     if os.name == "nt":
@@ -50,7 +52,7 @@ def run(argv, *, cwd, env, stdin=b"", timeout=60):
     except subprocess.TimeoutExpired:
         _kill_tree(proc)
         try:  # a grandchild that left the group may still hold the pipes: do not wait for it
-            out, err = proc.communicate(timeout=5)
+            out, err = proc.communicate(timeout=DRAIN)
         except subprocess.TimeoutExpired:
             out, err = b"", b""
         result["timed_out"] = True

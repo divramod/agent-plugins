@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""The merge queue's two modes in the tollman's round (hal2 plan 0360 step 25, D74 to D76). hal2-git keeps the
-mode (`queue --json`'s `mode: {mode, by, at, why}`, production when missing; the farmer's queue_mode.of reads it);
-only the user switches it.
+"""The merge queue's two modes and the tollman's sleep flag in the tollman's round (hal2 plan 0360 step 25, D74 to
+D76; plan 0365 D3, D5, D9). hal2-git keeps the mode (`queue --json`'s `mode: {mode, by, at, why}`, production when
+missing; the farmer's queue_mode.of reads it); only the user switches it. Each hitched entry has an effective mode of
+its own (`effective_mode`, else its own `mode`, else the queue's; an older hal2-cli-git without them reads as the
+queue's): the tollman's trains take only entries whose effective mode is production, and in smuggle mode it sleeps
+only while no hitched entry is production (it wakes for such an entry alone). The sleep flag `sleep.json`
+(`hal2-cli-roles sleep tollman on`, `{by, at, why}` in `roles/tollman/` of the field `tollman-<repo>`, where
+hal2-roles writes it, also when `$FARMER_DIR` moves the state folder) puts it to sleep in any mode.
 
-1. Asleep (D75 2): in smuggle mode `trains.plan` returns `sleep`'s actions: one `asleep` record per round ("asleep:
-   smuggle mode since <t> (by <who>)", no key, so one tick.log line each round) and nothing new: no train formed or
+1. Asleep (D75 2; 0365 D3, D9): while the flag stands, or in smuggle mode with no hitched entry in production,
+   `trains.plan` returns `sleep`'s actions: one `asleep` record per round ("asleep: smuggle mode since <t> (by
+   <who>)", or "asleep: flag since <t> (by <who>): <why>", the flag first; no key, so one tick.log line each round) and nothing new: no train formed or
    started again, no retry, no breakup, no wake. A train already landing is never cut: its pause and run are watched
    and a landing that lands settles as ever (KEEP); a landing that ends red or interrupted is left as it is, the
    train stays `landing` with its process gone, and the first round in production settles it (triage, wake, fix
@@ -29,12 +35,14 @@ import chain
 import engine
 import mtm_scan
 import queue_mode
+import roles
 import train_state
 import trial
 from tick import act, default_ref
 
 CLI = Path(__file__).with_name("tollman.py")
 FILE = "mode.json"
+SLEEP = "sleep.json"
 VERBS = ("seen-mode", "barn")
 QUEUE = queue_mode.QUEUE
 RUNNING = ("landing", "paused")  # a car of such a train is only recorded; of every other standing train it leaves
@@ -50,20 +58,68 @@ def of(doc: dict | None) -> dict:
     return queue_mode.of(doc)
 
 
-def asleep(mode: dict | None) -> bool:
-    return queue_mode.smuggle(mode or {})
+def flag_file(main: str) -> Path:
+    """Where hal2-roles writes the flag: `roles/tollman/sleep.json` of the tollman's field `tollman-<repo>`
+    (hal2_roles::role_field), never `$FARMER_DIR`'s state folder (plan 0365 review finding 8)."""
+    return roles.slot_dir(main, train_state.ROLE) / "roles" / train_state.ROLE / SLEEP
 
 
-def busy(mode: dict | None) -> dict | None:
-    """The duty `checks`' reason to hold every check back in smuggle mode, or None."""
-    return {"reason": f"smuggle mode since {mode.get('at')} (by {mode.get('by')}): the tollman sleeps", "slot": ""} \
-        if asleep(mode) else None
+def flag(main: str) -> dict | None:
+    """The tollman's sleep flag (`sleep.json` of its field's role folder, plan 0365 D3): `{by, at, why}`, None while
+    it is off. A flag file that cannot be read still puts the tollman to sleep (the flag stands, its fields unknown)."""
+    f = flag_file(main)
+    try:
+        doc = json.loads(f.read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
 
 
-def sleep(mode: dict, train: dict | None, inner) -> list[dict]:
-    """trains.plan in smuggle mode: the asleep line, and of a landing train what KEEP lets through (`inner()` is the
+def production_waits(mode: dict | None, tickets) -> bool:
+    """Whether a hitched entry waits whose effective mode is production (D9): the tollman wakes for it alone."""
+    return any(queue_mode.hitched(t) and queue_mode.effective(t, mode or {}) == queue_mode.PRODUCTION
+               for t in tickets or ())
+
+
+def reason(mode: dict | None, tickets=(), sleep_flag: dict | None = None) -> str | None:
+    """Why the round sleeps: `flag` (the sleep flag), `smuggle` (smuggle mode and no hitched entry in production),
+    or None. The flag wins."""
+    if sleep_flag is not None:
+        return "flag"
+    return "smuggle" if queue_mode.smuggle(mode or {}) and not production_waits(mode, tickets) else None
+
+
+def asleep(mode: dict | None, tickets=(), sleep_flag: dict | None = None) -> bool:
+    return reason(mode, tickets, sleep_flag) is not None
+
+
+def since(mode: dict | None, sleep_flag: dict | None) -> str:
+    """The asleep line's text: the flag's, else smuggle mode's."""
+    if sleep_flag is not None:
+        why = f": {sleep_flag['why']}" if sleep_flag.get("why") else ""
+        return f"flag since {sleep_flag.get('at')} (by {sleep_flag.get('by')}){why}"
+    return f"smuggle mode since {(mode or {}).get('at')} (by {(mode or {}).get('by')})"
+
+
+def trainable(tickets: list[dict], mode: dict | None, own: str) -> list[dict]:
+    """The queue the trains are drafted from: a hitched entry whose effective mode is smuggle is left out (it
+    smuggles itself, D9); the tollman's own ticket stays whatever its mode."""
+    return [t for t in tickets if t.get("slot") == own or not queue_mode.hitched(t)
+            or queue_mode.effective(t, mode or {}) != queue_mode.SMUGGLE]
+
+
+def busy(mode: dict | None, tickets=(), sleep_flag: dict | None = None) -> dict | None:
+    """The duty `checks`' reason to hold every check back while the tollman sleeps, or None."""
+    why = reason(mode, tickets, sleep_flag)
+    return {"reason": f"{since(mode, sleep_flag)}: the tollman sleeps", "slot": ""} if why else None
+
+
+def sleep(mode: dict, train: dict | None, inner, sleep_flag: dict | None = None) -> list[dict]:
+    """trains.plan while asleep: the asleep line, and of a landing train what KEEP lets through (`inner()` is the
     production plan)."""
-    line = act("trains", "asleep", "record", text=f"asleep: smuggle mode since {mode.get('at')} (by {mode.get('by')})")
+    line = act("trains", "asleep", "record", text=f"asleep: {since(mode, sleep_flag)}")
     going = [a for a in inner() if a["kind"] in KEEP] if train and train["state"] in RUNNING else []
     return [line] + going
 
@@ -96,13 +152,17 @@ def in_barn(main: str, default: str, tickets: list[dict], train: dict | None, ow
                     and t.get("state", "waiting") == "waiting" and landed(t["ready"].get("head"))]
 
 
-def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict], panes: dict) -> tuple[list, bool]:
+def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict], panes: dict,
+         sleep_flag: dict | None = None) -> tuple[list, bool]:
     """(the actions, whether the round ends with them): the mode noted when it changed; the first production round
-    after smuggle mode drops the cars in the barn first and goes on through the chain."""
+    after smuggle mode drops the cars in the barn first and goes on through the chain. While the sleep flag stands
+    the way back to production is not noted yet: the first awake round still finds the barn."""
     now, last = mode.get("mode") or queue_mode.PRODUCTION, seen(main)
+    if sleep_flag is not None and last == queue_mode.SMUGGLE and now != last:
+        return [], False
     note = [cli(top, "seen-mode", f"seen-mode:{now}:{mode.get('at')}", f"the queue's mode is {now}", "seen-mode",
                 now)] if now != last else []
-    if last != queue_mode.SMUGGLE or asleep(mode):
+    if last != queue_mode.SMUGGLE or queue_mode.smuggle(mode):
         return note, False
     found = in_barn(main, default_ref(main), tickets, train_state.standing(rows), Path(top).name)
     if not found:

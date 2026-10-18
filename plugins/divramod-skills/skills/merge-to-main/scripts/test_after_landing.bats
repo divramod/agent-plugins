@@ -2,12 +2,13 @@
 # after-landing.sh: the cleanup after a full landing with a finished plan; the farmer line from 10-99; a field
 # whose CURRENT_PLAN names a masterplan is not cleaned and is told so.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(mktemp -d)"
+load test_helper
+
+# The template (test_helper.bash): origin, main and the worktrees 12 and 03, and the fake cleanup skill.
+build() {
   git init -q --bare -b main "$tmp/origin.git"
   git clone -q "$tmp/origin.git" "$tmp/main" 2>/dev/null
-  cd "$tmp/main"
+  cd "$tmp/main" || return
   printf 'plans/CURRENT_PLAN\n' > .gitignore
   git add .gitignore && git -c user.name=t -c user.email=t@t commit -q -m init
   git push -q origin HEAD:main
@@ -22,10 +23,22 @@ if sys.argv[1] == "busy":
 open("$tmp/deleted", "a").write(os.getcwd() + "\n")
 print("deleted 1 path, freed 1.0 GB")
 PY
+}
+
+setup_file() {
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  cd "$tmp/main" || return
   export HAL_MTM_CLEANUP="$tmp/cleanup.py"
 }
 
-teardown() { rm -rf "$tmp"; }
+teardown() { fixture_drop; }
 
 @test "a landed 10-99 worktree is cleaned and the farmer is told" {
   run bash "$here/after-landing.sh" "$tmp/12"

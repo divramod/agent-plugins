@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
 # scan.sh on a scratch repository with a land workflow, units and a utils script.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(cd "$(mktemp -d)" && pwd -P)"
-  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+load test_helper
+
+# The template (test_helper.bash): the repository, committed.
+build() {
   git init -q -b main "$tmp/repo"
-  cd "$tmp/repo"
+  cd "$tmp/repo" || return
   git remote add origin https://github.com/someone/repo.git
   mkdir -p .github/workflows code/rust/apps/foo code/bash/scripts/bar code/typescript/libs/ui utils/cloudinit
   cat > .github/workflows/merge-to-main.yml <<'YML'
@@ -35,7 +35,21 @@ YML
   git add . && git commit -q -m init
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  cd "$tmp/repo" || return
+}
+
+teardown() { fixture_drop; }
 
 @test "scan: workflows with their jobs, the land workflow, units, utils, deliveries, inputs" {
   run bash -c "bash '$here/scan.sh' 2>&1"

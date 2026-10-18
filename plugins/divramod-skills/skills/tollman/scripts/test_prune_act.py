@@ -10,6 +10,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import prune
 import prune_act
+import prune_proof
 import tick
 from worktree_farm import MarkedSlots, Slots
 from test_farmer import git
@@ -21,6 +22,10 @@ class Act(Slots):
         live = mock.patch.object(prune_act, "live", return_value=({}, []))
         live.start()
         self.addCleanup(live.stop)
+        # The host's own processes never decide a test: no build runs in a fixture's field.
+        quiet = mock.patch.object(prune_proof, "build_running", return_value=False)
+        quiet.start()
+        self.addCleanup(quiet.stop)
 
     def test_refused_when_the_slot_holds_work_or_the_range_is_wrong(self):
         self.assertIn("uncommitted", prune_act.act_on(str(self.main), "04", "clean", True)[1])
@@ -79,6 +84,10 @@ class ActMarked(MarkedSlots):
         live = mock.patch.object(prune_act, "live", return_value=({}, []))
         live.start()
         self.addCleanup(live.stop)
+        # The host's own processes never decide a test: no build runs in a fixture's field.
+        quiet = mock.patch.object(prune_proof, "build_running", return_value=False)
+        quiet.start()
+        self.addCleanup(quiet.stop)
         self.calls = []
 
     def sh(self, argv, cwd, timeout=900):

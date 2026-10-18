@@ -71,6 +71,12 @@ path = "tick.log*"
 kind = "text-log"
 
 [[files]]
+path = "sleep.json"
+kind = "snapshot"
+schema = "schemas/sleep.schema.json"
+description = "The tollman's sleep (hal2 plan 0365 D3): present while it sleeps, `{schema, by, at, why}`; while it stands the round starts no train and no land run, a train already landing is never cut. Written only by hal2-roles (`hal2-cli-roles sleep tollman on|off`), removed on waking."
+
+[[files]]
 path = "*.json"
 kind = "snapshot"
 description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json; learn.json, the duty learn's last day (scripts/learn.py); disk.json, the duty prune's free disk and biggest worktrees (scripts/prune.py sizes, plan 0360 step 7); mode.json, the queue's mode the last round saw (scripts/modes.py, plan 0360 step 25)."

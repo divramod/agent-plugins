@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path: git_seed)
+import git_seed
 import yard
 import yard_rules
 
@@ -45,7 +47,13 @@ class Yard(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        origin, self.yard = self.tmp / "hal2.git", self.tmp / "hal2"
+        self.yard = self.tmp / "hal2"
+        self.field, self.seven = self.tmp / "fields/tollman-hal2", self.tmp / "fields/07"
+        git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
+
+    def grow(self):
+        """The yard, its origin and the two fields, grown once per process (git_seed)."""
+        origin = self.tmp / "hal2.git"
         git(self.tmp, "init", "-q", "--bare", "-b", "main", str(origin))
         git(self.tmp, "clone", "-q", str(origin), str(self.yard))
         for key, value in (("user.email", "t@t"), ("user.name", "t")):
@@ -54,7 +62,6 @@ class Yard(unittest.TestCase):
         git(self.yard, "add", ".")
         git(self.yard, "commit", "-qm", "init")
         git(self.yard, "push", "-q", "origin", "main")
-        self.field, self.seven = self.tmp / "fields/tollman-hal2", self.tmp / "fields/07"
         for path in (self.field, self.seven):
             git(self.yard, "worktree", "add", "-q", "-b", path.name, str(path))
 

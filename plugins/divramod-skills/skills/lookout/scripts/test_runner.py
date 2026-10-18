@@ -90,7 +90,9 @@ class CheckContractTest(Base):
 
     def test_timeout_is_broken(self):
         record = self.record("import time\ntime.sleep(30)\n", timeout=1)
-        result = self.run_watch(record)
+        self.assertEqual(runner.timeout(record), 1)
+        with mock.patch.object(runner, "timeout", lambda record: 0.3):  # below the record's floor of 1 s
+            result = self.run_watch(record)
         self.assertEqual((result["outcome"], result["record"]["state"]), ("broken", "broken"))
         self.assertEqual(paths.read_log(self.log)[-1]["detail"], "timeout")
 
@@ -217,7 +219,9 @@ class ProcReviewTest(unittest.TestCase):
         import proc
         code = ("import subprocess,sys;subprocess.Popen([sys.executable,'-c','import time;time.sleep(20)'],"
                 "start_new_session=True);import time;time.sleep(30)")
+        self.assertEqual(proc.DRAIN, 5)
         start = time.monotonic()
-        run = proc.run([sys.executable, "-c", code], cwd=None, env=None, timeout=1)
+        with mock.patch.object(proc, "DRAIN", 0.2):  # the drain's length is not the point: that it ends is
+            run = proc.run([sys.executable, "-c", code], cwd=None, env=None, timeout=1)
         self.assertTrue(run["timed_out"])
         self.assertLess(time.monotonic() - start, 12)

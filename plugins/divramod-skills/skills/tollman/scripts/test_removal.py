@@ -8,6 +8,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import prune_act
+import prune_proof
 import tick
 import worktree_farm
 from test_farmer import git
@@ -16,6 +17,10 @@ from test_farmer import git
 class Field12(worktree_farm.Slots):
     def setUp(self):
         super().setUp()
+        # The host's own processes never decide a test: no build runs in a fixture's field.
+        quiet = mock.patch.object(prune_proof, "build_running", return_value=False)
+        quiet.start()
+        self.addCleanup(quiet.stop)
         self.field = self.base / "12"
         git(self.main, "worktree", "add", "-q", "-b", "12", str(self.field), "origin/main")
         git(self.field, "push", "-q", "-u", "origin", "12")

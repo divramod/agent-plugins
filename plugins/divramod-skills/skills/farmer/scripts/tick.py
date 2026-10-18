@@ -76,6 +76,11 @@ def git(repo: str, *args: str) -> str:
     return p.stdout.rstrip("\n") if p.returncode == 0 else ""
 
 
+def toplevel(repo: str) -> str:
+    """The top folder of the checkout holding `repo`, "" outside git (asked once per folder: roles.folder_fact)."""
+    return roles.toplevel(repo, lambda: git(repo, "rev-parse", "--show-toplevel"))
+
+
 def default_ref(repo: str) -> str:
     return git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD") or "origin/main"
 
@@ -83,7 +88,7 @@ def default_ref(repo: str) -> str:
 def slot_problem(repo: str, wiring: roles.Wiring = roles.FARMER) -> str | None:
     """None when `repo` is the role's worktree (`<role>-<project>`) holding nothing but changes of its role files
     (`wiring.role_files`), else why not."""
-    top, role = git(repo, "rev-parse", "--show-toplevel"), wiring.role
+    top, role = toplevel(repo), wiring.role
     if top and Path(top).name == role:
         return (f"the {role}'s worktree {top} is not migrated to {roles.slot_name(top, role)}: "
                 f"run `farmer.py migrate{'' if role == roles.ROLE else f' --role {role}'} --repo {top}`")
@@ -335,7 +340,7 @@ def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, al
         out.update(stop=True, problem=problem)
         return out
     with timed(timing, "frame"):
-        top = git(repo, "rev-parse", "--show-toplevel")
+        top = toplevel(repo)
         main = mtm_scan.main_checkout(top)
         held = carrying(top, wiring)  # the worktree stays as it is: nothing merged in, no role file commit (D22)
         if not held:

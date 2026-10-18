@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import handoff_testkit as kit
+
 SCRIPT = Path(__file__).resolve().parent / "commit-handoff.sh"
 ENV = {
     **os.environ,
@@ -21,10 +23,7 @@ class CommitHandoffTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(self.tmp.name)
-        run(self.repo, "git", "init", "-q", "-b", "main")
-        (self.repo / "code.txt").write_text("v1\n")
-        run(self.repo, "git", "add", ".")
-        run(self.repo, "git", "commit", "-qm", "init")
+        kit.seed(self.repo, {"code.txt": "v1\n"})
 
     def tearDown(self):
         self.tmp.cleanup()

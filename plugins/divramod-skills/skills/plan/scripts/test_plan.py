@@ -1,10 +1,11 @@
 """plan.py: create, list, switch and update plans (plans/<NNNN>-<slug>/plan.md)."""
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
 
@@ -22,7 +23,7 @@ class PlanTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
         self.plans = self.root / "plans"
 
     def tearDown(self):
@@ -35,8 +36,7 @@ class PlanTest(unittest.TestCase):
         return path
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
-                              capture_output=True, text=True, cwd=self.root)
+        return testkit.run(SCRIPT, ["--root", str(self.root), *args], cwd=self.root)
 
     def plan(self, *args) -> dict:
         result = self.run_plan(*args)
@@ -421,8 +421,7 @@ echo '{{"slug": "0002-next", "path": "{self.folder}/0002-next/plan.md"}}'
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
         env = {"PATH": f"{self.bin}:/usr/bin:/bin"}
-        return subprocess.run([sys.executable, str(SCRIPT), "-g", "--global-root", str(self.folder), *args],
-                              capture_output=True, text=True, env=env, cwd=self.folder)
+        return testkit.run(SCRIPT, ["-g", "--global-root", str(self.folder), *args], env=env, cwd=self.folder)
 
     def plan(self, *args):
         result = self.run_plan(*args)

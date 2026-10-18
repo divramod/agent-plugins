@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import handoff_testkit as kit
+
 SCRIPT = Path(__file__).resolve().parent / "questions.py"
 FILE = """# Questions and answers
 
@@ -40,7 +42,7 @@ class Questions(unittest.TestCase):
     def run_script(self, *args, cli=None):
         """The script with hal2-cli-plans pinned: `cli` (a stub script), else none (the fallback rule)."""
         env = {**os.environ, "HAL2_CLI_PLANS": cli or str(self.root / "no-such-cli")}
-        return subprocess.run(["python3", str(SCRIPT), *args], cwd=self.root, text=True, capture_output=True, env=env)
+        return kit.run(["python3", str(SCRIPT), *args], cwd=self.root, env=env)
 
     def stub(self, stdout: str, code: int = 1) -> str:
         """A fake hal2-cli-plans that prints `stdout` and exits `code`; it records its arguments."""

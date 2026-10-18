@@ -23,9 +23,11 @@ the ready ticket over at its place.
 
 ## Smuggle mode
 
-When `hal2-cli-git worktree queue mode` prints `smuggle` (hal2 plan 0360 D75), `/mtm` hitches nothing: [SKILL.md](../SKILL.md)'s
+When `hal2-cli-git worktree queue mode --slot <this worktree>` prints `smuggle` (the worktree's effective mode: its entry's own,
+else the queue's; hal2 plan 0360 D75, 0365 D5), `/mtm` hitches nothing: [SKILL.md](../SKILL.md)'s
 **Smuggle mode** runs the smuggle skill instead, whatever `tollman.sh`
-says. The tollman sleeps meanwhile: it forms no train and starts no land run (a train already landing goes on). Back
+says. The tollman leaves such an entry out of its trains and sleeps while no hitched entry is in production, and while its
+sleep flag stands (it forms no train and starts no land run; a train already landing goes on). Back
 in production, a field whose hitched head is already in the barn is unhitched and told
 `tollman (wagon train): field <NN>'s crop (<head>) is already in the barn (smuggled ...)`: answer it like "in the
 barn" ([after "in the barn"](#after-in-the-barn)); nothing of it is carried again.

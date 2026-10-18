@@ -9,15 +9,22 @@ with an `error` or one that is missing, and for a `term` call's error the code's
 and `locked`, 5 `failed`). Every call's arguments are appended to the log, and the document of a `--from -` to the
 documents' log. `answer` is a program that prints one answer whatever it is asked. The real CLI and the user's files
 are never touched.
+
+A fake program runs inside the test's own process (`run_in_process`, patched over `subprocess.run` by `FakeCli` and
+`in_process`): a spawned Python costs 30 ms, and the suite calls the fakes some hundred times. test_cli.py's cases keep
+the real process (`IN_PROCESS = False`): they are the tests of the boundary itself (arguments, stdin, timeout, exits).
 """
 import contextlib
 import io
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
+from unittest import mock
 
 import cli
 
@@ -70,6 +77,58 @@ sys.exit({code})
 '''
 
 
+REAL_RUN = subprocess.run
+SHEBANG = ("#!%s\n" % sys.executable).encode()
+
+
+def _fake_program(argv) -> str:
+    """The source of `argv[0]` when it is one of these fakes (a file starting with this Python's shebang), else ''."""
+    path = argv[0] if isinstance(argv, (list, tuple)) and argv and isinstance(argv[0], str) else ""
+    if not os.path.isabs(path) or not os.path.isfile(path) or not os.access(path, os.X_OK):
+        return ""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    return data.decode("utf-8") if data.startswith(SHEBANG) else ""
+
+
+def run_in_process(argv, *args, **kw):
+    """`subprocess.run` for a fake program: its source executed here with its argv, stdin and captured output, its
+    `sys.exit` the exit code; any other command runs for real."""
+    source = _fake_program(argv)
+    if not source or args or kw.get("shell"):
+        return REAL_RUN(argv, *args, **kw)
+    feed = kw.get("input")
+    feed = feed.encode("utf-8") if isinstance(feed, str) else (feed or b"")
+    out, err = io.BytesIO(), io.BytesIO()
+    streams = [io.TextIOWrapper(io.BytesIO(feed), encoding="utf-8"),
+               io.TextIOWrapper(out, encoding="utf-8", write_through=True),
+               io.TextIOWrapper(err, encoding="utf-8", write_through=True)]
+    saved = sys.argv, sys.stdin, sys.stdout, sys.stderr
+    sys.argv, (sys.stdin, sys.stdout, sys.stderr) = list(argv), streams
+    code = 0
+    try:
+        with warnings.catch_warnings():  # a real process ends with its files closed: no warning reaches its stderr
+            warnings.simplefilter("ignore", ResourceWarning)
+            exec(compile(source, argv[0], "exec"), {"__name__": "__main__"})
+    except SystemExit as stop:
+        code = stop.code if isinstance(stop.code, int) else (0 if stop.code is None else 1)
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        sys.argv, sys.stdin, sys.stdout, sys.stderr = saved
+    stdout, stderr = out.getvalue(), err.getvalue()
+    if kw.get("text") or kw.get("encoding") or kw.get("universal_newlines"):
+        stdout, stderr = stdout.decode(kw.get("encoding") or "utf-8"), stderr.decode(kw.get("encoding") or "utf-8")
+    return subprocess.CompletedProcess(argv, code, stdout, stderr)
+
+
+def in_process(case: unittest.TestCase):
+    """Runs every fake program of `case` in its process, until the case ends."""
+    patch = mock.patch.object(subprocess, "run", run_in_process)
+    patch.start()
+    case.addCleanup(patch.stop)
+
+
 def program(path: str, log: str, payload, code: int = 0):
     """A program at `path` that logs its arguments and prints `payload` (JSON, or a text as it is) with the exit code."""
     body = payload if isinstance(payload, str) else json.dumps(payload)
@@ -86,7 +145,11 @@ def fixture(folder: str, name: str):
 class FakeCli(unittest.TestCase):
     """A test case with `self.use(folder)`: the CLI of the test is a script printing that folder's files."""
 
+    IN_PROCESS = True
+
     def setUp(self):
+        if self.IN_PROCESS:
+            in_process(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.tmp.name, "hal2-cli-halverse")
         self.log = os.path.join(self.tmp.name, "args.txt")

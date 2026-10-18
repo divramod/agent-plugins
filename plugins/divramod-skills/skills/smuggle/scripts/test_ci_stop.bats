@@ -1,22 +1,17 @@
 #!/usr/bin/env bats
 # ci-stop.sh with fake gh, glab and hal2-cli-git: runs and pipelines are files in $fake.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(cd "$(mktemp -d)" && pwd -P)"
+load test_helper
+
+# The template (test_helper.bash): main, its worktree 07 with the conf, and the fake gh in $fake/bin.
+build() {
   fake="$tmp/fake"
   mkdir -p "$fake/bin"
-  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-  export SMUGGLE_PLAIN=1 FAKE="$fake" PATH="$fake/bin:$PATH"
-  # The fake on PATH answers, never the caller's own program: a gate run with HAL2_CLI_GIT set (a local round) would
-  # hand ci-stop.sh the installed hal2-cli-git, which then orders and stops in the scratch repository for real.
-  unset HAL2_CLI_GIT
   git init -q -b main "$tmp/main"
   git -C "$tmp/main" commit -q --allow-empty -m init
   git -C "$tmp/main" worktree add -q -b 07 "$tmp/wt/07"
-  cd "$tmp/wt/07"
-  mkdir -p .hal
-  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\n' > .hal/smuggle.conf
+  mkdir -p "$tmp/wt/07/.hal"
+  printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\n' > "$tmp/wt/07/.hal/smuggle.conf"
   : > "$fake/runs"
   # A run is a line `<id> <ref> <status> [<workflow file>]` of $FAKE/runs (no file: merge-to-main.yml) and is listed only
   # under its own workflow file. A file named in $FAKE/unknown gets GitHub's 404 (gh 2.92's words), one named in
@@ -67,7 +62,26 @@ EOF
   chmod +x "$fake/bin/gh"
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  fake="$tmp/fake"
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  export SMUGGLE_PLAIN=1 FAKE="$fake" PATH="$fake/bin:$PATH"
+  # The fake on PATH answers, never the caller's own program: a gate run with HAL2_CLI_GIT set (a local round) would
+  # hand ci-stop.sh the installed hal2-cli-git, which then orders and stops in the scratch repository for real.
+  unset HAL2_CLI_GIT
+  cd "$tmp/wt/07" || return
+}
+
+teardown() { fixture_drop; }
 
 # jobs <job>...: gh's `run view --json jobs` of jobs given as `<status> <conclusion or none> <name>`.
 jobs() {
@@ -115,19 +129,11 @@ commit_workflow() {
 }
 
 # A PATH directory with every tool of /usr/bin and /bin except gh: a Linux runner has gh in /usr/bin itself.
-path_without_gh() {
-  local dir=$1 d f
-  mkdir -p "$dir"
-  for d in /usr/bin /bin; do
-    for f in "$d"/*; do
-      [ "${f##*/}" = gh ] || [ -e "$dir/${f##*/}" ] || ln -s "$f" "$dir/${f##*/}"
-    done
-  done
-}
+path_without_gh() { link_tools_except "$1" gh; }
 
 @test "github: a run that has not merged is cancelled" {
   run_on 11 land/03 "completed failure gate" "queued none merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 11 ]
   [ "$(echo "$output" | tail -1 | jq -c .cancelled)" = "[11]" ]
@@ -137,7 +143,7 @@ path_without_gh() {
   echo 3 > "$fake/linger"
   run_on 41 land/03 "in_progress none 02-hz01-host-b/rust-test" "queued none 05-x-host-x/merge"
   run_on 42 land/04 "queued none 05-x-host-x/merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 4 ] # three rounds unfinished, the fourth finds them ended
   [ "$(requests)" = "41 42" ]
@@ -148,32 +154,32 @@ path_without_gh() {
 @test "github: a run asked by an earlier call, also one whose request failed, is not asked again" {
   echo 2 > "$fake/linger"
   run_on 43 land/03 "in_progress none 02-hz01-host-b/rust-test"
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = 43 ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[],[43]]" ]
   rm "$fake/rounds"
   : > "$fake/refuses"
   run_on 44 land/04 "in_progress none 02-hz01-host-b/rust-test"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 1 ]
   [[ "$output" == *"cancelling run 44 failed; it is not asked again"*"/smuggle/ci-stop/44.1.asked"* ]]
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = "43 44" ]
 }
 
 @test "github: a run started again, a new attempt under its old id, is asked once more" {
   run_on 43 land/03 "in_progress none 02-hz01-host-b/rust-test"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   echo "43 land/03 in_progress" > "$fake/runs"
   echo 2 > "$fake/attempt-43"
   echo 2 > "$fake/linger"
   rm "$fake/rounds"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = "43 43" ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[43],[]]" ]
@@ -187,7 +193,7 @@ path_without_gh() {
   step_of 45 02-hz01-host-a/python-test success
   run_on 46 land/04 "completed cancelled 02-mac-host-a/bash-test" "in_progress none 03-mac-host-a/mac-vm-park"
   step_of 46 02-mac-host-a/bash-test skipped " [08]  fail fast: stop the run "
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ ! -e "$fake/cancelled" ]
   [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 3 ]
@@ -205,7 +211,7 @@ path_without_gh() {
   step_of 48 02-hz01-host-b/rust-test skipped
   run_on 49 land/05 "completed cancelled 02-hz01-host-a/python-test" "in_progress none 02-hz01-host-b/rust-test"
   step_of 49 02-hz01-host-a/python-test cancelled "[19] fail fast: stop the run later" # another step's name
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = "47 48 49" ]
 }
@@ -227,7 +233,7 @@ path_without_gh() {
   run_on 57 land/05 "in_progress none 02-hz01-host-b/rust-test"
   step_of 57 02-hz01-host-b/rust-test "" "[07] gate rust-test" in_progress
   step_of 57 02-hz01-host-b/rust-test "" "[20] fail fast: stop the run" pending
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = "56 57" ]
   [ "$(grep -c "run 55 (land/03) ends by itself" <<<"$output")" -eq 1 ]
@@ -267,7 +273,7 @@ path_without_gh() {
   step_of 64 03-hz01-host-a/fail-fast-a failure "[02] fail fast: cancel the run"
   step_of 64 03-hz01-host-a/bash-test cancelled "[07] gate bash-test"
   step_of 64 03-hz01-host-a/bash-test success "[21] fail fast: stop the run"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(requests)" = 63 ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending]')" = "[[63],[60,61,62,64]]" ]
@@ -292,13 +298,13 @@ path_without_gh() {
 @test "github: a merged run gets no request while a job of it runs, and one after the grace however long it ends" {
   echo 3 > "$fake/linger"
   run_on 53 land/05 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ ! -e "$fake/cancelled" ]
   [ "$(echo "$output" | tail -1 | jq -c '[.cancelled, .ending, .waited]')" = "[[],[],[53]]" ]
   rm "$fake/rounds"
   run_on 54 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(grep -cx merge-to-main.yml "$fake/rounds")" -eq 4 ]
   [ "$(requests)" = 54 ]
@@ -307,11 +313,11 @@ path_without_gh() {
 @test "github: a merged run's queued jobs are cancelled after the grace, not before" {
   run_on 12 land/04 "completed success linux / merge" "queued none mac-host-ship / deliver"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 12 ]
   [ "$(echo "$output" | tail -1 | jq -c .waited)" = "[12]" ]
@@ -320,7 +326,7 @@ path_without_gh() {
 @test "github: the merge job named by its stage and runner code (plan 0260) is the merge, its ship jobs wait for the grace" {
   run_on 15 land/06 "completed success 05-x-host-x/merge" "queued none 06-mac-host-a/deliver"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
 }
@@ -328,14 +334,14 @@ path_without_gh() {
 @test "github: the merge job named with its position in its lane (plan 0349 D40) is the merge too" {
   run_on 17 land/06 "completed success 03-hz01-host-b/01-merge" "queued none 04-mac-host-a/01-git-pull-main"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
 }
 
 @test "github: a run whose positioned merge job has not run is cancelled" {
   run_on 18 land/07 "completed failure 03-hz01-host-a/01-stack-test" "queued none 03-hz01-host-b/01-merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 18 ]
 }
@@ -343,7 +349,7 @@ path_without_gh() {
 @test "github: the merge job named by its matrix alias (plan 0349 D101, d2-01-git-merge) is the merge, also for MERGE_JOB=merge" {
   run_on 19 land/06 "completed success d2-01-git-merge" "queued none e2-01-git-pull-main"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\nMERGE_JOB=merge\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [ ! -e "$fake/cancelled" ]
 }
@@ -352,21 +358,21 @@ path_without_gh() {
   run_on 20 land/07 "completed success d1-01-stack-test" "completed success c2-01-git-merge-extra" \
     "queued none d2-01-git-merge"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=0m\nMERGE_JOB=git-merge\n' > .hal/smuggle.conf
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 20 ]
 }
 
 @test "github: a run whose merge job named by stage and runner code has not run is cancelled" {
   run_on 16 land/07 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 16 ]
 }
 
 @test "github: a merged run with a started job is waited for, never cancelled" {
   run_on 13 land/05 "completed success merge" "in_progress none ship"
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [[ "$output" == *"waiting for run 13"* ]]
   [ ! -e "$fake/cancelled" ]
@@ -399,7 +405,7 @@ echo "$*" >> "$FAKE/hal2-args"
 EOF
   chmod +x "$fake/bin/hal2-cli-git"
   echo "{\"queue\":[{\"holding\":true,\"slot\":\"02\",\"worktree\":\"$tmp/wt/02\"}],\"priority\":{\"slots\":[\"12\",\"07\"]}}" > "$fake/queue.json"
-  run env SMUGGLE_PLAIN=0 bash "$here/ci-stop.sh" --interval 1
+  run env SMUGGLE_PLAIN=0 bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(sed -n 1p "$fake/hal2-args")" = "worktree queue order 07 12 --json" ]
   [ "$(sed -n 2p "$fake/hal2-args")" = "worktree stop 02 --json" ]
@@ -433,7 +439,7 @@ case "$2" in
 esac
 EOF
   chmod +x "$fake/bin/glab"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/glab-cancelled")" = "$(printf 'projects/:id/pipelines/21/cancel\nprojects/:id/jobs/3/cancel')" ]
   [ "$(echo "$output" | tail -1 | jq -c .cancelled)" = "[21,22]" ]
@@ -455,7 +461,7 @@ EOF
 @test "github: a conf written before the rename (LAND_WORKFLOWS=merge-to-main.yml) also stops dev-merge-to-main.yml's runs" {
   : > "$fake/unknown" # after the rename GitHub knows both
   run_under dev-merge-to-main.yml 31 land/03 "completed failure 04-x-host-x/gate" "queued none 05-x-host-x/merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 31 ]
   [ "$(asked)" = "dev-merge-to-main.yml merge-to-main.yml" ]
@@ -466,7 +472,7 @@ EOF
   run_on 32 land/04 "in_progress none 02-hz01-host-x/rust-test" "queued none 05-x-host-x/merge"
   run_under dev-merge-to-main.yml 33 land/05 "queued none 05-x-host-x/merge"
   run_under dev-merge-to-main.yml 34 land/06 "completed success 05-x-host-x/merge" "in_progress none 06-mac-host-a/deliver"
-  run bash "$here/ci-stop.sh" --max-wait 0m --interval 1
+  run bash "$here/ci-stop.sh" --max-wait 0m --interval 0
   [ "$status" -eq 7 ]
   [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "32 33" ]
   [[ "$output" == *"waiting for run 34 (land/06)"* ]]
@@ -483,7 +489,7 @@ EOF
 
 @test "github: GitHub knows neither land workflow: nothing is known, exit 1" {
   printf '%s\n' dev-merge-to-main.yml merge-to-main.yml > "$fake/unknown"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 1 ]
   [[ "$output" == *"GitHub knows none of the land workflows (merge-to-main.yml dev-merge-to-main.yml)"* ]]
   [[ "$output" == *"listing the github land runs failed"* ]]
@@ -493,12 +499,12 @@ EOF
   : > "$fake/unknown"
   echo merge-to-main.yml > "$fake/broken"
   run_on 36 land/03 "queued none merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 1 ]
   [[ "$output" == *"HTTP 502"* ]]
   [ ! -e "$fake/cancelled" ]
   echo dev-merge-to-main.yml > "$fake/broken"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 1 ]
   [ ! -e "$fake/cancelled" ]
 }
@@ -506,7 +512,7 @@ EOF
 @test "github: without LAND_WORKFLOWS, neither workflow file: no land runs to stop, GitHub is not asked" {
   printf 'PROVIDER=github\n' > .hal/smuggle.conf
   [ -z "$(workflows)" ]
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [[ "$output" == *"no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml or merge-to-main.yml)"* ]]
   [ ! -e "$fake/gh-calls" ]
@@ -518,7 +524,7 @@ EOF
   [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
   : > "$fake/unknown" # main was renamed meanwhile: GitHub knows both, the running landing is under the new name
   run_under dev-merge-to-main.yml 37 land/03 "queued none 05-x-host-x/merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 37 ]
 }
@@ -530,7 +536,7 @@ EOF
   : > "$fake/unknown" # the worktree renames it: main's running landing is still under the old name
   run_on 38 land/04 "queued none merge"
   run_under dev-merge-to-main.yml 39 land/05 "queued none 05-x-host-x/merge"
-  run bash "$here/ci-stop.sh" --interval 1
+  run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(sort "$fake/cancelled" | paste -sd ' ' -)" = "38 39" ]
 }

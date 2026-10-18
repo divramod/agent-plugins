@@ -165,6 +165,11 @@ class WagonRepo(Repo):
 
     def setUp(self):
         super().setUp()
+        self.wm = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
+        self.wm_state = self.data / "hal2" / "tollman"
+
+    def grow(self):
+        super().grow()
         role = self.main / WAGON.role_file
         role.parent.mkdir(parents=True)
         role.write_text(WM_ROLE)
@@ -173,7 +178,6 @@ class WagonRepo(Repo):
         git(self.main, "push", "-q", "origin", "main")
         self.wm = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
         git(self.main, "worktree", "add", "-q", "-b", "tollman-hal2", str(self.wm))
-        self.wm_state = self.data / "hal2" / "tollman"
 
     def wm_log(self):
         f = self.wm_state / "log.jsonl"

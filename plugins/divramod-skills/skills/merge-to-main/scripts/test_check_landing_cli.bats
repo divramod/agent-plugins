@@ -2,20 +2,32 @@
 # check-landing-cli.sh: a repository with dev-merge-to-main.yml or merge-to-main.yml needs a hal2-cli-git whose help
 # names that file; an older one would land it as a plain merge, untested.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(mktemp -d)"
+load test_helper
+
+# The template (test_helper.bash): origin and its clone wt, one commit on main.
+build() {
   git init -q --bare -b main "$tmp/origin.git"
   git clone -q "$tmp/origin.git" "$tmp/wt" 2>/dev/null
-  cd "$tmp/wt"
-  git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
-  git push -q origin HEAD:main
-  git remote set-head origin main
+  git -C "$tmp/wt" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  git -C "$tmp/wt" push -q origin HEAD:main
+  git -C "$tmp/wt" remote set-head origin main
   mkdir -p "$tmp/bin"
+}
+
+setup_file() {
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  cd "$tmp/wt" || return
   export PATH="$tmp/bin:$PATH" CALLS="$tmp/calls"
 }
 
-teardown() { rm -rf "$tmp"; }
+teardown() { fixture_drop; }
 
 # A fake hal2-cli-git: `--help` prints the lines of $tmp/help, `--version` a version, anything else is recorded
 # in $tmp/calls (a landing that started).
@@ -55,14 +67,8 @@ add_workflow() { # <workflow file>...: one commit with them
 
 # A PATH directory with every tool of /usr/bin and /bin except hal2-cli-git.
 path_without_cli() {
-  local dir=$1 d f
-  mkdir -p "$dir"
-  for d in /usr/bin /bin; do
-    for f in "$d"/*; do
-      [ "${f##*/}" = hal2-cli-git ] || [ -e "$dir/${f##*/}" ] || ln -s "$f" "$dir/${f##*/}"
-    done
-  done
-  ln -sf "$(command -v git)" "$dir/git"
+  link_tools_except "$1" hal2-cli-git
+  ln -sf "$(command -v git)" "$1/git"
 }
 
 @test "neither workflow file: nothing to check, whatever the CLI" {

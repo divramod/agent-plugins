@@ -3,6 +3,7 @@ round plans for them, the disk report. Its hands (`clean`, `remove`) are test_pr
 the fields of the last landed train test_barn.py's. No real session, removal or hal2-cli-agents."""
 
 import datetime as dt
+import subprocess
 import unittest
 from unittest import mock
 
@@ -54,6 +55,17 @@ class Scan(Slots):
         self.assertIn("CURRENT_PLAN names 0001-x", why["05"])
         self.assertIn("1 commit(s) not on origin/main", why["06"])
         self.assertIn("side branch 07-ui", why["07"])
+
+    def test_the_heads_are_the_worktree_list_s_and_the_base_is_asked_once_per_scan(self):
+        git(self.main, "worktree", "add", "-q", "--orphan", "-b", "15", str(self.base / "15"))  # an unborn branch
+        heads = {w["slot"]: w["head"] for w in prune_proof.slots(str(self.main))}
+        for slot, head in heads.items():
+            asked = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.base / slot, capture_output=True, text=True)
+            self.assertEqual(head, asked.stdout.strip() if asked.returncode == 0 else "", slot)
+        self.assertEqual(heads["15"], "")
+        with mock.patch.object(tick, "default_ref", wraps=tick.default_ref) as ref:
+            self.assertIn("1 commit(s) not on origin/main", self.why()["06"])
+        self.assertEqual(ref.call_count, 1)
 
     def test_a_ticket_a_pause_an_open_ask_a_busy_agent_a_build(self):
         self.assertIn("ticket", self.why({"waiting": {"13"}})["13"])

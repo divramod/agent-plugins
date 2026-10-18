@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The tollman's sleep flag (sleep.json)",
+  "description": "Present while the tollman sleeps (hal2 plan 0365 D3): its round starts no train and no land run; written and removed only by hal2-roles (`hal2-cli-roles sleep tollman on|off`).",
+  "type": "object",
+  "required": ["schema", "by", "at", "why"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "by": {"type": "string", "minLength": 1, "description": "Who put the tollman to sleep (`user`, a session)."},
+    "at": {"type": "string", "description": "When, RFC 3339 UTC with `Z` and whole seconds."},
+    "why": {"type": "string", "description": "The reason given; empty when none was."}
+  },
+  "additionalProperties": false
+}

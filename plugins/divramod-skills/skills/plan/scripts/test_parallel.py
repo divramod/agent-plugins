@@ -3,10 +3,11 @@ servant's field (plans/LEAD)."""
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
 SLUG = "0005-big-plan"
@@ -50,7 +51,7 @@ class ParallelTest(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.root = self.base / "02"  # the foreman's worktree
         self.root.mkdir()
-        git(self.root, "init", "-q", "-b", "main")
+        testkit.init_repo(self.root)
         self.plans = self.root / "plans"
         self.path = self.write_plan(SLUG, PARALLEL)
         (self.plans / "CURRENT_PLAN").write_text(SLUG + "\n")
@@ -66,8 +67,7 @@ class ParallelTest(unittest.TestCase):
 
     def run_plan(self, *args, root=None, cwd=None, env=None) -> subprocess.CompletedProcess:
         env = {**os.environ, **(env or {})}
-        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(root or self.root), *args],
-                              capture_output=True, text=True, cwd=cwd or self.base, env=env)
+        return testkit.run(SCRIPT, ["--root", str(root or self.root), *args], cwd=cwd or self.base, env=env)
 
     def plan(self, *args, root=None) -> dict:
         result = self.run_plan(*args, root=root)

@@ -1,18 +1,30 @@
 #!/usr/bin/env bats
 # landing-mode.sh: ci when dev-merge-to-main.yml or merge-to-main.yml is in HEAD or origin's default branch.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(mktemp -d)"
+load test_helper
+
+# The template (test_helper.bash): origin and its clone wt, one commit on main.
+build() {
   git init -q --bare -b main "$tmp/origin.git"
   git clone -q "$tmp/origin.git" "$tmp/wt" 2>/dev/null
-  cd "$tmp/wt"
-  git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
-  git push -q origin HEAD:main
-  git remote set-head origin main
+  git -C "$tmp/wt" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  git -C "$tmp/wt" push -q origin HEAD:main
+  git -C "$tmp/wt" remote set-head origin main
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  cd "$tmp/wt" || return
+}
+
+teardown() { fixture_drop; }
 
 add_land() { # [<workflow file>...], default merge-to-main.yml: one commit with them
   local file

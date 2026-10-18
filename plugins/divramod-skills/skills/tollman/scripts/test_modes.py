@@ -87,7 +87,7 @@ class Asleep(unittest.TestCase):
                                        sessions=set())["busy"])
 
 
-class Woken(Farm):
+class WokenBase(Farm):
     """The tollman's round on the test farm with the queue's mode (`self.mode`, None: no key, production)."""
 
     def setUp(self):
@@ -102,6 +102,8 @@ class Woken(Farm):
     def barn_lines(self):
         return [(e["slot"], e.get("how")) for e in train_state.lines(str(self.main)) if e["kind"] == "barn"]
 
+
+class Woken(WokenBase):
     def test_smuggle_mode_round_forms_nothing_and_wakes_nobody(self):
         self.crop("07", {"seven.txt": "7"})
         self.mode = SMUGGLE

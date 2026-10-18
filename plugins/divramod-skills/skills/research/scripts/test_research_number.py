@@ -1,5 +1,7 @@
 """research_number.py: research numbers stay unique across worktrees, branches and concurrent calls, and the
 plan skill's numbering it reuses keeps plans and research apart."""
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -8,11 +10,14 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "research_number.py"
+sys.path.insert(0, str(HERE))
+import research_number  # noqa: E402
 PLAN_SCRIPT = sibling("plan") / "scripts" / "plan_number.py"
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
        "GIT_COMMITTER_EMAIL": "t@t"}
@@ -46,8 +51,20 @@ class ResearchNumberTest(unittest.TestCase):
         return subprocess.run([sys.executable, str(script), *args], cwd=cwd or self.main, env=ENV, text=True,
                               capture_output=True)
 
-    def next(self, *args, cwd=None):
-        result = self.run_script("next", *args, cwd=cwd)
+    def in_process(self, *args, cwd=None):
+        """`research_number.py <args>` in cwd, run in this process (its main); the concurrent test runs programs."""
+        out, err, here = io.StringIO(), io.StringIO(), os.getcwd()
+        with mock.patch.dict(os.environ, ENV, clear=True), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            os.chdir(cwd or self.main)
+            try:
+                code = research_number.main(list(args))
+            finally:
+                os.chdir(here)
+        return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
+
+    def next(self, *args, cwd=None, process=False):
+        result = (self.run_script if process else self.in_process)("next", *args, cwd=cwd)
         self.assertEqual(result.returncode, 0, result.stderr)
         return int(result.stdout)
 
@@ -81,18 +98,18 @@ class ResearchNumberTest(unittest.TestCase):
 
     def test_concurrent_calls_get_distinct_numbers(self):
         with ThreadPoolExecutor(max_workers=6) as pool:
-            numbers = list(pool.map(lambda i: self.next("--slug", f"r-{i}"), range(6)))
+            numbers = list(pool.map(lambda i: self.next("--slug", f"r-{i}", process=True), range(6)))
         self.assertEqual(sorted(numbers), list(range(2, 8)))
 
     def test_check_reports_a_number_used_twice(self):
-        ok = self.run_script("check")
+        ok = self.in_process("check")
         self.assertEqual(ok.returncode, 0)
         self.assertIn("no research number", ok.stdout)
         git(self.main, "switch", "-q", "-c", "a")
         self.add(self.main, "research/0002-from-a", commit=True)
         git(self.main, "switch", "-q", "main")
         self.add(self.main, "research/0002-from-main", commit=True)
-        result = self.run_script("check")
+        result = self.in_process("check")
         self.assertEqual(result.returncode, 1)
         self.assertIn("0002-from-a", result.stdout)
 

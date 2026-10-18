@@ -2,40 +2,56 @@
 # smuggle.sh and plain-land.sh against a scratch repository: a bare origin, its
 # main checkout and a worktree 07; hal2-cli-git faked where it lands.
 
-setup() {
-  here="$BATS_TEST_DIRNAME"
-  tmp="$(cd "$(mktemp -d)" && pwd -P)"
-  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-  export SMUGGLE_PLAIN=1 SMUGGLE_POLL=1
+load test_helper
+
+# The template (test_helper.bash): origin, main with both scripts and the fingerprint, worktrees 07 and 08. The
+# scripts write their marks into $SMUGGLE_TEST_TMP, the scratch tree.
+build() {
   git init -q --bare -b main "$tmp/origin.git"
   git clone -q "$tmp/origin.git" "$tmp/main" 2>/dev/null
-  cd "$tmp/main"
+  cd "$tmp/main" || return
   mkdir -p .hal .github/workflows
   echo 'on: push' > .github/workflows/merge-to-main.yml
-  cat > .hal/smuggle-worktree.sh <<EOF
+  cat > .hal/smuggle-worktree.sh <<'EOF'
 #!/usr/bin/env bash
-echo "base=\$SMUGGLE_BASE args=\$*" > "$tmp/worktree-ran"
-[ ! -e "$tmp/red" ]
+echo "base=$SMUGGLE_BASE args=$*" > "$SMUGGLE_TEST_TMP/worktree-ran"
+[ ! -e "$SMUGGLE_TEST_TMP/red" ]
 EOF
-  cat > .hal/smuggle-main.sh <<EOF
+  cat > .hal/smuggle-main.sh <<'EOF'
 #!/usr/bin/env bash
-echo "pwd=\$(pwd -P) base=\$SMUGGLE_BASE head=\$SMUGGLE_HEAD" > "$tmp/main-ran"
-[ ! -e "$tmp/red" ]
+echo "pwd=$(pwd -P) base=$SMUGGLE_BASE head=$SMUGGLE_HEAD" > "$SMUGGLE_TEST_TMP/main-ran"
+[ ! -e "$SMUGGLE_TEST_TMP/red" ]
 EOF
   chmod +x .hal/*.sh
   echo 'FINGERPRINT_INPUTS=".github/workflows/*.yml"' > .hal/smuggle.conf
   git add . && git commit -q -m init
-  echo "FINGERPRINT=$(bash "$here/smuggle.sh" fingerprint)" >> .hal/smuggle.conf
+  echo "FINGERPRINT=$(bash "$BATS_TEST_DIRNAME/smuggle.sh" fingerprint)" >> .hal/smuggle.conf
   git commit -q -am fingerprint
   git push -q origin HEAD:main
   git remote set-head origin main
   mkdir -p "$tmp/wt"
   git worktree add -q -b 07 "$tmp/wt/07"
   git worktree add -q -b 08 "$tmp/wt/08"
-  cd "$tmp/wt/07"
 }
 
-teardown() { rm -rf "$tmp"; }
+setup_file() {
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  tmp=$(fixture_dir)
+  fixture_build build
+}
+
+setup() {
+  here="$BATS_TEST_DIRNAME"
+  tmp=$(fixture_dir)
+  fixture_copy
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  export SMUGGLE_PLAIN=1 SMUGGLE_POLL=1 SMUGGLE_TEST_TMP="$tmp"
+  # Only a test's own fake hal2-cli-git answers, never one the caller named (ci-stop's tests say why).
+  unset HAL2_CLI_GIT
+  cd "$tmp/wt/07" || return
+}
+
+teardown() { fixture_drop; }
 
 work() { echo "$1" > "$1.txt" && git add "$1.txt" && git commit -q -m "$1"; }
 
@@ -194,12 +210,15 @@ units_list() {
   git fetch -q origin && git merge -q origin/main
 }
 
-fake_cli() { # fake_cli <mode>: a hal2-cli-git for `queue mode --json` and `changes`
+fake_cli() { # fake_cli <queue mode> [<this worktree's mode>|old]: a hal2-cli-git for `queue mode [--slot <s>] --json` and `changes`
   mkdir -p "$tmp/bin"
+  local slot_cmd='echo "{\"slot\":\"x\",\"mode\":\"'"${2:-$1}"'\",\"own\":null,\"queue_mode\":\"'"$1"'\"}"'
+  [ "${2:-}" != old ] || slot_cmd='exit 2' # an older CLI: no --slot
   cat > "$tmp/bin/hal2-cli-git" <<EOF
 #!/usr/bin/env bash
 case "\$*" in
   "worktree queue mode --json") echo '{"mode":"$1","by":"user","at":null,"why":null}' ;;
+  "worktree queue mode --slot "*" --json") echo "\$*" > "$tmp/slot-call"; $slot_cmd ;;
   changes*) echo '{"jobs":[{"name":"rust-test","run":true},{"name":"bash-lint","run":false}]}' ;;
   *) exit 2 ;;
 esac
@@ -242,6 +261,27 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"started by: /mtm in smuggle mode"* ]]
   rm "$tmp/bin/hal2-cli-git"
+  run bash "$here/smuggle.sh" preflight --from-mtm
+  [ "$status" -eq 6 ]
+}
+
+@test "preflight --from-mtm: the slot's own mode decides, not the queue's (plan 0365 D5)" {
+  fake_cli production smuggle # the entry is set to smuggle in a production queue
+  run bash "$here/smuggle.sh" preflight --from-mtm
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"started by: /mtm in smuggle mode"* ]]
+  [ "$(cat "$tmp/slot-call")" = "worktree queue mode --slot $(basename "$(git rev-parse --show-toplevel)") --json" ]
+  fake_cli smuggle production # an entry in production in a smuggle queue
+  run bash "$here/smuggle.sh" preflight --from-mtm
+  [ "$status" -eq 6 ]
+  [[ "$output" == *"production mode"* ]]
+}
+
+@test "preflight --from-mtm: an older hal2-cli-git without --slot reads the queue's mode" {
+  fake_cli smuggle old
+  run bash "$here/smuggle.sh" preflight --from-mtm
+  [ "$status" -eq 0 ]
+  fake_cli production old
   run bash "$here/smuggle.sh" preflight --from-mtm
   [ "$status" -eq 6 ]
 }

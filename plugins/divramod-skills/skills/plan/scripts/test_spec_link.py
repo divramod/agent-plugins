@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import testkit
+
 HERE = Path(__file__).resolve().parent
 PLAN = HERE / "plan.py"
 ACTIONS = HERE.parent.parent
@@ -47,15 +49,14 @@ class SpecLinkTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        testkit.init_repo(self.root)
         self.plans = self.root / "plans"
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_cmd(self, script, *args) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(script), "--root" if script == PLAN else "--repo",
-                               str(self.root), *args], capture_output=True, text=True, cwd=self.root)
+        return testkit.run(script, ["--root" if script == PLAN else "--repo", str(self.root), *args], cwd=self.root)
 
     def plan(self, *args) -> dict:
         result = self.run_cmd(PLAN, *args)

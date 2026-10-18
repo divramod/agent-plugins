@@ -5,10 +5,11 @@ No test needs hal2: `$HAL2_CLI_PLANS` names a fake or nothing, `$HAL2_CLI_RECORD
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import testkit
 
 import masterplan
 import masterplan_view
@@ -67,7 +68,7 @@ class MasterplanTest(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.root = self.base / "09"
         self.root.mkdir()
-        git(self.root, "init", "-q", "-b", "main")
+        testkit.init_repo(self.root)
         self.plans = self.root / "plans"
 
     def tearDown(self):
@@ -76,8 +77,7 @@ class MasterplanTest(unittest.TestCase):
     def run_plan(self, *args, cli: Path | None = None, pre: tuple = ()) -> subprocess.CompletedProcess:
         missing = str(self.base / "no-such-binary")
         env = {**os.environ, masterplan_view.ENV: str(cli or missing), "HAL2_CLI_RECORDS": missing}
-        return subprocess.run([sys.executable, str(SCRIPT), *pre, "--root", str(self.root), *args],
-                              capture_output=True, text=True, cwd=self.base, env=env)
+        return testkit.run(SCRIPT, [*pre, "--root", str(self.root), *args], cwd=self.base, env=env)
 
     def plan(self, *args, **kwargs):
         result = self.run_plan(*args, **kwargs)
@@ -96,9 +96,15 @@ class MasterplanTest(unittest.TestCase):
         return path
 
     def farm(self) -> Path:
-        """A masterplan and one plan of it, made by `new`; the masterplan's plan.md."""
-        self.plan("new", "Masterplan farm view", "--masterplan")
-        self.plan("new", "tools", "--parent", "1")
+        """A masterplan and one plan of it, made by `new`; the masterplan's plan.md. `new` makes it in the first test
+        of the process that asks, every later test starts from a copy (testkit.fill_once)."""
+        def build():
+            self.plan("new", "Masterplan farm view", "--masterplan")
+            self.plan("new", "tools", "--parent", "1")
+        if self.plans.exists():  # not a fresh repository: the copy would not be what `new` makes here
+            build()
+        else:
+            testkit.fill_once("farm", self.root, build)
         return self.plans / MASTER / "plan.md"
 
     def fake_cli(self, answer: str, code: int = 0) -> Path:

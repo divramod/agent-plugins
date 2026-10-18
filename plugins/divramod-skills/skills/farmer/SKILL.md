@@ -27,7 +27,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 
 | Duty | Code (the tick) | Woken for | Library |
 |---|---|---|---|
-| `lead` (the foreman duty) | `queue_mode.plan_lead`: `duties.plan_lead`, and in the merge queue's smuggle mode (hal2 plan 0360 D75) every hitched field told once per mode period "smuggle mode: run /mtm now" (it smuggles), never asking the user (`queue_mode.py`) | [instructions/lead.md](instructions/lead.md) | [cases.md](subskills/development-lead/cases.md) |
+| `lead` (the foreman duty) | `queue_mode.plan_lead`: `duties.plan_lead`, and (hal2 plan 0360 D75; 0365 D5, D9) every hitched field whose effective mode is smuggle (its entry's own mode, else the merge queue's) told once per mode period or entry "smuggle mode: run /mtm now" (it smuggles), never asking the user (`queue_mode.py`) | [instructions/lead.md](instructions/lead.md) | [cases.md](subskills/development-lead/cases.md) |
 | `ci` | `duties.plan_ci` (`ci_scan.py`: a red worktree branch told, a queued or running-long run woken for; a red `main` is the tollman's duty `mainred`, skipped here) | [instructions/ci.md](instructions/ci.md) | |
 | `prs` | `duties.plan_prs` (`pr_scan.py`: the open dependency PRs (Renovate, Dependabot) to one foreman per batch, PRs main holds and leftover landing PRs closed, any other PR to the user) | [instructions/prs.md](instructions/prs.md) | |
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
@@ -76,8 +76,8 @@ tick runs; the round code in `scripts/duties.py`, `role_sync.py` and `tasks.py` 
 $S/role_duties.py farmer --repo .` prints the effective list (hal2 plan 0360 D27, D73).
 
 ### lead
-The foreman duty (development lead): unstick sessions, keep `CURRENT_PLAN` filled, in smuggle mode tell each hitched
-field once to smuggle (`queue_mode.plan_lead`). Woken for: [instructions/lead.md](instructions/lead.md).
+The foreman duty (`lead`, the development foreman): unstick sessions, keep `CURRENT_PLAN` filled, tell each hitched
+field whose effective mode is smuggle (its entry's own, else the queue's) once to smuggle (`queue_mode.plan_lead`). Woken for: [instructions/lead.md](instructions/lead.md).
 
 ### ci
 A red worktree branch told, a queued or long-running CI run woken for (`duties.plan_ci`, `ci_scan.py`); a red `main`

@@ -15,6 +15,7 @@ A servant's field holds the gitignored marker `plans/LEAD` (`<foreman's field> <
 servant the masterplan's slug and its row): plan.py and mtm refuse to write the plan or land there (plan 0015 D12;
 hal2 plan 0275 D26): the foreman marks the steps and brings the work in.
 """
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -201,9 +202,16 @@ def worktree_of(path: Path) -> Path | None:
 
 
 def subservant_marker(root: Path, cwd: Path) -> dict | None:
-    """The marker of the `--root` checkout, else of the cwd's: a servant passing --root <foreman> is one too."""
+    """The marker of the `--root` checkout, else of the cwd's: a servant passing --root <foreman> is one too.
+
+    The cwd's checkout is the cwd or a folder above it, so where none of them holds a marker git is not asked (one
+    process less per call); only $GIT_WORK_TREE or $GIT_DIR can put the checkout elsewhere."""
     if marker := read_marker(root):
         return marker
+    here = cwd.resolve()
+    if not any((d / LEAD).is_file() for d in (here, *here.parents)) and \
+            not (os.environ.get("GIT_WORK_TREE") or os.environ.get("GIT_DIR")):
+        return None
     top = worktree_of(cwd)
     return read_marker(top) if top and top.resolve() != root.resolve() else None
 
