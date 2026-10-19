@@ -21,6 +21,8 @@ LABELS = "(mac_vm.labels) lacks"
 HELD = "currently running a job and cannot be deleted"  # GitHub's 422 on a dead clone's busy runner
 KILL_WITHIN = timedelta(seconds=20)  # a job task's last write this soon after a watchdog restart: it tore the job down
 STAND_IN = "still holds a job on GitHub"  # hal2-vm registered a stand-in for it (the fix)
+AGAIN = "again in this clone"  # a clone registered again for its run's next VM job (plan 0391 step 11)
+NO_REGISTRATION = "HAL2_RUNNER_JIT_CONFIG: no registration"  # runner.sh found no env (case 10)
 SECRETS_WAIT = "the secrets did not resolve within"  # a boot waited its whole bound for hal2-secrets (case 8)
 KEPT = "env: kept from"  # the boot took the secrets kept from before (plan 0391 step 11's fix)
 AGAIN = "again in this clone"  # a runner clone took its run's next VM job (plan 0391 step 11)
@@ -176,10 +178,24 @@ def jobless(ctx):
              "detail": f"{len(hits)} VMs booted and ran no job ({names})"}]
 
 
+def stale_env(ctx):
+    """Case 10: a clone registered again whose runner.sh found no registration: the guest did not see the env
+    file the host wrote for it (a replaced file on Apple's shared folder), the next VM job waited for a fresh clone."""
+    def lost(lines):
+        at = next((i for i, line in enumerate(lines) if AGAIN in line), None)
+        return at is not None and any(NO_REGISTRATION in line for line in lines[at:])
+    hits = [t for t in ctx["tasks"] if lost(t["lines"])]
+    if not hits:
+        return []
+    names = ", ".join(t["name"][:8] for t in hits[:5])
+    return [{"case": 10, "slug": "stale-env", "at": hits[0]["start"],
+             "detail": f"{len(hits)} clones registered again and their runner found no registration ({names})"}]
+
+
 def find(ctx):
     """Every known case's finding in the context, by case number then time."""
     found = []
     for check in (gh_auth, dead_starts, watchdog, slept, park_wake, labels, held_runner, watchdog_kill,
-                  secrets_wait, jobless):
+                  secrets_wait, jobless, stale_env):
         found += check(ctx)
     return sorted(found, key=lambda f: (f["case"], f["at"]))

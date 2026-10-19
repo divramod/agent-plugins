@@ -198,6 +198,17 @@ class Cases(unittest.TestCase):
         self.assertIn("c4-01-bash-test", found[0]["detail"])
         ended = task(at(0, 5, 27), at(0, 6, 0), "Running job: a\n")  # ended before the restart: no kill
         self.assertEqual([f for f in signatures.find(ctx(tasks=[ended], daemon=restart)) if f["case"] == 7], [])
+    def test_a_clone_registered_again_whose_runner_found_no_registration(self):
+        # Land run 39231126231 (2026-10-19 09:42:21): c4-02's registration never reached runner.sh in the clone.
+        lost = task(at(9, 33, 26), at(9, 42, 30), "registering x on o/r\nRunning job: c4-01-bash-test\ncommand: 494.7s\n"
+                    "run 39231126231's next VM job waits: registering x again in this clone\n"
+                    "/Volumes/My Shared Files/definition/runner.sh: line 14: HAL2_RUNNER_JIT_CONFIG: no registration\n"
+                    "the command did not run again (exit Some(1)): the clone goes\n")
+        found = [f for f in signatures.find(ctx(tasks=[lost])) if f["case"] == 10]
+        self.assertEqual([f["slug"] for f in found], ["stale-env"])
+        ran = task(at(9, 33, 26), at(9, 42, 30), "run 7's next VM job waits: registering x again in this clone\n"
+                   "Running job: c4-02-tmux-test-mac\n")
+        self.assertEqual([f for f in signatures.find(ctx(tasks=[ran])) if f["case"] == 10], [])
 
 class Cli(unittest.TestCase):
     def setUp(self):

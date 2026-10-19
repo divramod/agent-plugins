@@ -4,6 +4,23 @@ Newest first. One case per root cause; a recurrence adds a line under its case. 
 `evidence.py show` prints that identifies the case; the doctor's (`scripts/signatures.py`) is named with its slug.
 Times are UTC.
 
+## 2026-10-19 09:42 · the clone registered again, its runner found no registration (land run 39231126231)
+
+- **Signature**: `$E waits`: c4-02-tmux-test-mac waited 47 s after c4-01-bash-test; the task log after `registering
+  <name> again in this clone`: `runner.sh: line 14: HAL2_RUNNER_JIT_CONFIG: no registration`, `command: 0.9s`, `the
+  command did not run again (exit Some(1)): the clone goes`, then a new task with its own clone, boot and `Running
+  job: c4-02` (doctor slug `stale-env`). Not the graph's wait: c4-02 was queued since the run's start.
+- **Cause**: the again appended the new registration to the clone's `env` by an atomic rename; the guest had read
+  `env` for c4-01, and Apple's shared folder kept its view of the replaced file: `[ -f env ]` was false, nothing
+  was sourced. Intermittent (two re-registrations at 08:16 and 08:19 of run 39218353794 worked); `command.sh`,
+  rewritten in place, was always seen.
+- **Fix**: 952317ac2 (`fix(vm): a runner clone's next registration in a new env file the guest never read`): each restarted command sources a new env file `env.<n>` (the variables before
+  plus its registration), its name passed as `command.sh`'s argument; `env` is never replaced once a command read it.
+- **Tests**: `hal2-vm::it session::a_command_started_again_never_reads_a_replaced_env_file` (the env file's inode
+  the same for both commands, the second started on `env.1`); fix-tart
+  `test_a_clone_registered_again_whose_runner_found_no_registration`.
+- **Would have caught it sooner**: a fake guest that loses a renamed file; `$E doctor` now names it.
+
 ## 2026-10-18 23:15 - 2026-10-19 05:33 · a lane's next VM job waited for a fresh clone (plan 0391 step 11)
 
 - **Signature**: `$E waits`: the first VM job of a run waits 1-2 s (a VM listens), the next one of the same lane or

@@ -111,8 +111,8 @@ guest: `$ /bin/bash /Volumes/My Shared Files/definition/runner.sh`, the runner's
 removal (`removing <name> from divramod/hal2`). Then the clone serves its run (plan 0391 step 11,
 `code/rust/libs/hal2-vm/src/runner_session.rs`, `runner_queue.rs`, `job_again.rs`): a just-in-time runner takes one
 job and GitHub hands a runner any queued job its labels fit, of any run, so the clone gets a new registration
-(`run <id>'s next VM job waits: registering <name> again in this clone`, appended to its env file, `job.json`'s
-`again`) only while GitHub lists that run's next VM job queued and no other run's, looked for 12 s; else `the clone
+(`run <id>'s next VM job waits: registering <name> again in this clone`, written into a new env file `env.<n>` the
+restarted command sources, never the `env` the guest read: case 10; `job.json`'s `again`) only while GitHub lists that run's next VM job queued and no other run's, looked for 12 s; else `the clone
 goes: <why>` and the next round clones afresh; a runner registered again without a job after 30 s: `<name> got no job
 within 30s: stopped`; after a daemon restart such a runner is retired while idle, never followed. A clone per run's
 back-to-back VM jobs (`mode = "ephemeral"` in `utils/vms/ci-runner-macos/vm.toml`, the guest script
