@@ -4,6 +4,62 @@ Newest first. One case per root cause; a recurrence adds a line under its case. 
 `evidence.py show` prints that identifies the case; the doctor's (`scripts/signatures.py`) is named with its slug.
 Times are UTC.
 
+## 2026-10-18 23:15 - 2026-10-19 05:33 · a lane's next VM job waited for a fresh clone (plan 0391 step 11)
+
+- **Signature**: `$E waits`: the first VM job of a run waits 1-2 s (a VM listens), the next one of the same lane or
+  run 36-123 s (c4-02-tmux-test-mac after c4-01-bash-test, f4 after e3: 14 land runs, median gap 53 s); the task
+  logs show one clone, `delete:`, then a new `registering`, `$ tart clone`, `booted in`, each job its own clone.
+- **Cause**: an ephemeral clone per job, one after the other: the next job waited for the delete, clone, boot and
+  runner start. A runner kept registered for a run would take other runs' jobs (GitHub hands a runner any queued
+  job its labels fit), so no multi-job runner.
+- **Fix**: hal2 plan 0391 step 11, d30169e81 (`feat(vm): a runner clone takes its run's next VM jobs, never another
+  run's`): the booted clone gets a new just-in-time registration while GitHub lists its run's next VM job queued and
+  no other run's (`again in this clone`), else `the clone goes`; a runner registered again without a job after 30 s
+  is stopped (`got no job within`), after a daemon restart retired while idle; runner.sh runs again in its clone.
+- **Tests**: `hal2-vm` `runner_queue::tests` (run 39202611602's jobs), `hal2-vm::it session::*` (one clone, two
+  registrations; another run's job; a runner without a job; an old script), `hal2-vm-node::it
+  orphans::an_idle_runner_registered_again_in_its_runs_clone_is_retired_not_adopted`, runner-macos-check's bats
+  `runner.sh twice in one clone`.
+- **Would have caught it sooner**: `$E waits --check` after each land run.
+
+## 2026-10-18 23:17 - 2026-10-19 05:31 · VMs that ran no job: the watchdog restarted starts under way (plan 0391 step 11)
+
+- **Signature**: job records (`~/.local/state/hal2/vm/jobs/*.json`) `CANCELLED` with `boot: 60-75s` and no `Running
+  job:`, started within seconds of the next one (two clones at once: 00:32:16/00:32:23, 05:31:28/05:31:33, both
+  slots held); journal `mac vm runner restarted (off, on) ... no runner job under way after 60-175 s` at each; after
+  a daemon restart (00:28:45, 05:26:41) `FAILED` starts, `the secrets did not resolve within 60s` without `using the
+  ones resolved before`. Doctor: `jobless` (case 9) and `secrets-wait` (case 8).
+- **Cause**: none was started for a job another runner took or one cancelled. The installed daemon's `vms list`
+  answered from stale rows (the fresh-poll fix b52bda13e reached main only at 03:09 UTC), so the watchdog saw no
+  start under way and restarted it; a start that took 345 s (60 s secrets, a 143 s boot) passed `wake_grace`; the
+  restart's cancel did not end a start's secrets wait, so the next start cloned beside it; the stuck clock of an
+  earlier stretch made the 23:20:37 restart come 13 s into a new start.
+- **Fix**: hal2 plan 0391 step 11, 4403711d1 (a VM job that ended since the last look ends a stuck stretch) and
+  e07b32a33 (the secrets kept, the wait cancellable).
+- **Tests**: `hal2-ci-supervisor::it decide_vm::a_vm_job_that_ended_between_two_looks_ends_the_stuck_stretch`,
+  `hal2-vm::it night::a_restart_during_a_boots_secrets_wait_ends_it_at_once_and_leaves_no_clone`.
+- **Would have caught it sooner**: the doctor's `jobless`; a restart whose `vms list` row had no `job` while the
+  task log showed `$ tart clone`.
+
+## 2026-10-18 23:17 - 2026-10-19 05:56 · every start waited 60 s for its secrets (plan 0391 step 11)
+
+- **Signature**: task logs with `the secrets did not resolve within 60s (hal2-secrets' gpg waits for its
+  passphrase: is the keychain locked?): using the ones resolved before` and `boot:` 60 s longer than `booted in` (17
+  of 20 starts 23:17-00:34, again 05:26-05:56); after a daemon restart the same line without `using the ones
+  resolved before` and the start `FAILED`. Doctor: `secrets-wait` (case 8). gpg answers in 0.5 s from a shell
+  (`gpg --batch --pinentry-mode error --decrypt <a .secret> > /dev/null`), the keychain is unlocked.
+- **Cause**: not gpg's passphrase: hal2-secrets' `resolve` lists every layer of all 51 worktrees once per name, the
+  runner's `[env]` has nine, plus gpg for the encrypted-only ones, on a Mac at load average 39-86 (a full silent
+  resolution of 94 secrets took 54-59 s with 0.1 s of its own CPU). Every boot resolved anew within the 60 s bound,
+  the last good values only after it; a daemon installed by a landing had nothing kept.
+- **Fix**: hal2 plan 0391 step 11, e07b32a33 (`fix(vm): a runner's secrets resolved once, kept and refreshed in the
+  background`): one look for all names, resolved once per daemon and kept (`env: kept from`), files stamped every 10 s
+  and at each boot, a change resolved again in the background, a removed secret gone from the next boot, the first
+  resolution when the runner goes on, a wait with nothing kept cancellable.
+- **Tests**: `hal2-vm` `env_kept::tests::*` (paused clock), `env::tests::every_secret_of_a_definition_is_looked_up_at_once`,
+  `hal2-vm::it secrets_change::a_changed_or_removed_secret_reaches_the_next_boot_by_itself` (the real hal2-secrets).
+- **Would have caught it sooner**: the doctor's `secrets-wait`; `boot:` minus `booted in` per task log.
+
 ## 2026-10-16 22:56 - 2026-10-17 00:06 · the watchdog tore down a clone that was running its job (land run 38984579934)
 
 - **Signature**: a runner task log with `Running job: <job>` whose last write (`command: ...`, `$ tart delete`,

@@ -31,6 +31,9 @@ except the off/on of section 5 after the user's yes; read-only commands are fine
    → `clone` → `copy in` → `$ tart run` → `booted in` → runner.sh `Listening for Jobs` → `Running job` → `command:`
    → `delete:` → `removing` → park. The failure is the first step that did not follow within its bound.
 3. `$E doctor --hours 24` shows whether the same thing happened before.
+4. `$E waits [--runs 5] [--check]` prints how long each VM job of the last land runs waited for its runner (GitHub's
+   start minus the later of its creation and the end of the VM job before it in the run; `--check` exits 1 when one
+   waited 15 s or more, plan 0391 step 11's bound).
 
 ## 2. Match known cases first
 
@@ -88,7 +91,7 @@ what changed in this skill.
 
 ## Insider knowledge
 
-As of hal2 plan 0349 (steps 34, 40, 42). Keep this true: `$E selfcheck`.
+As of hal2 plan 0349 (steps 34, 40, 42) and plan 0391 step 11. Keep this true: `$E selfcheck`.
 
 **The VM runner's flow** (hal2-daemon, one node). `hal2-daemon vms runner <vm> on` saves the switch and starts
 `supervise` per instance (`code/rust/libs/hal2-vm-node/src/runner.rs`; instance 1+ waits until the instances below
@@ -105,8 +108,15 @@ hal2-secrets, `code/rust/libs/hal2-vm/src/env.rs`; `$ tart run --no-graphics <cl
 up to `boot_timeout`, 300 s; `booted in <n>s`), host ports (`forwarding ...`), `command` (runner.sh detached in the
 guest: `$ /bin/bash /Volumes/My Shared Files/definition/runner.sh`, the runner's own lines with UTC times
 `Listening for Jobs`, `Running job: <lane>/<job>`), `delete` (`$ tart delete <clone>`), and the registration's
-removal (`removing <name> from divramod/hal2`). An ephemeral clone per job (`mode = "ephemeral"` in
-`utils/vms/ci-runner-macos/vm.toml`, the guest script `utils/vms/ci-runner-macos/runner.sh`). After a failed round
+removal (`removing <name> from divramod/hal2`). Then the clone serves its run (plan 0391 step 11,
+`code/rust/libs/hal2-vm/src/runner_session.rs`, `runner_queue.rs`, `job_again.rs`): a just-in-time runner takes one
+job and GitHub hands a runner any queued job its labels fit, of any run, so the clone gets a new registration
+(`run <id>'s next VM job waits: registering <name> again in this clone`, appended to its env file, `job.json`'s
+`again`) only while GitHub lists that run's next VM job queued and no other run's, looked for 12 s; else `the clone
+goes: <why>` and the next round clones afresh; a runner registered again without a job after 30 s: `<name> got no job
+within 30s: stopped`; after a daemon restart such a runner is retired while idle, never followed. A clone per run's
+back-to-back VM jobs (`mode = "ephemeral"` in `utils/vms/ci-runner-macos/vm.toml`, the guest script
+`utils/vms/ci-runner-macos/runner.sh`, which runs again in its clone). After a failed round
 `Backoff`: 30 s, doubling to 10 min. Task logs: `~/.local/state/hal2/tasks/<uuid7>.log`.
 
 **The gh token.** Every gh call of the daemon (registration, `busy`, the supervisor's looks) used gh's keychain
@@ -115,9 +125,15 @@ runners, `gh: Not Found (HTTP 404)` on the private repository's jobs. Since step
 from `~/.config/hal2/gh-token` (mode 0600; the user writes it once: `gh auth token > ~/.config/hal2/gh-token &&
 chmod 600 ~/.config/hal2/gh-token`), else a `gh auth token` read once and kept in memory.
 
-**The secrets bound.** The boot resolves `${SECRET:...}` through hal2-secrets and gpg, whose passphrase
-pinentry-mac keeps in the keychain: at night it can wait for good (case 2's 400 s). Since step 42 the resolution is
-bounded (60 s) and the last good resolution is kept in memory and reused.
+**The secrets.** The boot resolves `${SECRET:...}` through hal2-secrets and gpg. Since plan 0391 step 11 a
+definition's `[env]` is resolved once per daemon and kept (`code/rust/libs/hal2-vm/src/env_kept.rs`; one look for all
+its names, `env_secrets.rs`, `secrets.toml` read again when it changes): a boot says `env: kept from <n>s ago` and
+waits for nothing; the files (each chain layer's `.secrets/`, `.gitsecret/` without gpg's `random_seed`,
+`secrets.toml`) are stamped every 10 s and at each boot, a change is resolved again in the background (`resolved again
+in the background`), a removed secret leaves the cache; the first resolution starts when the runner goes on; a boot
+with nothing kept waits within 60 s, cancellable (`the secrets did not resolve within 60s ...: it goes on in the
+background`). The 60 s waits of 2026-10-18/19 (case 8) were hal2-secrets listing every layer of 51 worktrees once per
+name, nine names per boot, on a Mac at load 39-86, not gpg's passphrase (gpg answered in 0.5 s).
 
 **The CI supervisor's mac_vm check** (hal2-daemon's role, `code/rust/apps/hal2-daemon/src/ci_supervisor.rs`;
 `check_mac_vm` in `code/rust/libs/hal2-ci-supervisor/src/checks/mac_vm.rs`, every `[checks.mac_vm] interval` s): it reads
@@ -131,7 +147,8 @@ park shows no job of any run for the VM. **The watchdog** (step 42, `VmBook` in
 within `start_grace` (30 s), or a start not online on GitHub within `wake_grace` (300 s), is torn down and started
 again (off, on; `mac vm runner restarted`; a VM runner GitHub lists online and busy is ready and never torn down, an
 online one is a start under way: case 7), at most `max_restarts` (3) per stuck stretch, then said once as a
-warning (`mac vm: start still not online`) and tried again after `restart_pause` (1800 s). **Keep-awake** (step 42): while a VM job is queued, running, or its run
+warning (`mac vm: start still not online`) and tried again after `restart_pause` (1800 s); a VM job that ended
+since the last look ends a stretch (`VmSeen::last_done`, plan 0391 step 11: the restart 13 s into a new start). **Keep-awake** (step 42): while a VM job is queued, running, or its run
 holds the VM, the supervisor holds `caffeinate -i -s -w <daemon pid>` (macOS), logged `ci supervisor: mac kept
 awake` / `ci supervisor: mac may sleep again`. Labels unfinished jobs want beyond the VM's are said once (`mac vm:
 jobs wait for labels the VM's config (mac_vm.labels) lacks: ...`). Every wake and park decision also goes to the
@@ -147,14 +164,16 @@ defaults: vm `hal2/ci-runner-macos`, labels self-hosted, macOS, ARM64, hal2, mac
 <!-- /keys -->
 
 **Commands**: `hal2-daemon vms list --json` (the VM's `state`: `stopped`, `running`, ...; `runner_enabled`; `job`:
-the clone's id), `hal2-daemon vms runner <vm> on|off`, `tart list`, `pmset -g log | grep -E ' (Sleep|Wake) '`.
+the clone's id), `hal2-daemon vms runner <vm> on|off`, `tart list`, `pmset -g log | grep -E ' (Sleep|Wake) '`,
+`$E waits` (the VM jobs' waits on GitHub).
 
 **Log strings** the evidence and the doctor read (selfcheck greps hal2's Rust sources for each):
 <!-- strings -->
 `registering `, `booted in `, `copy in`, `removing `, `generate-jitconfig`, `ci-supervisor/power.log`,
 `mac vm runner `, `off (park)`, `on (wake)`, `(mac_vm.labels) lacks`, `mac vm runner restarted`,
 `mac vm: start still not online`, `mac kept awake`, `mac may sleep again`, `gh-token`,
-`still holds a job on GitHub`
+`still holds a job on GitHub`, `the secrets did not resolve within`, `env: kept from`, `again in this clone`,
+`the clone goes`, `got no job within`
 <!-- /strings -->
 
 **Traps**: `vms runner ... on` while it is on does nothing (a dead start stays dead until off, on); `vms list`

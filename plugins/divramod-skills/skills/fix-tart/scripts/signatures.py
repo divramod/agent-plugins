@@ -21,10 +21,14 @@ LABELS = "(mac_vm.labels) lacks"
 HELD = "currently running a job and cannot be deleted"  # GitHub's 422 on a dead clone's busy runner
 KILL_WITHIN = timedelta(seconds=20)  # a job task's last write this soon after a watchdog restart: it tore the job down
 STAND_IN = "still holds a job on GitHub"  # hal2-vm registered a stand-in for it (the fix)
+SECRETS_WAIT = "the secrets did not resolve within"  # a boot waited its whole bound for hal2-secrets (case 8)
+KEPT = "env: kept from"  # the boot took the secrets kept from before (plan 0391 step 11's fix)
+AGAIN = "again in this clone"  # a runner clone took its run's next VM job (plan 0391 step 11)
 # The literal pieces of hal2's code the needles above and the task-log reading depend on (selfcheck greps
 # hal2's Rust sources for each: one gone means a signature reads nothing).
 FRAGMENTS = ["registering ", "booted in ", "copy in", "mac vm runner ", "off (park)", "on (wake)",
-             RESTARTED, GAVE_UP, LABELS, STAND_IN, "mac kept awake", "mac may sleep again"]
+             RESTARTED, GAVE_UP, LABELS, STAND_IN, "mac kept awake", "mac may sleep again",
+             SECRETS_WAIT, KEPT, AGAIN, "the clone goes", "got no job within"]
 
 
 def fmt(dt):
@@ -144,9 +148,38 @@ def watchdog_kill(ctx):
     return out
 
 
+def secrets_wait(ctx):
+    """Case 8: boots that waited their whole bound for hal2-secrets (nothing kept, a slow listing or gpg)."""
+    hits = [t for t in ctx["tasks"] if any(SECRETS_WAIT in line for line in t["lines"])]
+    if not hits:
+        return []
+    return [{"case": 8, "slug": "secrets-wait", "at": hits[0]["start"],
+             "detail": f"{len(hits)} runner tasks waited for their secrets ({fmt(hits[0]['start'])} to "
+                       f"{fmt(hits[-1]['start'])}): {SECRETS_WAIT} ..."}]
+
+
+def jobless(ctx):
+    """Case 9: clones that ended with no GitHub job: before their runner ran (a restart, the secrets bound) or
+    with it listening (a park, a start whose job went elsewhere)."""
+    def without_job(lines):
+        # A boot that never ended or took past the bound is case 2's.
+        boot = boot_seconds(lines)
+        booted = boot is not None and boot < SLOW_BOOT
+        ran = any(line.startswith("command: ") for line in lines)
+        listened = any("Listening for Jobs" in line for line in lines)
+        return booted and not any("Running job: " in line for line in lines) and (not ran or listened)
+    hits = [t for t in ctx["tasks"] if t.get("end") and without_job(t["lines"])]
+    if not hits:
+        return []
+    names = ", ".join(t["name"][:8] for t in hits[:5])
+    return [{"case": 9, "slug": "jobless", "at": hits[0]["start"],
+             "detail": f"{len(hits)} VMs booted and ran no job ({names})"}]
+
+
 def find(ctx):
     """Every known case's finding in the context, by case number then time."""
     found = []
-    for check in (gh_auth, dead_starts, watchdog, slept, park_wake, labels, held_runner, watchdog_kill):
+    for check in (gh_auth, dead_starts, watchdog, slept, park_wake, labels, held_runner, watchdog_kill,
+                  secrets_wait, jobless):
         found += check(ctx)
     return sorted(found, key=lambda f: (f["case"], f["at"]))

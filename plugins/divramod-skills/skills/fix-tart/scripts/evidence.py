@@ -12,6 +12,9 @@
       the same as files, to turn into hal2 test fixtures, with a README.md naming each
   evidence.py selfcheck [--repo ~/a/hal2]
       whether SKILL.md's paths, log strings and config keys still match hal2's code
+  evidence.py waits [--runs 5] [--check]
+      how long each VM job of the last land runs waited for its runner (from GitHub; --check: exit 1 when one
+      waited 15 s or more, plan 0391 step 11)
 
 Every source is overridable (sources.py: --daemon-log, --tasks-dir, --journal, --pmset-log-file,
 --vms-json, --tart-list, --gh-jobs; --now for a fixed clock). Exit 0 on success, 1 when selfcheck finds
@@ -28,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import signatures  # noqa: E402
 import sources  # noqa: E402
+import waits  # noqa: E402
 
 SKILL_MD = Path(__file__).resolve().parent.parent / "SKILL.md"
 RUST = ["code/rust/libs/hal2-vm/src", "code/rust/libs/hal2-vm-node/src",
@@ -176,6 +180,18 @@ def selfcheck(args):
     return 1 if drift else 0
 
 
+def waits_cmd(args):
+    """The VM jobs' waits for their runner in the last land runs (plan 0391 step 11); 1 with --check when one
+    waited 15 s or more."""
+    found = waits.land_runs(sources.run, sources.REPO, args.runs)
+    if found is None:
+        print("gh failed (missing, not logged in, or the keychain did not answer)", file=sys.stderr)
+        return 2
+    lines, all_under = waits.report(found)
+    print("\n".join(lines))
+    return 1 if args.check and not all_under else 0
+
+
 def add_sources(p):
     d = sources.defaults()
     p.add_argument("--hours", type=float, default=2)
@@ -196,12 +212,15 @@ def main(argv=None):
     add_sources(d)
     d.add_argument("--json", action="store_true")
     sub.add_parser("selfcheck").add_argument("--repo", default="~/a/hal2")
+    w = sub.add_parser("waits")
+    w.add_argument("--runs", type=int, default=5)
+    w.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.cmd == "show":
             show(args)
             return 0
-        return {"capture": capture, "doctor": doctor, "selfcheck": selfcheck}[args.cmd](args)
+        return {"capture": capture, "doctor": doctor, "selfcheck": selfcheck, "waits": waits_cmd}[args.cmd](args)
     except sources.Missing as e:
         print(f"evidence.py: missing {e}; run scripts/install-prerequisites.sh", file=sys.stderr)
         return 2
