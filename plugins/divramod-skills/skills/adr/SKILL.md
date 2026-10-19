@@ -84,7 +84,7 @@ works, read-only and advisory:
    "<rule>"` writes it): where `AGENTS.md`'s Rules are generated (its `<!-- generated: rules -->` block), run
    `$A generated --write` and never edit the bullet by hand; elsewhere write the line and the record's link into
    `AGENTS.md`'s Rules. A path-scoped rule gets none: `$A for <path>` finds it.
-7. Commit the record, the index, `INTENT.md`, `AGENTS.md` and the ledger together (`docs(adr): <slug>: <what>`), or leave them
+7. Commit the record, the index, `INTENT.md`, `AGENTS.md` and the ledger together (`docs(<NNNN>|<step>): <slug>: <what>` with the plan's number and step, `docs(adr): ...` without a plan; hal2 plan 0391 D22), or leave them
    to the step's commit when a plan is running. Never push or land for it.
 
 ## Rules

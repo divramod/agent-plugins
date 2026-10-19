@@ -2,7 +2,7 @@
 """`/gp`: group the uncommitted files into Conventional Commits and push (hal2 plan 0364, D12).
 
   gp.py scan [--json]                                   what is uncommitted: unit, scope, class, groups
-  gp.py commit --group <unit> --subject "<type>(<scope>): <text>" [--body <text>] [--step n/m] [--trailer <line>]...
+  gp.py commit --group <unit> --subject "<type>(<NNNN>|<step>): <text>" [--body <text>] [--step n/m] [--trailer <line>]...
                [--also <ignore-candidate path>]...      stage and commit exactly that group's files
   gp.py ignore <pattern>...                             append to .gitignore
   gp.py push [--remote <name>]                          push the current branch, never force
@@ -22,8 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gp_scan  # noqa: E402
 
 TYPES = ("feat", "fix", "docs", "test", "ci", "perf", "style", "refactor", "build", "chore")
-HEAD = re.compile(r"^(" + "|".join(TYPES) + r")(\([A-Za-z0-9._/,@-]+\))?!?: \S.*$")
-PLAN = re.compile(r"^\d{4}-[a-z0-9][a-z0-9-]*$")
+HEAD = re.compile(r"^(" + "|".join(TYPES) + r")(\([A-Za-z0-9._/,@|-]+\))?!?: \S.*$")
 STEP = re.compile(r"^\d+/\d+$")
 WORKFLOWS = ("dev-merge-to-main.yml", "merge-to-main.yml")
 
@@ -45,13 +44,7 @@ def check_subject(subject: str) -> None:
         raise Refused("subject must not say wip")
 
 
-def current_plan(root: str) -> str:
-    """`plans/CURRENT_PLAN` when it names a plan folder (`<NNNN>-<slug>` with plans/<it>/), else an empty string."""
-    marker = Path(root, "plans", "CURRENT_PLAN")
-    if not marker.is_file():
-        return ""
-    name = marker.read_text().strip().splitlines()[0].strip() if marker.read_text().strip() else ""
-    return name if PLAN.match(name) and Path(root, "plans", name).is_dir() else ""
+current_plan = gp_scan.current_plan
 
 
 def worktree_name(root: str) -> str:

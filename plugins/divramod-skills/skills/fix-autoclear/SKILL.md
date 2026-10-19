@@ -71,7 +71,7 @@ inputs (the Bash command, the screen text, the records) is the proof. Distinguis
    (from `code/rust/`).
 3. `cargo install --path apps/hal2-cli-agents` so the hooks and jobs run the fix now (hal2-api's sweep runs its
    own copy: `cargo install --path apps/hal2-api && hal2-api install` when the sweep changed).
-4. Commit in the worktree (one commit, `fix(agents): ...` saying the incident and the cause). Landing is the user's
+4. Commit in the worktree (one commit, `fix(<NNNN>|<step>): ...` in a plan, else `fix(agents): ...`, saying the incident and the cause). Landing is the user's
    (`/mtm`).
 
 ## 5. Get the stuck session going

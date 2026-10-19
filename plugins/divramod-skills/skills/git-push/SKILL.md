@@ -1,6 +1,6 @@
 ---
 name: git-push
-description: Commit everything uncommitted as Conventional Commits and push — `gp.py scan` groups the changed files by unit (a code unit, a plan, docs, a top folder) and classes each as commit, secret (never committed) or ignore-candidate (build output, caches, logs, editor files, large binaries); you ask the user about the ignore-candidates in one plain-text question in the Q form, write one descriptive `<type>(<scope>): <subject>` per group, commit each group with the repository's trailers (`Worktree:`, `Plan:`, `Step:`) and push the branch without force. It refuses to push the default branch of a repository that lands through a merge queue (`/mtm` does that). `/gp` does all of it, `/gp scan` only shows the groups, `/gp push` only pushes, `/gp <hint>` gives the commit's subjects a hint. Use when the user says /gp, "commit and push", "commit everything", "push my work" or "commitizen commits". `/gp h` shows help.
+description: Commit everything uncommitted as Conventional Commits and push — `gp.py scan` groups the changed files by unit (a code unit, a plan, docs, a top folder) and classes each as commit, secret (never committed) or ignore-candidate (build output, caches, logs, editor files, large binaries); you ask the user about the ignore-candidates in one plain-text question in the Q form, write one descriptive `<type>(<scope>): <subject>` per group (with a current plan the scope is `<NNNN>|<step>`), commit each group with the repository's trailers (`Worktree:`, `Plan:`, `Step:`) and push the branch without force. It refuses to push the default branch of a repository that lands through a merge queue (`/mtm` does that). `/gp` does all of it, `/gp scan` only shows the groups, `/gp push` only pushes, `/gp <hint>` gives the commit's subjects a hint. Use when the user says /gp, "commit and push", "commit everything", "push my work" or "commitizen commits". `/gp h` shows help.
 ---
 
 # git-push (alias gp)
@@ -31,7 +31,8 @@ class, the staging, the trailers, the push); you only word the subjects and ask 
    No candidate and no secret: no question. A secret is always only reported, never committed.
 3. **Subjects**: read each group's diff (`git diff -- <files>`; new files by reading them) and write one subject per group:
    `<type>(<scope>): <what changed>`, type one of `feat fix docs test ci perf style refactor build chore`, the group's
-   `scope` as the scope (a plan or docs group: `docs(plans): ...`), lower-case, imperative, no period, at most 72
+   `scope` as the scope: with a plan in `plans/CURRENT_PLAN` the scan gives its number, `<NNNN>`, and a step's work
+   adds `|<step>` (`feat(0391|15): ...`, hal2 plan 0391 D22); without a plan the unit (a docs group: `docs(docs): ...`), lower-case, imperative, no period, at most 72
    characters, never `update` or `misc edits`; a `!` before the colon marks a breaking change. A body (`--body`) only
    when the why is not obvious. A `docs/` group is always its own commit; a mixed unit that holds clearly unrelated
    changes may be split by asking for it: files of one unit stay in one commit.

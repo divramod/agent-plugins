@@ -455,8 +455,10 @@ The coordinator finishes each step its subagent reported:
    when reality changed them (say what and why; decisions go to their one home). The plan's own **Notes** keep only
    what concerns the whole plan.
 4. **Commit the step**: one commit with the step's changes, its `steps/<n>.md` and the updated plan. The subject
-   says what changed (`feat(hal2-git): the landing's subject says what changed`, Conventional Commits, at most 72
-   characters, no plan or step in it); the origin is the last paragraph's trailers, which `python3 $S/plan.py
+   is `<type>(<NNNN>|<step>): <what was done>` (`feat(0355|1): the landing's subject says what changed`, a
+   Conventional Commits type, at most 72 characters; `python3 $S/plan.py scope <step>` prints the scope, a plan of a
+   masterplan's `<master>|<plan>|<step>`, the plan's own files without a step `docs(0355): ...`; hal2 plan 0391
+   D22); below it everything stays: the origin is the last paragraph's trailers, which `python3 $S/plan.py
    trailers <step>` prints (`Worktree: 05`, `Plan: 0355-commit-standards`, `Step: 1/6`; hal2 plan 0355), before the
    `Co-Authored-By:` and `Claude-Session:` lines. Stage only the files this step changed (other uncommitted work
    stays as it was). Never push without the user's consent.

@@ -96,6 +96,7 @@ class UnitTests(unittest.TestCase):
     def test_subject_validation(self):
         gp.check_subject("feat(skills): add the git-push skill")
         gp.check_subject("fix: handle spaces in names")
+        gp.check_subject("feat(0391|15): commit subjects name the plan and step")
         for bad in ("update stuff", "Feat: x", "feat(x): ", "feat: ends with a period.", "wip: half", "feat: " + "x" * 80,
                     "feat: wip things", "other(x): y"):
             with self.assertRaises(gp.Refused, msg=bad):
@@ -132,6 +133,14 @@ class ScanTests(Base):
         self.assertEqual(patterns, {"__pycache__/", "*.log"})
         self.assertNotIn(".env", [p for g in groups.values() for p in g])
         self.assertEqual(next(g for g in result["groups"] if g["unit"] == "code/py/apps/tool")["scope"], "tool")
+
+    def test_a_current_plan_scopes_every_group_by_its_number(self):
+        write(self.root, "plans/0391-deploy/plan.md")
+        write(self.root, "plans/CURRENT_PLAN", "0391-deploy\n")
+        write(self.root, "code/py/apps/tool/main.py")
+        scopes = {g["unit"]: g["scope"] for g in self.scan()["groups"]}
+        self.assertEqual(scopes["code/py/apps/tool"], "0391")
+        self.assertEqual(scopes["plans"], "0391")
 
     def test_large_untracked_file_is_a_candidate(self):
         big = write(self.root, "data/blob.bin", "")

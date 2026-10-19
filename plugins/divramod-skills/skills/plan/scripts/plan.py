@@ -47,6 +47,9 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
   plan.py trailers <step> [--plan <slug>]                  print the three origin trailers of that step's commit
                                                            (`Worktree: <NN>`, `Plan: <slug>`, `Step: <n>/<total>`;
                                                            trailers.py, hal2 plan 0355), to paste under its subject
+  plan.py scope [<step>] [--plan <slug>]                   print the commit subject's scope: `0391|15`, a plan of a
+                                                           masterplan `0274|0278|3`, without a step `0391` (D22 of
+                                                           hal2 plan 0391): `<type>(<scope>): <what was done>`
   plan.py status <step> "<status>" [--plan <slug>]         set one step's Status cell; `next` also writes the
                                                            step's file steps/<step>.md from templates/step.md
                                                            when it is missing (never overwrites), named in the
@@ -767,6 +770,9 @@ def main(argv: list[str]) -> int:
     p_trailers = sub.add_parser("trailers", help="the origin trailers of a step's commit (Worktree, Plan, Step)")
     p_trailers.add_argument("step")
     p_trailers.add_argument("--plan")
+    p_scope = sub.add_parser("scope", help="the commit subject's scope: <NNNN>|<step>, <master>|<NNNN>|<step>")
+    p_scope.add_argument("step", nargs="?", default="")
+    p_scope.add_argument("--plan")
     p_uat = sub.add_parser("uat")
     p_uat.add_argument("--plan")
     p_uat.add_argument("--shotfile", default="", help="the feature shotfile a failed check becomes a shot in")
@@ -838,6 +844,12 @@ def main(argv: list[str]) -> int:
             path = resolve(root, args.plan) if args.plan else current_path(root)
             print("\n".join(trailers.lines(root, slug_of(path), [s["number"] for s in read_steps(path.read_text())],
                                            args.step)))
+            return 0
+        if args.command == "scope":
+            path = resolve(root, args.plan) if args.plan else current_path(root)
+            text = path.read_text()
+            print(trailers.scope(slug_of(path), masterplan.parent_of(text), [s["number"] for s in read_steps(text)],
+                                 args.step))
             return 0
         if args.command == "new":
             spec_info, into, designs = spec_link_args(root, args)

@@ -238,8 +238,9 @@ The queue is reserved now: work through this without pausing, every other landin
    its record, a status fits its step table) and commit it with the rest; a problem in a plan this worktree did not
    touch is named in the report, never fixed in passing. A plan's `handoff.md` is work: commit it.
 5. Commit with messages in the repo's style (`git log --oneline -10`): a descriptive Conventional Commits subject
-   saying what changed (never the worktree, plan or step in it; those are the trailers `Worktree:`, `Plan:`,
-   `Step:` in the last paragraph, `plan.py trailers <step>` prints them) and a body that says why; one commit per independent
+   `<type>(<NNNN>|<step>): <what was done>` (`plan.py scope [<step>]` prints the scope, a masterplan's plan
+   `<master>|<plan>|<step>`, plan work that is no step `<NNNN>`, work without a plan the unit; never the worktree;
+   the trailers `Worktree:`, `Plan:`, `Step:` in the last paragraph stay, `plan.py trailers <step>` prints them) and a body that says why; one commit per independent
    change. Stage explicit paths, never `git add -A`. A failing git hook is fixed, never skipped (`--no-verify`).
 6. Push the branch: `git push` (`git push -u origin HEAD` when it has no upstream; nothing without an `origin`).
 
@@ -313,7 +314,7 @@ and lands before anything else, so no commit is left behind on the worktree bran
    open steps whose done-when needed the landing (`after_landing` in its JSON: "after the landing: ...") and can be
    run now. Run each check; when it passes, finish the step
    as the [plan](../plan/SKILL.md) skill's **Finish a step** says (step table, notes, one commit with a
-   descriptive subject and the step's `Worktree:`/`Plan:`/`Step:` trailers, no context check, no handoff); when it
+   `<type>(<NNNN>|<step>): ...` subject and the step's `Worktree:`/`Plan:`/`Step:` trailers, no context check, no handoff); when it
    fails, fix it (commit) or, when you cannot,
    leave the step open and say so in the report. Steps that need more work than a check stay open: the plan goes
    on after this `/mtm`.

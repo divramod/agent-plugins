@@ -62,7 +62,7 @@ Distinguish:
    a comment. It fails before the fix.
 2. Fix, then from `code/rust/`: `cargo fmt --all`, `cargo nextest run -p <crate>`, `cargo clippy -p <crate>
    --all-targets` for each changed crate (hal2-vm, hal2-vm-node, hal2-ci-supervisor, hal2-daemon).
-3. Commit in the worktree (`fix(vm): ...` or `fix(ci-supervisor): ...` saying the incident and the cause). Landing
+3. Commit in the worktree (`fix(<NNNN>|<step>): ...` in a plan, else `fix(vm): ...` or `fix(ci-supervisor): ...`, saying the incident and the cause). Landing
    is the user's (`/mtm`); the installed `hal2-daemon` runs the fix only after the landing's install.
 
 ## 5. Get the stuck job going

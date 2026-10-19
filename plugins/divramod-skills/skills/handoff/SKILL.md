@@ -380,11 +380,12 @@ python3 $S/decisions.py --check    # exit 1: one problem per line (no section, n
 ### 5. Commit the decision docs, the questions and a plan's handoff, never the root handoff
 
 ```bash
-bash $S/commit-handoff.sh "docs(plans): <what you recorded, e.g. the decisions and handoff of plan <NNNN>>" [plans/<plan>/plan.md plans/<plan>/decisions.md plans/<plan>/questions.md plans/<plan>/handoff.md .adr/<new>.md ...]
+bash $S/commit-handoff.sh "docs(<NNNN>): <what you recorded, e.g. the decisions and the handoff>" [plans/<plan>/plan.md plans/<plan>/decisions.md plans/<plan>/questions.md plans/<plan>/handoff.md .adr/<new>.md ...]
 ```
 
-The message is a descriptive Conventional Commits subject saying what the commit holds (never the worktree or the
-plan in it); the script adds the trailers `Worktree: <NN>` and, when `plans/CURRENT_PLAN` names a plan, `Plan:
+The message is a Conventional Commits subject whose scope is the plan's number, `docs(<NNNN>): ...` (a plan of a
+masterplan `docs(<master>|<NNNN>)`; without a plan `docs(plans)`; hal2 plan 0391 D22), saying what the commit holds,
+never the worktree; the script adds the trailers `Worktree: <NN>` and, when `plans/CURRENT_PLAN` names a plan, `Plan:
 <NNNN>-<slug>` (hal2 plan 0355), before any `Co-Authored-By:`/`Claude-Session:` lines you pass.
 It commits exactly the docs you changed in steps 1, 2, 3b and 4 (the questions file too, when it changed; a record
 plan's `handoff.md` is one of them, its `plan.md` when step 3b changed `run`, and a decision record goes with its regenerated index: the `adr` skill),
