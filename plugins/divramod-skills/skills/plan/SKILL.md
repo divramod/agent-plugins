@@ -421,8 +421,8 @@ remove <NN> --remote --stop`, which refuses unsaved work; never 00-09; plan 0360
 
 The last step of an auto plan is done (`land: ready`). This is the only time the plan skill starts a landing, and
 only for the plan the user started (also in a session continued with `/handoff c`); never before its last step,
-never for another worktree or session, never again after a landing ended with exit 5 `stopped` or `cancelled` by the user (one your own shell tool's
-time limit ended, or exit 5 `interrupted`, its process gone and not the user, is rerun at once: the mtm skill's steps 1 and 4).
+never for another worktree or session, never again after a landing ended with exit 13 (5 before hal2 plan 0318) `stopped` or `cancelled` by the user (one your own shell tool's
+time limit ended, or exit 13 `interrupted`, its process gone and not the user, is rerun at once: the mtm skill's steps 1 and 4).
 
 1. Check you can land: a worktree on its own branch (in the main checkout or on the default branch there is nothing
    to land: say so and stop), `problems` empty (else move the after-landing steps to the end, commit, check again).
@@ -434,7 +434,7 @@ time limit ended, or exit 5 `interrupted`, its process gone and not the user, is
    Where mtm would ask the user (the attempts limit, a cause you cannot fix), a plan's landing asks nothing: push a
    notification (`PushNotification`, e.g. "plan 0063: landing holds the merge queue, needs you") and stop with the
    report; the failed landing keeps holding the queue until the user acts. A successful landing only reports. In a
-   repository with a working tollman (mtm's `scripts/tollman.sh` prints `yes`, its check before step 1) this
+   repository with a working, awake tollman (mtm's `scripts/tollman.sh` prints `yes`; `no` while it is asleep: then the plan lands itself), its check before step 1) this
    `/mtm` hitches instead of landing: the work is reported ready, the session ends its turn, and the plan's end (the
    after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the tollman's "in the barn". When the
    worktree's mode is smuggle (`hal2-cli-git worktree queue mode --slot <worktree>` prints `smuggle`: its entry's own
@@ -491,7 +491,7 @@ The coordinator finishes each step its subagent reported:
         ```bash
         hal2-cli-agents clear-and-continue --effort <run's effort> --detach --json    # pane from $TMUX_PANE or $HAL2_TERMINAL, session from $CLAUDE_CODE_SESSION_ID
         ```
-        `already-running` is fine: hal2's guard already started the job (it stops a session above the threshold at
+        `already-running` (the refusal's `reason`, on stdout or in the stderr error's `details`) is fine: hal2's guard already started the job (it stops a session above the threshold at
         its next tool, hal2's [research 0010](https://github.com/divramod/hal2/blob/main/research/0010-autoclear-watcher/research.md)): just end your turn. When it fails to start otherwise (autoclear
         disabled, ...), say so and fall back to the next point.
      A tool denied with "hal2: context at N% ... run /handoff now" is that guard: stop the step where it is, do

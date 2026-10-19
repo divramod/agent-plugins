@@ -8,7 +8,8 @@ import shutil
 import subprocess
 
 PROGRAM = "hal2-cli-git"
-FIRST_LINE = "usage: hal2-cli-git worktree cleanup"
+# The old hand-parsed help's first line, and the group help's once hal2-cli-git runs on hal2_core::cli (plan 0318).
+FIRST_LINES = ("usage: hal2-cli-git worktree cleanup", "hal2-cli-git worktree cleanup - ")
 HELP_TIMEOUT = 10
 
 
@@ -16,7 +17,7 @@ def find():
     """The CLI that knows `worktree cleanup`, or None.
 
     HAL_CLEANUP_CLI names it (empty: none, the Python runs), else hal2-cli-git on PATH. It counts only when
-    `<cli> worktree cleanup --help` exits 0 AND its first line is FIRST_LINE: older CLIs exit 0 on any `--help`
+    `<cli> worktree cleanup --help` exits 0 AND its first line starts with one of FIRST_LINES: older CLIs exit 0 on any `--help`
     and print their general usage.
     """
     cli = os.environ["HAL_CLEANUP_CLI"] if "HAL_CLEANUP_CLI" in os.environ else shutil.which(PROGRAM)
@@ -28,7 +29,7 @@ def find():
     except (OSError, subprocess.SubprocessError):
         return None
     lines = help_.stdout.splitlines()
-    return cli if help_.returncode == 0 and lines and lines[0].startswith(FIRST_LINE) else None
+    return cli if help_.returncode == 0 and lines and lines[0].startswith(FIRST_LINES) else None
 
 
 def run(argv):

@@ -20,7 +20,7 @@ const rowOf = (r: any): RollUpRow => ({
   current_in: strings(r.current_in),
 })
 
-// The CLI's output as a roll-up; `null` (the CLI's word for "no masterplan"), anything unreadable or a JSON of another
+// The CLI's output as a roll-up; `{}` or `null` (the CLI's word for "no masterplan"), anything unreadable or a JSON of another
 // shape gives null, never an error.
 export const parseRollUp = (out: string): RollUp | null => {
   try {

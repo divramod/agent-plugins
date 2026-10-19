@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A load-flaky test's fix as a brief in the farmer's delegation ledger (hal2 plan 0360 step 23, D30), as the duty
 `learn` places its daily brief: the tollman speaks to the farmer only when asked, so the disabling goes to a
-foreman through the farmer's own path (`delegation.delegate`: its ledger, its limit, a free field 00-29 or a new
+foreman through the farmer's own path (`delegation.delegate`: its ledger, its limit, a free field or a new
 one, its follow-up), never as a message.
 
     flaky_brief.py place --repo <field> --test <name> --slot <NN> [--why <text>] [--evidence <json>] [--role tollman]

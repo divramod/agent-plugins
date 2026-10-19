@@ -1,5 +1,6 @@
 """A test farm of numbered worktrees (once test_prune.py's, which moved to the tollman with the prune duty in plan
-0360 step 7): the farmer's tests of mtm_scan and lead_scan and the tollman's of prune build on it. No test here."""
+0360 step 7 and to /prune's own tests in plan 0377): the farmer's tests of mtm_scan and lead_scan and /prune's build
+on it. No test here."""
 
 import os
 

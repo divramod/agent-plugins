@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The merge queue's two modes and the tollman's sleep flag in the tollman's round (hal2 plan 0360 step 25, D74 to
-D76; plan 0365 D3, D5, D9). hal2-git keeps the mode (`queue --json`'s `mode: {mode, by, at, why}`, production when
+D76; plan 0365 D3, D5, D9; plan 0375 D4, D19). hal2-git keeps the mode (`queue --json`'s `mode: {mode, by, at, why}`, production when
 missing; the farmer's queue_mode.of reads it); only the user switches it. Each hitched entry has an effective mode of
 its own (`effective_mode`, else its own `mode`, else the queue's; an older hal2-cli-git without them reads as the
 queue's): the tollman's trains take only entries whose effective mode is production, and in smuggle mode it sleeps
@@ -15,14 +15,18 @@ hal2-roles writes it, also when `$FARMER_DIR` moves the state folder) puts it to
    and a landing that lands settles as ever (KEEP); a landing that ends red or interrupted is left as it is, the
    train stays `landing` with its process gone, and the first round in production settles it (triage, wake, fix
    order) and its cars stay hitched. `busy` holds every ci-check back (the duty `checks`).
-2. Awake again (D75 5, D76): the round notes the mode it saw (`seen-mode`, `mode.json` in the state folder). The first
-   round in production after smuggle mode, before any train, finds the cars already in the barn (`git merge-base
+   Asleep on the flag (plan 0375, switch.py) the round also drops every standing train that is not landing (its
+   cars keep their tickets, places and ready marks; a landing process that lives is never cut) and tells every
+   hitched field once per sleep to land alone in its turn (`/merge-to-main`, which smuggles when its entry's mode is
+   smuggle).
+2. Awake again (D75 5, D76): the round notes the mode it saw (`seen-mode`, `mode.json` in the state folder;
+   `asleep` while the flag stands). The first round in production after smuggle mode or the flag, before any train, finds the cars already in the barn (`git merge-base
    --is-ancestor <head> <default>`): a waiting hitch is cleared, a car of a formed train (not landing: formed, red,
    fixing, retry, split) leaves it (D76 amends D3 for this case only), a car of a running train (landing, paused) is
    only recorded; each a `barn` line of train.jsonl (`tollman.py barn`) and its foreman told once (`in-barn`); then
    the chain goes on in the same round. A formed train whose every car left is cleared.
 
-  tollman.py seen-mode production|smuggle [--repo <dir>]                     the mode this round saw
+  tollman.py seen-mode production|smuggle|asleep [--repo <dir>]              the mode this round saw
   tollman.py barn <field> --head <sha> --how hitch|formed|running [--train <name>] [--repo <dir>]
 """
 
@@ -36,6 +40,7 @@ import engine
 import mtm_scan
 import queue_mode
 import roles
+import switch as switch_
 import train_state
 import trial
 from tick import act, default_ref
@@ -43,13 +48,14 @@ from tick import act, default_ref
 CLI = Path(__file__).with_name("tollman.py")
 FILE = "mode.json"
 SLEEP = "sleep.json"
-VERBS = ("seen-mode", "barn")
+ASLEEP = "asleep"  # what `seen` notes while the flag stands (plan 0375): the way back finds the barn too
+VERBS = ("seen-mode", "barn", *switch_.VERBS)
 QUEUE = queue_mode.QUEUE
 RUNNING = ("landing", "paused")  # a car of such a train is only recorded; of every other standing train it leaves
 KEEP = ("train-paused", "train-resumed", "train-run", "train-stuck", "landed", "in-the-barn", "stack-red",
         "stack-red-fix", "chain")  # what a landing train still does while asleep: watched, paused, landed
-TEXT = {"in_barn": "tollman (wagon train): field {field}'s crop ({head}) is already in the barn (smuggled in smuggle "
-                   "mode): {what}. Nothing of it is carried again: /merge-from-main and finish the plan as after \"in the barn\"."}
+TEXT = {"in_barn": "tollman (wagon train): field {field}'s crop ({head}) is already in the barn (smuggled, or "
+                   "landed alone while the tollman slept): {what}. Nothing of it is carried again: /merge-from-main and finish the plan as after \"in the barn\"."}
 WHAT = {"hitch": "its hitch is cleared", "formed": "it left the formed train {train}",
         "running": "the running train {train} carries nothing new of it"}
 
@@ -116,10 +122,13 @@ def busy(mode: dict | None, tickets=(), sleep_flag: dict | None = None) -> dict 
     return {"reason": f"{since(mode, sleep_flag)}: the tollman sleeps", "slot": ""} if why else None
 
 
-def sleep(mode: dict, train: dict | None, inner, sleep_flag: dict | None = None) -> list[dict]:
+def sleep(top: str, mode: dict, tickets: list[dict], train: dict | None, panes: dict, inner, alive,
+          sleep_flag: dict | None = None) -> list[dict]:
     """trains.plan while asleep: the asleep line, and of a landing train what KEEP lets through (`inner()` is the
-    production plan)."""
+    production plan); on the flag every other standing train dropped and the hitched told to land alone (switch.py)."""
     line = act("trains", "asleep", "record", text=f"asleep: {since(mode, sleep_flag)}")
+    if sleep_flag is not None:
+        return switch_.plan(top, line, sleep_flag, mode, tickets, train, panes, inner, KEEP, alive)
     going = [a for a in inner() if a["kind"] in KEEP] if train and train["state"] in RUNNING else []
     return [line] + going
 
@@ -154,15 +163,16 @@ def in_barn(main: str, default: str, tickets: list[dict], train: dict | None, ow
 
 def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict], panes: dict,
          sleep_flag: dict | None = None) -> tuple[list, bool]:
-    """(the actions, whether the round ends with them): the mode noted when it changed; the first production round
-    after smuggle mode drops the cars in the barn first and goes on through the chain. While the sleep flag stands
-    the way back to production is not noted yet: the first awake round still finds the barn."""
-    now, last = mode.get("mode") or queue_mode.PRODUCTION, seen(main)
-    if sleep_flag is not None and last == queue_mode.SMUGGLE and now != last:
+    """(the actions, whether the round ends with them): the mode noted when it changed (`asleep` while the flag
+    stands); the first production round after smuggle mode or the flag drops the cars in the barn first and goes on
+    through the chain. After smuggle mode the flag notes nothing: the first awake round still finds the barn."""
+    now, last = ASLEEP if sleep_flag is not None else mode.get("mode") or queue_mode.PRODUCTION, seen(main)
+    if sleep_flag is not None and last == queue_mode.SMUGGLE:
         return [], False
-    note = [cli(top, "seen-mode", f"seen-mode:{now}:{mode.get('at')}", f"the queue's mode is {now}", "seen-mode",
-                now)] if now != last else []
-    if last != queue_mode.SMUGGLE or queue_mode.smuggle(mode):
+    at = (sleep_flag or {}).get("at") if now == ASLEEP else mode.get("at")
+    note = [cli(top, "seen-mode", f"seen-mode:{now}:{at}", f"the queue's mode is {now}" if now != ASLEEP else
+                "the tollman is asleep (its flag)", "seen-mode", now)] if now != last else []
+    if last == queue_mode.PRODUCTION or now != queue_mode.PRODUCTION:
         return note, False
     found = in_barn(main, default_ref(main), tickets, train_state.standing(rows), Path(top).name)
     if not found:
@@ -188,13 +198,14 @@ def barn(repo: str, field: str, head: str, how: str, name: str | None) -> tuple[
         said += "; hitch cleared" if not code else f"; its mark stays: {text[-200:]}"
     train = train_state.standing(train_state.lines(main))
     if how == "formed" and train and not train["cars"] and not train.get("yard"):
-        code, text = engine.clear(repo, "every car is in the barn already (smuggled)")
+        code, text = engine.clear(repo, "every car is in the barn already (smuggled or landed alone)")
         return code, f"{said}; {text}"
     return 0, said
 
 
 def add_parser(sub) -> None:
-    sub.add_parser("seen-mode").add_argument("mode", choices=(queue_mode.PRODUCTION, queue_mode.SMUGGLE))
+    sub.add_parser("seen-mode").add_argument("mode", choices=(queue_mode.PRODUCTION, queue_mode.SMUGGLE, ASLEEP))
+    switch_.add_parser(sub)
     b = sub.add_parser("barn")
     b.add_argument("field")
     b.add_argument("--head", required=True)
@@ -203,6 +214,8 @@ def add_parser(sub) -> None:
 
 
 def main(args) -> int:
+    if args.cmd in switch_.VERBS:
+        return switch_.main(args)
     if args.cmd == "seen-mode":
         main_dir = mtm_scan.main_checkout(args.repo)
         f = mtm_scan.state_dir(main_dir, train_state.ROLE) / FILE

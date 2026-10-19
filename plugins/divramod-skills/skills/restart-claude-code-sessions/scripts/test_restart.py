@@ -14,7 +14,12 @@ FAKE = r'''#!/usr/bin/env python3
 import json, os, sys
 with open(os.environ["FAKE_LOG"], "a") as f:
     f.write(json.dumps(sys.argv[1:]) + "\n")
-print(os.environ["FAKE_OUT"])
+rows = json.loads(os.environ["FAKE_OUT"])
+if any(r.get("result") in ("failed", "timeout") for r in rows):
+    error = {"code": "failed", "exit": 1, "message": "x", "hint": None, "details": {"sessions": rows}}
+    print(json.dumps({"error": error}), file=sys.stderr)
+    sys.exit(1)
+print(json.dumps({"sessions": rows}))
 '''
 
 ROWS = [

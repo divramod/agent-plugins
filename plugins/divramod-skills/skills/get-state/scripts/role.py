@@ -1,7 +1,7 @@
 """The session's role from its checkout (hal2 plan 0366, D2, D11). Pure: only paths and three environment variables.
 
     farmer-<repo>   farmer        tollman-<repo>  tollman
-    00-29           foreman       30-99           servant
+    a field 00-99   servant when it holds plans/LEAD (a foreman's marker), else foreman (hal2 plan 0383, D16)
     the main checkout             steward; a place's main checkout (PLACES) that place's role:
                                   mayor ~/a/village, lord ~/a/city, pope ~/a/planet
 
@@ -29,11 +29,12 @@ def village() -> str:
     return place("mayor")
 
 
-def field_role(name: str) -> str | None:
-    """`foreman` for a field 00-29, `servant` for 30-99, None for any other name (`1`, `100`, `feature`)."""
+def field_role(name: str, path: str | None = None) -> str | None:
+    """`servant` for a field 00-99 holding `plans/LEAD`, else `foreman`; None for any other name (`1`, `100`,
+    `feature`). The role comes from the marker, never from the number: a foreman may work in any field (D16)."""
     if len(name) != 2 or not name.isdigit():
         return None
-    return "foreman" if int(name) < 30 else "servant"
+    return "servant" if path and (Path(path) / "plans" / "LEAD").is_file() else "foreman"
 
 
 def detect(top: str | None, main: str | None) -> str:
@@ -47,7 +48,7 @@ def detect(top: str | None, main: str | None) -> str:
     for prefix in ("farmer", "tollman"):
         if name.startswith(prefix + "-") and len(name) > len(prefix) + 1:
             return prefix
-    return field_role(name) or UNKNOWN
+    return field_role(name, here) or UNKNOWN
 
 
 def resolve(override: str | None, top: str | None, main: str | None) -> str:

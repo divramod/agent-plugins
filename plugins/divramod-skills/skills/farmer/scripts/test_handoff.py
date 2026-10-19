@@ -10,6 +10,8 @@ import handoff
 import wake
 from test_farmer import NOW, Repo
 
+REAL_CLI = wake.deliver.cli
+
 
 class Handoff(Repo):
     """`farmer.py handoff`: handoff.md's path and sections; --clear only once it is written for this handoff."""
@@ -83,3 +85,33 @@ class Handoff(Repo):
         code, out = self.run_cli("--clear")
         self.assertEqual(code, 1)
         self.assertIn("not-claude", out)
+
+    def test_a_newer_hal2_s_refusal_on_stderr_is_read(self):
+        # hal2 plan 0318 row 8: clear-and-continue's refusal is the error document's details on stderr.
+        self.write(dt.datetime.now())
+        doc = {"error": {"code": "failed", "exit": 1, "message": "clear-and-continue refused: a job runs",
+                         "hint": None, "details": {"status": "refused", "reason": "already-running"}}}
+
+        def run(*args, timeout=30):
+            if args[0] == "list":
+                return 0, json.dumps({"agents": [{"pane_id": "%9", "checkout": str(self.slot), "session_id": "s1"}]}), ""
+            return 1, "", json.dumps(doc) + "\n"
+
+        with mock.patch.object(wake.deliver, "cli", REAL_CLI), mock.patch.object(wake.deliver, "run", run):
+            self.assertEqual(self.run_cli("--clear")[0], 0)
+            doc["error"]["details"]["reason"] = "not-claude"
+            code, out = self.run_cli("--clear")
+        self.assertEqual(code, 1)
+        self.assertIn("not-claude", out)
+
+    def test_the_template_starts_with_do_first_and_the_section_is_read_back(self):
+        self.assertLess(handoff.TEMPLATE.index("## DO FIRST"), handoff.TEMPLATE.index("## The user's decisions"))
+        self.assertEqual(handoff.do_first(self.main), "", "no handoff.md")
+        f = handoff.path(self.main)
+        f.write_text("# farmer handoff\n\n## DO FIRST\n\nAnswer 07.\nThen rerun train 20.\n\n## Next\nlater\n")
+        self.assertEqual(handoff.do_first(self.main), "Answer 07.\nThen rerun train 20.")
+        f.write_text("# farmer handoff\n\n## DO FIRST\n\n## Next\nlater\n")
+        self.assertEqual(handoff.do_first(self.main), "", "an empty section prints nothing")
+        f.write_text("# farmer handoff\n\n## Next\nlater\n")
+        self.assertEqual(handoff.do_first(self.main), "")
+        self.assertEqual(handoff.written(self.main), f.stat().st_mtime)

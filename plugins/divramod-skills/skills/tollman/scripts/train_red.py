@@ -11,6 +11,8 @@
   landing is started again (`restart`), as a landing that ended without a result
 - `smuggled`: the red touches a covered smuggle's files (D61, step 18): the red line and a fix order to the smuggling
   field by code (smuggled.py), no wake; a `conflict` while smuggles stand is the resumed landing's (D62): the same
+- an early fix order stands (early_order.py, plan 0383 step 5, D5): the red line only; the train is `fixing` at once
+  and waits for that order's `fixed` (a `runner`, `main` or `car` verdict changes nothing)
 - no run to read (a red pretest, a conflict, a landing that ended without a result too often): one wake
   (`train-red:<train>:<starts>`, TEXT failed)
 """
@@ -77,6 +79,8 @@ def actions(top: str, train: dict, result: dict | None, status: str, why: str, r
                          f"{verdict['evidence'].get('paused_by')}'s pause, started again")]
     if kind == "smuggled":
         return [red, *smuggled.red(top, verdict, key, link)]
+    if any(o.get("early") for o in train.get("orders") or []):
+        return [red]  # its early fix order answers it (plan 0383 D5): `fixing` at once, no wake, no runner retry
     if kind == "runner" and (n := train.get("runner_retries", 0)) >= MAX_RUNNER:
         return [red, act("trains", "train-runner-broken", "wake", key=f"train-runner:{name}:{n}", after=key,
                          text=TEXT["runner_broken"].format(train=name, n=n, match=match, run=link),

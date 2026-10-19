@@ -2,7 +2,7 @@
 """Start an agent session in the repository's first free and clean worktree.
 
   create.py [--repo DIR] [--agent claude|codex|opencode] [--model ID] [--effort LEVEL] [--tmux] [--prompt TEXT] [--exact]
-            [--from NN] [--to NN] [--min-free-gb 50]
+            [--role foreman|servant] [--from NN] [--to NN] [--min-free-gb 50]
 
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
@@ -14,8 +14,13 @@ given prompt (`--exact`: the prompt as given, without /merge-from-main). `--mode
 agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 3 when no free and clean
 worktree is left in the range, 1 for any other failure.
 
+`--role foreman|servant` (hal2 plan 0383, D15): the session loads its role skill first, `/foreman` or `/servant` (its duties
+and the repository's roles/<role>/ROLE.md), before the given prompt, also with `--exact`: pass it for every session that
+runs a plan (a foreman) or a foreman's step (a servant, in a field holding `plans/LEAD`).
+
 `--from NN` starts the search at worktree NN, 00 to 99 (the farmer's foremen: 00; a foreman's servants: 30), `--to NN`
-ends it there (default 99; the farmer's foremen: 29, a foreman never works in 30-99). A missing worktree is
+ends it there (default 99, also the farmer's foremen: a foreman works in any field, its role comes from `plans/LEAD`,
+not the number, D16). A field holding `plans/LEAD` is a servant's and is skipped unless `--role servant`. A missing worktree is
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 """
 import json
@@ -69,7 +74,8 @@ def taken(repo: Path) -> set[str]:
     agents = agents if isinstance(agents, list) else agents.get("agents", [])
     slots = {a.get("slot") for a in agents if a.get("state") not in GONE and a.get("project")
              and Path(a["project"]).resolve() == repo.resolve()}
-    for host in json.loads(run("hal2-cli-agents", "terminal", "list", "--json") or "[]"):
+    hosts = json.loads(run("hal2-cli-agents", "terminal", "list", "--json") or "[]")
+    for host in hosts if isinstance(hosts, list) else hosts.get("terminals", []):
         worktree = Path(host.get("worktree") or "/")
         if host.get("alive") and worktree.parent.name == repo.name:
             slots.add(worktree.name)
@@ -79,8 +85,11 @@ def taken(repo: Path) -> set[str]:
     return {s for s in slots if s and slot_of(s)}
 
 
-def work(entry: dict, landing: str | None) -> str | None:
-    """Why a worktree holds work, or None when it is clean."""
+def work(entry: dict, landing: str | None, servant: bool = False) -> str | None:
+    """Why a worktree holds work, or None when it is clean. A field holding `plans/LEAD` is a servant's (hal2 plan 0383,
+    D16: the marker says it, not the field's number): only a servant start (`--role servant`) takes it."""
+    if not servant and entry.get("path") and (Path(entry["path"]) / "plans" / "LEAD").exists():
+        return "a servant's field (plans/LEAD)"
     if entry.get("plan"):
         return f"works on {entry['plan']}"
     if entry.get("dirty"):
@@ -90,7 +99,7 @@ def work(entry: dict, landing: str | None) -> str | None:
     return f"its landing is {landing} in the merge queue" if landing else None
 
 
-def choose(repo: Path, first: int = 1, last: int = 99) -> tuple[str, list[dict], dict | None]:
+def choose(repo: Path, first: int = 1, last: int = 99, servant: bool = False) -> tuple[str, list[dict], dict | None]:
     listed = json.loads(run("hal2-cli-git", "worktree", "list", "--json", cwd=repo)).get("worktrees", [])
     worktrees = {w["name"]: w for w in listed if not w.get("main")}
     queue = json.loads(run("hal2-cli-git", "worktree", "queue", "--json", cwd=repo)).get("queue", [])
@@ -100,7 +109,7 @@ def choose(repo: Path, first: int = 1, last: int = 99) -> tuple[str, list[dict],
         slot = f"{n:02d}"
         if slot in busy:
             continue
-        why = work(worktrees[slot], landings.get(slot)) if slot in worktrees else None
+        why = work(worktrees[slot], landings.get(slot), servant) if slot in worktrees else None
         if why is None:
             return slot, skipped, worktrees.get(slot)
         skipped.append({"slot": slot, "why": why})
@@ -145,10 +154,23 @@ def start(repo: Path, slot: str, argv: list[str], prompt: str) -> dict:
     die(f"hal2-cli-git worktree run {slot} printed no report: {r.stdout.strip()}")
 
 
-def first_prompt(prompt: str | None, exact: bool) -> str:
-    if exact and prompt:
-        return prompt
-    return f"Run /merge-from-main first, then:\n\n{prompt}" if prompt else "/merge-from-main"
+ROLES = ("foreman", "servant")
+
+
+def role_load(role: str) -> str:
+    return f"/{role} (it prints your duties, the skill's and the repository's roles/{role}/ROLE.md; work by them)"
+
+
+def first_prompt(prompt: str | None, exact: bool, role: str | None = None) -> str:
+    """The session's first prompt: /merge-from-main (unless `exact` with a prompt), then the role skill (`role`), then
+    `prompt`. Without a role: as before."""
+    if not role:
+        if exact and prompt:
+            return prompt
+        return f"Run /merge-from-main first, then:\n\n{prompt}" if prompt else "/merge-from-main"
+    steps = ([] if exact else ["/merge-from-main"]) + [role_load(role)]
+    head = f"Run {steps[0]} first" + "".join(f", then {step}" for step in steps[1:])
+    return f"{head}, then:\n\n{prompt}" if prompt else f"{head}."
 
 
 def arg(argv: list[str], flag: str) -> str | None:
@@ -169,9 +191,12 @@ def main(argv: list[str]) -> int:
     for gone in ("--lead", "--base"):
         if gone in argv:
             die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in servant worktrees")
-    slot, skipped, entry = choose(repo, int(first), int(last))
+    role = arg(argv, "--role")
+    if role and role not in ROLES:
+        die(f"--role needs foreman or servant, not '{role}'")
+    slot, skipped, entry = choose(repo, int(first), int(last), role == "servant")
     prepare(repo, entry, float(arg(argv, "--min-free-gb") or 50))
-    report = start(repo, slot, argv, first_prompt(arg(argv, "--prompt"), "--exact" in argv))
+    report = start(repo, slot, argv, first_prompt(arg(argv, "--prompt"), "--exact" in argv, role))
     result = {
         "repo": repo.name,
         "slot": report.get("slot") or slot,

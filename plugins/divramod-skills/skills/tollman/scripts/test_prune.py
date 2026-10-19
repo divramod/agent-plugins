@@ -1,217 +1,210 @@
-"""The prune duty's scan and plan, the tollman's since plan 0360 step 7 (D30, D67): which fields are free, what a
-round plans for them, the disk report. Its hands (`clean`, `remove`) are test_prune_act.py's and test_removal.py's;
-the fields of the last landed train test_barn.py's. No real session, removal or hal2-cli-agents."""
+"""The prune duty (prune.py; hal2 plan 0377 step 7, D12): the tollman asks /prune's CLI (a fake here: a stub script that
+prints a canned `plan --json`) and keeps its triggers, a muck out per landing, one removal per round, the 6-hourly disk
+report, and starts one detached run. No real /prune, hal2-cli-runs, session or removal."""
 
+import contextlib
 import datetime as dt
+import io
+import json
+import os
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import prune
-import prune_proof
 import tick
-import tollman
-import worktree_farm
-from test_farmer import NOW, git
-from worktree_farm import NOW_MS
 
-ROLE = """---
-duties:
-  prune: "*/15 * * * *"
-notify: every-round
----
-
-# x
-"""
-INFO = {"free_gb": 400.0, "biggest": [(12.0, "03"), (3.0, "13")]}
+NOW = dt.datetime(2026, 10, 18, 10, 0, tzinfo=dt.timezone.utc)
+STUB = '''import json, sys
+from pathlib import Path
+here = Path(__file__).parent
+(here / "argv.json").write_text(json.dumps(sys.argv[1:]))
+out = (here / "plan.json").read_text()
+if out.startswith("exit "):
+    print("boom", file=sys.stderr); sys.exit(int(out[5:]))
+print(out)
+'''
+GB = 10 ** 9
 
 
-class Scanning:
-    def why(self, ctx=None, agents=(), build=lambda path: False):
-        found = prune_proof.scan(str(self.main), ctx or {}, list(agents), NOW_MS, build)
-        return {w["slot"]: w["why"] for w in found}
-
-    def plan(self, ctx=None, log=(), info=INFO, landed=None):
-        found = prune_proof.scan(str(self.main), ctx or {}, [], NOW_MS, lambda path: False)
-        c = {"main": str(self.main), "now": NOW, "log": list(log), **(ctx or {})}
-        return tick.fresh(prune.plan({}, c, found, info, landed or {}), list(log), NOW)
+def field(slot, free=True, size=0, sessions=(), head=None):
+    return {"slot": slot, "path": f"/x/{slot}", "head": head or f"h{slot}", "proof": None if free else "uncommitted",
+            "sessions": list(sessions), "size": {"bytes": size, "lower_bound": False}}
 
 
-class Slots(Scanning, worktree_farm.Slots):
-    pass
+def todo(slot, action, **more):
+    return {"field": slot, "action": action, "why": "free by the proof", "bytes": 0, "lower_bound": False, **more}
 
 
-class MarkedSlots(Scanning, worktree_farm.MarkedSlots):
-    pass
+def data(fields, free_gb=400.0, **jobs):
+    empty = {"skipped": "nothing", "actions": []}
+    return {"plan": {"jobs": {n: {**empty, **jobs.get(n, {})} for n in ("stale-pointers", "phase-1", "phase-2", "phase-3")}},
+            "facts": {"disk": {"free_gb": free_gb, "used_pct": 50.0, "total_gb": 1000.0}, "fields": fields}}
 
 
-class Scan(Slots):
-    def test_only_numbered_slots_and_each_kind_of_unsaved_work(self):
-        why = self.why()
-        self.assertEqual(sorted(why), ["03", "04", "05", "06", "07", "13", "14"])
-        self.assertEqual([s for s, w in why.items() if w is None], ["03", "13", "14"])
-        self.assertIn("uncommitted", why["04"])
-        self.assertIn("CURRENT_PLAN names 0001-x", why["05"])
-        self.assertIn("1 commit(s) not on origin/main", why["06"])
-        self.assertIn("side branch 07-ui", why["07"])
+class Fake(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(self.tmp, ignore_errors=True))
+        self.stub = self.tmp / "stub" / "prune.py"
+        self.stub.parent.mkdir()
+        self.stub.write_text(STUB)
+        (self.tmp / "state").mkdir()
+        for stream in (contextlib.redirect_stdout, contextlib.redirect_stderr):  # start and main print; keep the run quiet
+            quiet = stream(io.StringIO())
+            quiet.__enter__()
+            self.addCleanup(quiet.__exit__, None, None, None)
+        self.main = str(self.tmp / "hal2")
+        Path(self.main).mkdir()
+        for patch in (mock.patch.object(prune, "script", return_value=self.stub),
+                      mock.patch.object(prune, "state", return_value=self.tmp / "state"),
+                      mock.patch.object(tick.mtm_scan, "DATA", self.tmp / "roles"),
+                      mock.patch.object(prune.barn, "last_landed", return_value=None)):
+            patch.start()
+            self.addCleanup(patch.stop)
 
-    def test_the_heads_are_the_worktree_list_s_and_the_base_is_asked_once_per_scan(self):
-        git(self.main, "worktree", "add", "-q", "--orphan", "-b", "15", str(self.base / "15"))  # an unborn branch
-        heads = {w["slot"]: w["head"] for w in prune_proof.slots(str(self.main))}
-        for slot, head in heads.items():
-            asked = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.base / slot, capture_output=True, text=True)
-            self.assertEqual(head, asked.stdout.strip() if asked.returncode == 0 else "", slot)
-        self.assertEqual(heads["15"], "")
-        with mock.patch.object(tick, "default_ref", wraps=tick.default_ref) as ref:
-            self.assertIn("1 commit(s) not on origin/main", self.why()["06"])
-        self.assertEqual(ref.call_count, 1)
+    def say(self, text):
+        (self.stub.parent / "plan.json").write_text(text if isinstance(text, str) else json.dumps(text))
 
-    def test_a_ticket_a_pause_an_open_ask_a_busy_agent_a_build(self):
-        self.assertIn("ticket", self.why({"waiting": {"13"}})["13"])
-        self.assertIn("ticket", self.why({"landing": {"13"}})["13"])
-        ask = [{"at": NOW.isoformat(), "kind": "ask", "slot": "13"}]
-        self.assertIn("answer", self.why({"log": ask})["13"])
-        busy = {"pane_id": "%9", "checkout": str(self.base / "03"), "state": "blocked", "since": 0}
-        self.assertIn("blocked", self.why(agents=[busy])["03"])
-        self.assertIn("build", self.why(build=lambda path: path.endswith("13"))["13"])
+    def ctx(self, log=(), **more):
+        return {"main": self.main, "top": "/x/tollman-hal2", "now": NOW, "log": list(log), **more}
 
-    def test_a_recent_session_keeps_a_10_99_slot_not_a_00_09_one(self):
-        recent = lambda slot: {"pane_id": "%9", "checkout": str(self.base / slot), "state": "idle",  # noqa: E731
-                               "since": NOW_MS - 60_000}
-        self.assertIn("active", self.why(agents=[recent("13")])["13"])
-        self.assertIsNone(self.why(agents=[recent("03")])["03"])
-        old = {**recent("13"), "since": NOW_MS - 2 * 3600_000}
-        self.assertIsNone(self.why(agents=[old])["13"])
+    def round(self, d, log=(), **more):
+        self.say(d)
+        return tick.fresh(prune.plan({}, self.ctx(log, **more)), list(log), NOW)
+
+    def kinds(self, actions):
+        return [(a["kind"], a["do"], a["slot"]) for a in actions if a["kind"] not in ("disk", "low-disk")]
 
 
-class Plan(Slots):
-    def test_00_09_cleaned_once_per_landing_10_99_one_removal_per_round(self):
-        actions = self.plan()
-        self.assertEqual([(a["kind"], a["slot"]) for a in actions],
-                         [("clean", "03"), ("remove", "13"), ("disk", "-")])
-        self.assertEqual(actions[0]["argv"][-4:], ["clean", "03", "--repo", str(self.main)])
-        self.assertEqual(actions[1]["argv"][-4:], ["remove", "13", "--repo", str(self.main)])
+class Asking(Fake):
+    def test_the_plan_is_asked_of_prunes_cli_as_a_program(self):
+        self.say(data([]))
+        got, why = prune.ask(self.main)
+        self.assertEqual((got["facts"]["disk"]["free_gb"], why), (400.0, ""))
+        self.assertEqual(json.loads((self.stub.parent / "argv.json").read_text()), ["plan", "--json", "--cached-sizes", "--repo", self.main])
+
+    def test_a_failing_missing_or_garbled_prune_is_a_wake_once_per_6_hours(self):
+        self.say("exit 2")
+        got, why = prune.ask(self.main)
+        self.assertIsNone(got)
+        self.assertIn("exited 2: boom", why)
+        self.assertEqual([(a["kind"], a["do"]) for a in self.round("exit 1")], [("failed", "wake")])
+        self.say("not json")
+        self.assertIn("gave no plan", prune.ask(self.main)[1])
+        with mock.patch.object(prune, "script", side_effect=FileNotFoundError("skill 'prune' not found")):
+            self.assertIn("not found", prune.ask(self.main)[1])
+        wake = prune.plan({}, self.ctx())[0]
+        later = [{"at": (NOW - dt.timedelta(hours=1)).isoformat(), "key": wake["key"]}]
+        self.assertEqual(self.round("exit 1", later), [])
+
+
+class Planning(Fake):
+    def test_a_free_keeper_is_mucked_out_once_per_landing_a_free_field_removed_one_per_round(self):
+        d = data([field("03"), field("13"), field("14")], **{"phase-1": {"actions": [
+            todo("14", "remove"), todo("03", "muck-out"), todo("13", "remove")]}})
+        actions = self.round(d)
+        self.assertEqual(self.kinds(actions), [("remove", "run", "14"), ("clean", "record", "03")],
+                         "one removal: the first of /prune's order (the cars come first there)")
+        self.assertEqual([a["key"] for a in actions[:2]], ["prune:remove:14:h14", "prune:clean:03:h03"])
+        run = actions[0]
+        self.assertEqual(run["argv"][1:], [str(Path(prune.__file__).resolve()), "start", "--repo", self.main, "--slot",
+                                          "tollman-hal2", "--field", "03", "--field", "14"])
+        self.assertEqual(run["cwd"], self.main)
         log = [{"at": NOW.isoformat(), "key": a["key"]} for a in actions]
-        self.assertEqual(self.plan(log=log), [])
-        git(self.base / "03", "commit", "-q", "--allow-empty", "-m", "landed")
-        git(self.base / "03", "push", "-q", "origin", "HEAD:main")
-        git(self.base / "03", "fetch", "-q")
-        self.assertEqual([(a["kind"], a["slot"]) for a in self.plan(log=log)], [("clean", "03")])
+        self.assertEqual(self.kinds(self.round(d, log)), [("remove", "run", "13")], "the landing's HEAD cleaned once")
+        moved = data([field("03", head="new")], **{"phase-1": {"actions": [todo("03", "muck-out")]}})
+        self.assertEqual(self.kinds(self.round(moved, log)), [("clean", "run", "03")], "a new landing, a new muck out")
 
-    def test_a_failed_run_wakes_the_tollman_a_skip_does_not(self):
-        remove = next(a for a in self.plan() if a["kind"] == "remove")
-        for exit_code, wakes in ((0, []), (1, ["failed"])):
+    def test_a_stale_pointer_and_the_trims_are_started_the_asks_are_not(self):
+        d = data([field("13"), field("04", False), field("05", False), field("31", False)], **{
+            "stale-pointers": {"actions": [todo("13", "clear-pointer", plan="0306-x")]},
+            "phase-1": {"actions": [todo("31", "ask", foreman="02")]},
+            "phase-2": {"actions": [todo("04", "trim", paths=["code/rust/target"])]},
+            "phase-3": {"actions": [todo("05", "trim", paths=["code/rust/target"])]}})
+        actions = self.round(d)
+        self.assertEqual(self.kinds(actions), [("pointer", "run", "13"), ("trim", "record", "04"), ("trim", "record", "05")])
+        self.assertEqual([a["key"] for a in actions[:3]],
+                         ["prune:pointer:13:0306-x", "prune:trim:04:h04", "prune:trim:05:h05"])
+        self.assertEqual(actions[0]["argv"][-6:], ["--field", "04", "--field", "05", "--field", "13"])
+
+    def test_nothing_planned_nothing_started(self):
+        self.assertEqual(self.kinds(self.round(data([field("13", False)]))), [])
+
+    def test_a_run_that_still_lives_plans_nothing_a_dead_one_does_not_hold(self):
+        d = data([field("13")], **{"phase-1": {"actions": [todo("13", "remove")]}})
+        pid_file = self.tmp / "state" / prune.RUN_FILE
+        pid_file.write_text(json.dumps({"pid": 77, "at": time.time()}))
+        with mock.patch.object(prune, "alive", return_value=True):
+            self.assertEqual(self.round(d), [])
+            pid_file.write_text(json.dumps({"pid": 77, "at": 0.0}))  # alive but 1970: a reused pid
+            self.assertEqual(self.kinds(self.round(d)), [("remove", "run", "13")])
+        pid_file.write_text(json.dumps({"pid": 77, "at": time.time()}))
+        with mock.patch.object(prune, "alive", return_value=False):
+            self.assertEqual(self.kinds(self.round(d)), [("remove", "run", "13")])
+
+    def test_the_planned_run_is_executed_by_the_tick_and_a_failed_start_wakes(self):
+        d = data([field("13")], **{"phase-1": {"actions": [todo("13", "remove")]}})
+        run = self.round(d)[0]
+        for code, wakes in ((0, []), (1, ["failed"])):
             out = {}
-            with mock.patch.object(tick, "sh", return_value=(exit_code, "x")):
-                tick.execute(dict(remove), str(self.slot), str(self.main), out)
+            with mock.patch.object(tick, "sh", return_value=(code, "x")) as sh:
+                tick.execute(dict(run), "/x/tollman-hal2", self.main, out)
+            self.assertEqual(sh.call_args.args[0][2], "start")
             self.assertEqual([a["kind"] for a in out.get("wake", [])], wakes)
 
-    def test_disk_is_reported_every_6_hours_a_notice_under_100_gb(self):
-        disk = [a for a in self.plan() if a["duty"] == "prune" and a["kind"] in ("disk", "low-disk")]
+
+class Starting(Fake):
+    def test_the_run_is_detached_under_hal2_cli_runs_exec(self):
+        spawned = mock.Mock(pid=4242)
+        popen = mock.Mock(return_value=spawned)
+        with mock.patch.object(prune.shutil, "which", return_value="/usr/bin/hal2-cli-runs"), \
+                mock.patch.object(prune, "alive", return_value=False):
+            self.assertEqual(prune.start(self.main, "tollman-hal2", ["03", "14"], popen), 0)
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[:8], ["hal2-cli-runs", "exec", "--workflow", "prune", "--slot", "tollman-hal2", "--trigger",
+                                    "the tollman's duty prune"])
+        self.assertEqual(argv[9:], [sys.executable, str(self.stub), "run", "--repo", self.main, "--field", "03", "--field", "14"])
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertEqual(popen.call_args.kwargs["cwd"], self.main)
+        self.assertEqual(json.loads((self.tmp / "state" / prune.RUN_FILE).read_text())["pid"], 4242)
+
+    def test_without_hal2_cli_runs_prune_runs_alone_and_only_one_at_a_time(self):
+        popen = mock.Mock(return_value=mock.Mock(pid=os.getpid()))
+        with mock.patch.object(prune.shutil, "which", return_value=None):
+            prune.start(self.main, "tollman-hal2", [], popen)
+            self.assertEqual(popen.call_args.args[0], [sys.executable, str(self.stub), "run", "--repo", self.main])
+            popen.reset_mock()
+            prune.start(self.main, "tollman-hal2", [], popen)  # the first still lives (this test's pid)
+        popen.assert_not_called()
+
+    def test_the_cli_starts_and_shows_the_plan_through_prunes_script(self):
+        self.say(data([]))
+        with mock.patch.object(prune.mtm_scan, "main_checkout", return_value=self.main), \
+                mock.patch.object(subprocess, "call", return_value=0) as call:
+            self.assertEqual(prune.main(["plan", "--json", "--repo", self.main]), 0)
+        self.assertEqual(call.call_args.args[0], [sys.executable, str(self.stub), "plan", "--repo", self.main, "--json"])
+        with mock.patch.object(prune, "script", side_effect=FileNotFoundError("x")), \
+                mock.patch.object(prune.mtm_scan, "main_checkout", return_value=self.main):
+            self.assertEqual(prune.main(["start", "--repo", self.main]), 2)
+
+
+class Report(Fake):
+    def test_disk_is_reported_every_6_hours_from_prunes_facts_a_notice_under_100_gb(self):
+        fs = [field("03", size=12 * GB), field("13", size=3 * GB), field("14")]
+        disk = [a for a in self.round(data(fs)) if a["kind"] in ("disk", "low-disk")]
         self.assertEqual([a["do"] for a in disk], ["record"])
         self.assertIn("free disk 400 GB; biggest worktrees: 03 12 GB, 13 3 GB", disk[0]["text"])
-        low = [a["kind"] for a in self.plan(info={"free_gb": 80.0, "biggest": []})]
+        low = [a["kind"] for a in self.round(data(fs, free_gb=80.0))]
         self.assertIn("low-disk", low)
-        later = [{"at": (NOW - dt.timedelta(hours=1)).isoformat(), "key": "prune:disk:2026-10-03T09"}]
-        with mock.patch.object(prune, "disk") as du:
-            ctx = {"main": str(self.main), "now": NOW, "log": later}
-            self.assertEqual(prune.disk_actions(str(self.main), ctx, None), [])
-            du.assert_not_called()
-
-    def test_the_sizes_are_measured_in_the_background_and_reported_the_round_after(self):
-        # plan 0011: du over every worktree takes minutes; a round never waits for it.
-        ctx = {"main": str(self.main), "now": NOW, "log": [], "dry": False}
-        with mock.patch.object(prune, "measured", return_value=None), \
-                mock.patch.object(prune, "measure_later") as later:
-            self.assertEqual(prune.disk_actions(str(self.main), ctx, None), [])
-            later.assert_called_once_with(str(self.main))
-            later.reset_mock()
-            self.assertEqual(prune.disk_actions(str(self.main), {**ctx, "dry": True}, None), [])
-            later.assert_not_called()
-        state = prune.state(str(self.main))
-        with mock.patch.object(prune, "disk", return_value=INFO):
-            (state / prune.SIZES_LOCK).write_text("1")
-            prune.measure(str(self.main))
-        self.assertFalse((state / prune.SIZES_LOCK).exists())
-        self.assertEqual(prune.measured(str(self.main), dt.datetime.now())["free_gb"], INFO["free_gb"])
-        self.assertIsNone(prune.measured(str(self.main), dt.datetime.now() + dt.timedelta(hours=7)))
-        with mock.patch.object(prune, "measured", return_value=INFO):
-            self.assertEqual([a["kind"] for a in prune.disk_actions(str(self.main), ctx, None)], ["disk"])
-        popen = mock.Mock()
-        (state / prune.SIZES_LOCK).write_text("1")
-        self.assertFalse(prune.measure_later(str(self.main), popen))  # one at a time
-        (state / prune.SIZES_LOCK).unlink()
-        self.assertTrue(prune.measure_later(str(self.main), popen))
-        self.assertEqual(popen.call_args.args[0][-3:], ["sizes", "--repo", str(self.main)])
-
-    def test_a_dry_round_of_the_tollman_plans_the_prune_actions(self):
-        field = self.tmp / ".hal/git/worktree/hal2/tollman-hal2"
-        git(self.main, "worktree", "add", "-q", "-b", "tollman-hal2", str(field))
-        (field / tollman.WIRING.role_file).parent.mkdir(parents=True)
-        (field / tollman.WIRING.role_file).write_text(ROLE)
-        git(field, "add", ".")
-        git(field, "commit", "-qm", "prune")
-        with mock.patch.object(prune, "measured", return_value=INFO), \
-                mock.patch.object(prune_proof, "build_running", return_value=False):
-            r = tick.run(str(field), True, tollman.HANDLERS, NOW, wiring=tollman.WIRING)
-        self.assertEqual([(a["kind"], a["slot"]) for a in r["planned"] if a["duty"] == "prune"],
-                         [("clean", "03"), ("remove", "13"), ("disk", "-"), ("ran", "-")])
-        self.assertTrue((self.base / "13").exists())
-
-
-class Marked(MarkedSlots):
-    def test_a_marked_30_99_slot_is_free_once_its_work_is_in_the_leads_branch(self):
-        why = self.why()
-        self.assertIsNone(why["31"])
-        self.assertIsNone(why["33"])
-        self.assertIn("HEAD: 1 commit(s) not in origin/02", why["32"])
-
-    def test_a_branch_or_side_branch_the_lead_lacks_or_a_change_keeps_it(self):
-        git(self.base / "31", "branch", "31-x")
-        git(self.base / "31", "switch", "-q", "31-x")
-        git(self.base / "31", "commit", "-q", "--allow-empty", "-m", "side")
-        git(self.base / "31", "switch", "-q", "31")
-        self.assertIn("31-x: 1 commit(s) not in origin/02", self.why()["31"])
-        (self.base / "33/new.txt").write_text("x")
-        self.assertIn("uncommitted", self.why()["33"])
-        git(self.base / "32", "reset", "-q", "--hard", "origin/02")  # HEAD in origin/02, origin/32 not
-        self.assertIn("origin/32: 1 commit(s) not in origin/02", self.why()["32"])
-
-    def test_a_session_active_or_a_lead_written_in_the_last_hour_keeps_it(self):
-        self.assertIn("active in the last 60 min", self.why(agents=[self.agent("31", 40)])["31"])
-        self.assertIsNone(self.why(agents=[self.agent("31", 61)])["31"])
-        self.assertIsNone(self.why(agents=[self.agent("13", 40)])["13"], "unmarked 10-99: 30 min, unchanged")
-        busy = {**self.agent("31", 120), "state": "working"}
-        self.assertIn("working", self.why(agents=[busy])["31"])
-        self.mark("31", age=10 * 60)  # the foreman's `assign` reused it
-        self.assertIn("plans/LEAD was written in the last 60 min", self.why()["31"])
-        self.assertIn("ticket", self.why({"waiting": {"33"}})["33"])
-        self.assertIn("build", self.why(build=lambda path: path.endswith("33"))["33"])
-
-    def test_a_marked_slot_below_30_or_a_bad_marker_or_a_missing_lead_branch_is_never_pruned(self):
-        why = self.why()
-        self.assertIn("below 30", why["12"])
-        self.mark("33", lead="99")
-        self.assertIn("origin/99 does not exist", self.why()["33"])
-        (self.base / "33/plans/LEAD").write_text("nonsense\n")
-        self.assertIn("plans/LEAD is not", self.why()["33"])
-        with mock.patch.object(prune.prune_act, "live", return_value=({}, [])):
-            self.assertIn("never pruned", prune.prune_act.act_on(str(self.main), "12", "remove", True)[1])
-
-    def test_unmarked_slots_are_unchanged(self):
-        why = self.why()
-        self.assertEqual([s for s in ("03", "13", "14") if why[s] is None], ["03", "13", "14"])
-        self.assertIn("1 commit(s) not on origin/main", why["06"])
-        self.assertIn("7 commit(s) not on origin/main", why["02"], "the lead's own slot, unmarked")
-
-    def test_the_round_plans_its_removal_with_the_subservant_text(self):
-        found = [w for w in prune_proof.scan(str(self.main), {}, [], NOW_MS, lambda path: False) if w["slot"] == "31"]
-        actions = prune.plan({}, {"main": str(self.main), "now": NOW, "log": []}, found, INFO, {})
-        remove = next(a for a in actions if a["kind"] == "remove")
-        self.assertEqual(remove["argv"][-4:], ["remove", "31", "--repo", str(self.main)])
-        self.assertIn("servant worktree 31 (its work is in origin/02)", remove["text"])
-
+        later = [{"at": (NOW - dt.timedelta(hours=1)).isoformat(), "key": "prune:disk:2026-10-18T09"}]
+        self.assertEqual([a for a in prune.plan({}, self.ctx(later), data(fs)) if a["kind"] == "disk"], [])
 
 
 if __name__ == "__main__":

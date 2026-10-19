@@ -184,6 +184,13 @@ def background(agent: dict, at: int, moved=subagent_moved) -> tuple[list[dict], 
     return live, dead
 
 
+def rows(listed, key: str) -> list:
+    """The rows of a hal2 list: `{key: [...]}` (hal2 plan 0318 on) or the bare list of an older hal2; else none."""
+    if isinstance(listed, dict):
+        listed = listed.get(key)
+    return listed if isinstance(listed, list) else []
+
+
 def run_json(*argv, default=None):
     try:
         out = subprocess.run(argv, capture_output=True, text=True, timeout=60)
@@ -374,8 +381,8 @@ def cmd_scan(args) -> int:
     project = str(Path(args.project).expanduser().resolve()) if args.project else default_project()
     state, at = load_state(), now_ms()
     since = at - int(args.hours * 60 * MINUTE)
-    agents = run_json("hal2-cli-agents", "list", "--json", default=[]) or []
-    orphans = run_json("hal2-cli-agents", "terminal", "orphans", "--json", default=[]) or []
+    agents = rows(run_json("hal2-cli-agents", "list", "--json"), "agents")
+    orphans = rows(run_json("hal2-cli-agents", "terminal", "orphans", "--json"), "orphans")
     me = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     agents = [a for a in agents if not me or a.get("session_id") != me]  # never the watcher itself
     events = [e for e in chronicle_events(since) if not me or e.get("session") != me]

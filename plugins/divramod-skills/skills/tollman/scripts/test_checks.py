@@ -220,6 +220,15 @@ class Waiting(unittest.TestCase):
         self.assertEqual(checks.busy(young, None, [], NOW, set())["slot"], "06")
 
 
+class SessionsOf(unittest.TestCase):
+    def test_the_list_s_agents_object_and_the_bare_array_both_name_the_worktrees(self):
+        home = Path.home() / ".hal/git/worktree/hal2"
+        rows = [{"slot": "07", "checkout": str(home / "07")}, {"slot": "08", "checkout": "/elsewhere/08"}]
+        for body in ({"agents": rows}, rows):
+            with mock.patch.object(checks.deliver, "cli", lambda *a: (0, json.dumps(body))):
+                self.assertEqual(checks.sessions_of("/Users/x/a/hal2"), {"07"})
+
+
 class Tells(Store):
     def test_a_relayed_tell_goes_out_again_after_the_window_a_typed_one_never(self):
         checks.append("/m", "dispatched", "13", NOW, id="13-1", pane="%13", title="[13] ci-check a", argv=ARGV,

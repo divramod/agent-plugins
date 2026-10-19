@@ -85,6 +85,14 @@ class Crops(unittest.TestCase):
     def cars(self, d):
         return [c["field"] for c in d["cars"]]
 
+    def servant_field(self):
+        """A worktree folder holding `plans/LEAD`, a foreman's marker (<foreman field> <plan> <step>)."""
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        (folder / "plans").mkdir()
+        (folder / "plans/LEAD").write_text("07 0383-train-rules 16\n")
+        return str(folder)
+
 
 class Trial(Crops):
     def test_a_real_trial_merge_moves_no_ref_and_names_the_files_that_conflict(self):
@@ -129,16 +137,15 @@ class Draft(Crops):
     def test_what_cannot_ride_is_unhitched_at_once(self):
         q = self.queue(**{"31": {"servant.rs": "s\n"}, "07": {"seven.rs": "7\n"}, "05": {"gone.rs": "g\n"}})
         q[2]["worktree"] = str(Path(self.d) / "no-such-field")
+        q[0]["worktree"] = self.servant_field()  # D16: a servant's field is the one holding plans/LEAD, not field 31
         landed = ticket("04", 3, self.g("rev-parse", "main"), self.d)
         own = ticket("tollman-hal2", 4, q[1]["ready"]["head"], self.d)
         other = ticket("06", 5, q[1]["ready"]["head"], self.d, rides_with="08")
         d = self.draft([*q, landed, own, other])
         self.assertEqual(self.cars(d), ["07"], "the own field and a car of another carrier are not ours")
         self.assertEqual([(u["field"], u["tell"], u["why"]) for u in d["unhitched"]],
-                         [("31", "servant", "a servant's field (30-99) never rides"),
+                         [("31", "servant", "a servant's field (plans/LEAD) never rides"),
                           ("05", None, "its worktree is gone"), ("04", None, "its head is in the barn already")])
-        self.assertTrue(trains.servant("30") and trains.servant("99"))
-        self.assertFalse(trains.servant("29") or trains.servant("farmer-hal2") or trains.servant("100"))
 
     def test_a_wagon_that_conflicts_is_unhitched_with_its_files_and_the_rest_rides(self):
         q = self.queue(**{"07": {"a.rs": "seven\n"}, "09": {"a.rs": "nine\n"}, "11": {"c.rs": "c\n"}})

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One line of the farmer's message board (board.jsonl)",
+  "description": "A message the farmer sent, the ack it got and a note (hal2 plan 0290 step 3, D23; scripts/board.py, the tollman's board of the same form, `--role farmer`): `slot` is the field the line concerns (the receiving or answering one), `from` and `to` are field names as the queue has them (`09`, `farmer-hal2`), `-` where no single field is meant, never a pane id, session id or title.",
+  "type": "object",
+  "required": ["schema", "at", "kind", "slot", "from", "to"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", "description": "RFC 3339 UTC with Z and whole seconds."},
+    "kind": {"enum": ["message", "ack", "note"]},
+    "slot": {"type": "string", "pattern": "^(-|[a-z0-9][a-z0-9-]*)$"},
+    "from": {"type": "string", "pattern": "^(-|[a-z0-9][a-z0-9-]*)$"},
+    "to": {"type": "string", "pattern": "^(-|[a-z0-9][a-z0-9-]*)$"},
+    "text": {"type": "string", "description": "A message's stamped text; an ack's note; a note's whole content."},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9-]+-[0-9]+$", "description": "A message's ack id (`<slot>-<n>`); an ack line carries the id of the message it answers."},
+    "status": {"type": "string", "description": "An ack's word: started, done or refused."}
+  }
+}

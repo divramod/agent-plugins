@@ -19,13 +19,14 @@ merge, the setup tasks and the hook where the repo still has them, the push; a r
 
 1. `hal2-cli-git worktree merge-from-main --json [<slot>]` from the worktree. If the command is missing or has no
    `--json`, run `bash $S/install-prerequisites.sh` once and retry.
-2. Act on the exit code; after every fix go back to 1, so the hook and the push run too:
+2. Act on the exit code (11, 12 since hal2 plan 0318 row 22; 3, 4 from an older hal2-cli-git); after every fix go
+   back to 1, so the hook and the push run too:
 
 | Exit | JSON `status` | Do |
 |---|---|---|
 | 0 | `ok` | [report](#report) |
-| 3 | `conflict` | [resolve](#conflicts) the listed `files`, commit, rerun |
-| 4 | `task_failed`, `hook_failed` | [fix the cause](#failing-hook), commit, rerun |
+| 11 (or 3) | `conflict` | [resolve](#conflicts) the listed `files`, commit, rerun |
+| 12 (or 4) | `task_failed`, `hook_failed` | [fix the cause](#failing-hook), commit, rerun |
 | 1 | `error` | report the `message`, stop. On the default branch itself there is nothing to do: /mfm is for worktrees |
 
 ## Conflicts

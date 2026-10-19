@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # Exit 5 split (plan 0017): `interrupted` reruns at once, `stopped`/`cancelled` are report-and-stop,
-# in mtm's SKILL.md, mtm's references/ci.md and the plan skill's "Land the plan".
+# in mtm's SKILL.md, mtm's references/ci.md and the plan skill's "Land the plan". Exit 13 since hal2 plan 0318
+# row 22 (the rows read `13 (or 5)`).
 
 setup() {
   root="${MTM_SKILLS_ROOT:-$BATS_TEST_DIRNAME/../..}"
@@ -9,7 +10,7 @@ setup() {
   plan="$root/plan/SKILL.md"
 }
 
-rows() { grep -E '^\| 5 \|' "$1"; }
+rows() { grep -E '^\| (13 \(or 5\)|5) \|' "$1"; }
 
 check_rows() {
   local f="$1" want="$2" n=0 row
@@ -41,13 +42,13 @@ check_rows() {
 }
 
 @test "mtm intro: never again after exit 5 excepts interrupted" {
-  p="$(tr '\n' ' ' < "$skill" | grep -o 'never again after it ended with exit 5.\{0,250\}')"
+  p="$(tr '\n' ' ' < "$skill" | grep -o 'never again after it ended with exit 13.\{0,255\}')"
   [[ "$p" == *'`interrupted`'* ]]
   [[ "$p" == *rerun* ]]
 }
 
 @test "plan skill: Land the plan counts only stopped and cancelled as the user's exit 5" {
-  p="$(tr '\n' ' ' < "$plan" | grep -o 'never again after a landing ended with exit 5[^:]*:')"
+  p="$(tr '\n' ' ' < "$plan" | grep -o 'never again after a landing ended with exit 13[^:]*:')"
   [ -n "$p" ]
   [[ "$p" == *stopped* && "$p" == *cancelled* ]]
   [[ "$p" == *'`interrupted`'* ]]

@@ -193,6 +193,23 @@ EOF
   run bash "$here/smuggle.sh" reserve
   [ "$status" -eq 7 ]
   grep -qx 'worktree reserve --max-wait 60m --json' "$tmp/hal2-args"
+  # 10 waiting since hal2 plan 0318 (6 before): the same.
+  echo 10 > "$tmp/hal2-exit"
+  run bash "$here/smuggle.sh" reserve
+  [ "$status" -eq 7 ]
+  run bash "$here/smuggle.sh" land
+  [ "$status" -eq 7 ]
+  # hal2 plan 0318 row 22: red 12, conflict 11, stopped 13 (4, 3, 5 before) keep the script's own 1, 3, 5.
+  for pair in 12:1 11:3 13:5 3:3 5:5; do
+    echo "${pair%%:*}" > "$tmp/hal2-exit"
+    run bash "$here/smuggle.sh" land
+    [ "$status" -eq "${pair##*:}" ]
+  done
+  for pair in 11:3 13:5 5:5; do
+    echo "${pair%%:*}" > "$tmp/hal2-exit"
+    run bash "$here/smuggle.sh" reserve
+    [ "$status" -eq "${pair##*:}" ]
+  done
 }
 
 @test "usage errors exit 64" {

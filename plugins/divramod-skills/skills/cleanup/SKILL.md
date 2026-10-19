@@ -43,7 +43,8 @@ ignored `.env`) is listed `kept`, reason "holds a protected path", and `delete` 
 exist.
 
 **The hal2 CLI.** Where the installed `hal2-cli-git` knows `worktree cleanup` (the first line of `hal2-cli-git
-worktree cleanup --help` is `usage: hal2-cli-git worktree cleanup`; an older CLI exits 0 on any `--help`, so the
+worktree cleanup --help` is `usage: hal2-cli-git worktree cleanup`, or `hal2-cli-git worktree cleanup - ...` once the
+CLI runs on hal2_core::cli; an older CLI exits 0 on any `--help`, so the
 exit code alone proves nothing), `cleanup.py` hands its arguments to it unchanged (`--worktree` too) and prints its
 output and exits with its code; `HAL_CLEANUP_CLI` names another program (empty: none). Everywhere else (hal2
 missing or older, the program not startable) the script's own Python runs: the same rule, the same commands, the

@@ -51,7 +51,7 @@ def rollup(root: Path, slug: str) -> tuple[dict | None, str]:
         data = json.loads(out.stdout)
     except json.JSONDecodeError:
         data = None
-    if not isinstance(data, dict):
+    if not isinstance(data, dict) or not data:  # `{}` (plan 0318) or `null` before it: no masterplan
         return None, f"{NEEDS}: it knows no masterplan {slug} in this repository"
     return data, ""
 

@@ -18,7 +18,7 @@ import engine
 import pretest
 import pretest_train
 import train_state
-from engine_farm import OWN, Farm
+from engine_farm import Farm
 from pretest_stub import Stub, config
 
 SKILL = Path(__file__).resolve().parents[1]
@@ -43,7 +43,7 @@ class Landing(Farm):
     def land(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = engine.land(str(self.wm))
+            code = engine.land(str(self.cw))
         return code, out.getvalue()
 
     def pretests(self):
@@ -56,11 +56,14 @@ class Landing(Farm):
             return []
         p = subprocess.run([checker, "check", str(self.wm_state), "--manifest", str(SKILL / "manifest.toml"), "--json"],
                            capture_output=True, text=True)
-        return json.loads(p.stdout)["problems"]
+        # clean: the report on stdout; with problems exit 1 and the report in the error document's details
+        if p.returncode == 0:
+            return json.loads(p.stdout)["problems"]
+        return json.loads(p.stderr)["error"]["details"]["problems"]
 
     def red(self):
         """A red pretest of python-lint, whose range is car 07's: the landing's result, settled as a red train."""
-        config(self.wm / pretest.CONFIG, ["python-lint", "bash-lint"])
+        config(self.cw / pretest.CONFIG, ["python-lint", "bash-lint"])
         self.stub.job("python-lint", "echo 'E501 line too long'; code=1")
         self.stub.selects(["python-lint"], head=self.gate.of("07")["ready"]["head"])
         self.stub.selects(["bash-lint"], head=self.gate.of("09")["ready"]["head"])
@@ -79,7 +82,7 @@ class Landing(Farm):
         self.assertIn("E501 line too long", Path(log).read_text())
         (line,) = self.pretests()
         self.assertEqual((line["slot"], line["result"], [j["job"] for j in line["jobs"]]),
-                         (OWN, "red", ["python-lint", "bash-lint"]))
+                         (self.carrier(), "red", ["python-lint", "bash-lint"]))
         self.assertEqual(self.roles_check(), [], "the pretest line, its log and its markers as the manifest declares")
         self.assertEqual(self.last, [("red", "run", "-"), ("train-failed", "wake", "-")])
         (wake,) = r["wake"]
@@ -109,7 +112,7 @@ class Landing(Farm):
         self.assertEqual(self.roles_check(), [])
 
     def test_a_red_known_before_a_failure_still_stops_the_push(self):
-        config(self.wm / pretest.CONFIG, ["python-lint"])
+        config(self.cw / pretest.CONFIG, ["python-lint"])
         self.stub.job("python-lint", "code=1")
         with mock.patch.object(pretest, "write_log", side_effect=ValueError("broken after the jobs")):
             code, out = self.land()
@@ -119,7 +122,7 @@ class Landing(Farm):
         self.assertIn("the pretest broke: broken after the jobs", self.pretests()[0]["why"])
 
     def test_a_pretest_that_breaks_before_any_red_never_holds_the_train(self):
-        config(self.wm / pretest.CONFIG, ["python-lint"])
+        config(self.cw / pretest.CONFIG, ["python-lint"])
         with mock.patch.object(pretest, "plan", side_effect=KeyError("bug")):
             code, out = self.land()
         self.assertEqual((code, self.pretests()[0]["result"]), (0, "skipped"))
@@ -131,7 +134,7 @@ class Landing(Farm):
         self.assertRegex(out.strip(), r"^pretest: none in [\d.]+ s \(no \.github/hal2-pretest\.toml\)$")
         self.assertTrue((self.tmp / "landed").exists())
         self.assertEqual([e["result"] for e in self.pretests()], ["none"])
-        config(self.wm / pretest.CONFIG, ["python-lint"])
+        config(self.cw / pretest.CONFIG, ["python-lint"])
         self.assertEqual(self.land()[0], 0, "a restart of the same train adopts its landing")
         self.assertEqual((len(self.pretests()), self.stub.calls()), (1, []))
 

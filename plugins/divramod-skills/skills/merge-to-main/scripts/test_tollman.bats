@@ -170,6 +170,25 @@ ask() { # [<dir>]: the answer in $output, the reason in $ERR
   grep -q 'does not know `worktree queue ready`' "$ERR"
 }
 
+@test "an asleep tollman (its sleep flag stands): no, the worktree lands itself alone (plan 0365 D3, 0375)" {
+  tollman
+  printf '{"schema":1,"by":"user","at":"2026-10-18T09:00:00Z","why":"ci down"}\n' > "$state/sleep.json"
+  ask "$slots/07"
+  [ "$status" -eq 0 ]
+  [ "$output" = no ]
+  grep -q "the tollman is asleep" "$ERR"
+}
+
+@test "a flag that cannot be read still sleeps; the flag off: yes again" {
+  tollman
+  printf '{}\n' > "$state/sleep.json"
+  ask "$slots/07"
+  [ "$output" = no ]
+  rm "$state/sleep.json"
+  ask "$slots/07"
+  [ "$output" = yes ]
+}
+
 @test "a hal2-cli-git that fails: no" {
   tollman
   printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/bin/hal2-cli-git"

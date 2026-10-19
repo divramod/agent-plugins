@@ -52,7 +52,7 @@ subskill lists them.
 
 `hal2-cli-tell route "<input>"` shows the routing without fetching anything.
 
-- **Exit code 2** means a missing tool. The message names the installer: tell the user, run
+- **Exit code 10** means a missing tool. The message names the installer: tell the user, run
   `hal2-cli-tell prereqs install --source <source>`, and retry. `hal2-cli-tell prereqs check` checks every source
   at once.
 - **Exit code 1** is an expected error (unsupported input, not found, blocked). Show the message; it names the
@@ -67,7 +67,7 @@ subskill lists them.
   shows the topic as one entry with its items nested under it. Its subskill says how.
 - **Several inputs** in one call print `kind: inputs` with one envelope per input in `items` (or `{input, error,
   exit_code}` for one that failed: tell the user, the others go on) and a `digest_dir` when at least two worked.
-  An item with `exit_code: 2` is a missing tool: run `hal2-cli-tell prereqs install --source <source>` (the
+  An item with `exit_code: 10` is a missing tool: run `hal2-cli-tell prereqs install --source <source>` (the
   error names it), then prepare that input again on its own. Each source gets only the flags it knows. Summarize every item through steps 2-6 as if it came alone (parallel
   subagents when there are more than 3, each with its envelope), then write the digest (step 7). Ask the user
   first only if they asked for single summaries and no digest. An item that is a playlist or channel gets its own
@@ -130,7 +130,7 @@ EOF
   note. When the user asks to have a summary read or to prepare the audio, run `hal2-cli-tell speak "<dir>"`
   (`--voice F1-F5|M1-M5`, default `$TELL_VOICE`, else `voice` in tell.toml; `--background` detaches it,
   `--status` reports it); the first run downloads the ~385 MB voice model (`hal2-cli-tell speak --warm` does it
-  ahead); exit code 2: run `hal2-cli-tell prereqs install --source speech`.
+  ahead); exit code 10: run `hal2-cli-tell prereqs install --source speech`.
 - **Don't paste the summary into the chat.** Reply with the TL;DR, the path to the note (`summary.md`, open in
   hal2-macos with `--open`), and one line for anything still running in the background (e.g. a video download).
 

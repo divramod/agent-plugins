@@ -32,7 +32,7 @@ class YardFarm(Farm):
         return out(self.main, "status", "--porcelain", "-uall"), out(self.main, "rev-parse", "HEAD")
 
     def first_parents(self):
-        return out(self.wm, "log", "--first-parent", "--format=%s", "origin/main..HEAD").splitlines()
+        return out(self.cw, "log", "--first-parent", "--format=%s", "origin/main..HEAD").splitlines()  # plan 0375 D5
 
     def notes(self):
         """What the farmer may read on the board when it asks (plan 0360 step 8, D9): never typed into its session."""
@@ -58,15 +58,15 @@ class Riding(YardFarm):
         self.crop("07", {"seven.txt": "7"}, plan="0294-tollman-role")
         self.round()
         self.assertEqual(self.last, [("form", "run", "-"), ("yard-left", "record", FARMER)])
-        self.assertEqual(self.first_parents(), ["Merge branch '07' into tollman-hal2",
+        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.carrier()}",
                                                 "chore(yard): 1 file from the yard"], "before the wagons' merges")
-        self.assertEqual((self.wm / "plans/CURRENT_PLAN").read_text(), "yard + 0294-tollman-role\n")
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", OWN, "07"]], "the mark names only fields")
-        self.assertEqual(self.state(), [("formed", OWN), ("yard", OWN), ("started", OWN)])
+        self.assertEqual((self.cw / "plans/CURRENT_PLAN").read_text(), "yard + 0294-tollman-role\n")
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07"]], "the mark names only fields")
+        self.assertEqual(self.state(), [("formed", self.carrier()), ("yard", self.carrier()), ("started", self.carrier())])
         car = train_state.lines(str(self.main))[1]
         self.assertEqual((car["commit"], car["files"], self.train()["yard"]),
-                         (out(self.wm, "rev-parse", "HEAD^1"),
-                          [{"path": "docs/note.md", "hash": out(self.wm, "rev-parse", "HEAD:docs/note.md")}], car["files"]))
+                         (out(self.cw, "rev-parse", "HEAD^1"),
+                          [{"path": "docs/note.md", "hash": out(self.cw, "rev-parse", "HEAD:docs/note.md")}], car["files"]))
         self.assertEqual(self.yard(), self.before, "the yard as it was: nothing there changes before the landing")
         (text,) = self.notes()
         self.assertRegex(text, r"^tollman \(yard\): 1 of the yard's uncommitted files stay "
@@ -95,7 +95,7 @@ class Riding(YardFarm):
         self.alive.add(40001)
         self.assertIn("a running landing is never stopped", self.call("unhitch", "yard", "--why", "x")[1])
         self.ends({"status": "gate_failed", "run": "https://github.com/x/runs/9", "red": [{"name": "linux / records"}]})
-        self.gate.of(OWN).update(state="held", train=None, hold={"reason": "failed"})  # the landing's end
+        self.gate.of(self.carrier()).update(state="held", train=None, hold={"reason": "failed"})  # the landing's end
         r = self.round()
         self.assertIn("Cars: 07 (07), yard (1 files of the yard).", r["wake"][0]["text"])
         self.assertIn("frozen (plan 0360 D3)", r["wake"][0]["text"])
@@ -110,9 +110,9 @@ class Riding(YardFarm):
                                            f"again\nchain link 1: breakup -, form -, yard-left {FARMER}\n"
                                            "chain stops: a landing started\n"), "in the same call (plan 0333 step 6)")
         self.assertTrue(self.gate.of("07")["ready"], "the wagon keeps its place")
-        self.assertEqual(self.first_parents(), ["Merge branch '07' into tollman-hal2"], "the train without the yard")
+        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.carrier()}"], "the train without the yard")
         self.assertEqual((self.state()[-4:], self.train()["yard"], self.yard()),
-                         ([("unhitched", "yard"), ("cleared", OWN), ("formed", OWN), ("started", OWN)], [], self.before))
+                         ([("unhitched", "yard"), ("cleared", self.carrier()), ("formed", self.carrier()), ("started", self.carrier())], [], self.before))
         self.assertIn("docs/note.md (unhitched from a red train: it stays until it changes)", self.notes()[-1])
         self.assertNotIn("yard", [c for call in self.gate.calls for c in call], "the yard has no ticket")
         self.assertEqual(board.lines(str(self.main), "unhitched"), [], "the yard is no field: no board line (D21)")
@@ -154,7 +154,7 @@ class Skipping(YardFarm):
         self.assertIn("(yard): the yard's uncommitted work is not brought in: the yard is on side, not on main. "
                       "Nothing there was changed.", self.notes()[0])
         self.assertEqual((self.first_parents(), self.state(), self.yard()[0]),
-                         (["Merge branch '07' into tollman-hal2"], [("formed", OWN), ("started", OWN)], self.before[0]))
+                         ([f"Merge branch '07' into {self.carrier()}"], [("formed", self.carrier()), ("started", self.carrier())], self.before[0]))
 
 
 if __name__ == "__main__":

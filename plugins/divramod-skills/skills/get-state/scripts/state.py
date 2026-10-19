@@ -103,6 +103,13 @@ def queue_fact(tickets: list[dict] | None, path: str, wt: str) -> dict | None:
     return None
 
 
+def train_branches(tickets: list[dict] | None, path: str, wt: str) -> set[str]:
+    """The `land/train-...` branches the worktree's ticket lands on (the tollman's carrier, plan 0383 step 1): its
+    runs are the worktree's, though the branch carries a train's name, not `land/<wt>`."""
+    return {t["land_ref"] if t["land_ref"].startswith("land/") else f"land/{t['land_ref']}" for t in tickets or []
+            if t.get("land_ref") and (t["worktree"] == os.path.realpath(path) or (t["worktree"] is None and t["slot"] == wt))}
+
+
 def waits_of(row: dict, log: list[dict] | None, asking: set, unacked: dict, questions: list[str]) -> list[dict]:
     """The facts a worktree waits for, in a fixed order: the queue, a CI run, an open ask, unacked instructions, plan questions."""
     out = []
@@ -140,7 +147,7 @@ def build_row(w: dict, ctx: dict, facts: dict | None = None) -> dict:
     """One worktree's row from its facts (`worktree_facts`, read here when not given) and the shared `ctx`."""
     f = facts or worktree_facts(w, ctx["default"])
     path, wt = w["path"], "main" if w.get("is_main") else Path(w["path"]).name
-    ci_branches = {ctx["default"]} if w.get("is_main") else {wt, f"land/{wt}"}
+    ci_branches = {ctx["default"]} if w.get("is_main") else {wt, f"land/{wt}", *train_branches(ctx["queue"], path, wt)}
     runs = ctx["runs"]
     row = {
         "wt": wt, "is_main": bool(w.get("is_main")), "own": os.path.realpath(path) == ctx["own"],

@@ -1,7 +1,9 @@
 """The train engine's test farm (hal2 plan 0294 step 6; test_engine.py runs on it): test_tollman's temporary
 repository (the yard `hal2`, its origin, the tollman's field) in timer mode with the duty `trains` alone, the
 foremen's fields hitched by `crop`, and `Gate`, a fake `hal2-cli-git` that holds the merge queue as data. No
-landing is ever started: `engine.spawn` only counts, a test writes what the landing would have printed (`ends`)."""
+landing is ever started: `engine.spawn` only counts, a test writes what the landing would have printed (`ends`).
+Every train forms in its own worktree beside the tollman's field (train_wt.py, plan 0375 D5): `carrier` names the
+last one formed, `cw` is its folder; a car's branch is on origin, as a foreman pushes before the hitch."""
 
 import contextlib
 import io
@@ -69,6 +71,11 @@ class Gate:
         self.calls.append([a for a in args if a != "--json"])
         if self.refuse and self.refuse in args:
             return 1, f"refused: {self.refuse}"
+        if "--pid" in args:  # the train's process group stamped on its mark, nothing else (plan 0375 D2)
+            mark = (self.of(args[3]) or {}).get("train")
+            if mark:
+                mark["pid"] = int(args[args.index("--pid") + 1])
+            return 0, json.dumps({"status": "ok"})
         verb, fields = args[1:3] if args[1] == "queue" else (args[1], args[1]), [a for a in args[3:] if a[0] != "-"]
         if verb == ["queue", "ready"]:  # --clear
             self.tickets = [t for t in self.tickets if t["slot"] != fields[0] or not t["ready"]]
@@ -110,7 +117,7 @@ class Farm(Field):
                 code = verbs[argv[1]](argv[2:])
             return code, text.getvalue().strip()
 
-        def spawn(top, log):
+        def spawn(top, log, ref):  # ref: the train's own branch (train_branch.py, plan 0383)
             log.write_text("")
             self.spawned.append(Path(top).name)
             return 40000 + len(self.spawned)
@@ -136,6 +143,7 @@ class Farm(Field):
         path = self.fields[name] = self.field(name)
         for f, text in files.items():
             self.commit(path, f, text)
+        git(path, "push", "-q", "origin", "HEAD")
         if plan:
             (path / "plans").mkdir(exist_ok=True)
             (path / "plans/CURRENT_PLAN").write_text(plan + "\n")
@@ -160,8 +168,18 @@ class Farm(Field):
         self.alive.clear()
         (self.wm_state / train_state.LOG).write_text("hal2: waiting\n" + (json.dumps(result) + "\n" if result else ""))
         if land:
-            git(self.wm, "push", "-q", "origin", "HEAD:main")
+            git(self.cw if self.cw.is_dir() else self.wm, "push", "-q", "origin", "HEAD:main")
             self.gate.tickets = []
 
+    def carrier(self):
+        """The worktree of the last train formed: its own worktree `tollman-train-...`, else the tollman's field."""
+        formed = [e["slot"] for e in train_state.lines(str(self.main)) if e["kind"] == "formed"]
+        return formed[-1] if formed else OWN
+
+    @property
+    def cw(self) -> Path:
+        return self.wm.parent / self.carrier()
+
     def subjects(self, rev="HEAD"):
-        return out(self.wm, "log", "--format=%s", f"origin/main..{rev}").splitlines()
+        """The commits beyond the barn of the carrier (the tollman's field once the train's worktree is gone)."""
+        return out(self.cw if self.cw.is_dir() else self.wm, "log", "--format=%s", f"origin/main..{rev}").splitlines()

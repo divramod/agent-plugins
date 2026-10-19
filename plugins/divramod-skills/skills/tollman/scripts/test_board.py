@@ -20,7 +20,7 @@ import acks
 import board
 import mtm_scan
 from engine_farm import OWN, Farm
-from test_engine import SKILL
+from test_engine import SKILL, check_problems
 
 UTC = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 SCHEMA = json.loads((SKILL / "schemas/board.schema.json").read_text())
@@ -174,7 +174,8 @@ class Hooks(Board):
         self.crop("07", {"seven.txt": "7"}, plan="0294-tollman-role")
         self.crop("09", {"nine.txt": "9"})
         self.round()
-        self.assertEqual(self.kinds(), [("ready", "07", OWN), ("ready", "09", OWN), ("train", OWN, "-")])
+        self.assertEqual(self.kinds(), [("ready", "07", OWN), ("ready", "09", OWN), ("train", self.carrier(), "-")],
+                         "the train's line from its carrier, its own worktree (plan 0375 D5)")
         rows = board.lines(self.main_dir())
         mark = self.gate.of("07")["ready"]
         self.assertEqual((rows[0]["head"], rows[0]["at"], rows[2]["cars"]), (mark["head"], mark["at"], ["07", "09"]))
@@ -195,7 +196,8 @@ class Hooks(Board):
         sent = board.lines(self.main_dir(), "message")
         self.assertEqual([(m["from"], m["to"], m["id"]) for m in sent], [(OWN, "07", "07-1"), (OWN, "09", "09-1")])
         self.assertIn("your crop is in the barn", sent[0]["text"])
-        self.assertEqual(self.kinds()[-3:], [("landed", OWN, "-"), ("message", OWN, "07"), ("message", OWN, "09")])
+        self.assertEqual(self.kinds()[-3:], [("landed", "tollman-train-0294-f09", "-"), ("message", OWN, "07"),
+                                             ("message", OWN, "09")])
 
         with contextlib.redirect_stdout(io.StringIO()):
             acks.main(["ack", "07-1", "done", "restocked", "--role", "tollman", "--repo", str(self.main)])
@@ -241,7 +243,7 @@ class Hooks(Board):
         self.round()
         self.alive.add(40001)
         self.ends({"status": "gate_failed", "run": "https://github.com/x/runs/9", "red": [{"name": "linux / rust-test"}]})
-        self.gate.of(OWN).update(state="held", train=None, hold={"reason": "failed"})
+        self.gate.of(self.carrier()).update(state="held", train=None, hold={"reason": "failed"})
         self.round()
         red = board.lines(self.main_dir(), "red")[0]
         self.assertEqual((red["cars"], red["status"], red["run"]), (["07", "09"], "gate_failed", "https://github.com/x/runs/9"))
@@ -294,8 +296,9 @@ class Files(Board):
             f.write(json.dumps({"schema": 1, "at": board.utc(), "kind": "derailed", "slot": OWN, "from": OWN, "to": "-"}) + "\n")
             f.write(json.dumps({"schema": 1, "at": board.utc(), "kind": "ready", "slot": "%54", "from": "%54", "to": OWN}) + "\n")
         p = subprocess.run(args, capture_output=True, text=True)
-        found = json.loads(p.stdout)["problems"]
-        self.assertEqual({x["path"].rsplit("/", 1)[-1] for x in found}, {board.FILE}, p.stdout)
+        # a check with problems exits 1 and carries the report in the error document (plan 0318 step 10)
+        found = check_problems(self, p)
+        self.assertEqual({x["path"].rsplit("/", 1)[-1] for x in found}, {board.FILE}, p.stderr)
         self.assertEqual(len({x["line"] for x in found}), 2, "the unknown kind and the pane id, each line named")
 
 

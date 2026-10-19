@@ -161,7 +161,7 @@ def with_marker(agent: dict, checkout: Path, agents: list[dict] | None = None, d
 def scan(repo: str, show_all: bool) -> dict:
     now, main = time.time(), main_checkout(repo)
     agents = run_json(["hal2-cli-agents", "list", "--json"]) or []
-    agents = agents.get("list", []) if isinstance(agents, dict) else agents
+    agents = agents.get("agents", []) if isinstance(agents, dict) else agents
     own, done = os.environ.get("CLAUDE_CODE_SESSION_ID"), handled(main, now)
     default, out = lead_marker.default_ref(main), []
     for a in agents:

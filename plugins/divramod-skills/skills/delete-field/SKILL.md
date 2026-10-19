@@ -24,7 +24,7 @@ Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md
    - Exit 3, `refused`: its own session (never stop it; say so), or the agent is busy, holds a draft, runs
      background tasks or its landing runs (an older hal2 without `hal2-cli-agents stop` refuses every unforced
      stop: it cannot see a draft): show why and ask by the question rule (a) leave it running (recommended), b)
-     stop it anyway: it loses its current turn, its draft and its background tasks, a landing ends with exit 5 and
+     stop it anyway: it loses its current turn, its draft and its background tasks, a landing ends with exit 13 (5 before hal2 plan 0318) and
      must be rerun, c) something else the user names). On b) rerun with `--force`.
    - Exit 4, `ambiguous`: several sessions in that worktree; show them and ask for the pane.
    - Exit 1: report the message.

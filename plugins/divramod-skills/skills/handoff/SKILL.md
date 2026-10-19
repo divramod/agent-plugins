@@ -46,6 +46,15 @@ and its row) has that row as its "one step": the row's whole plan, continued fro
 the plan's steps in a hand (`plan.py prompt <n> --plan <its plan>`), never a Status cell, up to the rows checked
 after the landing. When the report is pushed and the foreman told, the work is done: say so and stop.
 
+00. **Load your role first** (hal2 plan 0383, D15): a clear wipes it.
+   ```bash
+   python3 $S/session_role.py    # prints `/foreman duties` or `/servant duties`, nothing for any other session
+   ```
+   When it prints a command, run that skill (`/foreman duties`, `/servant duties`: the skill's duties and the
+   repository's `roles/<role>/ROLE.md`, printed only) and work by what it says; the farmer and the tollman load theirs
+   with `/farmer act` and `/tollman act`. The role comes from the checkout, never from the field's number (D16): a field
+   holding `plans/LEAD` is a servant's, a field whose current plan has a `plan.md` and no `LEAD` a foreman's
+   (`session_role.py` takes get-state's `role.detect` for "is this a field", then reads `plans/LEAD` and the plan).
 0. **Restore the coordinator's values first** (plan 0015's D10: after a clear the plan wins). Before anything else,
    and never after a `plan.py run --sync` (that would write the cleared session's values over the plan's):
    ```bash
@@ -123,7 +132,7 @@ the merge queue; the landing's process goes on across the clear):
 - **A reserve or landing in flight**: look before you start anything (`hal2-cli-git worktree queue --json`). While
   its ticket is waiting or active, its shell's end reaches this session as a task notification: wait for it (and
   work on what does not depend on it), or rerun the same `reserve` (the rerun takes the old ticket's place, the old
-  process ends `cancelled`, exit 5: that one is no failure). A held landing is fixed and rerun as the mtm skill
+  process ends `cancelled`, exit 13 (5 before hal2 plan 0318): that one is no failure). A held landing is fixed and rerun as the mtm skill
   says. Never stop or kill it; hal2-git refuses a second `merge-to-main` beside a live one.
 
 If there is no handoff file, say so and ask what to work on. A record plan always has one (`plan.py new` writes
@@ -428,5 +437,6 @@ then lets hal2 clear this Claude Code session and type `/handoff c` into the fre
    that has landed has nothing to continue: do not start it there, its report stays on screen. It
    exits non-zero when it cannot start (autoclear disabled in agents.toml, not Claude Code, neither
    in tmux nor a hal2 terminal, no hal2; an older hal2 also `no-open-plan`): report its message and fall back to telling the user to `/clear` and paste the prompt.
-   `already-running` is no failure: a job waits already (hal2's guard started it when it stopped the session at the
+   `already-running` (the refusal's `reason`: on stdout, or in the error document's `details` on stderr since hal2
+   plan 0318) is no failure: a job waits already (hal2's guard started it when it stopped the session at the
    threshold); just end the turn.

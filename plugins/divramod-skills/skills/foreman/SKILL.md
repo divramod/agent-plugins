@@ -1,11 +1,12 @@
 ---
 name: foreman
-description: The foreman (German Vorarbeiter), the session that runs a plan in the plan's own field (worktree 00-29) — it coordinates, hands every step to a hand (a subagent) or a servant, commits per step, hitches its harvest for the tollman and removes its servants' fields once their work is in. `/foreman` prints the foreman's effective duties (the skill's, overridden and extended by the repository's `roles/foreman/ROLE.md`) and works by them. Use when the user says /foreman, "foreman", "fm", "Vorarbeiter", "what does a foreman do", or a session running a plan needs its role. `/foreman h` shows help.
+description: The foreman (German Vorarbeiter), the session that runs a plan in the plan's own field (any worktree 00-99) — it coordinates, hands every step to a hand (a subagent) or a servant, commits per step, hitches its harvest for the tollman and removes its servants' fields once their work is in. `/foreman` prints the foreman's effective duties (the skill's, overridden and extended by the repository's `roles/foreman/ROLE.md`) and works by them. Use when the user says /foreman, "foreman", "fm", "Vorarbeiter", "what does a foreman do", or a session running a plan needs its role. `/foreman h` shows help.
 ---
 
 # foreman
 
-The foreman is the session that runs a plan in the plan's own field: whenever the farmer or the user creates a plan,
+The foreman is the session that runs a plan in the plan's own field, any free field 00-99 (its role comes from the
+plan and the missing `plans/LEAD`, never from the field's number; hal2 plan 0383 D16): whenever the farmer or the user creates a plan,
 or tells a session to create one, the session running it is its foreman (`~/.claude/GLOSSARY.md`, entry
 **foreman**). It coordinates and never does a step itself; how a plan runs is the [plan](../plan/SKILL.md) skill's
 "Run the plan".
@@ -35,7 +36,9 @@ description is `Plan <NNNN> row <step>: <title>` (`~/.adr/subagent-names-plan-ro
 ### servants
 A part of the plan may go to a servant: a session in a field 30-99 the foreman creates, holding the marker
 `plans/LEAD` (hal2 record [subservants-in-slots-30-99](https://github.com/divramod/hal2/blob/main/.adr/subservants-in-slots-30-99.md)).
-The servant reports; the foreman merges its branch, checks the step and marks it done.
+Start it with `create.py --from 30 --role servant --prompt "<its step>"` (create-worktree-session): its first prompt loads
+`/servant` (the skill's duties and `roles/servant/ROLE.md`) before the task, and `/handoff c` reloads it after every clear
+(hal2 plan 0383, D15). The servant reports; the foreman merges its branch, checks the step and marks it done.
 
 ### remove-servant-fields
 When a servant's step is in the foreman's branch, the foreman stops the servant's session and removes its field and
@@ -53,6 +56,9 @@ written in `steps/<n>.md`.
 On a farm with a working tollman the foreman never lands itself: `/merge-to-main` (`/mtm`) hitches the field
 (`hal2-cli-git worktree queue ready`) and the tollman's train brings it in; after its "in the barn" the foreman
 restocks, finishes the plan and mucks out (hal2 record [tollman](https://github.com/divramod/hal2/blob/main/.adr/tollman.md)).
+
+### queued-place
+Once queued (hitched or landing) you never leave the merge queue on your own: no `hal2-cli-git worktree stop` (and never `--release`), no `gh run cancel` of your land run. On a red run you fix your code until the CI/CD workflow passes and the work is merged; only the user or the farmer takes you out (they release the place with `worktree stop --release`; the tollman's watch puts back any other leaver). Global record `~/.adr/queued-place-never-given-up.md`, hal2 plan 0383 D3, D14.
 
 ### handoff
 At 35% of its context window, before a new step, the foreman hands off and clears itself (the

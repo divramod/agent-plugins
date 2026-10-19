@@ -199,9 +199,12 @@ def schedule(role_text: str, known: tuple[str, ...] = DUTIES) -> tuple[dict[str,
     return items, settings, problems
 
 
-def loop_cron(items: dict[str, str]) -> str:
-    """The farmer loop's cron: every <shortest interval> minutes (at least 5), off the :00 mark."""
-    minutes = max(MIN_TICK, min([interval_minutes(c) for c in items.values()] or [15]))
+def loop_cron(items: dict[str, str], min_tick: int = MIN_TICK) -> str:
+    """The role loop's cron: every <shortest interval> minutes (at least `min_tick`, 5 unless the role's wiring says
+    less), off the :00 mark; a 1-minute interval is every minute."""
+    minutes = max(min_tick, min([interval_minutes(c) for c in items.values()] or [15]))
+    if minutes == 1:
+        return "* * * * *"
     if minutes >= 60:
         return "4 * * * *"
     if 60 % minutes:

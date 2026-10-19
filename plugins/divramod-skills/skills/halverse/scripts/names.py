@@ -47,8 +47,9 @@ def holder_text(holder: Optional[Dict[str, Any]]) -> str:
 
 
 def refusal_text(err: Dict[str, Any]) -> str:
-    """The CLI's error document worded for the user: what it refused, the holder's name, what to do."""
-    details = err.get("details") or {}
+    """The CLI's error worded for the user: what it refused, the holder's name, what to do. `err` is the contract's
+    document (`details.reason`) or cli.py's normalized `{code: <reason>, message, detail, exit}`."""
+    details = err.get("details") or err.get("detail") or {}
     reason = details.get("reason") or err.get("code", "?")
     holder = holder_text(details.get("holder"))
     message = err.get("message", "").rstrip(".")
@@ -56,7 +57,7 @@ def refusal_text(err: Dict[str, Any]) -> str:
     if holder and reason != "NAME_IN_USE":  # that message is the holder's sentence already
         lines.append("The holder is %s." % holder)
     lines.append(ADVICE.get(reason, err.get("hint") or "See the message above."))
-    if err.get("code") in ("refused", "busy"):
+    if err.get("code") in ("refused", "busy") or err.get("exit") in (4, 5):
         lines.append("Nothing was changed.")
     return "\n".join(lines)
 

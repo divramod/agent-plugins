@@ -6,7 +6,8 @@
 argument>.json` where that file exists (plan 0283 step 4; hand-written in `fixtures/cli/names/` after the CLI's shapes,
 every name invented); a file holding an `error` is printed on stderr with the error's own `exit`. The exit code is the CLI's: 1 for a check whose `ok` is false, 2 for a file
 with an `error` or one that is missing, and for a `term` call's error the code's own (3 refused, 4 `changed-meanwhile`
-and `locked`, 5 `failed`). Every call's arguments are appended to the log, and the document of a `--from -` to the
+and `locked`, 5 `failed`: the CLI before plan 0318). A file recorded from the CLI since then holds the contract's error
+(`exit` in it): it is printed on stderr and the exit is its own. Every call's arguments are appended to the log, and the document of a `--from -` to the
 documents' log. `answer` is a program that prints one answer whatever it is asked. The real CLI and the user's files
 are never touched.
 
@@ -55,9 +56,11 @@ if not os.path.isfile(path):
     sys.exit(2)
 text = open(path, encoding="utf-8").read()
 data = json.loads(text)
-if args[0] == "names" and "error" in data:
-    sys.stderr.write(text)
-    sys.exit(data["error"]["exit"])
+error = data.get("error") if isinstance(data, dict) else None
+if isinstance(error, dict) and "exit" in error:  # the contract's error (plan 0318): stderr alone, the CLI's own exit
+    sys.stderr.buffer.write(text.encode("utf-8"))
+    sys.stderr.flush()
+    sys.exit(error["exit"])
 sys.stdout.buffer.write(text.encode("utf-8"))
 sys.stdout.flush()
 refused = {{"usage": 2, "unreadable": 2, "changed-meanwhile": 4, "locked": 4, "failed": 5}}

@@ -57,6 +57,6 @@ multi-source layout is brought up to date with `hal2-cli-tell migrate --apply` (
 | Command | Does |
 |---|---|
 | `hal2-cli-tell prepare` | metadata → folder → [video in background] → transcript (captions, else Whisper) → [frames]; reuses folders by video id; playlists/channels list their videos + a digest folder; `--dir <folder> --content-part video` makes the video a part of another item (an x post: `video-transcript.md`, no `videos/…` entry); a URL with several videos (an x post) takes `--playlist-item N` |
-| `hal2-cli-tell video download "<dir>" "<url>"` | video download (detached, status in `.video-download.json`, `--quality best\|1080p\|720p\|audio`), then metadata + chapters into the file; `video tag\|delete\|status "<dir>"` |
+| `hal2-cli-tell video download "<dir>" "<url>"` | video download (detached, status in `.video-download.json`, `--quality best\|1080p\|720p\|audio`), then metadata + chapters into the file; `video tag\|status "<dir>"`; `video delete "<dir>" --yes` |
 | `hal2-cli-tell video frames "<dir>"` | scene-change keyframes → `frames/` + `index.md` (called by `--visual`) |
 | `hal2-cli-tell related "<dir>" --query …` | YouTube search for your queries → similar videos (deduped, marks already-summarized ones) |

@@ -23,7 +23,8 @@ NOT_INSTALLED = f"records unchecked: {NAME} is not installed"
 
 
 class CheckerError(Exception):
-    """The checker could not check (exit 2: usage or an unreadable repository; 3: older than the repository asks)."""
+    """The checker could not check (exit 2: usage or an unreadable repository; 10, or 3 from a binary
+    before hal2 plan 0318: older than the repository asks); its code is passed on."""
 
     def __init__(self, message: str, code: int):
         super().__init__(message)

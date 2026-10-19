@@ -10,6 +10,7 @@ const HOME = '/w/worktree/hal2/09'
 test('the CLI\'s JSON is a roll-up; null, an error text or another shape is none', () => {
   expect(parseRollUp(JSON.stringify(ROLLUP))).toEqual(ROLLUP)
   expect(parseRollUp('null')).toBeNull()
+  expect(parseRollUp('{}')).toBeNull() // the CLI's "no masterplan" since plan 0318
   expect(parseRollUp('error: unknown subcommand')).toBeNull()
   expect(parseRollUp('{"slug":1}')).toBeNull()
   expect(parseRollUp(JSON.stringify({ ...ROLLUP, crop: null }))?.crop).toBeNull()

@@ -1,10 +1,1 @@
-{
-  "error": {
-    "code": "term-exists",
-    "message": "the term lashing heads the entry of line 70 already",
-    "detail": {
-      "term": "lashing",
-      "line": 70
-    }
-  }
-}
+{"error":{"code":"refused","exit":4,"message":"the term lashing heads the entry of line 70 already","hint":null,"details":{"term":"lashing","line":70,"reason":"term-exists"}}}

@@ -91,7 +91,7 @@ def farmer_pane(top: str) -> str | None:
         data = json.loads(text) if code == 0 else []
     except json.JSONDecodeError:
         return None
-    rows = data.get("list", []) if isinstance(data, dict) else data
+    rows = data.get("agents", []) if isinstance(data, dict) else data
     target = Path(top).resolve()
     return next((a.get("pane_id") for a in rows
                  if a.get("checkout") and Path(a["checkout"]).resolve() == target), None)
@@ -156,7 +156,7 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
     seq = max((i["seq"] for i in data["items"]), default=0)
     for i in new:
         seq += 1
-        data["items"].append({"seq": seq, **i})
+        data["items"].append({"seq": seq, "at": now.isoformat(timespec="seconds"), **i})
     if new:
         data["woken_at"] = data.get("woken_at") if data["items"][:-len(new)] else None
     result = {"items": len(new), "pending": len(data["items"]), "woken": False}
@@ -172,6 +172,18 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
             log_wake(main, "wake", f"{wiring.act}: {len(data['items'])} items", wiring)
     write(main, data, wiring)
     return result
+
+
+def close_older(main: str, written: float | None, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
+    """Close (drop) every item created before `written` (the handoff's last write, an epoch): the session that
+    wrote the handoff had seen it (plan 0383 D8). An item without an `at` stamp stays. Returns the closed items."""
+    data = read(main, wiring)
+    old = [i for i in data["items"]
+           if written is not None and i.get("at") and dt.datetime.fromisoformat(i["at"]).timestamp() < written]
+    if old:
+        data["items"] = [i for i in data["items"] if i not in old]
+        write(main, data, wiring)
+    return old
 
 
 def done(main: str, upto: int, wiring: roles.Wiring = roles.FARMER) -> int:

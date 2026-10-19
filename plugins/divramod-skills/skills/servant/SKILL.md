@@ -7,7 +7,7 @@ description: The servant (German Knecht), a session in a field 30-99 that a fore
 
 A servant is a session in a field 30-99 that a foreman created: it does a part of the foreman's plan, reports back to
 it and never lands (`~/.claude/GLOSSARY.md`, entry **servant**). Its field holds the foreman's marker `plans/LEAD`
-(`<foreman's field> <plan> <step>`); how it works is the [plan](../plan/SKILL.md) skill's "Work as a servant".
+(`<foreman's field> <plan> <step>`), which says it is a servant's, not the number; how it works is the [plan](../plan/SKILL.md) skill's "Work as a servant".
 
 | Call | Does |
 |---|---|

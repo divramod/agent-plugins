@@ -13,7 +13,10 @@ tests="$root/code/rust/apps/hal2-cli-halverse/tests/fixtures"
 store_builder="$root/research/0075-halverse-plugin-the-voiceink-dictionary-store-and-the-plugin/fixture.py"
 (cd ../sources && for command in terms ontology check; do
   "$cli" "$command" --json --glossary GLOSSARY.md --ontology ontology.md --dictation dictation.md \
-    > "../cli/sources/$command.json" || [ "$command" = check ]
+    > "../cli/sources/$command.json" 2> "../cli/sources/$command.err" || [ "$command" = check ]
+  # Since plan 0318 a check that fails has nothing on stdout: the error, with the report in its details, is the answer.
+  [ -s "../cli/sources/$command.json" ] || mv "../cli/sources/$command.err" "../cli/sources/$command.json"
+  rm -f "../cli/sources/$command.err"
 done)
 for name in terms terms-de ontology check; do cp "$tests/expected/$name.json" "contract/$name.json"; done
 
@@ -40,12 +43,15 @@ in_scene() {
     HAL2_VOICEINK_APP_RUNNING=0 "$@")
 }
 # reads <file> <exit> <args>...: a reading call's answer; writes <file> <exit> <args>...: a writing call's (the
-# document, where it has one, on stdin). The exit code must be the one named.
+# document, where it has one, on stdin). The exit code must be the one named. An error is on stderr alone (plan 0318):
+# its document is the recorded file.
 record() {
   local out="$here/$1" want="$2" got=0
   shift 2
-  in_scene "$cli" "$@" --json > "$out" || got=$?
+  in_scene "$cli" "$@" --json > "$out" 2> "$out.err" || got=$?
   [ "$got" = "$want" ] || { echo "make.sh: $* exited $got, not $want" >&2; exit 1; }
+  [ -s "$out" ] || mv "$out.err" "$out"
+  rm -f "$out.err"
 }
 reads() { local out="$1" want="$2"; shift 2; record "$out" "$want" "$@" "${files[@]}"; }
 writes() { local out="$1" want="$2"; shift 2; record "$out" "$want" "$@" "${files[@]}" "${writing[@]}"; }
@@ -53,7 +59,7 @@ writes() { local out="$1" want="$2"; shift 2; record "$out" "$want" "$@" "${file
 reads term/term-check.json 0 term check lashing berth
 writes term/term-add-dry.json 0 term add --from - --dry-run < documents/lashing.json
 writes term/term-add.json 0 term add --from - < documents/lashing.json
-writes term-refused/term-add.json 3 term add --from - < documents/lashing.json
+writes term-refused/term-add.json 4 term add --from - < documents/lashing.json
 writes term/term-change-dry.json 0 term change --from - --dry-run < documents/lashing-changed.json
 writes term/term-change.json 0 term change --from - < documents/lashing-changed.json
 writes term/term-retire-dry.json 0 term retire shipmaster --by pilot --dry-run
@@ -61,10 +67,10 @@ writes term/term-retire.json 0 term retire shipmaster --by pilot
 reads term/term-short-list.json 0 term short list
 writes term/term-short-set.json 0 term short set kn knot --spoken
 writes term/term-short-rm.json 0 term short rm kn
-writes term-refused/term-add-dry.json 3 term add --from - --dry-run < documents/refused.json
-writes term-refused/term-change-dry.json 3 term change --from - --dry-run < documents/invalid.json
-writes term-refused/term-retire-dry.json 3 term retire berth --dry-run
-writes term-refused/term-short-set.json 3 term short set dock berth
+writes term-refused/term-add-dry.json 4 term add --from - --dry-run < documents/refused.json
+writes term-refused/term-change-dry.json 4 term change --from - --dry-run < documents/invalid.json
+writes term-refused/term-retire-dry.json 4 term retire berth --dry-run
+writes term-refused/term-short-set.json 4 term short set dock berth
 writes term-refused/term-short-rm.json 3 term short rm zz
 reads term/prompt.json 0 prompt
 in_scene "$voiceink" export --out voiceink-import.json "${files[@]}" --json > term/export.json

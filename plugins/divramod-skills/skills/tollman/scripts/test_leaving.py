@@ -59,31 +59,31 @@ class Rounds(Farm):
     def test_a_train_forms_behind_a_leaving_ticket_and_behind_the_tollman_s_own(self):
         self.gate.ticket("05", self.field("05"), state="held", pid=4711, waits_for=WHY,
                          hold={"reason": "reserved", "message": "ended; held until its worktree's runs have ended"})
-        self.gate.ticket(OWN, self.wm, state="held", pid=4712, waits_for=WHY, hold={"reason": "failed", "step": "gate"})
+        self.gate.ticket(self.carrier(), self.wm, state="held", pid=4712, waits_for=WHY, hold={"reason": "failed", "step": "gate"})
         self.alive.update({4711, 4712})  # pids another process got: a leaving ticket's landing ended all the same
         self.crop("07", {"seven.txt": "7"})
         self.crop("09", {"nine.txt": "9"})
         d = json.loads(self.call("train", "--dry-run", "--json", repo=self.main)[1])
         self.assertEqual(([c["field"] for c in d["cars"]], d["waiting"], d["unhitched"]), (["07", "09"], [], []))
         self.round()
-        self.assertEqual((self.last, self.spawned), ([("form", "run", "-")], [OWN]))
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", OWN, "07", "09"]],
+        self.assertEqual((self.last, self.spawned), ([("form", "run", "-")], [self.carrier()]))
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "09"]],
                          "marked on its one ticket, nothing released")
         self.assertEqual([(t["slot"], bool(t.get("waits_for"))) for t in self.gate.tickets if t["state"] == "held"],
-                         [("05", True), (OWN, True)])
+                         [("05", True), (OWN, True)], "the train rides in its own worktree's ticket (plan 0375 D5)")
 
     def test_a_breakup_releases_a_failed_hold_but_never_a_leaving_ticket(self):
-        mine = self.gate.ticket(OWN, self.wm, state="held", waits_for=WHY, hold={"reason": "reserved"})
-        mine["train"] = {"carrier": OWN, "cars": [{"field": "05"}], "at": AT}
+        mine = self.gate.ticket(self.carrier(), self.wm, state="held", waits_for=WHY, hold={"reason": "reserved"})
+        mine["train"] = {"carrier": self.carrier(), "cars": [{"field": "05"}], "at": AT}
         self.round()
         self.assertEqual((self.last, self.gate.calls), ([("breakup", "run", "-")],
-                                                        [["worktree", "queue", "train", OWN, "--clear"]]))
-        self.assertIs(self.gate.of(OWN), mine, "it goes by itself once its run has ended")
+                                                        [["worktree", "queue", "train", self.carrier(), "--clear"]]))
+        self.assertIs(self.gate.of(self.carrier()), mine, "it goes by itself once its run has ended")
         mine.update(waits_for=None, hold={"reason": "failed", "step": "gate"},
-                    train={"carrier": OWN, "cars": [{"field": "06"}], "at": "2026-10-13T11:00:00Z"})
+                    train={"carrier": self.carrier(), "cars": [{"field": "06"}], "at": "2026-10-13T11:00:00Z"})
         self.round()
-        self.assertEqual(self.gate.calls[1:], [["worktree", "queue", "train", OWN, "--clear"],
-                                               ["worktree", "release", OWN]])
+        self.assertEqual(self.gate.calls[1:], [["worktree", "queue", "train", self.carrier(), "--clear"],
+                                               ["worktree", "release", self.carrier()]])
 
 
 if __name__ == "__main__":

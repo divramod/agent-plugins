@@ -127,7 +127,8 @@ class TestCreate(unittest.TestCase):
         self.assertIn("--from needs a worktree from 00 to 99", self.refused("--from", "x"))
 
     def test_to_ends_the_search_and_no_free_worktree_in_range_exits_3(self):
-        """Plan 0333 step 9: the farmer's foremen search 00-29 only; none free there is exit 3, never a field above."""
+        """A range ends at --to; none free in it is exit 3, never a field above (plan 0333 step 9; since plan 0383 D16 the
+        farmer's foremen search 00-99, so --to is for any caller that wants a smaller range)."""
         self.assertEqual(self.run_create("--from", "01", "--to", "29")["slot"], "06")
         r = self.run_raw("--from", "01", "--to", "05")
         self.assertEqual(r.returncode, 3, r.stdout)

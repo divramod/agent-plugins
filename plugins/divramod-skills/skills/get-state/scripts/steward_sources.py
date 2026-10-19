@@ -61,6 +61,8 @@ def open_uats(main: str) -> list[dict] | None:
     """The plans with checks still to run, from ONE `hal2-cli-plans uat list --json`: `{"plan", "title", "open" (count),
     "failed" (fail, retest and blocked), "next" (the first open check's `<key> <title>`)}`; None when the tool gives nothing."""
     raw = src.tool_json(["hal2-cli-plans", "uat", "list", "--json"], main)
+    if isinstance(raw, dict):  # {"uats": [...]} since hal2 plan 0318; a bare list before
+        raw = raw.get("uats")
     if not isinstance(raw, list):
         return None
     out = []

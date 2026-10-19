@@ -1,11 +1,1 @@
-{
-  "error": {
-    "code": "short-form-stands",
-    "message": "the short form bt (line 161) still stands for berth: name its successor or remove the short form first",
-    "detail": {
-      "term": "berth",
-      "short": "bt",
-      "line": 161
-    }
-  }
-}
+{"error":{"code":"refused","exit":4,"message":"the short form bt (line 161) still stands for berth: name its successor or remove the short form first","hint":null,"details":{"term":"berth","short":"bt","line":161,"reason":"short-form-stands"}}}

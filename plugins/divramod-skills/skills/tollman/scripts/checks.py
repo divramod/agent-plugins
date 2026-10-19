@@ -224,7 +224,7 @@ def sessions_of(main: str) -> set:
         data = json.loads(deliver.cli("list", "--json")[1])
     except json.JSONDecodeError:
         data = []
-    rows = data.get("list", []) if isinstance(data, dict) else data
+    rows = data.get("agents", []) if isinstance(data, dict) else data
     home = Path.home() / ".hal/git/worktree" / Path(main).name
     return {a["slot"] for a in rows if a.get("slot") and a.get("checkout") and Path(a["checkout"]).parent == home}
 

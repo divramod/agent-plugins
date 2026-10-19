@@ -122,8 +122,8 @@ def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) ->
 def plan_watch(item: dict, ctx: dict, incidents: list[dict] | None = None) -> list[dict]:
     if incidents is None:
         state, at = watch_scan.load_state(), watch_scan.now_ms()
-        agents = watch_scan.run_json("hal2-cli-agents", "list", "--json", default=[]) or []
-        orphans = watch_scan.run_json("hal2-cli-agents", "terminal", "orphans", "--json", default=[]) or []
+        agents = watch_scan.rows(watch_scan.run_json("hal2-cli-agents", "list", "--json"), "agents")
+        orphans = watch_scan.rows(watch_scan.run_json("hal2-cli-agents", "terminal", "orphans", "--json"), "orphans")
         events = watch_scan.chronicle_events(at - 24 * 3600 * 1000)
         found = watch_scan.find_incidents(ctx["main"], agents, events, orphans, state, at)
         incidents = [i for i in found if i["id"] not in state.get("handled", {})]

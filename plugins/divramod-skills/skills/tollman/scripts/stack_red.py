@@ -20,6 +20,7 @@ import re
 import sys
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path; board.py lives there)
 import gh_runs
 import mtm_scan
 from tick import act
@@ -75,7 +76,7 @@ def actions(top: str, train: dict, result: dict | None, panes: dict, after: str 
     tests, what = words(jobs)
     job = ", ".join(j["name"] for j in jobs)
     own, chain = Path(top).name, {"after": after} if after else {}
-    board = [sys.executable, str(Path(__file__).with_name("board.py")), "post", "--kind", "red", "--from", own,
+    board = [sys.executable, str(farmer_frame.SCRIPTS / "board.py"), "post", "--kind", "red", "--from", own,
              "--to", "-", "--train", name, "--cars", ",".join(cars), "--status", STACK, "--repo", top,
              "--text", f"train {name} is in the barn, but {job} is red: {tests}"] + (["--run", run] if run else [])
     key = f"stack-red:{name}"
@@ -102,17 +103,22 @@ def stack_job(jobs: list[dict]) -> dict | None:
     return next((j for j in jobs if red_jobs({"red": [j]})), None)
 
 
+OWNED = ("post-order", "early-order", "train-red")  # the watch's keys of a run (post_merge.py): it settled the red
+
+
 def watch(top: str, main: str, rows: list[dict], panes: dict, log: list[dict], fetch=None,
-          now: dt.datetime | None = None) -> list[dict]:
+          now: dt.datetime | None = None, watched: str | None = None) -> list[dict]:
     """The newest landed train's stack-test, read from its land run (see the module doc): [] while it runs, has no
-    run or was settled before (its key in the log); `fetch(run id)` gives the run's jobs (gh by default)."""
+    run or was settled before (its key in the log); `fetch(run id)` gives the run's jobs (gh by default). A run the
+    1-minute watch still watches (`watched`, its id) or whose red it settled (an order or a wake, OWNED) is its
+    (post_merge.py, plan 0383 step 6): its post-merge red goes into the next train, never told twice."""
     landed = [r for r in rows if r.get("kind") == "landed"]
     row = landed[-1] if landed else {}
     name, rid = row.get("train"), run_id(row.get("run"))
-    if not name or not rid:
+    if not name or not rid or rid == watched:
         return []
     done = {e.get("key") for e in log}
-    if f"stack-red:{name}" in done or f"stack-done:{name}" in done:
+    if f"stack-red:{name}" in done or f"stack-done:{name}" in done or any(f"{k}:{rid}" in done for k in OWNED):
         return []
     try:
         at = dt.datetime.fromisoformat(str(row.get("at")).replace("Z", "+00:00"))

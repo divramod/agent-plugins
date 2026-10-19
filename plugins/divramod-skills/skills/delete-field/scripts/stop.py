@@ -127,16 +127,33 @@ def hard_stop(agent: dict) -> str:
     return "signal"
 
 
+def refused_why(stdout: str, stderr: str) -> str:
+    """Why hal2 refused the stop: `refused` of stdout's object (before hal2 plan 0318 row 8), else of the error
+    document's details on stderr (its message without them), else stderr's text."""
+    for text, inner in ((stdout, False), (stderr, True)):
+        try:
+            doc = json.loads(text.strip() or "{}")
+        except json.JSONDecodeError:
+            continue
+        error = doc.get("error") if inner and isinstance(doc, dict) else None
+        body = (error.get("details") or {}) if isinstance(error, dict) else doc
+        why = body.get("refused") if isinstance(body, dict) else None
+        if why or (isinstance(error, dict) and error.get("message")):
+            return why or error["message"]
+    return stderr.strip()
+
+
 def hal2_stop(agent: dict, force: bool) -> str | None:
-    """`hal2-cli-agents stop`: how it stopped; exit 3 when hal2 refused; None when hal2 has no `stop` yet."""
+    """`hal2-cli-agents stop`: how it stopped; exit 3 when hal2 refused (its exit 10, 3 before hal2 plan 0318); None
+    when hal2 has no `stop` yet."""
     if not shutil.which("hal2-cli-agents"):
         die("hal2-cli-agents is missing: run scripts/install-prerequisites.sh (needs hal2)", 2)
     args = ["hal2-cli-agents", "stop", agent["pane_id"], "--json"] + (["--force"] if force else [])
     r = subprocess.run(args, capture_output=True, text=True)
     if r.returncode == 2 and "unknown command" in r.stderr:
         return None
-    if r.returncode == 3:
-        refused = json.loads(r.stdout or "{}").get("refused") or r.stderr.strip()
+    if r.returncode in (3, 10):
+        refused = refused_why(r.stdout, r.stderr)
         print(json.dumps({"refused": refused, "session": agent}, indent=2, ensure_ascii=False))
         sys.exit(3)
     if r.returncode:

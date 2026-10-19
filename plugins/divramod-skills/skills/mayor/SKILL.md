@@ -22,7 +22,8 @@ the town hall's `roles/mayor/ROLE.md` ([role_duties.py](../farmer/scripts/role_d
 
 ### stop-all
 On the user's word, stop the work of every agent session on the machine, in every farm, except those the user
-names: the skill [stop-all-agent-work](../stop-all-agent-work/SKILL.md) (`/stop-all-agent-work [keep <who>...]`).
+names: the skill [stop-all-agent-work](../stop-all-agent-work/SKILL.md) (`/stop-all-agent-work [keep <who>...]`); for the user's own call or need of full compute, one script call without a
+question: [important-interrupt](../important-interrupt/SKILL.md) (`/important-interrupt`, `done` undoes it).
 
 ### continue-all
 On the user's word, send everyone back to work and undo the machine's quieting: the skill

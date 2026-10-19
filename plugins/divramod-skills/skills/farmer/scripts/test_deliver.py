@@ -1,6 +1,7 @@
 """The frame's typing into a session (deliver.py) and a refused send (tick.execute). These tests lived in
 test_boss.py until the boss moved to the tollman skill (hal2 plan 0294 step 5); deliver.run is a fake."""
 
+import json
 import unittest
 from unittest import mock
 
@@ -27,6 +28,33 @@ class Prompt(unittest.TestCase):
         with mock.patch.object(deliver, "run", return_value=(0, "", "")) as run:
             self.assertIsNone(deliver.send("%8", "hi"))
         self.assertEqual(run.call_count, 1)
+
+    def test_the_refusals_of_an_older_and_a_newer_hal2_are_reported(self):
+        # hal2 plan 0318 moved `not sent` 3 -> 10 and `not submitted` 4 -> 11.
+        for code, err in ((3, "x: not sent: busy: working\n"), (10, "x: not sent: busy: working\n"),
+                          (11, "x: not submitted: not-taken: gone\n")):
+            with mock.patch.object(deliver, "run", return_value=(code, "", err)):
+                self.assertFalse(deliver.send("%8", "hi").startswith("hal2-cli-agents"), code)
+
+    def test_a_failure_s_body_is_read_from_stdout_or_the_error_document(self):
+        # hal2 plan 0318 row 8: a refusal's old --json body is the error document's details on stderr.
+        body = '{"status": "refused", "reason": "already-running", "message": "a job runs"}'
+        doc = '{"error": {"code": "failed", "exit": 1, "message": "refused", "hint": null, "details": %s}}\n' % body
+        for out, err in ((body, ""), ("", doc)):
+            with mock.patch.object(deliver, "run", return_value=(1, out, err)):
+                self.assertEqual(json.loads(deliver.cli("clear-and-continue", "--json")[1])["reason"], "already-running")
+        empty = '{"error": {"code": "failed", "exit": 1, "message": "no host", "hint": null, "details": {}}}'
+        for err in (empty, "hal2-cli-agents: no host\n"):
+            with mock.patch.object(deliver, "run", return_value=(1, "", err)):
+                self.assertEqual(deliver.cli("capture", "%8"), (1, ""))
+        with mock.patch.object(deliver, "run", return_value=(0, "screen", doc)):
+            self.assertEqual(deliver.cli("capture", "%8"), (0, "screen"))
+
+    def test_an_agent_is_found_in_the_old_and_the_new_list(self):
+        agent = {"pane_id": "%8", "state": "idle"}
+        for out in ('[{"pane_id": "%8", "state": "idle"}]', '{"agents": [{"pane_id": "%8", "state": "idle"}]}'):
+            with mock.patch.object(deliver, "cli", return_value=(0, out)):
+                self.assertEqual(deliver.agent("%8"), agent, out)
 
     def test_send_falls_back_for_a_cli_without_submit(self):
         usage = "hal2-cli-agents: send takes <pane> <text> [--key | --paste] [--if-empty [--allow-state <state>]...]\n"

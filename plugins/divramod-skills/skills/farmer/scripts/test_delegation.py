@@ -56,7 +56,7 @@ class Delegation(Ledger):
         r = delegation.delegate(flaky(), MAIN, 5, True, NOW)
         self.assertEqual(r["how"], "new")
         self.assertEqual(r["calls"][0], delegation.FREE + ["--repo", MAIN])
-        self.assertEqual(r["calls"][1][:13], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--to", "29",
+        self.assertEqual(r["calls"][1][:13], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--to", "99",
                                                                   "--model", "opus", "--effort", "medium", "--prompt"])
         prompt = r["calls"][1][-1]
         self.assertNotIn('/plan new "disable the load-flaky test t"', prompt)
@@ -196,76 +196,6 @@ class Delegation(Ledger):
         self.assertIn(delegation.STOP + ["18", "--repo", MAIN], self.calls)
 
 
-class ForemanFields(Ledger):
-    """Plan 0333 step 9 (D11): a foreman never starts in a field 30-99, where the tollman refuses its wagon."""
-
-    def create_says(self, code, out):
-        """create.py answers `(code, out)`, every other call as in Ledger.setUp."""
-        base = delegation.call
-
-        def call(argv, cwd):
-            if argv[:2] == delegation.CREATE:
-                self.calls.append(argv)
-                return code, out
-            return base(argv, cwd)
-        p = mock.patch.object(delegation, "call", call)
-        p.start()
-        self.addCleanup(p.stop)
-
-    def test_all_fields_00_29_busy_nothing_starts_and_the_action_waits_with_the_reason(self):
-        """Today's 44-50: with 00-29 full create.py went on to 44. Now the range ends at 29 and the delegation waits."""
-        self.create_says(delegation.NO_FREE_EXIT, "")
-        with mock.patch.object(delegation.deliver, "send", return_value=None) as send:
-            self.free = [{"slot": "44", "panes": ["%44"]}, {"slot": "main", "panes": ["%1"]}]
-            r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
-        send.assert_not_called()  # the idle session in field 44 is not taken
-        self.assertEqual((r["state"], r["reason"]), ("waiting", "no free field 00-29"))
-        create = [c for c in self.calls if c[:2] == delegation.CREATE]
-        self.assertEqual(len(create), 1)
-        self.assertEqual(create[0][create[0].index("--from"):create[0].index("--from") + 4], ["--from", "00", "--to", "29"])
-        entry = delegation.ledger(MAIN)["flaky:t"]
-        self.assertEqual((entry["state"], entry["reason"]), ("waiting", "no free field 00-29"))
-        log = [json.loads(x) for x in (self.tmp / "hal2" / "log.jsonl").read_text().splitlines()]
-        self.assertIn("no free field 00-29", log[-1]["note"])
-        # retried every round for the same reason: not noted nor logged again
-        again = delegation.follow_up(MAIN, {}, 5, False, NOW + dt.timedelta(minutes=5))
-        self.assertEqual([(d["state"], d["reason"]) for d in again], [("waiting", "no free field 00-29")])
-        self.assertEqual(len((self.tmp / "hal2" / "log.jsonl").read_text().splitlines()), len(log))
-
-    def test_a_waiting_delegation_starts_once_a_field_is_free(self):
-        self.create_says(delegation.NO_FREE_EXIT, "")
-        self.assertEqual(delegation.delegate(flaky(), MAIN, 5, False, NOW)["state"], "waiting")
-        self.create_says(0, json.dumps({"slot": "07"}))
-        later = delegation.follow_up(MAIN, {}, 5, False, NOW + dt.timedelta(minutes=5))
-        self.assertEqual([(d["state"], d["slot"]) for d in later], [("running", "07")])
-
-    def test_a_done_cleaned_field_07_is_reused(self):
-        self.create_says(0, json.dumps({"slot": "07"}))
-        r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
-        self.assertEqual((r["state"], r["slot"], r["how"]), ("running", "07", "new"))
-
-    def test_the_limit_bypass_hands_create_the_same_range(self):
-        """`farmer.py delegate` and the tick call the same delegate(): no path passes a range reaching 30."""
-        with mock.patch.object(delegation, "machine_load", return_value=0.0):
-            r = delegation.delegate(flaky(), MAIN, 999, True, NOW)
-        argv = r["calls"][1]
-        self.assertEqual(argv[argv.index("--from") + 1:argv.index("--from") + 4], ["00", "--to", "29"])
-
-    def test_a_create_that_lands_in_44_is_refused(self):
-        self.create_says(0, json.dumps({"slot": "44"}))
-        r = delegation.delegate(flaky(), MAIN, 5, False, NOW)
-        self.assertEqual(r["state"], "error")
-        self.assertIn("field 44", r["error"])
-        self.assertIn("outside 00-29", r["error"])
-
-    def test_a_free_session_in_30_99_is_never_taken(self):
-        self.create_says(delegation.NO_FREE_EXIT, "")
-        for slot in ("30", "44", "99"):
-            self.assertFalse(delegation.servant_slot(slot))
-        for slot in ("00", "07", "29"):
-            self.assertTrue(delegation.servant_slot(slot))
-
-
 class ServantSlots(Ledger):
     """Plan 0270 (D13): the farmer's sessions (foremen) work in the first free worktree counting from 00; a foreman's
     own servants stay in 30-99 (skills plan 0013)."""
@@ -304,7 +234,7 @@ class ServantSlots(Ledger):
         self.assertEqual(create[0][2:6], ["--repo", MAIN, "--from", "00"])
 
     def test_a_foremans_servants_still_work_only_in_30_to_99(self):
-        self.assertEqual(delegation.TO + 1, 30, "a foreman's fields end where the servants' begin")
+        self.assertEqual((delegation.FROM, delegation.TO), (0, 99), "a foreman works in any field (D16)")
         record = repo_root(delegation.__file__) / ".adr" / "subservants-in-slots-30-99.md"
         if record.exists():  # the repository's record stays as it is
             self.assertIn("A servant MUST work only in a worktree from 30 to 99", record.read_text())

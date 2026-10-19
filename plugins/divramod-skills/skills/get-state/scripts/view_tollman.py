@@ -1,7 +1,8 @@
 """The tollman's page (hal2 plan 0366 D9): the merge queue as the toll gate. Sections: the mode, the holder, the
 trains, the ready wagons (hitched harvests), the waiters in order and the open land runs (`land/<field>` branches of
-the collected runs). With nothing in the queue and no land run: "The toll gate is empty." The raw queue comes from
-tollman_sources.py, the runs from `state.collect`'s `runs`; a source that is unknown says so.
+the collected runs; a train's `land/train-<plans>` is shown with its carrier, plan 0383). With nothing in the queue
+and no land run: "The toll gate is empty." The raw queue comes from tollman_sources.py, the runs from
+`state.collect`'s `runs`; a source that is unknown says so.
 """
 
 import tollman_sources as ts
@@ -68,12 +69,20 @@ def queue_sections(tickets: list[dict]) -> list[dict]:
     ]
 
 
-def land_runs(runs: list[dict] | None) -> dict:
+def land_owner(branch: str, tickets: list[dict]) -> str:
+    """Who a land run belongs to: `land/07` -> `07`; a train's `land/train-0383-0365` -> `train-0383-0365 (carrier)`,
+    the carrier being the ticket that lands on it, else the bare train name."""
+    name = branch[len("land/"):]
+    carrier = next((t.get("slot") for t in tickets if (t.get("land_ref") or "").removeprefix("land/") == name), None)
+    return f"{name} ({carrier})" if name.startswith("train-") and carrier else name
+
+
+def land_runs(runs: list[dict] | None, tickets: list[dict] = ()) -> dict:
     if runs is None:
         return {"heading": "Open land runs", "empty": "Land runs unknown (gh is not available)."}
     mine = [r for r in runs if str(r.get("branch") or "").startswith("land/")]
-    return {"heading": f"Open land runs ({len(mine)})", "columns": ["Field", "Workflow", "Status", "Run"],
-            "rows": [[r["branch"][5:], r.get("workflow"), r.get("status"), r.get("url")] for r in mine],
+    return {"heading": f"Open land runs ({len(mine)})", "columns": ["Field or train", "Workflow", "Status", "Run"],
+            "rows": [[land_owner(r["branch"], tickets), r.get("workflow"), r.get("status"), r.get("url")] for r in mine],
             "empty": "No land run is open."}
 
 
@@ -81,7 +90,7 @@ def view(data: dict, ctx: dict) -> tuple[str, list[dict]]:
     import views  # late: views registers this module
     raw = ts.raw_queue(data["repo"])
     mode = (raw or {}).get("mode") or data.get("mode")
-    runs = land_runs(data.get("runs"))
+    runs = land_runs(data.get("runs"), (raw or {}).get("queue") or [])
     sections = [{"heading": "Mode", "text": mode_text(mode)}]
     if raw is None:
         sections.append({"heading": "Merge queue", "empty": "The queue is unknown (hal2-cli-git is not available)."})

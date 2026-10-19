@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""The tollman's message board (hal2 plan 0294 step 7, decisions D3, D14, D21): `roles/tollman/board.jsonl`
-in the tollman's field, never the yard. Every message between the tollman and a foreman, and every change
-of the queue's trains, is one line the farm view reads; field 09's follower tails the file.
+"""A role's message board (hal2 plan 0294 step 7, decisions D3, D14, D21; plan 0290 step 3, D23): `roles/<role>/board.jsonl`
+in the role's field, never the yard, for the tollman and the farmer (`--role`, the tollman by default). Every message
+between the role and a foreman, and every change of the queue's trains, is one line the farm view reads; field 09's
+follower tails the file. The farmer's board holds the kinds `message`, `ack` and `note` only, copied by `sync` from
+its journal `log.jsonl` (read by this script alone; hal2 never parses a journal); its tick runs `sync --role farmer`.
 
 An event log (hal2's .adr/role-folder-formats.md): one JSON line per event, written with O_APPEND in one write,
 never rewritten; pruned only by whole lines from its start (PRUNE_AT: the record's 2 MB), by rename, so a tail
@@ -22,11 +24,11 @@ meant; never a pane id, session id or title), `text`, and by kind (the names are
              which reads the board when it asks; `text`. From the frame's `record` entries of the kinds in NOTES
 
   board.py post --kind <kind> --from <field> --to <field> [--text ..] [--id ..] [--cars a,b] [--run ..] [--head ..]
-                [--status ..] [--train ..] [--commit ..] [--repo <dir>]   one line
-  board.py list [--kind <kind>] [--last <n>] [--json] [--repo <dir>]       the lines (newest last)
-  board.py sync [--repo <dir>]
-      the frame's messages, acks and notes (its log.jsonl: `ask-ack`, `ack`, a `record` of a kind in NOTES) as
-      `message`, `ack` and `note` lines, each once
+                [--status ..] [--train ..] [--commit ..] [--role <role>] [--repo <dir>]   one line
+  board.py list [--kind <kind>] [--last <n>] [--json] [--role <role>] [--repo <dir>]       the lines (newest last)
+  board.py sync [--role <role>] [--repo <dir>]
+      the frame's messages, acks and notes (its log.jsonl: `ask-ack`, `ack`, a `record` of a kind in the role's
+      notes: NOTES for the tollman, `note` for the farmer) as `message`, `ack` and `note` lines, each once
 
 A post that fails never fails a round: `safely` logs it to the frame's log (`board-failed`) and goes on.
 """
@@ -41,13 +43,14 @@ import re
 import sys
 from pathlib import Path
 
-import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-import mtm_scan
+import mtm_scan  # the tollman's scripts reach this folder through its farmer_frame
 
-ROLE = "tollman"
+ROLE = "tollman"  # the default role of every function and of `--role`
+ROLES = ("tollman", "farmer")
 FILE, LOCK = "board.jsonl", "board.lock"
 SCHEMA = 1
 KINDS = ("ready", "unhitched", "train", "landed", "red", "message", "ack", "note")
+KINDS_OF = {"tollman": KINDS, "farmer": ("message", "ack", "note")}
 STATUSES = ("started", "done", "refused")
 PRUNE_AT, PRUNE_TO = 2 * 1024 * 1024, 1024 * 1024  # over 2 MB (the record's event log): the newest 1 MB stay
 FIELD = re.compile(r"^(-|[a-z0-9][a-z0-9-]*)$")
@@ -60,7 +63,8 @@ TO_SLOT = ("unhitched", "message", "note")  # the lines the tollman sends: their
 KEYS = ("id", "text", "cars", "run", "head", "status", "train", "commit")
 TEXT_MAX = 2000
 # What the tollman says unasked about the yard and an old transplant: a note on the board, never a message (D9)
-NOTES = ("yard-left", "yard-kept", "transplant-stale")
+NOTES = ("yard-left", "yard-kept", "transplant-stale", "queue-leaver")  # queue-leaver: leavers.py (plan 0383)
+NOTES_OF = {"tollman": NOTES, "farmer": ("note",)}  # the log's `record` kinds that become a `note` line
 
 
 def utc(now: dt.datetime | None = None) -> str:
@@ -68,31 +72,31 @@ def utc(now: dt.datetime | None = None) -> str:
     return (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def own(main: str) -> str:
-    """The tollman's field name, `tollman-<repo>`."""
-    return mtm_scan.roles.slot_name(main, ROLE)
+def own(main: str, role: str = ROLE) -> str:
+    """The role's field name, `<role>-<repo>`."""
+    return mtm_scan.roles.slot_name(main, role)
 
 
-def path(main: str) -> Path:
-    return mtm_scan.state_dir(main, ROLE) / FILE
+def path(main: str, role: str = ROLE) -> Path:
+    return mtm_scan.state_dir(main, role) / FILE
 
 
 @contextlib.contextmanager
-def locked(main: str):
+def locked(main: str, role: str = ROLE):
     """Writers and the prune take turns (flock on board.lock); the folder must exist: the board is the field's."""
-    folder = path(main).parent
+    folder = path(main, role).parent
     if not folder.is_dir():
-        raise FileNotFoundError(f"no state folder {folder}: the tollman's field does not exist here")
+        raise FileNotFoundError(f"no state folder {folder}: the {role}'s field does not exist here")
     with (folder / LOCK).open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield folder / FILE
 
 
-def check(line: dict) -> dict:
+def check(line: dict, role: str = ROLE) -> dict:
     """The line as the manifest's schema allows it, or ValueError saying what is wrong."""
     kind = line.get("kind")
-    if kind not in KINDS:
-        raise ValueError(f"no board kind {kind!r} (allowed: {', '.join(KINDS)})")
+    if kind not in KINDS_OF[role]:
+        raise ValueError(f"no board kind {kind!r} (allowed: {', '.join(KINDS_OF[role])})")
     if not AT.match(line.get("at", "")):
         raise ValueError(f"`at` is not RFC 3339 UTC with Z: {line.get('at')!r}")
     for side in ("from", "to", "slot"):
@@ -112,12 +116,13 @@ def check(line: dict) -> dict:
     return line
 
 
-def build(kind: str, frm: str, to: str, now: dt.datetime | None = None, slot: str | None = None, **keys) -> dict:
-    """A checked line; `slot` defaults to the foreman's side (the field that is not the tollman's)."""
+def build(kind: str, frm: str, to: str, now: dt.datetime | None = None, slot: str | None = None,
+          role: str = ROLE, **keys) -> dict:
+    """A checked line; `slot` defaults to the foreman's side (the field that is not the role's)."""
     line = {"schema": SCHEMA, "at": utc(now), "kind": kind, "slot": slot or (to if kind in TO_SLOT else frm),
             "from": frm, "to": to,
             **{k: (v[:TEXT_MAX] if k == "text" else v) for k, v in keys.items() if k in KEYS and v not in (None, "")}}
-    return check(line)
+    return check(line, role)
 
 
 def write(file: Path, line: dict) -> None:
@@ -143,17 +148,17 @@ def prune(file: Path, keep: int | None = None) -> None:
     os.replace(tmp, file)
 
 
-def post(main: str, kind: str, frm: str, to: str, now: dt.datetime | None = None, **keys) -> dict:
+def post(main: str, kind: str, frm: str, to: str, now: dt.datetime | None = None, role: str = ROLE, **keys) -> dict:
     """Append one line to the board; ValueError for a line the manifest's schema does not allow."""
-    line = build(kind, frm, to, now, **keys)
-    with locked(main) as file:
+    line = build(kind, frm, to, now, role=role, **keys)
+    with locked(main, role) as file:
         write(file, line)
     return line
 
 
-def lines(main: str, kind: str | None = None, last: int | None = None) -> list[dict]:
+def lines(main: str, kind: str | None = None, last: int | None = None, role: str = ROLE) -> list[dict]:
     """The board's lines, oldest first; one that does not parse (a torn last line) is skipped."""
-    f, out = path(main), []
+    f, out = path(main, role), []
     for text in f.read_text(errors="replace").splitlines() if f.exists() else []:
         try:
             row = json.loads(text)
@@ -165,12 +170,14 @@ def lines(main: str, kind: str | None = None, last: int | None = None) -> list[d
 
 
 def safely(main: str, what: str, fn, *args, **kw):
-    """A hook's call: a failure is logged to the frame's log and swallowed, so a round goes on (D14)."""
+    """A hook's call: a failure is logged to the frame's log and swallowed, so a round goes on (D14); `role=` (the
+    farmer's tick) goes on to `fn`."""
     try:
         return fn(main, *args, **kw)
     except Exception as e:  # noqa: BLE001  (any fault: the board must never stop a round)
         with contextlib.suppress(Exception):
-            mtm_scan.log(main, {"kind": "board-failed", "slot": "-", "what": f"{what}: {e}"[:300], "by": "board"}, ROLE)
+            mtm_scan.log(main, {"kind": "board-failed", "slot": "-", "what": f"{what}: {e}"[:300], "by": "board"},
+                         kw.get("role", ROLE))
         return None
 
 
@@ -224,31 +231,37 @@ def local_utc(at: str) -> dt.datetime | None:
         return None
 
 
-def sync(main: str) -> list[dict]:
+def sync(main: str, role: str = ROLE) -> list[dict]:
     """The frame's messages, acks and notes as lines, each once: an `ask-ack` entry of the frame's log is a
-    `message` (the ack id is its `id`), an `ack` entry an `ack`, a `record` of a kind in NOTES a `note` to its slot.
-    Done under the lock, so two syncs never double a line."""
-    me, out = own(main), []
-    with locked(main) as file:
-        have = lines(main)
+    `message` (the ack id is its `id`), an `ack` entry an `ack`, a `record` of a kind in the role's NOTES a `note`
+    to its slot. Done under the lock, so two syncs never double a line; an entry the schema refuses (a slot that is
+    no field name) is skipped, never a stopped sync."""
+    me, out = own(main, role), []
+    with locked(main, role) as file:
+        have = lines(main, role=role)
         sent = {r.get("id") for r in have if r["kind"] == "message"}
         acked = {(r.get("id"), r.get("status"), r.get("at")) for r in have if r["kind"] == "ack"}
         noted = {(r.get("to"), r.get("text"), r.get("at")) for r in have if r["kind"] == "note"}
-        for e in mtm_scan.entries(mtm_scan.state_dir(main, ROLE) / "log.jsonl"):
+        for e in mtm_scan.entries(mtm_scan.state_dir(main, role) / "log.jsonl"):
             when, kind = local_utc(e["at"]), e["kind"]
             if when is None:
                 continue
-            if kind == "ask-ack" and e.get("id") and e["id"] not in sent:
-                line = build("message", me, e["slot"] or "-", when, id=e["id"], text=e.get("text") or e.get("what"))
-                sent.add(e["id"])
-            elif kind == "ack" and e.get("id") and (e["id"], e["what"], utc(when)) not in acked:
-                line = build("ack", e["slot"] or "-", me, when, id=e["id"], status=e["what"], text=e.get("note"))
-                acked.add((e["id"], e["what"], line["at"]))
-            elif e.get("do") == "record" and kind in NOTES and e.get("what") and \
-                    (e.get("slot") or "-", e["what"][:TEXT_MAX], utc(when)) not in noted:
-                line = build("note", me, e.get("slot") or "-", when, text=e["what"])
-                noted.add((line["to"], line["text"], line["at"]))
-            else:
+            try:
+                if kind == "ask-ack" and e.get("id") and e["id"] not in sent:
+                    line = build("message", me, e["slot"] or "-", when, role=role, id=e["id"],
+                                 text=e.get("text") or e.get("what"))
+                    sent.add(e["id"])
+                elif kind == "ack" and e.get("id") and (e["id"], e["what"], utc(when)) not in acked:
+                    line = build("ack", e["slot"] or "-", me, when, role=role, id=e["id"], status=e["what"],
+                                 text=e.get("note"))
+                    acked.add((e["id"], e["what"], line["at"]))
+                elif e.get("do") == "record" and kind in NOTES_OF[role] and e.get("what") and \
+                        (e.get("slot") or "-", e["what"][:TEXT_MAX], utc(when)) not in noted:
+                    line = build("note", me, e.get("slot") or "-", when, role=role, text=e["what"])
+                    noted.add((line["to"], line["text"], line["at"]))
+                else:
+                    continue
+            except ValueError:
                 continue
             write(file, line)
             out.append(line)
@@ -271,16 +284,17 @@ def main(argv: list[str]) -> int:
     list_p.add_argument("--json", action="store_true")
     for x in (post_p, list_p, sync_p):
         x.add_argument("--repo", default=os.getcwd())
+        x.add_argument("--role", default=ROLE, choices=ROLES)
     a = p.parse_args(argv)
     main_dir = mtm_scan.main_checkout(a.repo)
     try:
         if a.cmd == "post":
             keys = {k: getattr(a, k) for k in KEYS if hasattr(a, k)}
-            print(json.dumps(post(main_dir, a.kind, a.frm, a.to, **keys)))
+            print(json.dumps(post(main_dir, a.kind, a.frm, a.to, role=a.role, **keys)))
         elif a.cmd == "sync":
-            print(f"{len(sync(main_dir))} lines posted")
+            print(f"{len(sync(main_dir, a.role))} lines posted")
         else:
-            rows = lines(main_dir, a.kind, a.last)
+            rows = lines(main_dir, a.kind, a.last, a.role)
             print(json.dumps(rows, indent=1) if a.json else "\n".join(
                 f"{r['at']} {r['kind']:9} {r['from']} -> {r['to']}: {r.get('text', '')[:100]}" for r in rows)
                 or "the board is empty")

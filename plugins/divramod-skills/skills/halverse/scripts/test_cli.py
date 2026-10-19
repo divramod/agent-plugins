@@ -135,6 +135,50 @@ class Failures(FakeCli):
         self.assertIn("not json at all", caught.exception.text)
 
 
+class ContractShape(FakeCli):
+    """The CLI's answers since plan 0318: the common exit table, the error on stderr as `{code, exit, message, hint,
+    details}` with the writer's code in `details.reason`, a failed check's report in the error's details."""
+
+    def stderr_error(self, exit_code, code, reason, details=None):
+        body = {"error": {"code": code, "exit": exit_code, "message": "cli says " + reason, "hint": None,
+                          "details": dict(details or {}, reason=reason)}}
+        self.script("#!%s\nimport sys\nprint(%r, file=sys.stderr)\nsys.exit(%d)\n"
+                    % (fake_cli.sys.executable, json.dumps(body), exit_code))
+
+    def test_a_term_error_is_read_into_the_old_object_and_told_in_the_scripts_exits(self):
+        for exit_code, code, reason, told in [(4, "refused", "term-exists", 3), (3, "not_found", "no-entry", 3),
+                                              (5, "busy", "locked", 4), (5, "busy", "changed-meanwhile", 4),
+                                              (1, "failed", "failed", 5), (2, "usage", "unreadable", 2)]:
+            self.stderr_error(exit_code, code, reason, {"term": "berth", "line": 12})
+            with self.assertRaises(cli.CliError) as caught:
+                cli.call(["term", "add", "--from", "-"], stdin="{}")
+            self.assertEqual((caught.exception.code, caught.exception.error["code"]), (told, reason), reason)
+            self.assertEqual(caught.exception.error["detail"], {"term": "berth", "line": 12})
+            self.assertEqual(caught.exception.error["message"], "cli says " + reason)
+
+    def test_a_clap_usage_error_is_a_usage_error(self):
+        self.stderr_error(2, "usage", "usage")
+        with self.assertRaises(cli.CliError) as caught:
+            cli.call(["term", "add"])
+        self.assertEqual((caught.exception.code, caught.exception.error["code"]), (2, "usage"))
+
+    def test_another_command_keeps_the_clis_exit(self):
+        self.stderr_error(3, "not_found", "no-entry")
+        with self.assertRaises(cli.CliError) as caught:
+            cli.call(["terms"])
+        self.assertEqual(caught.exception.code, 3)
+
+    def test_a_failed_check_is_its_report_from_the_errors_details(self):
+        report = {"ok": False, "errors": 1, "notes": 0, "problems": [{"rule": "x", "file": "glossary", "line": 3}],
+                  "files": {}}
+        body = {"error": {"code": "failed", "exit": 1, "message": "x", "hint": None, "details": report}}
+        self.script("#!%s\nimport sys\nprint(%r, file=sys.stderr)\nsys.exit(1)\n"
+                    % (fake_cli.sys.executable, json.dumps(body)))
+        self.assertEqual(cli.call(["check"], ok=(0, 1)), report)
+        with self.assertRaises(cli.CliError):
+            cli.call(["check"])
+
+
 class Contract(unittest.TestCase):
     """The copies in fixtures/cli/contract are the CLI's expected files; where both are in the checkout they are the same."""
 

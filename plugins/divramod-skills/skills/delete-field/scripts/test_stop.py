@@ -8,6 +8,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+import stop  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 
 FAKE = r'''#!/usr/bin/env python3
@@ -32,6 +35,12 @@ elif args[:1] == ["stop"]:
     if hal2 == "old":
         sys.stderr.write('hal2-cli-agents: unknown command "stop"\n')
         sys.exit(2)
+    if hal2 == "draft-doc" and "--force" not in args:  # hal2 plan 0318 row 8: the body in the error document
+        why = "draft: the input box holds \"my words\""
+        doc = {"error": {"code": "not_ready", "exit": 10, "message": "stop " + args[1] + ": refused: " + why,
+                         "hint": None, "details": {"pane": args[1], "refused": why}}}
+        sys.stderr.write(json.dumps(doc) + "\n")
+        sys.exit(10)
     if hal2 == "draft" and "--force" not in args:
         print(json.dumps({"pane": args[1], "refused": "draft: the input box holds \"my words\""}))
         sys.exit(3)
@@ -89,6 +98,15 @@ class TestStop(unittest.TestCase):
         self.assertIn("my words", self.run_stop("stop", "03", code=3, FAKE_STOP="draft")["refused"])
         self.assertEqual(self.run_stop("stop", "03", "--force", FAKE_STOP="draft")["how"], "signal")
         self.assertIn(["stop", "%7", "--json", "--force"], self.calls())
+
+    def test_a_newer_hal2_s_refusal_is_read_from_its_error_document(self):
+        out = self.run_stop("stop", "03", code=3, FAKE_STOP="draft-doc")
+        self.assertEqual(out["refused"], 'draft: the input box holds "my words"')
+        self.assertEqual(self.run_stop("stop", "03", "--force", FAKE_STOP="draft-doc")["how"], "signal")
+        self.assertEqual(stop.refused_why("", "hal2-cli-agents: stop %7: refused: busy\n"),
+                         "hal2-cli-agents: stop %7: refused: busy")
+        self.assertEqual(stop.refused_why("", '{"error": {"message": "stop %7: refused: busy", "details": {}}}'),
+                         "stop %7: refused: busy")
 
     def test_an_older_hal2_without_stop_is_refused_and_forced_stopped_here(self):
         # Not this process's child, so it is reaped when it ends (a zombie would still look alive).

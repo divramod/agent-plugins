@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """halverse voiceink: one call of `hal2-cli-voiceink <sync|status|restore|export> --json`, reported in short plain words (plan 0273, D9, D15).
 
-The CLI (apps/hal2-cli-voiceink) does the work and owns the JSON contract (D15) and the exit codes: 0 done, 2 usage,
-3 no store, 4 unknown schema, 5 store unavailable, 6 write failed (backup put back), 7 no backup. This module only runs
+The CLI (apps/hal2-cli-voiceink) does the work and owns the JSON contract (D15). This script keeps its exit codes: 0
+done, 2 usage, 3 no store, 4 unknown schema, 5 store unavailable, 6 write failed (backup put back), 7 no backup. The CLI
+said so itself before plan 0318; since then it answers in the common table (3 not found, 4 refused, 5 busy, 1 failed),
+with the error `{code, exit, message, hint, details}` on stderr and its old code in `details.reason` (a store's state
+`busy`, `app-running`, `failed` in `details.why`); this module reads both and tells the codes above. It only runs
 it and words the answer; `export` writes VoiceInk's import file and opens no store (plan 0276, D20). The one writer is
 the CLI; nothing here opens VoiceInk's store. Python stdlib only.
 """
@@ -11,6 +14,8 @@ import os
 import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
+
+import cli as halverse_cli
 
 CLI = "hal2-cli-voiceink"
 CLI_ENV = "HAL2_CLI_VOICEINK"  # a path overriding the lookup on PATH (tests, a field's build)
@@ -120,6 +125,19 @@ def call(args: List[str]) -> Tuple[Optional[Dict[str, Any]], int, str]:
     return (data if isinstance(data, dict) else None), done.returncode, raw
 
 
+# The script's exit code per error code, for an answer in the contract's shape (the old shape carried its own).
+SCRIPT_EXIT = {"usage": 2, "unreadable": 2, "unwritable": 2, "no-store": 3, "unknown-schema": 4, "store-unavailable": 5,
+               "write-failed": 6, "no-backup": 7}
+
+
+def script_exit(data: Optional[Dict[str, Any]], code: int) -> int:
+    """The exit code to tell: the CLI's, or for the contract's error the one `SCRIPT_EXIT` names for its old code."""
+    err = halverse_cli.normalize_error((data or {}).get("error"))
+    if err and err.get("exit") is not None:
+        return SCRIPT_EXIT.get(err.get("code"), code or 1)
+    return code
+
+
 def words(items: Any, limit: int = LIST_MAX) -> str:
     items = [str(i) for i in (items or [])]
     shown = ", ".join(items[:limit])
@@ -179,16 +197,18 @@ def refused_lines(refused: List[Dict[str, Any]]) -> List[str]:
 
 
 def error_text(data: Optional[Dict[str, Any]], code: int, raw: str) -> str:
-    err = (data or {}).get("error") if data else None
+    err = halverse_cli.normalize_error((data or {}).get("error")) if data else None
     if not isinstance(err, dict):
         return "hal2-cli-voiceink failed with exit code %d and an output this skill cannot read:\n%s" % (code, raw[:600])
     kind = err.get("code", "?")
     detail = err.get("detail") or {}
+    if kind == "store-unavailable" and "why" in detail:  # the contract's shape: `reason` is the code, the state `why`
+        detail = dict(detail, reason=detail["why"])
     if kind == "write-failed":
         out = [write_failed_advice(detail)]
     elif kind == "store-unavailable":
         out = [unavailable_advice(detail)]
-    elif kind == "usage":
+    elif kind in ("usage", "unreadable"):
         out = [usage_advice(detail)]
     else:
         out = [ADVICE.get(kind, "hal2-cli-voiceink stopped with the error \"%s\"." % kind)]
@@ -285,7 +305,7 @@ def run(action: str, as_json: bool = False, dry_run: bool = False, backup: Optio
         args += ["--out", out]
     data, code, raw = call(args)
     if code != 0:
-        return error_text(data, code, raw), code
+        return error_text(data, code, raw), script_exit(data, code)
     if data is None:
         return "hal2-cli-voiceink answered without JSON:\n%s" % raw[:600], 1
     if as_json:

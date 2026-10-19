@@ -17,7 +17,7 @@ kept). Ignored paths no rule names are `unknown` and never deleted in bulk. Prot
 only an ignored `.env`) is `kept` and never deleted, also when named. Exit 2: git is missing.
 
 Where the installed `hal2-cli-git worktree cleanup` exists (its --help starts `usage: hal2-cli-git worktree
-cleanup`; HAL_CLEANUP_CLI names another, empty: none) the arguments go to it unchanged and its output and exit
+cleanup` or `hal2-cli-git worktree cleanup - `; HAL_CLEANUP_CLI names another, empty: none) the arguments go to it unchanged and its output and exit
 code are this script's; its sizes are allocated space, this script's apparent bytes. Else the code below runs.
 
 --worktree works on another checkout of the current repository than the one it runs in: a worktree's folder name

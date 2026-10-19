@@ -1,5 +1,5 @@
-"""The prune duty's proof that a field holds nothing unsaved (the global record never-delete-unsaved-work; hal2 plan
-0143, moved from the farmer to the tollman by plan 0360 step 7, D30, D67).
+"""The proof that a field holds nothing unsaved (the global record never-delete-unsaved-work; hal2 plan 0143, the
+farmer's, then the tollman's by plan 0360 step 7; copied into /prune by plan 0377 step 3, D11).
 
 A field is free when nothing in it is unsaved: no commit (its branch or a side branch `NN-*`) that origin's default
 branch lacks, no change, no plans/CURRENT_PLAN, no merge queue ticket or boss pause, no busy agent (working,

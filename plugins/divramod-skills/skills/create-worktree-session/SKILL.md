@@ -16,14 +16,15 @@ description: Start a new agent session (Claude by default) in the current reposi
 | `... --agent codex\|opencode`, `--model <id>`, `--effort <level>`, `--tmux` | another agent, its model and effort (per process, saved nowhere; the JSON echoes them), a window of tmux session `hal-<repo>` instead of a terminal host |
 | `... --exact` | the first prompt exactly as given, without `/mfm` first |
 | `... --from <NN>` | start the worktree search at `<NN>` (00 to 99) instead of 01 (the farmer's foremen: `--from 00`; a foreman's servants: `--from 30`) |
-| `... --to <NN>` | end the search at `<NN>` (default 99); the farmer's foremen: `--to 29`, never in 30-99. None free in the range: exit 3 |
+| `... --to <NN>` | end the search at `<NN>` (default 99, also for the farmer's foremen: a foreman works in any field). A field holding `plans/LEAD` is a servant's and is skipped unless `--role servant`. None free in the range: exit 3 |
+| `... --role foreman\|servant` | the session loads its role skill first (`/foreman`, `/servant`: the skill's duties and the repository's `roles/<role>/ROLE.md`), after `/mfm` and before `<prompt>`, also with `--exact`; pass it for a session that runs a plan (foreman) or a foreman's step (servant, in a field holding `plans/LEAD`) (hal2 plan 0383, D15) |
 | `... --min-free-gb <n>` | free disk a new worktree needs (default 50: a worktree's build cache takes 10-30 GB) |
 | `/create-worktree-session h` | print this table and stop |
 
 ## Run
 
 1. `python3 $S/create.py [--repo <dir>] [--agent ..] [--model ..] [--effort ..] [--tmux] [--prompt "<prompt>"] [--exact]
-   [--from <NN>] [--to <NN>]`. Pass the user's prompt verbatim as one argument. Exit 2 names a missing hal2 CLI: run `bash $S/install-prerequisites.sh`
+   [--role foreman|servant] [--from <NN>] [--to <NN>]`. Pass the user's prompt verbatim as one argument. Exit 2 names a missing hal2 CLI: run `bash $S/install-prerequisites.sh`
    once and retry. Exit 3: no free and clean worktree in the range. Exit 1 prints why (not a repository, the start failed):
    report it, stop (too little disk: say so; the farmer prunes a worktree).
 2. The JSON has `slot`, `pane`, `worktree`, `attach`, `model`, `effort` and `skipped` (the worktrees without a session that hold work,

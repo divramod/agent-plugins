@@ -46,6 +46,13 @@ class Sections(unittest.TestCase):
         self.assertEqual(got["Open land runs"]["rows"], [["tollman-proj", "merge-to-main", "in_progress", "https://x/land/tollman-proj"],
                                                           ["08", "merge-to-main", "queued", "https://x/land/08"]])
 
+    def test_a_train_s_land_run_is_shown_with_its_carrier_not_as_a_field(self):
+        q = [ticket("tollman-proj", 0, holding=True, state="active", land_ref="land/train-0383-0365"), ticket("08", 1)]
+        got = build(q, [run("land/train-0383-0365"), run("land/train-0294-09"), run("land/08")])
+        self.assertEqual([r[0] for r in got["Open land runs"]["rows"]],
+                         ["train-0383-0365 (tollman-proj)", "train-0294-09", "08"])
+        self.assertEqual(got["Open land runs"]["columns"][0], "Field or train")
+
     def test_order_follows_the_position_not_the_list(self):
         got = build([ticket("b", 2), ticket("a", 1)])
         self.assertEqual([r[1] for r in got["Waiting in order"]["rows"]], ["a", "b"])

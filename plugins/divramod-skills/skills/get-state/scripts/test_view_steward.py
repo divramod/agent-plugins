@@ -94,6 +94,13 @@ class Uats(unittest.TestCase):
         self.assertEqual(got, [{"plan": "0002-b", "title": "b", "open": 2, "failed": 1, "next": "U2 check 2"}])
         self.assertEqual(tool.call_args.args[0], ["hal2-cli-plans", "uat", "list", "--json"])
 
+    def test_the_uats_object_of_hal2_plan_0318_reads_as_the_bare_list(self):
+        raw = [uat_plan("0002-b", "pass", "untested", "fail")]
+        with mock.patch.object(src, "tool_json", return_value={"uats": raw}):
+            wrapped = ss.open_uats("/m")
+        with mock.patch.object(src, "tool_json", return_value=raw):
+            self.assertEqual(wrapped, ss.open_uats("/m"))
+
     def test_a_tool_that_gives_nothing_is_unknown(self):
         with mock.patch.object(src, "tool_json", return_value=None):
             self.assertIsNone(ss.open_uats("/m"))

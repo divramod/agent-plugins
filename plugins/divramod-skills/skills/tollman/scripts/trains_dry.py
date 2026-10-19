@@ -4,6 +4,8 @@ the next one, with what the yard would give it; nothing is written, merged or se
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import frozen
+import leavers
+import modes
 import mtm_scan
 import train_state
 import trial as trial_merge
@@ -22,9 +24,12 @@ def dry_run(repo: str) -> dict:
     train = train_state.standing(rows)
     gone = bool(train and train["state"] == "split" and frozen.by_user(train))  # the user's split: the rest forms again
     rides = {c["field"] for c in train["cars"]} if train and not gone else set()
-    tickets = [t for t in (mtm_scan.run_json(QUEUE, main) or {}).get("queue", []) if t.get("slot") not in rides]
+    doc = mtm_scan.run_json(QUEUE, main) or {}
+    left = leavers.check(main, str(top), doc.get("queue", []), (doc.get("priority") or {}).get("slots") or [], {},
+                         default, dry=True)["held"]  # a ticket that left unmerged: the next train waits for it
+    tickets = [t for t in doc.get("queue", []) if t.get("slot") not in rides]
     head = (train or {}).get("base") or (trial_merge.git(str(top), "rev-parse", "HEAD")[1] if top.is_dir() else None)
-    d = draft(main, tickets, top.name, base_of(main, default, head), default)
+    d = draft(main, tickets, top.name, base_of(main, default, head), default, modes.of(doc), left)
     return {"field": top.name, "standing": train, **d,
             "yard": yard_report.seen(main, d["base"], default, d["cars"], rows)}
 

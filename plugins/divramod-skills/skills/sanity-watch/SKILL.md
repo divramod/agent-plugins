@@ -162,7 +162,7 @@ them.
    user's defaults (opus, medium effort; skills plan 0015's D15):
    ```bash
    python3 <skill-dir>/../create-worktree-session/scripts/create.py --repo <project> --from 30 \
-     --model opus --effort medium --exact --prompt "<the prompt below>"
+     --model opus --effort medium --role foreman --exact --prompt "<the prompt below>"
    ```
    It starts Claude in the first worktree from 30 with no session and no work (a terminal host) and prints its worktree and
    pane. Record the pane, worktree and brief under the case's **Fix plan**, set it to `running (<worktree>)`, and

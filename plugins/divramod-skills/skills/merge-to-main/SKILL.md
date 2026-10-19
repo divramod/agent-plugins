@@ -53,8 +53,8 @@ Any of these is the user's consent to commit in this worktree, land on the defau
 your own otherwise: not mid-plan, not for a `manual` plan (every research plan is one: its research lands with the
 implementation plan that follows it), not for another worktree or session (the tollman's train alone carries
 other worktrees, and only what they reported ready), not because another
-session (other than the merge-to-main boss) says a fix has landed, never again after it ended with exit 5 (unless your own shell tool's time limit
-caused that exit, not the user: steps 1 and 4; or exit 5 `interrupted`, its process went away, not the user: rerun at once); never ask another session to run it. Once
+session (other than the merge-to-main boss) says a fix has landed, never again after it ended with exit 13 (5 from a hal2-cli-git before plan 0318; unless your own shell tool's time limit
+caused that exit, not the user: steps 1 and 4; or exit 13 `interrupted`, its process went away, not the user: rerun at once); never ask another session to run it. Once
 started, finish it: fix and rerun until it lands.
 
 **A plan's landing asks nothing it can decide.** The user may be away, and while the queue is reserved every other
@@ -80,6 +80,8 @@ names the foreman and says what the servant does instead (commit, push, report: 
 the steps and brings the work in); then stop with that message, whoever asked (the user, a plan, the farmer), and
 never delete the marker. The guard and its test stay (plan 0015 D12). Elsewhere it prints nothing and the landing goes on.
 
+**A queued place is never given up.** Once queued (hitched or landing) you never leave the merge queue on your own: no `hal2-cli-git worktree stop` (and never `--release`), no `gh run cancel` of your land run. On a red run you fix your code until the CI/CD workflow passes and the work is merged; only the user or the farmer takes you out (they release the place with `worktree stop --release`; the tollman's watch puts back any other leaver). Global record `~/.adr/queued-place-never-given-up.md`, hal2 plan 0383 D3, D14.
+
 **Smuggle mode: smuggle, never hitch.** First of all, `hal2-cli-git worktree queue mode --slot <this worktree's folder
 name, e.g. 07>` prints the mode that brings this worktree in (`production`, the default, or `smuggle`): the mode of its
 entry in the merge queue if the user set one (hal2 plan 0365 D5; `queue entry-mode`), else the queue's. An older
@@ -96,11 +98,14 @@ the user's here (D76). When the worktree's mode is production go on below, also 
 (this worktree's entry was set to production: the tollman's train brings it in).
 
 **A repository with a tollman: hitch, never land.** Next, `bash $S/tollman.sh [<dir>]` (the worktree that
-would land; hal2 plan 0294) prints `yes` when the repository has a working tollman: its worktree
-`tollman-<repo>` exists, its timer is loaded and its last round is younger than 30 minutes. Then this session
+would land; hal2 plan 0294) prints `yes` when the repository has a working, awake tollman: its worktree
+`tollman-<repo>` exists, its timer is loaded, its last round is younger than 30 minutes and its sleep flag
+(`roles/tollman/sleep.json` of that field, `hal2-cli-roles sleep tollman on|off`) is off. Then this session
 does not land, whoever asked (the user, a plan, the boss) and also for `/mtm milestone`: follow
 [Hitch](#hitch-a-repository-with-a-tollman) in place of steps 1, 3 and 4. It prints `no` (the reason on
-stderr) in a repository without one, at every doubt (a tollman that is down never holds the work) and in the
+stderr) in a repository without one, at every doubt (a tollman that is down never holds the work), while the
+tollman's sleep flag stands (hal2 plan 0375: no train is formed, the worktree lands itself alone, in its turn of the
+one merge queue, and a hitched field is told "land yourself now") and in the
 tollman's own worktree, which lands itself: go on below, as ever. [smuggle](../smuggle/SKILL.md)
 never hitches: it is unchanged.
 
@@ -114,8 +119,8 @@ land this worktree as a plain merge, untested: nothing lands, stop and tell the 
 guard stands in front of every `merge-to-main` of that page. Before it
 lands, it reserves the queue and `bash $S/land-runs.sh` waits until no run of any of the three names is
 unfinished (`gh run list --workflow <file>` for each, queued runs too), again before a rerun with a new candidate
-(exit 3 or 4), never before an
-exit-6 rerun ([references/ci.md](references/ci.md#land)). Otherwise
+(exit 11 or 12; 3 or 4 from an older hal2-cli-git), never before an
+exit-10 (or 6) rerun ([references/ci.md](references/ci.md#land)). Otherwise
 the steps below land locally.
 
 ### Milestone mode
@@ -188,7 +193,8 @@ on without it (the landing then waits in the queue itself at step 4).
 and loses its place. So it waits in slices below the limit: `--max-wait 100m`, run in the background with the
 tool's maximum timeout (Claude Code: `run_in_background` with `timeout` 7200000; a tool with a lower limit gets a
 `--max-wait` 20 minutes below it). When a slice passes before the turn comes, reserve parks the ticket (it keeps
-its place for 10 minutes without a process) and exits 6 `waiting` (`ahead`: tickets still ahead): **rerun the same
+its place for 10 minutes without a process) and exits 10 `waiting` (6 from a hal2-cli-git before plan 0318; `ahead`:
+tickets still ahead): **rerun the same
 command at once**; the rerun adopts the parked ticket at its place. Rerun as often as it takes, never ask and never
 give up for taking long, and never kill a waiting reserve. One that does not know `--max-wait` yet (exit 2,
 `unknown argument`) is older: run it without, in the background with the tool's maximum timeout.
@@ -202,9 +208,9 @@ continued session, which carries on from that exit code; a rerun of the same `re
 | Exit | JSON | Do |
 |---|---|---|
 | 0 | `status: reserved` | go to 2. `kept: true`: the worktree already held the queue (its `hold` says why: an earlier failed or interrupted landing, or a reservation); that is fine, go on |
-| 6 | `status: waiting` | the slice passed, the ticket is parked at its place: rerun the same command at once (no limit on the reruns; report `ahead` when it changed) |
-| 5 | `stopped`, `cancelled` | the user ended the wait (e.g. cancelled it in hal2-macos or with `worktree stop`, `by` says who): report it and stop, never rerun on your own. Exception: your own shell tool's time limit ended it (its notice says the command hit its timeout, not the user): rerun it as for exit 6 (the place may be lost; a longer landing ahead is no reason to stop) |
-| 5 | `interrupted` | its process went away, not the user: rerun the same command at once; it takes its parked ticket's place back |
+| 10 (or 6) | `status: waiting` | the slice passed, the ticket is parked at its place: rerun the same command at once (no limit on the reruns; report `ahead` when it changed) |
+| 13 (or 5) | `stopped`, `cancelled` | the user ended the wait (e.g. cancelled it in hal2-macos or with `worktree stop`, `by` says who): report it and stop, never rerun on your own. Exception: your own shell tool's time limit ended it (its notice says the command hit its timeout, not the user): rerun it as for exit 10 (the place may be lost; a longer landing ahead is no reason to stop) |
+| 13 (or 5) | `interrupted` | its process went away, not the user: rerun the same command at once; it takes its parked ticket's place back |
 | 1 | `error` | report the `message` and stop |
 
 **Holding the reservation.** Every other worktree's landing waits while this one holds: go straight through steps
@@ -249,8 +255,8 @@ The queue is reserved now: work through this without pausing, every other landin
 The default branch cannot move now, so what you merge in here is what the landing merges:
 
 1. `hal2-cli-git worktree merge-from-main --json [<slot>]` (it pushes only this worktree's branch).
-2. Act on it as the [mfm](../merge-from-main/SKILL.md) skill does, rerunning until it exits 0: `conflict` (exit 3): resolve
-   as in its **Conflicts**, commit; `task_failed` or `hook_failed` (exit 4): fix as in its **Failing hook**,
+2. Act on it as the [mfm](../merge-from-main/SKILL.md) skill does, rerunning until it exits 0: `conflict` (exit 11, or 3): resolve
+   as in its **Conflicts**, commit; `task_failed` or `hook_failed` (exit 12, or 4): fix as in its **Failing hook**,
    commit; `error` (exit 1): uncommitted changes go back to [step 2](#2-commit-and-push-everything), anything
    else: ask the user (fix further, or release the queue as above).
 
@@ -274,21 +280,21 @@ The default branch cannot move now, so what you merge in here is what the landin
    matches another worktree's landing and the loop's own shell and never ends (2026-10-06: worktree 35 waited on worktree 32's
    landing, never reached its release, and the queue stood still behind a dead process). When
    the tool's own limit ends it anyway (its notice says the command hit its timeout, not the user), it ended
-   `stopped` before it merged into the default branch (the queue released) or `interrupted` (the queue held for
-   this worktree): rerun it at once (reserve first again when the queue was released); that is not the user's stop
-   of exit 5. An `interrupted` landing (its shell or process went away, e.g. a tmux crash, not the user) is rerun at
+   `stopped` before it merged into the default branch or `interrupted` (either way the queue held for this
+   worktree, hal2 plan 0383 D3): rerun it at once (reserve first again when the queue was released); that is not the user's stop
+   of exit 13 (or 5). An `interrupted` landing (its shell or process went away, e.g. a tmux crash, not the user) is rerun at
    once too: merge-to-main adopts the same landing (same place, candidate and run; `adopted` in its JSON). To end a landing (the user asks you to), run
-   `hal2-cli-git worktree stop`; never kill its shell or background task (that leaves it holding the queue as
-   `interrupted`).
+   `hal2-cli-git worktree stop` (its place stays held; `--release` only on the user's or the farmer's word); never
+   kill its shell or background task (that leaves it holding the queue as `interrupted`).
 2. Act on the exit code; after every fix go back to 1:
 
 | Exit | JSON `status` | Do |
 |---|---|---|
 | 0 | `ok` | landed, the queue stays reserved for this worktree (`reserved: true`): go straight to [finish the plan](#5-finish-the-plan-and-land-it). Allowed failures (`allowed_failure: true` in `tasks`, listed in `warnings`) landed: report them as warnings; never fix-and-rerun for them, never ask to release the queue for them |
-| 3 | `conflict` | rare after step 3 (a push to the default branch from outside the queue); merging the default branch in conflicts: resolve as in the [mfm](../merge-from-main/SKILL.md) skill's **Conflicts**, commit, rerun |
-| 4 | `task_failed`, `hook_failed`, `delivery_failed` | the queue stays held by this worktree (`held` in the JSON; say so when you report progress). Fix as in the [mfm](../merge-from-main/SKILL.md) skill's **Failing hook**, commit in this worktree, rerun. After `task_failed` and `hook_failed` the default branch is unchanged: a failed `main-pre-commit` (a `version` task) was undone, so fix its cause here too. `task_failed` names the `phase`, `row` and `kind` (the verb: the task is the row's own `<row>/.hal/hooks/<verb>.sh` or an inherited `code/<lang>/.hal/hooks/{apps,libs}/<verb>.sh`; tasks it cancelled or skipped need no fix of their own), `hook_failed` the `script`, `delivery_failed` the `failures` (the landing is on the default branch and pushed; with `released: true` the queue is not held for it (only the deliveries failed): an environmental failure is retried with `hal2-cli-git worktree deliver`, a code fix goes through a new commit and its own landing, which delivers again; with `released: false` the main checkout's setup failed and the queue stays held: fix, commit, and the rerun delivers again) |
-| 5 | `stopped`, `cancelled` | the user ended the landing: stopped (Stop button, `worktree stop`), or cancelled while waiting (`by` says who and where, e.g. `the user in hal2-macos`). The default branch is unchanged. Report it and stop: never rerun on your own |
-| 5 | `interrupted` | its shell or process went away, not the user: rerun merge-to-main at once; it adopts the same landing (same place in the queue, same candidate, its run kept) |
+| 11 (or 3) | `conflict` | rare after step 3 (a push to the default branch from outside the queue); merging the default branch in conflicts: resolve as in the [mfm](../merge-from-main/SKILL.md) skill's **Conflicts**, commit, rerun |
+| 12 (or 4) | `task_failed`, `hook_failed`, `delivery_failed` | the queue stays held by this worktree (`held` in the JSON; say so when you report progress). Fix as in the [mfm](../merge-from-main/SKILL.md) skill's **Failing hook**, commit in this worktree, rerun. After `task_failed` and `hook_failed` the default branch is unchanged: a failed `main-pre-commit` (a `version` task) was undone, so fix its cause here too. `task_failed` names the `phase`, `row` and `kind` (the verb: the task is the row's own `<row>/.hal/hooks/<verb>.sh` or an inherited `code/<lang>/.hal/hooks/{apps,libs}/<verb>.sh`; tasks it cancelled or skipped need no fix of their own), `hook_failed` the `script`, `delivery_failed` the `failures` (the landing is on the default branch and pushed; with `released: true` the queue is not held for it (only the deliveries failed): an environmental failure is retried with `hal2-cli-git worktree deliver`, a code fix goes through a new commit and its own landing, which delivers again; with `released: false` the main checkout's setup failed and the queue stays held: fix, commit, and the rerun delivers again) |
+| 13 (or 5) | `stopped`, `cancelled` | the user ended the landing: stopped (Stop button, `worktree stop`: the place stays held for this worktree), or cancelled while waiting (`by` says who and where, e.g. `the user in hal2-macos`, `worktree stop --release`). The default branch is unchanged. Report it and stop: never rerun on your own |
+| 13 (or 5) | `interrupted` | its shell or process went away, not the user: rerun merge-to-main at once; it adopts the same landing (same place in the queue, same candidate, its run kept) |
 | 1 | `error` | uncommitted changes: back to [step 2](#2-commit-and-push-everything). Anything else (main checkout dirty or not on the default branch, default branch diverged from origin): the queue may be held (`held`); never touch the main checkout yourself, ask the user as below |
 
 **When to ask.** A failure's `held` object counts identical failures in a row (`attempts`, the same failing
@@ -386,7 +392,7 @@ successful merge and a finished plan"). Note the space freed and any `unknown` r
 
 ## 8. Report
 
-One short block: the queue released (or, after a stop, cancel or release, that it no longer holds it), commits landed (`commits`, of every landing of this `/mtm`) and the merge commit(s) (`git -C <main checkout> log --oneline -2`), the plan steps finished after the landing (and any left open, with why),
+One short block: the queue released (or, after a cancel or release, that it no longer holds it; after a stop, that its place stays held), commits landed (`commits`, of every landing of this `/mtm`) and the merge commit(s) (`git -C <main checkout> log --oneline -2`), the plan steps finished after the landing (and any left open, with why),
 `git log --oneline <default>..HEAD` empty and the worktree clean (say so; if not, what is left and why),
 `pushed`, the `tasks` that ran (row and verb; skip `unchanged` and `cached` ones, say how many were cached) and the `hooks`, `warnings` (a failed install, deploy or
 `main-post-commit` hook does not undo the landing: show its output; an allowed failure is a warning, not a fix), what `plan.py leave` did with `plans/CURRENT_PLAN` (what it named, what it names now; `HANDOFF.md` deleted with it), a masterplan's row a finished plan ticked, the cleanup (space freed, or why it was skipped; `unknown` rows to add to `.hal/cleanup`; the farmer told, from 10-99), what was gitignored (secrets named), unclear files and what was decided, conflicts resolved, fixes

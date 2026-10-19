@@ -27,6 +27,12 @@ ALLOWED = {
     "scripts/check-agent-starts.py": "this check's own patterns",
     "skills/actions/lookout/scripts/judge.py":
         "lookout's judge: a one-shot, tool-less print run without session persistence, no session (hal2 plan 0311 D22)",
+    "skills/actions/optimize-skill/scripts/rollout.py":
+        "optimize-skill: a one-shot print run without session persistence, no session (hal2 plan 0390 D4)",
+    "skills/actions/optimize-skill/scripts/stream.py":
+        "optimize-skill: a one-shot print run without session persistence, no session (hal2 plan 0390 D4)",
+    "skills/actions/optimize-skill/scripts/llm.py":
+        "optimize-skill: a one-shot print run without session persistence, no session (hal2 plan 0390 D4)",
 }
 
 

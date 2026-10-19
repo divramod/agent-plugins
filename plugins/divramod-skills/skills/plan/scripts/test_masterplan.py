@@ -267,6 +267,7 @@ class MasterplanTest(unittest.TestCase):
     def test_a_binary_that_fails_or_knows_no_masterplan_is_the_own_rows_never_an_error(self):
         self.farm()
         for answer, code, why in (("", 2, "the installed one gave none (exit 2)"), ("null\n", 0, "knows no masterplan"),
+                                  ("{}\n", 0, "knows no masterplan"),
                                   ("no json", 0, "knows no masterplan")):
             result = self.run_plan("masterplan", cli=self.fake_cli(answer, code))
             self.assertEqual(result.returncode, 0, result.stderr)

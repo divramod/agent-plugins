@@ -341,6 +341,12 @@ class FakeCliTest(Cases, unittest.TestCase):
         r = self.run_("delete")
         self.assertEqual((r.returncode, r.stdout), (7, "fake says hi\n"))
 
+    def test_the_group_help_of_hal2_core_cli_counts_too(self):
+        """hal2 plan 0318: on hal2_core::cli `worktree cleanup --help` is the group's list, `<bin> <words> - ...`."""
+        fake_cli(self.bin, usage="hal2-cli-git worktree cleanup - The build artifacts of a checkout: list, busy, delete")
+        self.run_("busy")
+        self.assertEqual(self.logged(), [["worktree", "cleanup", "busy"]])
+
     def test_a_cli_that_fails_help_makes_the_python_run(self):
         fake_cli(self.bin, help_code=2)
         self.env["FAKE_CODE"] = "7"

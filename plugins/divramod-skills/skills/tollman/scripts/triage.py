@@ -7,7 +7,7 @@ readers, shared per round: gh_runs; git in the main checkout), `of` does both fo
   patterns (transient.py, the farmer's until step 8): a network, registry or runner fault. Nobody is woken; when the
   landing has ended, trains.settle lands the same cars again on a fresh run (train_red.py)
 - `main`: the barn is red, not a car: the same job (stack_red.bare: the job without its matrix alias and position)
-  is red in the newest completed land run of another slot that started before the train was formed, and that run's
+  is red in the newest completed land run of another worktree that started before the train was formed, and that run's
   candidate held the barn's head: one of its commit's parents (`gh api repos/{owner}/{repo}/commits/<sha>`) is
   the barn's head now. The toll gate keeps the barn still while the train lands, so the barn's head now is the one
   the train's candidate held (simpler than reading the run title's base, which names no commit)
@@ -97,7 +97,8 @@ def car_files(main: str, train: dict) -> list[dict]:
 
 
 def other_run(main: str, train: dict, fetch) -> dict | None:
-    """The newest completed land run of another slot that started before the train was formed, with its red jobs."""
+    """The newest completed land run of another worktree that started before the train was formed, with its red jobs
+    (a train's own branch `land/train-...` names no worktree: mtm_ci leaves it out, as the carrier's was)."""
     since, carrier = mtm_ci.started({"createdAt": train.get("at")}), train.get("carrier")
     runs = [r for r in mtm_ci.runs_of(mtm_scan.run_json, main)
             if mtm_ci.slot_of(r.get("headBranch") or "") not in ("", carrier) and r.get("status") == "completed"

@@ -19,8 +19,9 @@ from tick import ROLE, act, default_ref, git
 KEY = "sync:"
 TITLE = "Land the farmer branch's roles/farmer/ROLE.md on main"
 LAND = "{boss}: land now. "  # the prompt's first words: the go every /merge-to-main knows (roles.boss)
-PROMPT = ("You are a foreman started by the farmer (the user's stand-in for {repo}): read "
-          "your role at {role} first; the user will not answer questions, so never ask any. The farmer branch holds "
+PROMPT = ("You are a foreman started by the farmer (the user's stand-in for {repo}): run /foreman first (it prints your "
+          "duties, the skill's and the repository's roles/foreman/ROLE.md; work by them), then read your task file at "
+          "{role}; the user will not answer questions, so never ask any. The farmer branch holds "
           "roles/farmer/ROLE.md changes that main lacks (brief: {brief}). Write `farmer-sync` into plans/CURRENT_PLAN, then: "
           "1. /merge-from-main (the latest main into your worktree, also when your session just ran it: main may have moved); "
           "2. `git merge --no-edit {farmer_slot}` (the latest farmer branch; it may change roles/farmer/ only: when its merge "

@@ -123,6 +123,12 @@ class UatTest(unittest.TestCase):
         self.assertEqual(self.call("show", "U9")[0], 1)
         self.assertEqual(self.call("show")[0], 2)
 
+    def test_the_uats_object_of_hal2_plan_0318(self):
+        bare = self.call("list", "--json")
+        self.data.write_text(json.dumps({"uats": [RECORD]}))
+        self.assertEqual(self.call("list", "--json"), bare)
+        self.assertEqual(bare[0], 0)
+
     def test_nothing_open(self):
         self.data.write_text(json.dumps([{**RECORD, "checks": [entry("U1", "pass")]}]))
         code, _, err = self.call("open")

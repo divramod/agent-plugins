@@ -51,7 +51,7 @@ def agents() -> dict[str, dict] | None:
     """The agent sessions by their real checkout path; None when `hal2-cli-agents` gives nothing."""
     raw = tool_json(["hal2-cli-agents", "list", "--json"])
     if isinstance(raw, dict):
-        raw = raw.get("list")
+        raw = raw.get("agents")
     if not isinstance(raw, list):
         return None
     return {os.path.realpath(path): a for path, a in fl.agents_by_checkout(raw).items()}
@@ -69,7 +69,8 @@ def queue_state(main: str) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("queue"), list):
         return {"queue": None, "mode": None}
     tickets = [{"slot": t.get("slot"), "wt": ticket_wt(t), "worktree": os.path.realpath(t["worktree"]) if t.get("worktree") else None,
-                "position": t.get("position"), "holding": bool(t.get("holding")), "state": t.get("state")}
+                "position": t.get("position"), "holding": bool(t.get("holding")), "state": t.get("state"),
+                "land_ref": t.get("land_ref")}  # a train's branch `land/train-...` (plan 0383), else None
                for t in raw["queue"] if isinstance(t, dict)]
     tickets.sort(key=lambda t: (not t["holding"], t["position"] if isinstance(t["position"], int) else 10**9))  # the holder, then by place
     mode = raw.get("mode")

@@ -27,7 +27,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 
 - **Signature**: `queue --json` shows the head with `paused_by` (`slot`, `seq`, `since`) and another ticket with
   `smuggle`; `hal2-cli-git worktree queue` ends the line with `paused by the smuggle of <slot>`; the paused
-  landing's own command ended exit 6 `paused`. A landed smuggle keeps its range as `unverified`.
+  landing's own command ended exit 10 `paused` (6 before plan 0318). A landed smuggle keeps its range as `unverified`.
 - **Occurrences**: none yet; named when the smuggle stopped stopping (hal2 plan 0228).
 - **Cause**: the user ran `/smuggle` (CI down, or a broken local tool needing its fix now). It pauses the queue
   holder in place instead of stopping it and cancels the land runs that have not merged.
@@ -43,7 +43,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   before), a landing's warning `no .github/workflows/merge-to-main.yml: landed as a plain merge, nothing was
   tested` (the hal2-cli-git that reads the older name only; the one that reads both says `no
   .github/workflows/dev-merge-to-main.yml or merge-to-main.yml: ...`; match `landed as a plain merge`); or a landing
-  that ends `testing` (exit 6) again and again while no run of its candidate exists under `merge-to-main.yml`.
+  that ends `testing` (exit 10, 6 before plan 0318) again and again while no run of its candidate exists under `merge-to-main.yml`.
 - **Occurrences**: none yet; named when the workflow was renamed (hal2 plan 0263), again for plan 0349 D52.
 - **Cause**: the installed hal2-cli-git is older than the rename: it looks for `merge-to-main.yml` only, finds none
   and takes the repository for one without CI (the merge was pushed untested), or waits for a `merge-to-main.yml`
@@ -185,7 +185,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 ## R10 · The Docker engine stops starting containers mid-landing
 
 - **Signature**: a `test-e2e` task sits at `Container ... Starting` with no output for minutes;
-  `hal2-cli-docker-compose doctor --json` says `stuck` ("a container of <image> did not start within 20s"), while
+  `hal2-cli-docker-compose doctor --json` says `stuck` (exit 1, so the document is `.error.details` on stderr; "a container of <image> did not start within 20s"), while
   `docker ps` still answers and running containers stay up.
 - **Cause**: Docker Desktop's engine wedges under load (research in docs/docker.md); the gate's `doctor --repair`
   ran before the task, so the landing does not notice until the task's timeout (15m).

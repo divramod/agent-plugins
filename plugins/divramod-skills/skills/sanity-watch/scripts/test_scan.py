@@ -70,6 +70,15 @@ class TranscriptTail(unittest.TestCase):
         self.assertFalse(scan.transcript_tail([json.dumps(ask), json.dumps(answer)])["question_pending"])
 
 
+class Rows(unittest.TestCase):
+    def test_the_old_list_and_the_new_object(self):
+        # hal2 plan 0318 wraps `list` and `terminal orphans` in an object.
+        self.assertEqual(scan.rows([{"a": 1}], "agents"), [{"a": 1}])
+        self.assertEqual(scan.rows({"agents": [{"a": 1}]}, "agents"), [{"a": 1}])
+        self.assertEqual(scan.rows({"orphans": []}, "agents"), [])
+        self.assertEqual(scan.rows(None, "orphans"), [])
+
+
 class FindIncidents(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

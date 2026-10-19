@@ -9,7 +9,9 @@
       boss.py, `trains`: trains.py plans, engine.py does, `learn`: learn.py once a day, `prune`: prune.py, the
       landed fields cleaned or removed and after the barn the cars cleared, barn.py, `mainred`: mainred.py, a red
       main rerun when transient, else one wake), the log, the summary;
-      what needs judgment is collected as `wake`. --dry-run plans the round and touches nothing. Outside a dry run
+      what needs judgment is collected as `wake`; the duty `watch` (minute.py, cron `* * * * *`): a tick on which only
+      it is due is a minute pass, no round: leavers.check and one line per new event of the live land run, a quiet
+      minute prints nothing (plan 0383 step 4). --dry-run plans the round and touches nothing. Outside a dry run
       a tick runs only in timer mode. While a train stands the field holds its cars and the round neither merges
       from main nor commits a role file edit (D22). Outside a dry run the round's messages and acks (the frame's
       log) are posted to the message board before and after it (board.py sync)
@@ -33,17 +35,28 @@
   tollman.py triage [<run>] [--json] [--repo <dir>]
       the triage of a land run (the standing train's by default): runner, main (the barn's red) or car, with the
       evidence its wake carries: red jobs, failing tests, each car's files, the log's tail (plan 0360 step 5)
-  tollman.py order <field>|main --why <text> [--run <url>] [--repo <dir>]
+  tollman.py order <field>|main --why <text> [--run <url>] [--post <train>] [--repo <dir>]
       a fix order for the red train's car (or the barn's red, `main`: the tollman's own hand) after the session's
       triage: fix on `<NN>-train-fix` from the carrier's head, push, answer `fixed <sha>` (orders.py, plan 0360 D6);
-      `main` with no train standing: the fix is the first car of the next train (own_fix.py, plan 0360 step 8)
+      `main` with no train standing: the fix is the first car of the next train (own_fix.py, plan 0360 step 8);
+      `--post`: a car of that landed train is red after its merge, its fix rides the train that stands (plan 0383 D6)
   tollman.py fixed <field>|main <sha> [--repo <dir>]
       the answer checked and merged into the carrier; the last one: the same cars land again (the round does it by
       code too, from the foreman's ack `done fixed <sha>`); a refused one keeps the order open, the foreman told why
-  tollman.py seen-mode production|smuggle [--repo <dir>]
+  tollman.py sleep|wake [--by <who>] [--why <text>] [--repo <dir>]
+      the tollman's sleep flag (switch.py; plan 0365 D3, 0375): `hal2-cli-roles sleep tollman on|off`, `--by user` by
+      default; asleep no train forms, every wagon lands alone in its turn, the hitched told so once
+  tollman.py drop --why <text> [--repo <dir>]
+      the asleep round's drop of a standing train that is not landing: its mark cleared, its cars keep their places
+  tollman.py seen-mode production|smuggle|asleep [--repo <dir>]
   tollman.py barn <field> --head <sha> --how hitch|formed|running [--train <name>] [--repo <dir>]
-      the queue's two modes (modes.py, plan 0360 step 25): the mode the round saw; a car or hitch already in the
-      barn when the tollman wakes from smuggle mode (a `barn` line; a hitch cleared, a formed train's car out)
+      the queue's two modes and the flag (modes.py, plan 0360 step 25): what the round saw; a car or hitch already in
+      the barn when the tollman wakes from smuggle mode or its flag (a `barn` line; a hitch cleared, a formed train's
+      car out)
+  tollman.py hold [--why <text>] [--repo <dir>] | unhold [--repo <dir>]
+      hold the trains (hold.py, plan 0383 step 7): no train forms, restarts or lands, also not the green merge job's
+      next train; the watch, the leavers check, the orders and the board go on and a landing that runs is never cut.
+      `status` and each round's `held` line show `held: <why>`; unhold lets the trains form at the next round
   tollman.py timer install|remove|status [--repo <dir>] [--dry-run] [--json]
       the external timer `local.tollman.<repo>` that runs `tick` at the loop's cron (the frame's timer.py);
       install switches the mode to `timer`, remove back to `claude`
@@ -51,11 +64,12 @@
       is there a tollman here: its field, its timer and mode, its last tick with its age in seconds, the wake
       items not handled yet (what a foreman's /mtm asks before it hitches, D13)
   tollman.py act [--done <seq>] [--repo <dir>] [--json]
-      what the tick handed to the tollman's session (wake.json: each item with the file to read for it);
+      what the tick handed to the tollman's session (wake.json: each item with the file to read for it); it
+      prints handoff.md's `## DO FIRST` first and closes the items older than the handoff's last write (D8);
       --done drops the items up to <seq> once handled
-  tollman.py handoff [--clear] [--repo <dir>]
-      the handoff before the session's clear: the path of handoff.md in the state folder; --clear, once it is
-      written, starts hal2's clear-and-continue (/clear, then /tollman act)
+  tollman.py handoff [--rewrite] [--clear] [--repo <dir>]
+      the handoff before the session's clear: the path of handoff.md in the state folder; --rewrite first moves
+      the old one to handoff-archive/<UTC time>.md (plan 0383 D9); --clear warns above 80 lines and, once it is written, starts hal2's clear-and-continue (/clear, then /tollman act)
   tollman.py silence | unsilence [--repo <dir>]
       silence the rounds (silence.py, hal2 plan 0349 D6): a real round prints, per train it touched or that stands,
       one table line `| tollman | <train> | <state> | joined <fields> |` and nothing else (marker file `silent`
@@ -88,8 +102,10 @@ import chain
 import checks
 import checks_cli
 import due
-import engine
+import engine_car
+import hold
 import learn
+import minute
 import mtm_scan
 import mainred
 import modes
@@ -109,13 +125,14 @@ import wake
 HERE = Path(__file__).resolve().parent
 WIRING = roles.Wiring(
     role="tollman", cli=HERE / "tollman.py", skill=HERE.parent,
-    act="/tollman act", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred"),
+    act="/tollman act", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred", "watch"),
     subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=own_fix.carries,
-    session_effort=True)
+    session_effort=True, min_tick=1)  # min_tick: the duty `watch` ticks every minute (plan 0383 step 4, D4)
 # "duty:<name>" → (item, ctx) → actions
 HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:checks": checks.handler,
                   "duty:learn": learn.handler, "duty:prune": prune.handler,  # prune: plan 0360 step 7 (D30)
-                  "duty:mainred": mainred.handler}  # a red main: plan 0360 step 8 (D9, D29, D30)
+                  "duty:mainred": mainred.handler,  # a red main: plan 0360 step 8 (D9, D29, D30)
+                  "duty:watch": minute.handler}  # the 1-minute watch of the land run: plan 0383 step 4 (D4)
 
 
 def last_tick(state: Path) -> dt.datetime | None:
@@ -135,7 +152,8 @@ def status(repo: str, now: dt.datetime | None = None) -> dict:
     return {"role": WIRING.role, "field": str(field), "field_exists": field.is_dir(),
             "timer": timer.status(due.repo_name(repo), state, WIRING), "mode": role_cli.mode(repo, WIRING),
             "last_tick": last.isoformat(timespec="seconds") if last else None, "last_tick_age_s": age,
-            "pending": len(wake.read(mtm_scan.main_checkout(repo), WIRING)["items"])}
+            "pending": len(wake.read(mtm_scan.main_checkout(repo), WIRING)["items"]),
+            "held": hold.text(h) if (h := hold.of(mtm_scan.main_checkout(repo))) else None}
 
 
 def print_status(s: dict) -> None:
@@ -145,6 +163,8 @@ def print_status(s: dict) -> None:
           f"mode {s['mode']}")
     print(f"last tick: {s['last_tick'] or 'never'}"
           + (f" ({s['last_tick_age_s']} s ago)" if s["last_tick"] else "") + f"; {s['pending']} wake items")
+    if s.get("held"):
+        print(s["held"])
 
 
 def parser() -> argparse.ArgumentParser:
@@ -157,7 +177,9 @@ def parser() -> argparse.ArgumentParser:
     sub.choices["act"].add_argument("--done", type=int)
     sub.choices["timer"].add_argument("action", choices=("install", "remove", "status"))
     sub.choices["timer"].add_argument("--dry-run", action="store_true")
-    sub.add_parser("handoff").add_argument("--clear", action="store_true")
+    ho = sub.add_parser("handoff")
+    ho.add_argument("--clear", action="store_true")
+    ho.add_argument("--rewrite", action="store_true")
     train = sub.add_parser("train")
     train.add_argument("--dry-run", action="store_true", required=True)
     train.add_argument("--json", action="store_true")
@@ -172,7 +194,8 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("mode").add_argument("set", nargs="?", choices=role_cli.MODES)
     triage_cli.add_parser(sub)  # plan 0360 step 5
     orders_cli.add_parser(sub)  # plan 0360 step 6
-    modes.add_parser(sub)  # plan 0360 step 25
+    modes.add_parser(sub)  # plan 0360 step 25, the switch: plan 0375
+    hold.add_parser(sub)  # plan 0383 step 7
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())
     checks_cli.add_parser(sub)  # its commands take their own --repo
@@ -193,6 +216,8 @@ def main(argv: list[str]) -> int:
         return 0
     if args.cmd == "triage":
         return triage_cli.main(args)
+    if args.cmd in hold.VERBS:
+        return hold.main(args)
     if args.cmd in modes.VERBS:
         return modes.main(args)
     if args.cmd in ("order", "fixed"):
@@ -202,8 +227,8 @@ def main(argv: list[str]) -> int:
         print(json.dumps(d, indent=1)) if args.json else trains_dry.print_dry_run(d)
         return 0
     if args.cmd in ("unhitch", "retry"):
-        code, text = (engine.unhitch(args.repo, args.field, args.why, user=args.by_user) if args.cmd == "unhitch"
-                      else engine.retry(args.repo, args.why, skip_pretest=args.skip_pretest))
+        code, text = (engine_car.unhitch(args.repo, args.field, args.why, user=args.by_user) if args.cmd == "unhitch"
+                      else engine_car.retry(args.repo, args.why, skip_pretest=args.skip_pretest))
         print(text, file=sys.stderr if code else sys.stdout)
         return code or (go_on(args.repo) if args.cmd == "unhitch" else 0)
     if args.cmd == "chain":
@@ -235,6 +260,7 @@ def silent_lines(main: str, r: dict, since: str, wiring: roles.Wiring = WIRING) 
     stands now, `joined` the fields that rode it (the yard as `yard`); none: a line saying so."""
     if r.get("problem"):
         return silence.round_lines(r, wiring)
+    told = [a["text"] for a in r.get("done", []) if a["duty"] == minute.KIND and a["do"] == "record"]  # the watch's events
     rows = train_state.lines(main)
     names = list(dict.fromkeys(e["train"] for e in rows if e.get("train") and e.get("at", "") >= since))
     stands = train_state.standing(rows)
@@ -247,7 +273,7 @@ def silent_lines(main: str, r: dict, since: str, wiring: roles.Wiring = WIRING) 
         state = next((STATE[e["kind"]] for e in reversed(mine) if e["kind"] in STATE), "formed")
         joined = [c["field"] for c in formed.get("cars", [])] + (["yard"] if any(e["kind"] == "yard" for e in mine) else [])
         out.append(silence.line(wiring.role, f"train {name}: {state}", joined))
-    return out or [silence.line(wiring.role, "no train")]
+    return told + (out or [silence.line(wiring.role, "no train")])
 
 
 def go_on(repo: str) -> int:
@@ -266,6 +292,8 @@ def tick(args) -> int:
     """A round, with the message board's messages and acks (the frame's log) posted before and after it (step 7);
     a dry run writes nothing."""
     main_dir = mtm_scan.main_checkout(args.repo)
+    if not (args.dry_run or args.json) and minute.light(args.repo, WIRING):
+        return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, a quiet minute prints nothing
     if not args.dry_run:
         board.safely(main_dir, "messages and acks", board.sync)
     since = train_state.utc()

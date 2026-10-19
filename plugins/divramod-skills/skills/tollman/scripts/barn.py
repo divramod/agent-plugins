@@ -1,22 +1,26 @@
 """After the barn (hal2 plan 0360 step 7, D8): the fields of the last landed train, on the rounds after it.
 
 The foreman of a car restocks, finishes its plan, mucks out and ends its turn ("in the barn", trains.TEXT); it does
-not clear itself. The prune duty (prune.py) then looks at each car of the newest `landed` line of train.jsonl:
-- a field 00-09 that prune_proof finds free and that is mucked out (prune's `clean` ran for this HEAD: its key in
+not clear itself. The prune duty (prune.py) then looks at each car of the newest `landed` line of train.jsonl, on
+/prune's facts (names-ok: slot, path, HEAD, the proof's refusal `why`, the field's live `sessions`; hal2 plan 0377 step 7, D12):
+- a field 00-09 that /prune's proof finds free and that is mucked out (prune's `clean` ran for this HEAD: its key in
   the log, no exit) has its resting session cleared once: `hal2-cli-agents clear-and-continue --pane <pane>
   --without-plan --prompt /merge-from-main --detach`, key `barn-clear:<slot>:<HEAD>`;
-- a field 10-99 is removed by prune's removal (stopped by signal, removed through the proof), the cars first;
+- a field 10-99 is removed by /prune's run (stopped by signal, removed through the proof): its plan orders the
+  last train's cars first, so a car is removed right after the barn (prune.py starts the run for it);
 - a car whose field still holds work 24 hours after the landing: one wake, `barn-stuck:<slot>:<HEAD>`, never a forced
   removal.
 """
 
 import datetime as dt
+import re
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import train_state
-from prune_proof import NUMBERED, sessions
 from tick import act
+
+NUMBERED = re.compile(r"\d\d")  # a field 00-99 (a local copy: the tollman never imports /prune, plan 0377 D11)
 
 STUCK_AFTER = 24 * 3600
 ONCE = 30 * 24 * 3600
@@ -32,11 +36,6 @@ def cars(landed: dict | None) -> list[str]:
     return [c for c in (landed or {}).get("cars", []) if NUMBERED.fullmatch(str(c))]
 
 
-def first(found: list[dict], fields: list[str]) -> list[dict]:
-    """The scan with the last train's cars before the other fields, so a car is removed right after the barn."""
-    return sorted(found, key=lambda w: (w["slot"] not in fields, w["slot"]))
-
-
 def cleaned(log: list[dict], slot: str, head: str) -> bool:
     """Did prune's `clean` run for this HEAD (logged by the tick, without an exit)?"""
     key = f"prune:clean:{slot}:{head}"
@@ -48,12 +47,11 @@ def age(landed: dict, now: dt.datetime) -> float:
     return (now.astimezone(dt.timezone.utc) - at).total_seconds()
 
 
-def clear(w: dict, agents: list[dict]) -> list[dict]:
+def clear(w: dict) -> list[dict]:
     """The field's resting session cleared once; no session: nothing to clear."""
-    here = sessions(agents, w["path"])
-    if not here:
+    if not w["sessions"]:
         return []
-    pane = here[0]["pane_id"]
+    pane = w["sessions"][0]["pane_id"]
     return [act("prune", "barn-clear", "run", w["slot"], key=f"barn-clear:{w['slot']}:{w['head']}", window=ONCE,
                 argv=CLEAR[:2] + ["--pane", pane] + CLEAR[2:],
                 text=f"clear field {w['slot']}'s session {pane}: its crop is in the barn, its work is safe")]
@@ -66,11 +64,10 @@ def stuck(w: dict, landed: dict) -> dict:
 
 
 def actions(ctx: dict, found: list[dict], landed: dict | None) -> list[dict]:
-    """The clears and the stuck wakes for the cars of the last landed train (removal stays prune.plan's)."""
+    """The clears and the stuck wakes for the cars of the last landed train (removal stays /prune's)."""
     if not landed:
         return []
     fields, out = cars(landed), []
-    agents = list(ctx.get("agents_by_pane", {}).values())
     late = age(landed, ctx["now"]) >= STUCK_AFTER
     for w in found:
         if w["slot"] not in fields or not Path(w["path"]).is_dir():
@@ -78,5 +75,5 @@ def actions(ctx: dict, found: list[dict], landed: dict | None) -> list[dict]:
         if w["why"]:
             out += [stuck(w, landed)] if late else []
         elif int(w["slot"]) < 10 and cleaned(ctx.get("log", []), w["slot"], w["head"]):
-            out += clear(w, agents)
+            out += clear(w)
     return out

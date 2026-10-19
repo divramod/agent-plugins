@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Wagon trains as code: what the duty `trains` plans each round (hal2 plan 0294 step 6; hal2's
-.adr/merge-queue-policy.md rule 3). The tollman's own field `tollman-<repo>` carries every train (D8); a
+.adr/merge-queue-policy.md rule 3). Each train rides in its own worktree `tollman-train-<plan>-...` (train_wt.py); a
 foreman's whole part is the hitch, `hal2-cli-git worktree queue ready` (D9). This module only reads (the queue, git,
 the train state, the landing's log) and returns the frame's actions, each with a `key`; `engine.py` does them.
 
 Between trains (`draft`, steps 1 to 4; `tollman.py train --dry-run` prints it):
-1. the tickets marked `ready`, in queue order; none: nothing to do
-2. what cannot ride is unhitched: a head that is in the barn already (no message), a servant's field (30-99);
+1. the tickets marked `ready`, in queue order; none: nothing to do. Only adjacent production wagons ride: an entry
+   whose effective mode is smuggle passes alone, one between them cuts the train (kinds.py, plan 0375 D8)
+2. what cannot ride is unhitched: a head that is in the barn already (no message), a servant's field (`plans/LEAD`);
    while a place the user reserved for a field that is not ready stands in the queue, the others wait: a landing
    waits behind such a place (.adr/merge-queue-policy.md rule 2), and that field is to land first
 3. the alone rule (D11, D12 of plan 0333; gate_car.py): a car rides alone, the only car of its train, only when it
@@ -19,9 +20,14 @@ Between trains (`draft`, steps 1 to 4; `tollman.py train --dry-run` prints it):
 5. `engine.py form`: the yard's work as the first car (yard.py, step 8), merge, mark, start the landing detached;
    what the yard keeps is told to the farmer (yard_report.py)
 
+Before the draft (plan 0383 step 3, D3, D14; leavers.py): a placed ticket gone from the queue with its head not in the
+barn is put back on its place, its foreman told, and a ticket held by `worktree stop` told likewise; the field is
+`left` for `draft`: every car waits behind it until it is back in motion. A train that stands goes on.
+
 While a train stands (`standing`, step 6) it is frozen (plan 0360 D3, frozen.py): nothing leaves it, a later
-hitch waits for the next train, no wait limit ends it (D7). Its landing still runs: the watch reads its land run
-and wakes once at its first red job (watch.py, plan 0360 step 5). Landed: every car's foreman is told "in the barn"
+hitch waits for the next train, no wait limit ends it (D7). Its landing still runs: the watch reads its land run;
+at its first red job the one car the triage names gets its fix order by code, an unclear culprit wakes once (watch.py,
+plan 0360 step 5; early_order.py, plan 0383 step 5). Landed: every car's foreman is told "in the barn"
 (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest before the
 push, `pretest_red`: pretest_train.py): triage (triage.py, train_red.py): a runner fault lands the same cars again on
 a fresh run by code; the barn's or a car's red is one wake, then nothing until the session's `retry`; the train
@@ -40,9 +46,13 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
 import chain
+import early_order
 import frozen
 import gate_car
 import generated
+import hold
+import kinds
+import leavers
 import modes
 import mtm_scan
 import orders
@@ -51,12 +61,15 @@ import pause
 import proof
 import stack_red
 import train_state
+import train_wt
 import smuggled
 import train_red
 import trial as trial_merge
 import watch
+import watch_events
 import yard_report
 from tick import act, default_ref
+from trains_sort import HELD, HELD_LEFT, base_of, current_plan, held_for, servant, sort_out  # noqa: F401  (re-exported)
 
 QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]
 ROLE = "tollman"
@@ -68,15 +81,13 @@ MAX_STARTS = 5  # an interrupted landing is started again this often, then the t
 HOUR = 3600
 LANDED = ("landed", "nothing")  # the landing's results that mean: every car's crop is in the barn
 AGAIN = (None, "interrupted", "waiting", "testing", "paused")  # no result, or one whose rerun goes on
-HELD = ("the place reserved for field {field} stands in the queue and {field} is not ready: a train's landing waits "
-        "behind it (the user's order; `hal2-cli-git worktree queue order`)")
 HITCH = "report it ready again (`hal2-cli-git worktree queue ready`)"
 TEXT = {
     "conflict": TRAIN + ": field {field} is unhitched: its crop conflicts with {what} in {files}. {then}, resolve "
                         "it, push and " + HITCH + ".",
     "proof": TRAIN + ": field {field} is unhitched before it rode: its light gate checks are red on {head}:\n{lines}\n"
                      "Fix it, push and " + HITCH + ".",
-    "servant": TRAIN + ": field {field} is unhitched: a servant's field (30-99) never rides a train, its foreman "
+    "servant": TRAIN + ": field {field} is unhitched: a servant's field (plans/LEAD) never rides a train, its foreman "
                        "merges its branch.",
     "split": TRAIN + ": field {field} is unhitched from the red train by the user: {why}. Fix it, push and " + HITCH
              + ".",
@@ -91,63 +102,20 @@ TEXT = {
 }
 
 
-def current_plan(worktree: str) -> str:
-    """The first line of the worktree's plans/CURRENT_PLAN, or ''."""
-    current = Path(worktree) / "plans/CURRENT_PLAN"
-    text = current.read_text() if current.exists() else ""
-    return next((line.strip() for line in text.splitlines() if line.strip()), "")
-
-
-def servant(field: str) -> bool:
-    return len(field) == 2 and field.isdigit() and 30 <= int(field) <= 99
-
-
-def base_of(main: str, default: str, own: str | None) -> str:
-    """What the cars are merged onto: the barn's head, with what the tollman's field holds beyond it (`own`)."""
-    if not own or trial_merge.git(main, "merge-base", "--is-ancestor", own, default)[0] == 0:
-        return default
-    return trial_merge.merge(main, default, own)[0] or default
-
-
-def sort_out(main: str, default: str, tickets: list[dict], own: str) -> tuple[list[dict], list[dict]]:
-    """Steps 1 and 2: the ready tickets that may ride, in queue order, and those unhitched at once."""
-    wagons, unhitched = [], []
-    for t in sorted(tickets, key=lambda t: t.get("position", 0)):
-        mark, field = t.get("ready"), t.get("slot")
-        if not mark or field == own or t.get("rides_with") not in (None, own) or t.get("state", "waiting") != "waiting":
-            continue  # also a ticket at the head, a leaving one included (`waits_for`): its own landing's, no car
-        gone = {"field": field, "head": mark["head"], "at": mark.get("at", ""), "tell": None}
-        if servant(field):
-            unhitched.append({**gone, "why": "a servant's field (30-99) never rides", "tell": "servant"})
-        elif not Path(t.get("worktree") or "-").is_dir():
-            unhitched.append({**gone, "why": "its worktree is gone"})
-        elif trial_merge.git(main, "merge-base", "--is-ancestor", mark["head"], default)[0] == 0:
-            unhitched.append({**gone, "why": "its head is in the barn already"})
-        else:
-            wagons.append(t)
-    return wagons, unhitched
-
-
-def held_for(tickets: list[dict], own: str) -> str | None:
-    """The field whose reserved place holds every train back: a waiting ticket the user's order put there, with no
-    process of its own and no ready mark (plan 0294 step 12: the carrier's landing waited behind it). A leaving
-    ticket in front (held, `waits_for`) holds no train back: only a waiter's look frees it, and the hitched have
-    no process, so the carrier's landing has to wait behind it."""
-    return next((t["slot"] for t in tickets if t.get("reserved") and not t.get("ready") and not t.get("pid")
-                 and t.get("state") == "waiting" and t.get("slot") != own), None)
-
-
-def draft(main: str, tickets: list[dict], own: str, base: str, default: str) -> dict:
+def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mode: dict | None = None,
+          left: str | None = None) -> dict:
     """Steps 1 to 4: the train the queue allows now. `cars` ([{field, branch, head, plan}] in order), `unhitched`
     ([{field, head, why, tell, ...}]), `waiting` ([{field, why}]: ready, but not in this train), `alone` (the one car
-    rides alone: gate_car.py)."""
-    wagons, unhitched = sort_out(main, default, tickets, own)
-    out = {"base": base, "cars": [], "unhitched": unhitched, "waiting": [], "alone": False}
-    acc, held = base, held_for(tickets, own)
+    rides alone: gate_car.py). `left`: the field of a ticket that left the queue
+    unmerged or was stopped (leavers.py): every car waits behind it."""
+    rides, later = kinds.split(tickets, own, mode)  # only adjacent production wagons ride (plan 0375 D8)
+    wagons, unhitched = sort_out(main, default, rides, own)
+    out = {"base": base, "cars": [], "unhitched": unhitched, "waiting": later, "alone": False}
+    acc, held = base, left or held_for(tickets, own)
     for t in wagons:
         field, head = t["slot"], t["ready"]["head"]
         if held:
-            out["waiting"].append({"field": field, "why": HELD.format(field=held)})
+            out["waiting"].append({"field": field, "why": (HELD_LEFT if left else HELD).format(field=held)})
             continue
         if out["alone"] or len(out["cars"]) >= MAX_CARS:
             first = out["cars"][0]["field"]
@@ -248,28 +216,32 @@ def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) 
 
 
 def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict, alive=None,
-         result=None, mode: dict | None = None, sleep_flag: dict | None = None) -> list[dict]:
+         result=None, mode: dict | None = None, sleep_flag: dict | None = None, left: str | None = None,
+         held: dict | None = None) -> list[dict]:
     """The round's actions for the tollman's field `top` (see the module doc). `alive(pid)` and `result(main)`
     are train_state's (the train's detached process, its last word) unless a test says otherwise; a ticket's pid is
     a landing's own process (mtm_scan.pid_alive). `mode`: the queue's (modes.py); the tollman sleeps in smuggle mode
-    while no hitched entry is production, and while the sleep flag `sleep_flag` stands (plan 0365 D3, D9); a hitched
-    entry whose effective mode is smuggle is no car."""
+    while no hitched entry is production, and while the sleep flag `sleep_flag` stands (plan 0365 D3, D9; on the flag
+    every train not landing is dropped and the hitched land alone, plan 0375); a hitched entry whose effective mode is
+    smuggle is no car, and only adjacent production wagons ride (kinds.py)."""
     if modes.asleep(mode, tickets, sleep_flag):  # plan 0360 step 25 (D75 2): a landing train goes on, nothing new starts
-        return modes.sleep(mode, train_state.standing(rows),
-                           lambda: plan(top, main, tickets, rows, panes, alive, result), sleep_flag)
-    tickets = modes.trainable(tickets, mode, Path(top).name)
+        return modes.sleep(top, mode, tickets, train_state.standing(rows), panes, lambda: plan(
+            top, main, tickets, rows, panes, alive, result, held=held), alive or train_state.alive, sleep_flag)
+    queue, tickets = tickets, modes.trainable(tickets, mode, Path(top).name)
     landing, waiter, result = alive or train_state.alive, alive or mtm_scan.pid_alive, result or train_state.result
-    own, default = Path(top).name, default_ref(main)
-    mine = next((t for t in tickets if t.get("slot") == own), {})
+    own, default, standing = Path(top).name, default_ref(main), train_state.standing(rows)
+    mine = train_wt.ticket(tickets, own, standing)  # the carrier's: the standing train's, or one left with a mark
     marked = [c.get("field") for c in (mine.get("train") or {}).get("cars", [])]
     out, after, head = [], None, "HEAD"
-    pre, train, stop = pause.step(top, main, train_state.standing(rows), mine, landing, result)  # a smuggle's pause
+    pre, train, stop = pause.step(top, main, standing, mine, landing, result)  # a smuggle's pause
     if stop:
         return pre  # paused: frozen, one line per pause (plan 0360 step 18, D58)
     if train and train["state"] == "landing" and landing(train["pid"]):
         return pre + watch.actions(top, main, train, rows, tickets)  # its land run read, a red job wakes once
     if train and train["state"] == "landing":  # frozen (D3): a mark that names other cars is marked again
         return pre + settle(top, train, result(main), panes, tickets)
+    if held:  # plan 0383 step 7 (D7): the hold; a landing that runs or settles went on above, nothing forms or starts
+        return pre + [hold.line(held)]
     if train and train["state"] in ("retry", "formed"):  # formed, never started: the same train, never a re-draft
         key = f"retry:{train['train']}:{train['starts']}" if train["state"] == "retry" else f"resume:{train['train']}"
         return [run("restart", "-", key, "restart", top, text=f"train {train['train']} lands again")]
@@ -282,19 +254,19 @@ def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict
     if train or marked:
         why = "split after red by the user" if train else "a mark without a train of ours"
         after = f"breakup:{train['train']}" if train else f"leftover:{mine['train'].get('at', '')}"
-        out.append(run("breakup", "-", after, "breakup", top, "--why", why, *["--by-user"] * bool(train),
+        out.append(run("breakup", "-", after, "breakup", train_wt.left(mine, train, top), "--why", why, *["--by-user"] * bool(train),
                        text=f"train broken up: {why}"))
         out += [tell("unhitched", u["field"], f"split:{train['train']}:{u['field']}",
                      TEXT["split"].format(field=u["field"], why=u["why"]), panes)
                 for u in (train or {}).get("unhitched", []) if u["field"] != train_state.YARD]
         head = (train or {}).get("base") or head
     own_head = trial_merge.git(top, "rev-parse", head)[1] if Path(top).is_dir() else None
-    d = draft(main, tickets, own, base_of(main, default, own_head), default)
+    d = draft(main, queue, own, base_of(main, default, own_head), default, mode, left)
     return out + train_actions(top, d, panes, after) + yard_report.left_actions(main, d, default, rows, panes)
 
 
 def handler(item: dict, ctx: dict) -> list[dict]:
-    """duty:trains: the queue (its mode: modes.py, plan 0360 step 25) and the train state, then the round's actions."""
+    """duty:trains: the queue (its mode, the tollman's sleep flag: modes.py) and the train state, then the round's actions."""
     main, top, panes, doc = ctx["main"], ctx["top"], ctx.get("panes", {}), mtm_scan.run_json(QUEUE, ctx["main"]) or {}
     tickets, mode, rows, log = doc.get("queue", []), modes.of(doc), train_state.lines(main), ctx.get("log", [])
     if not ctx.get("dry"):
@@ -303,5 +275,12 @@ def handler(item: dict, ctx: dict) -> list[dict]:
     turn, stop = modes.turn(top, main, mode, tickets, rows, panes, flag)  # the mode noted; awake again: the barn first
     if stop:
         return turn
-    return turn + plan(top, main, tickets, rows, panes, mode=mode, sleep_flag=flag) + yard_report.settled_actions(main, rows, panes) \
-        + stack_red.watch(top, main, rows, panes, log) + orders.answers(top, rows, log)  # `fixed <sha>` (step 6)
+    leave = leavers.check(main, top, tickets, (doc.get("priority") or {}).get("slots") or [], panes,
+                          default_ref(main), bool(ctx.get("dry")))  # a leaver is put back, the trains behind it hold
+    out = turn + leave["actions"] + early_order.once(ctx, plan(top, main, tickets, rows, panes, mode=mode,
+                                                               sleep_flag=flag, left=leave["held"],
+                                                               held=hold.of(main)))  # one early order a round
+    watched = watch_events.state(main)  # the 1-minute watch's run: its post-merge red is post_merge.py's
+    return out + yard_report.settled_actions(main, rows, panes) + stack_red.watch(
+        top, main, rows, panes, log, watched=None if watched.get("closed") else str(watched.get("run") or "")) \
+        + orders.answers(top, rows, log)  # `fixed <sha>` (step 6)

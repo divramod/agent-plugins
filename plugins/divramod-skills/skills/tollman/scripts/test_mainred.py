@@ -113,7 +113,7 @@ class NextTrain(Farm):
         self.round()
         self.assertEqual(self.last[0][:2], ("form", "run"))
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07"])
-        subjects = out(self.wm, "log", "--first-parent", "--format=%s", "origin/main..HEAD").splitlines()
+        subjects = out(self.cw, "log", "--first-parent", "--format=%s", "origin/main..HEAD").splitlines()  # plan 0375 D5
         self.assertEqual(subjects[-1], f"Merge {own_fix.orders.OWN_FIX} into {OWN} (fix order main-fix-1)",
                          "the fix lies first, under every car")
         self.assertIn("Merge branch '07'", subjects[-2])

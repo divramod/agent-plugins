@@ -155,8 +155,8 @@ clear). Keep this true: `$E selfcheck`.
    mid-turn it refuses `KeyboardHeld`. A typed text reading back as nothing after an ended turn gets one Escape,
    `ensure_insert` and a second try (log `nothing showed: the prompt may not have the keyboard ...`). Never on the
    busy path (Escape interrupts a working turn). `libs/hal2-agents/src/guarded.rs` (step 9) puts every other path
-   through it (the CLI send and send-command verbs, node agents.send, shooter and hal2-tell): a refusal is exit 3 `not sent:
-   <reason>`, a draft in the box `not-empty`. Raw on purpose: `--key`, node `keys`/`answer`. Trap: never press `q`
+   through it (the CLI send and send-command verbs, node agents.send, shooter and hal2-tell): a refusal is exit 10 (3 before hal2 plan
+   0318) `not sent: <reason>`, a draft in the box `not-empty`. Raw on purpose: `--key`, node `keys`/`answer`. Trap: never press `q`
    (it lands in the prompt); only Escape. A `SubagentStop` writes no record (step 8), `stale.rs` decides a stale record.
    **The busy path** (`code/rust/libs/hal2-agents/src/autoclear/busy.rs`, `queued.rs` and `queued_clear.rs` beside
    it, the queue read by `code/rust/libs/hal2-agents/src/scrape/queued.rs`; plan 0181): a session that is never

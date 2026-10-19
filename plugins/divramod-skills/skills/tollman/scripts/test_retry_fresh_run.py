@@ -9,11 +9,12 @@ red one. `Runs` is that lookup as data, on engine_farm's farm (no landing, no Gi
 import os
 import subprocess
 import unittest
+from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
 import train_state
-from engine_farm import OWN, Farm, out
+from engine_farm import Farm, out
 
 RED = 38560326710
 
@@ -41,7 +42,7 @@ def candidate(top) -> str:
     env = {"GIT_AUTHOR_NAME": who[0], "GIT_AUTHOR_EMAIL": who[1], "GIT_AUTHOR_DATE": who[2],
            "GIT_COMMITTER_NAME": who[0], "GIT_COMMITTER_EMAIL": who[1], "GIT_COMMITTER_DATE": who[2]}
     p = subprocess.run(["git", "commit-tree", "HEAD^{tree}", "-p", "origin/main", "-p", "HEAD", "-m",
-                        f"Merge branch '{OWN}' into main"], cwd=top, capture_output=True, text=True, check=True,
+                        f"Merge branch '{Path(top).name}' into main"], cwd=top, capture_output=True, text=True, check=True,
                        env={**os.environ, **env})
     return p.stdout.strip()
 
@@ -55,61 +56,61 @@ class RetryFreshRun(Farm):
     def red(self, run):
         self.ends({"status": "gate_failed", "run": f"https://github.com/divramod/hal2/actions/runs/{run}",
                    "red": [{"name": "02-hz01-host-x/rust-test"}]})
-        self.gate.of(OWN).update(state="held", train=None, hold={"reason": "failed"})  # the landing's end
+        self.gate.of(self.carrier()).update(state="held", train=None, hold={"reason": "failed"})  # the landing's end
         self.round()
 
     def test_a_retried_red_train_lands_on_a_fresh_run_never_the_red_one(self):
         self.round()  # 11:57:18: formed, started
-        self.assertEqual(self.runs.land(self.wm), RED, "the first landing's run")
+        self.assertEqual(self.runs.land(self.cw), RED, "the first landing's run")
         self.red(RED)  # 12:27:07
         self.assertEqual(self.train()["state"], "red")
-        red_head = out(self.wm, "rev-parse", "HEAD")
+        red_head = out(self.cw, "rev-parse", "HEAD")
         why = "rust-test: 2 of 6924 failed, both timing under load"
         self.assertEqual(self.call("retry", "--why", why)[0], 0)  # 12:27:55
         self.round()  # 12:32:54: started again
         self.assertEqual((self.last, self.train()["state"], self.train()["starts"]),
                          ([("restart", "run", "-")], "landing", 2))
-        run = self.runs.land(self.wm)
+        run = self.runs.land(self.cw)
         self.assertNotEqual(run, RED, "the retry's landing adopted the red run: nothing was tested again")
-        self.assertEqual(out(self.wm, "rev-parse", "HEAD^"), red_head, "one commit on the red train's head")
-        self.assertEqual(out(self.wm, "diff", "--stat", "HEAD^", "HEAD"), "", "an empty commit: the train as it is")
-        self.assertEqual(out(self.wm, "log", "-1", "--format=%s"), "chore(wagon-train): land the train again on a fresh run (retry 1)")
-        self.assertIn(why, out(self.wm, "log", "-1", "--format=%b"))
+        self.assertEqual(out(self.cw, "rev-parse", "HEAD^"), red_head, "one commit on the red train's head")
+        self.assertEqual(out(self.cw, "diff", "--stat", "HEAD^", "HEAD"), "", "an empty commit: the train as it is")
+        self.assertEqual(out(self.cw, "log", "-1", "--format=%s"), "chore(wagon-train): land the train again on a fresh run (retry 1)")
+        self.assertIn(why, out(self.cw, "log", "-1", "--format=%b"))
         started = [e for e in train_state.lines(str(self.main)) if e["kind"] == "started"]
-        self.assertEqual((started[0].get("commit"), started[1]["commit"]), (None, out(self.wm, "rev-parse", "HEAD")))
+        self.assertEqual((started[0].get("commit"), started[1]["commit"]), (None, out(self.cw, "rev-parse", "HEAD")))
 
         self.red(run)  # red again, and retried again: a third run, the second red one not adopted either
         self.assertEqual(self.call("retry", "--why", "flaky again")[0], 0)
         self.round()
-        self.assertNotIn(self.runs.land(self.wm), (RED, run))
-        self.assertEqual(out(self.wm, "log", "-1", "--format=%s"), "chore(wagon-train): land the train again on a fresh run (retry 2)")
+        self.assertNotIn(self.runs.land(self.cw), (RED, run))
+        self.assertEqual(out(self.cw, "log", "-1", "--format=%s"), "chore(wagon-train): land the train again on a fresh run (retry 2)")
 
     def test_a_restart_whose_mark_was_refused_commits_no_second_time(self):
         self.round()
         self.red(RED)
         self.call("retry", "--why", "flaky")
         self.gate.refuse = "train"
-        self.assertEqual(engine.restart(str(self.wm))[0], 1, "the mark refused")
-        head = out(self.wm, "rev-parse", "HEAD")
+        self.assertEqual(engine.restart(str(self.cw))[0], 1, "the mark refused")
+        head = out(self.cw, "rev-parse", "HEAD")
         self.gate.refuse = ""
-        code, text = engine.restart(str(self.wm))
+        code, text = engine.restart(str(self.cw))
         self.assertEqual(code, 0, text)
-        self.assertEqual(out(self.wm, "rev-parse", "HEAD"), head, "the same retry commit, not a second one")
+        self.assertEqual(out(self.cw, "rev-parse", "HEAD"), head, "the same retry commit, not a second one")
 
     def test_an_interrupted_landing_restarts_without_a_commit_and_adopts_its_run(self):
         self.round()
-        head = out(self.wm, "rev-parse", "HEAD")
+        head = out(self.cw, "rev-parse", "HEAD")
         self.ends(None)  # the process gone without a word: the rerun adopts its run (landings-survive-their-process)
         self.round()
-        self.assertEqual((self.last, out(self.wm, "rev-parse", "HEAD")), ([("restart", "run", "-")], head))
+        self.assertEqual((self.last, out(self.cw, "rev-parse", "HEAD")), ([("restart", "run", "-")], head))
 
     def test_a_running_landing_is_never_touched_by_a_retry(self):
         self.round()
         self.alive.add(40001)
-        head = out(self.wm, "rev-parse", "HEAD")
+        head = out(self.cw, "rev-parse", "HEAD")
         self.assertEqual(self.call("retry", "--why", "flaky")[0], 1, "no red train: it lands")
         self.round()
-        self.assertEqual((self.last, out(self.wm, "rev-parse", "HEAD")), ([], head))
+        self.assertEqual((self.last, out(self.cw, "rev-parse", "HEAD")), ([], head))
 
 
 if __name__ == "__main__":

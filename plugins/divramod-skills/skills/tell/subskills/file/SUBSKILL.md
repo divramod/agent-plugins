@@ -30,7 +30,7 @@ hal2-cli-tell prepare "<path or document URL>" [--refresh]
 - Conversion: PDFs with `pdftotext` (poppler, required: it keeps the reading order of two-column papers), markitdown
   as the fallback. Everything else with markitdown (via uvx; the first run installs its dependencies and takes
   about a minute), then `pandoc` for docx/epub/odt/html. `.rtf`: pandoc first; `.doc`: macOS `textutil`.
-  `converter` and `attempts` say what ran. Exit 2 when only a missing tool stopped it: run
+  `converter` and `attempts` say what ran. Exit 10 when only a missing tool stopped it: run
   `hal2-cli-tell prereqs install --source file`.
 - A URL is downloaded first (up to 500 MB). Any URL that serves a PDF or another document comes here by itself,
   also one without a document extension. A server that answers with an HTML page (a captcha or login) instead of

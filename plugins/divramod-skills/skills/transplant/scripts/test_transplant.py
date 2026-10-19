@@ -16,7 +16,7 @@ REASONS = ("same", "main", "role", "no-source", "servant", "nothing", "off-branc
 GATE = unit_root(__file__) / "scripts" / "check-agent-starts.py"
 
 
-def refused(reason, rc=7):
+def refused(reason, rc=14):  # a refusal exits 14 (7 before hal2 plan 0318 row 22): the skill reads the JSON only
     return [rc, {"status": "refused", "transplant": None, "refused": {"reason": reason, "detail": f"{reason}!",
                                                                     "files": ["a.txt"]}, "checks": [], "would": None}]
 

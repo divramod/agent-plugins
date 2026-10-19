@@ -18,10 +18,12 @@
       entries whose foreman runs no plan, worktrees with work and no session; exit 0 fine, 1 with what is wrong
   farmer.py wake [--done <seq>] [--repo <dir>] [--json]
       what the tick handed to the farmer session (wake.json: items that need judgment, relays, notices, failed
-      delegations, each with the file to read for it); --done drops the items up to <seq> once handled
-  farmer.py handoff [--clear] [--repo <dir>]
+      delegations, each with the file to read for it); prints handoff.md's `## DO FIRST` first and closes the items
+      older than the handoff's last write (plan 0383 D8); --done drops the items up to <seq> once handled
+  farmer.py handoff [--rewrite] [--clear] [--repo <dir>]
       the farmer's handoff before its clear (handoff.py): the path of handoff.md in the state folder (its sections
-      when it is missing); --clear, once it is written, starts hal2's clear-and-continue (/clear, then /farmer act)
+      when it is missing); --rewrite first moves the old one to handoff-archive/<UTC time>.md (plan 0383 D9);
+      --clear warns above 80 lines and, once it is written, starts hal2's clear-and-continue (/clear, then /farmer act)
   farmer.py decision-check (--message <text> | <slot> --have <list>) [--repo <dir>] [--dry-run]
       answer a foreman's `decision check <slot>: I have these decisions: ...` (decision_check.py): the log's
       `decision` entries for the worktree that neither its list nor its checkout (HANDOFF.md, current plan, INTENT.md)
@@ -45,7 +47,7 @@
       who runs the rounds: the farmer's Claude session (`claude`, the default) or the external
       timer (`timer`). A tick without --dry-run runs only in timer mode, so the two never overlap.
 
-State: roles/farmer/ of the farmer's worktree farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, runs.jsonl, questions.jsonl, wake.json,
+State: roles/farmer/ of the farmer's worktree farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, board.jsonl (board.py: the log's instructions, acks and notes, synced by every tick), runs.jsonl, questions.jsonl, wake.json,
 timer.json, tick.log, handoff.md, summaries/; its .gitignore ignores all but ROLE.md and itself.
 Exit 0 ok (also: another tick holds the lock, `busy`), 1 roles/farmer/ROLE.md invalid, 2 a tool missing,
 3 no roles/farmer/ROLE.md, 4 not the farmer's worktree (or one still named `farmer`: migrate first), a worktree holding other work, or not in timer mode.
@@ -58,6 +60,7 @@ import os
 import sys
 from pathlib import Path
 
+import board
 import decision_check
 import decision_log
 import delegation
@@ -101,7 +104,15 @@ def start_check(repo: str) -> tuple[int, dict]:
 
 
 def run_tick(repo: str, dry: bool, as_json: bool, all_due: bool = False) -> int:
-    return role_cli.run_tick(repo, dry, as_json, HANDLERS, WIRING, all_due)
+    """A round, with the message board's messages and acks (the log) copied before and after it (plan 0290 D23,
+    as the tollman's tick does); a dry run writes nothing."""
+    main_dir = tick.mtm_scan.main_checkout(repo)
+    if not dry:
+        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE)
+    code = role_cli.run_tick(repo, dry, as_json, HANDLERS, WIRING, all_due)
+    if not dry:
+        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE)
+    return code
 
 
 def follow_cron(repo: str) -> None:
@@ -147,6 +158,7 @@ def parser() -> argparse.ArgumentParser:
     w.add_argument("--json", action="store_true")
     ho = sub.add_parser("handoff")
     ho.add_argument("--clear", action="store_true")
+    ho.add_argument("--rewrite", action="store_true")
     ho.add_argument("--repo", default=os.getcwd())
     dc = sub.add_parser("decision-check")
     dc.add_argument("slot", nargs="?")

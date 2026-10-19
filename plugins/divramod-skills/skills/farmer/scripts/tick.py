@@ -211,7 +211,7 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
         data = json.loads(agents)
     except json.JSONDecodeError:
         data = []
-    rows = data.get("list", []) if isinstance(data, dict) else data
+    rows = data.get("agents", []) if isinstance(data, dict) else data
     queue = mtm_scan.run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
     tickets = queue.get("queue", [])
     landing = {t.get("slot") for t in tickets if t.get("state") == "active"

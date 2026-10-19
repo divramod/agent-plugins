@@ -43,6 +43,7 @@ from pathlib import Path
 import lead_marker
 import roles
 
+import flaky_checks
 import mtm_ci
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer worktree's roles/farmer/ (roles.state_dir)
@@ -305,7 +306,7 @@ def findings(snap: dict) -> list[dict]:
         if head.get("active_seconds", 0) > ACTIVE_TOO_LONG:
             f = {"kind": "active-long", "slot": head["slot"],
                  "why": f"landing {head.get('landing')} runs for {head['active_seconds'] // 60} min"}
-            if snap.get("ci") and (r := mtm_ci.running_run(snap["landings"], head["slot"])):
+            if snap.get("ci") and (r := mtm_ci.running_run(snap["landings"], head["slot"], head.get("land_ref"))):
                 f["run"] = r["url"]
             out.append(f)
     if snap["load"]["per_core"] >= LOAD_PER_CORE_HIGH and head and head["state"] == "active":
@@ -372,7 +373,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
     q_raw = run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
     q = q_raw.get("queue", [])
     agents_raw = run_json(["hal2-cli-agents", "list", "--json"]) or {}
-    agents = agents_raw.get("list", []) if isinstance(agents_raw, dict) else agents_raw
+    agents = agents_raw.get("agents", []) if isinstance(agents_raw, dict) else agents_raw
     by_checkout = agents_by_checkout(agents)
     unfinished = 0
     ci = mtm_ci.ci_mode(run, main, default)
@@ -391,6 +392,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
             "smuggle": t.get("smuggle"), "paused_by": t.get("paused_by"), "kept_by": t.get("kept_by"),
             "reserved": t.get("reserved"), "awaiting_slot": bool(t.get("reserved")) and not t.get("pid"),
             "ready": t.get("ready"),  # hitched (`worktree queue ready`): no process waits for it, by design
+            "land_ref": t.get("land_ref"),  # the branch a train's landing runs on (`land/train-...`, plan 0383)
             "train": t.get("train"),  # a carrier's mark: a standing train's ticket has no process either
             "waits_for": t.get("waits_for"),  # leaving: it ended and stays held until its worktree's runs have
             "active_seconds": int(now - (landing_start(t.get("landing")) or now)),
@@ -405,6 +407,8 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
     load1 = os.getloadavg()[0]
     cores = os.cpu_count() or 1
     pause_file = state_dir(main, role) / "paused.json"
+    if (cli_tests := flaky_checks.tests(run_json, main)) is not None:
+        tests = cli_tests  # the installed CLI knows `worktree checks`: its flaky list is the source (plan 0289 D20)
     snap = {
         "now": now, "repo": main, "default": default, "ci": ci, "runs_unfinished": unfinished, "queue": queue, "worktrees": wts,
         "landings": recent, "tests": tests,

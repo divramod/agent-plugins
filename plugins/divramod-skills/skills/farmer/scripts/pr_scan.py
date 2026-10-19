@@ -5,7 +5,8 @@
       every open pull request by kind, and findings:
         dependabot   the open dependency PRs (Renovate's, Dependabot's), as one batch (one foreman applies them all)
         superseded   a dependency PR main already holds (merging it changes nothing): closed by the tick
-        land-stale   a landing's PR (land/<slot>) whose worktree has no ticket in the merge queue for a day;
+        land-stale   a landing's PR (land/<slot>, or a train's land/train-<plans>) whose worktree or train has no
+                     ticket in the merge queue for a day;
                      `ahead` says how many commits the worktree still holds beyond main
         other        any other open PR (a person's, an app's): the user's to decide
 
@@ -44,6 +45,13 @@ def kind_of(pr: dict) -> str:
 def brief_pr(pr: dict) -> dict:
     return {"number": pr["number"], "title": pr.get("title", ""), "head": pr.get("headRefName", ""),
             "url": pr.get("url", ""), "created": pr.get("createdAt", "")}
+
+
+def queued_names(tickets: list[dict]) -> set[str]:
+    """What a landing PR's `land/<name>` is looked up by: each ticket's worktree and the train its ticket lands on (the
+    tollman's carrier holds the ticket of `land/train-<plans>`, plan 0383 step 1)."""
+    names = {t.get("slot") for t in tickets}
+    return names | {m[1] for t in tickets if (m := re.fullmatch(r"(?:land/)?(train-.+)", t.get("land_ref") or ""))}
 
 
 def findings(prs: list[dict], queued: set[str], superseded: set[int], ahead: dict[str, int], now: float) -> list[dict]:
@@ -97,7 +105,7 @@ def scan(repo: str) -> dict:
     if deps:
         run(["git", "fetch", "-q", "origin"] + [p["headRefName"] for p in deps], main)
     queue = run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
-    queued = {t.get("slot") for t in queue.get("queue", [])}
+    queued = queued_names(queue.get("queue", []))
     superseded = {p["number"] for p in deps if holds(main, p["headRefName"])}
     lands = any(kind_of(p) == "landing" for p in prs)
     found = findings(prs, queued, superseded, slot_ahead(main) if lands else {}, time.time())

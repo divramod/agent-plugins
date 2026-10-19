@@ -4,7 +4,8 @@ cleared at 11:27:09 (split after red), and the next train 09@11:47:24 formed on 
 origin/tollman-hal2 was refused at 11:52:57 as not a fast-forward, because the remote still held the red
 train's merge (the farmer's 17-4: three times that day). The new train's form puts the remote back on its base
 (`carrier.push_base`, leased) whatever the earlier end did; a retry keeps the red head there, since it lands it
-again. On engine_farm's farm (a bare origin, no landing, D5)."""
+again. On engine_farm's farm (a bare origin, no landing, D5). Since plan 0375 D5 the carrier is the train's own
+worktree and branch, `tollman-train-0274` for 09's plan: the same cars form the same name again."""
 
 import os
 import unittest
@@ -12,10 +13,11 @@ import unittest
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
 import train_state
-from engine_farm import OWN, Farm, out
+from engine_farm import Farm, out
 from test_farmer import git
 
-REF = f"refs/heads/{OWN}"
+C = "tollman-train-0274"
+REF = f"refs/heads/{C}"
 
 
 class RedCarrier(Farm):
@@ -26,7 +28,7 @@ class RedCarrier(Farm):
 
     def landing_push(self):
         """What the landing does with the carrier first: its head pushed to its remote branch, without force."""
-        return engine.git(str(self.wm), "push", "-q", "origin", f"HEAD:{REF}")
+        return engine.git(str(self.cw), "push", "-q", "origin", f"HEAD:{REF}")
 
     def remote(self):
         code, sha = engine.git(str(self.origin), "rev-parse", "--verify", "-q", REF)
@@ -41,10 +43,10 @@ class RedCarrier(Farm):
         self.assertEqual(self.landing_push()[0], 0, "the red train's landing pushed the carrier")
         self.ends({"status": "gate_failed", "run": "https://github.com/divramod/hal2/actions/runs/38553908506",
                    "red": [{"name": "02-hz01-host-x/claude-code-plugins-test"}]})
-        self.gate.of(OWN).update(state="held", train=None, hold={"reason": "failed"})
+        self.gate.of(C).update(state="held", train=None, hold={"reason": "failed"})
         self.round()
         self.assertEqual(self.train()["state"], "red")
-        return out(self.wm, "rev-parse", "HEAD")
+        return out(self.cw, "rev-parse", "HEAD")
 
     def refuse(self, on: bool):
         hook = self.origin / "hooks" / "pre-receive"
@@ -77,13 +79,14 @@ class RedCarrier(Farm):
     def test_a_remote_on_a_train_that_landed_before_pushes_nothing(self):
         self.round()
         self.assertEqual(self.landing_push()[0], 0)
-        landed = out(self.wm, "rev-parse", "HEAD")
+        landed = out(self.cw, "rev-parse", "HEAD")
         self.ends({"status": "landed", "run": "https://github.com/x/runs/1"}, land=True)
         self.round()
         self.assertIsNone(self.train(), "in the barn")
         git(self.main, "pull", "-q", "--ff-only")
         self.commit(self.main, "later.txt", "the barn moved on", push=True)
-        self.crop("07", {"seven.txt": "7"})
+        self.commit(self.fields["09"], "nine.txt", "9 again", push=True)  # the same plan's next crop: the same name
+        self.gate.hitch("09", self.fields["09"])
         self.round()
         self.assertIn(("form", "run", "-"), self.last)
         self.assertNotIn("pushed", self.last_line("formed"), "the landed train is in the base's history")
@@ -95,10 +98,10 @@ class RedCarrier(Farm):
         self.assertEqual(self.call("retry", "--why", "rust-test timing under load")[0], 0)
         self.round()  # restart: the empty retry commit on the red head (step 13)
         self.assertEqual(self.remote(), dead, "a retry lands the red head again: nothing reset")
-        self.assertEqual(out(self.wm, "rev-parse", "HEAD^"), dead)
+        self.assertEqual(out(self.cw, "rev-parse", "HEAD^"), dead)
         code, text = self.landing_push()
         self.assertEqual(code, 0, f"the retry's push fast-forwards, none of its commits dropped: {text}")
-        self.assertEqual(self.remote(), out(self.wm, "rev-parse", "HEAD"))
+        self.assertEqual(self.remote(), out(self.cw, "rev-parse", "HEAD"))
 
 
 if __name__ == "__main__":

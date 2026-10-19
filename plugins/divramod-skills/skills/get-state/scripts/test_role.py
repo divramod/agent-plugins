@@ -33,9 +33,16 @@ class Detect(unittest.TestCase):
         self.assertEqual(role.detect(self.field("farmer-hal2"), str(self.main)), "farmer")
         self.assertEqual(role.detect(self.field("tollman-hal2"), str(self.main)), "tollman")
 
-    def test_fields_00_to_29_are_foremen_30_to_99_servants(self):
-        for name, want in (("00", "foreman"), ("10", "foreman"), ("29", "foreman"), ("30", "servant"), ("99", "servant")):
-            self.assertEqual(role.detect(self.field(name), str(self.main)), want, name)
+    def test_a_field_is_a_foreman_whatever_its_number(self):
+        for name in ("00", "10", "29", "30", "99"):
+            self.assertEqual(role.detect(self.field(name), str(self.main)), "foreman", name)
+
+    def test_a_field_holding_plans_lead_is_a_servant_whatever_its_number(self):
+        for name in ("05", "30", "99"):
+            d = Path(self.field(name))
+            (d / "plans").mkdir()
+            (d / "plans" / "LEAD").write_text("07 0383-train-rules 16\n")
+            self.assertEqual(role.detect(str(d), str(self.main)), "servant", name)
 
     def test_other_names_are_unknown(self):
         for name in ("1", "100", "feature", "farmer-", "tollman", "a10"):
@@ -73,7 +80,7 @@ class Detect(unittest.TestCase):
     def test_the_override_wins(self):
         for r in role.ROLES:
             self.assertEqual(role.resolve(r, str(self.main), str(self.main)), r)
-        self.assertEqual(role.resolve(None, self.field("31"), str(self.main)), "servant")
+        self.assertEqual(role.resolve(None, self.field("31"), str(self.main)), "foreman")
 
     def test_roles(self):
         self.assertEqual(set(role.ROLES), {"farmer", "foreman", "servant", "steward", "tollman", "mayor", "lord", "pope"})

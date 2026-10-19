@@ -11,7 +11,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import generated
 import train_state
-from engine_farm import OWN, Farm, out
+from engine_farm import Farm, out
 from test_farmer import git
 
 MAP = """[[generated]]
@@ -61,16 +61,16 @@ class GeneratedConflicts(Farm):
         self.assertEqual(([c["field"] for c in d["cars"]], d["unhitched"]), (["07", "13"], []))
         r = self.round()
         self.assertEqual((self.last, r["wake"]), ([("form", "run", "-")], []))
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", OWN, "07", "13"]])
-        self.assertEqual(self.state(), [("formed", OWN), ("regenerated", OWN), ("started", OWN)])
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "13"]])
+        self.assertEqual(self.state(), [("formed", self.carrier()), ("regenerated", self.carrier()), ("started", self.carrier())])
         self.assertEqual(self.subjects()[0], generated.SUBJECT, "the regeneration is the train's last commit")
-        self.assertEqual(out(self.wm, "log", "-1", "--format=%(trailers:key=Worktree,valueonly,separator=%x2C)").strip().replace(" ", ""),
+        self.assertEqual(out(self.cw, "log", "-1", "--format=%(trailers:key=Worktree,valueonly,separator=%x2C)").strip().replace(" ", ""),
                          "07,13", "the cars' fields, in car order, as the origin trailer (plan 0355)")
-        self.assertEqual(out(self.wm, "show", "HEAD:plans/uats.md") + "\n", uats("0001", "0007", "0009", "0013"))
-        self.assertEqual(out(self.wm, "status", "--porcelain", "--untracked-files=no"), "")
-        self.assertFalse((self.wm / "elsewhere.md").exists(), "only the entry's paths are written")
+        self.assertEqual(out(self.cw, "show", "HEAD:plans/uats.md") + "\n", uats("0001", "0007", "0009", "0013"))
+        self.assertEqual(out(self.cw, "status", "--porcelain", "--untracked-files=no"), "")
+        self.assertFalse((self.cw / "elsewhere.md").exists(), "only the entry's paths are written")
         line = [e for e in train_state.lines(str(self.main)) if e["kind"] == "regenerated"][0]
-        self.assertEqual((line["commit"], line["files"]), (out(self.wm, "rev-parse", "HEAD"), ["plans/uats.md"]))
+        self.assertEqual((line["commit"], line["files"]), (out(self.cw, "rev-parse", "HEAD"), ["plans/uats.md"]))
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "13"])
 
     def test_a_conflict_in_generated_and_other_files_still_unhitches(self):
@@ -113,9 +113,9 @@ class GeneratedConflicts(Farm):
         self.assertEqual((self.last, [w["kind"] for w in r["wake"]], form["exit"]),
                          ([("form", "run", "-")], ["train-stuck"], 1))
         self.assertIn("not written again: python3 gen.py: code/a/libs/x/README.md: missing", form["output"])
-        self.assertEqual(self.state(), [("formed", OWN), ("regenerated", OWN), ("cleared", OWN)])
+        self.assertEqual(self.state(), [("formed", self.carrier()), ("regenerated", self.carrier()), ("cleared", self.carrier())])
         self.assertEqual((self.train(), self.spawned, self.gate.of("07")["ready"] is not None), (None, [], True))
-        self.assertEqual(out(self.wm, "rev-parse", "HEAD"), out(self.main, "rev-parse", "HEAD"), "back on the barn")
+        self.assertFalse(self.cw.exists(), "back on its base and dropped (plan 0375 D5)")
 
     def test_without_a_map_nothing_is_generated_and_a_glob_stays_in_its_segment(self):
         git(self.main, "rm", "-q", ".github/hal2-versions.toml")

@@ -89,7 +89,9 @@ reserve() {
   mins=$(minutes "$max_wait")
   if bin=$(hal2_bin); then
     (cd "$top" && "$bin" worktree reserve --max-wait "${mins}m" --json) || rc=$?
-    case "$rc" in 0) ;; 6) exit 7 ;; 2) exit 1 ;; *) exit "$rc" ;; esac
+    # 10 waiting (6 from a hal2-cli-git before plan 0318): the slice passed. Since plan 0318 row 22 hal2 says 11
+    # conflict, 12 red, 13 stopped (3, 4, 5 before): this script keeps saying 3, 4, 5.
+    case "$rc" in 0) ;; 6|10) exit 7 ;; 2) exit 1 ;; 11) exit 3 ;; 12) exit 4 ;; 13) exit 5 ;; *) exit "$rc" ;; esac
   else
     lock_take "$mins"
   fi
@@ -120,7 +122,8 @@ land() {
   before=$(git -C "$top" rev-parse "origin/$default")
   if bin=$(hal2_bin); then
     (cd "$top" && "$bin" worktree merge-to-main --local --keep-reserved --max-wait "${mins}m" --json) || rc=$?
-    case "$rc" in 0) ;; 2|4) exit 1 ;; 6) exit 7 ;; *) exit "$rc" ;; esac
+    # red 12 (4 before plan 0318 row 22) is this script's 1; conflict 11 and stopped 13 its 3 and 5.
+    case "$rc" in 0) ;; 2|4|12) exit 1 ;; 6|10) exit 7 ;; 11) exit 3 ;; 13) exit 5 ;; *) exit "$rc" ;; esac
   else
     "$SMUGGLE_HERE/plain-land.sh" "$top"
   fi

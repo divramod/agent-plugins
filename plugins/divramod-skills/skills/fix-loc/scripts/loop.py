@@ -74,6 +74,11 @@ def run_json(args, cwd=None):
     return json.loads(out.stdout)
 
 
+def agent_rows(listed):
+    """`list --json`'s agents: `{agents: [...]}` (hal2 plan 0318 on) or an older hal2's bare list."""
+    return listed.get("agents", []) if isinstance(listed, dict) else listed
+
+
 def main_checkout(repo):
     """The repository's main checkout (the `project` hal2-cli-agents names)."""
     common = layout.git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
@@ -99,7 +104,7 @@ def observe(repo, project, servant):
     queue = run_json(["hal2-cli-git", "worktree", "queue", "--json"], cwd=project).get("queue", [])
     plan = servant.get("plan") or current_plan(servant.get("worktree"))
     return {
-        "agents": run_json(["hal2-cli-agents", "list", "--json"]),
+        "agents": agent_rows(run_json(["hal2-cli-agents", "list", "--json"])),
         "queue": [t for t in queue if not servant.get("worktree") or t.get("worktree") == servant["worktree"]],
         "landed": plan_landed(repo, ref, plan if plan and tick.PLAN_SLUG.match(plan) else None),
         "current_plan": plan,
@@ -177,7 +182,7 @@ def spawn_next(repo, state, now, values, dry_run, result):
     prompt = fill_prompt(unit, found["limit"], values["step_model"])
     command = [sys.executable, str(CREATE), "--repo", state["project"], "--from", "30",
                "--model", values["coordinator_model"], "--effort", values["coordinator_effort"],
-               "--exact", "--prompt", prompt]
+               "--role", "foreman", "--exact", "--prompt", prompt]
     result.update(action="next", unit=unit["unit"], files=[f["path"] for f in unit["files"]],
                   command=command[:-1] + ["<prompt>"], prompt=prompt, settings=values)
     if dry_run:

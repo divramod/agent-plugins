@@ -16,7 +16,8 @@ if command -v hal2-cli-shooter >/dev/null 2>&1 && hal2-cli-shooter --help | grep
 else
   echo "MISSING hal2-cli-shooter (optional) -> cargo install --git https://github.com/divramod/hal2 hal2-cli-shooter"
 fi
-if command -v hal2-cli-agents >/dev/null 2>&1 && hal2-cli-agents --help | grep -q 'spawn <repo>'; then
+# `help spawn`: hal2-cli-agents on hal2_core::cli prints `spawn [OPTIONS] <REPO>`, an older one its usage `spawn <repo>`.
+if command -v hal2-cli-agents >/dev/null 2>&1 && hal2-cli-agents help spawn 2>/dev/null | grep -qi 'spawn .*<repo>'; then
   echo "ok hal2-cli-agents"
 else
   echo "MISSING hal2-cli-agents (optional) -> cargo install --git https://github.com/divramod/hal2 hal2-cli-agents"

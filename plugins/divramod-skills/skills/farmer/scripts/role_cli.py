@@ -61,8 +61,8 @@ def start_check(repo: str, wiring: roles.Wiring) -> tuple[int, dict]:
     items, settings, problems = due.schedule(role.read_text(), wiring.duties)
     if problems:
         return 1, {"ok": False, "problems": problems}
-    return 0, {"ok": True, "loop_cron": due.loop_cron(items), "settings": settings, "mode": mode(top, wiring),
-               "items": sorted(items)}
+    return 0, {"ok": True, "loop_cron": due.loop_cron(items, wiring.min_tick), "settings": settings,
+               "mode": mode(top, wiring), "items": sorted(items)}
 
 
 def print_start_check(code: int, result: dict, as_json: bool) -> int:
@@ -162,15 +162,33 @@ def run_timer(args, wiring: roles.Wiring) -> int:
     return 0
 
 
+def read_first(main: str, data: dict, wiring: roles.Wiring) -> dict:
+    """The wake data with the handoff as item seq 0 whenever handoff.md exists, so the session reads it first."""
+    h = handoff.path(main, wiring)
+    if not h.exists():
+        return data
+    item = {"seq": 0, "do": "read", "duty": "handoff", "kind": "handoff", "slot": wiring.role,
+            "text": f"read {h} first", "instructions": str(h)}
+    return {**data, "items": [item] + [i for i in data["items"] if i.get("seq") != 0]}
+
+
 def run_wake(args, wiring: roles.Wiring) -> int:
-    """What the tick handed to the role's session (wake.json); `--done <seq>` drops the items up to it."""
+    """What the tick handed to the role's session (wake.json); `--done <seq>` drops the items up to it. The
+    handoff, when there is one, is always item 0 (never dropped by `--done`)."""
     main = tick.mtm_scan.main_checkout(args.repo)
     if args.done is not None:
-        print(f"{wake.done(main, args.done, wiring)} items left")
+        left = wake.done(main, args.done, wiring)
+        print(f"{left + handoff.path(main, wiring).exists()} items left")
         return 0
-    data = wake.read(main, wiring)
+    closed = wake.close_older(main, handoff.written(main, wiring), wiring)
+    data = read_first(main, wake.read(main, wiring), wiring)
     if handoff.path(main, wiring).exists() and not args.json:
-        print(f"read first: {handoff.path(main, wiring)}")
+        first = handoff.do_first(main, wiring)
+        if first:  # without the section the handoff's item 0 names the file
+            print(f"DO FIRST (from {handoff.path(main, wiring)}):\n{first}\n")
+        if closed:
+            print(f"closed {len(closed)} items older than the handoff: "
+                  + ", ".join(f"{i['kind']} {i['slot']}" for i in closed))
     if args.json:
         print(json.dumps(data, indent=1))
         return 0
@@ -183,6 +201,9 @@ def run_wake(args, wiring: roles.Wiring) -> int:
 
 def run_handoff(args, wiring: roles.Wiring) -> int:
     main = tick.mtm_scan.main_checkout(args.repo)
+    if args.rewrite:
+        print(handoff.rewrite(main, datetime.datetime.now(), wiring))
+        return 0
     if not args.clear:
         print(handoff.show(main, wiring))
         return 0

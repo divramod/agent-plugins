@@ -110,6 +110,8 @@ def resolve_plan(arg: str | None, root: Path) -> str:
 def load(plan: str, root: Path) -> dict:
     """The CLI's record of one plan: slug, before, checks (key, check, status), counts."""
     records = json.loads(run_cli(["uat", "list", "--plan", plan, "--json"], root) or "[]")
+    if isinstance(records, dict):  # {"uats": [...]} since hal2 plan 0318; a bare list before
+        records = records.get("uats") or []
     for record in records:
         if record.get("slug") == plan:
             return record

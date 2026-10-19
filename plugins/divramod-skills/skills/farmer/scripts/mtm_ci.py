@@ -68,10 +68,23 @@ def ci_mode(run, main: str, default: str) -> bool:
     return any(run(["git", "cat-file", "-t", f"origin/{default}:{f}"], main).strip() for f in LAND_FILES)
 
 
+def train_of(ref: str) -> str:
+    """`land/train-0383-0365` (or `train-0383-0365`) -> `train-0383-0365`: a train's own landing branch (hal2 plan 0383
+    step 1; the tollman's train_branch.py); a worktree's `land/<worktree>`, probes and other branches -> ``."""
+    m = re.fullmatch(r"(?:land/)?(train-[a-z0-9-]+)", ref or "")
+    return m.group(1) if m and "probe" not in m.group(1) else ""
+
+
 def slot_of(branch: str) -> str:
-    """`land/07` -> `07`; probes (`land/12-probe`) and other branches -> ``."""
+    """`land/07` -> `07`; probes (`land/12-probe`), a train's branch (`land/train-0383-0365`, see `train_of`: it
+    belongs to a train, no worktree) and other branches -> ``."""
     m = re.fullmatch(r"land/([^/]+)", branch or "")
-    return m.group(1) if m and "-probe" not in m.group(1) else ""
+    return m.group(1) if m and "-probe" not in m.group(1) and not train_of(branch) else ""
+
+
+def landing_of(branch: str) -> str:
+    """The worktree or the train a land branch belongs to (``: none)."""
+    return slot_of(branch) or train_of(branch)
 
 
 def started(run: dict) -> float:
@@ -186,8 +199,8 @@ def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:
     `jobs_of(run id)` gives a failed run's jobs (`gh run view --json jobs`)."""
     out = []
     for r in runs:
-        slot = slot_of(r.get("headBranch") or "")
-        if not slot or started(r) < since:
+        slot, train = slot_of(r.get("headBranch") or ""), train_of(r.get("headBranch") or "")
+        if not (slot or train) or started(r) < since:
             continue
         o = outcome(r)
         jobs = jobs_of(r["databaseId"]) if o != "landed" else []
@@ -196,7 +209,7 @@ def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:
         elif o == "running" and stopped_by(jobs):
             o = "failed"  # decided at its first cause, whatever still ends (hal2-git returns then)
         red = red_jobs(jobs) if o == "failed" else []
-        out.append({"id": str(r.get("databaseId")), "slot": slot, "outcome": o,
+        out.append({"id": str(r.get("databaseId")), "slot": slot, "train": train, "outcome": o,
                     "task": ", ".join(red) if o == "failed" else "", "tests": [], "load_hint": False,
                     "url": r.get("url"), "sha": (r.get("headSha") or "")[:8], "started": started(r)})
     return out
@@ -225,13 +238,16 @@ def unfinished(run_json, main: str) -> int:
 def landings(run_json, main: str, since: float) -> list[dict]:
     """The recent landing rows; the not-landed runs' jobs fetched together, once per round (gh_runs)."""
     runs = runs_of(run_json, main)
-    need = [r for r in runs if slot_of(r.get("headBranch") or "") and started(r) >= since and outcome(r) != "landed"]
+    need = [r for r in runs if landing_of(r.get("headBranch") or "") and started(r) >= since and outcome(r) != "landed"]
     jobs = gh_runs.jobs([r["databaseId"] for r in need],
                         {r["databaseId"] for r in need if r.get("status") == "completed"},
                         gh_runs.view_jobs(run_json, main))
     return summary(runs, lambda rid: jobs.get(rid, []), since)
 
 
-def running_run(recent: list[dict], slot: str) -> dict | None:
-    """The worktree's candidate under test, newest first."""
-    return next((l for l in recent if l["slot"] == slot and l["outcome"] == "running"), None)
+def running_run(recent: list[dict], slot: str, land_ref: str | None = None) -> dict | None:
+    """The worktree's candidate under test, newest first; `land_ref`: the train branch its ticket lands on (the
+    tollman's carrier), whose run belongs to the train, not to a slot."""
+    train = train_of(land_ref or "")
+    return next((l for l in recent if l["outcome"] == "running"
+                 and (l["slot"] == slot or (train and l.get("train") == train))), None)

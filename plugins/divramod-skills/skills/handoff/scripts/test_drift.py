@@ -155,7 +155,9 @@ class SkillOrderTest(unittest.TestCase):
         cont = text[text.index("\n## Continue\n"):text.index("\n## Write\n")]
         self.assertLess(cont.index("\n0. **Restore"), cont.index("\n1. Read the handoff"))
         blocks = re.findall(r"```bash\n(.*?)```", cont, re.S)
-        self.assertIn("drift.py", blocks[0])
+        self.assertIn("session_role.py", blocks[0])  # plan 0383 D15: the role skill is loaded before anything else
+        self.assertLess(cont.index("\n00. **Load your role"), cont.index("\n0. **Restore"))
+        self.assertIn("drift.py", blocks[1])
         self.assertFalse([b for b in blocks if "--sync" in b], "Continue runs no --sync of its own")
 
     def test_write_persists_run_before_the_handoff_is_stamped_and_clear_takes_the_effort(self):

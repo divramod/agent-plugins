@@ -37,7 +37,7 @@ def sessions_in(paths: list[Path]) -> list[str]:
         data = json.loads(deliver.cli("list", "--json")[1] or "[]")
     except json.JSONDecodeError:
         return []
-    rows = data.get("list", []) if isinstance(data, dict) else data
+    rows = data.get("agents", []) if isinstance(data, dict) else data
     want = {str(p) for p in paths}
     return [f"{r.get('pane_id')} ({r.get('state')})" for r in rows
             if r.get("checkout") in want and r.get("state") not in GONE]

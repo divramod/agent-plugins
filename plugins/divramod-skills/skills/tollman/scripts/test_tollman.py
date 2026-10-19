@@ -49,11 +49,13 @@ class Wiring(unittest.TestCase):
         self.assertEqual((w.role, w.cli, w.skill), ("tollman", SCRIPTS / "tollman.py", SCRIPTS.parent))
         self.assertEqual((w.act, w.handoff, w.delegates), ("/tollman act", "/tollman handoff", False))
         self.assertEqual((w.duties, dict(w.subskills)),
-                         (("mtm", "trains", "checks", "learn", "prune", "mainred"),
+                         (("mtm", "trains", "checks", "learn", "prune", "mainred", "watch"),
                           {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
         self.assertEqual(w.role_files, ("roles/tollman/ROLE.md", "roles/tollman/.gitignore"))
         self.assertEqual(set(tollman.HANDLERS), {"duty:mtm", "duty:trains", "duty:checks", "duty:learn", "duty:prune",
-                                                 "duty:mainred"}, "no task:* (D22)")
+                                                 "duty:mainred", "duty:watch"}, "no task:* (D22)")
+        self.assertEqual(w.min_tick, 1, "the watch ticks every minute (plan 0383 step 4)")
+        self.assertEqual(roles.FARMER.min_tick, 5)
         self.assertIs(w.carries, tollman.own_fix.carries, "D22: the field carries the trains and the barn's own fix")
         self.assertIsNone(roles.FARMER.carries)
 
@@ -134,7 +136,7 @@ class Start(Field):
     def test_a_duty_of_the_farmer_s_is_unknown_here_and_no_role_file_is_nothing_to_run(self):
         self.commit(self.wm, WIRING.role_file, ROLE.replace("trains:", "lead:"))
         code, out = self.call("start-check")
-        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains, checks, learn, prune, mainred)\n"))
+        self.assertEqual((code, out), (1, "- unknown duty 'lead' (known: mtm, trains, checks, learn, prune, mainred, watch)\n"))
         git(self.wm, "rm", "-q", WIRING.role_file)
         code, out = self.call("start-check")
         self.assertEqual(code, 3)

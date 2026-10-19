@@ -22,6 +22,9 @@ Three uses:
    or set this worktree's entry (`queue entry-mode <slot> smuggle`, hal2 plan 0365 D5); the tollman leaves it out of its
    trains and its `/mtm` smuggles (below).
 
+## A queued place is never given up
+Once queued (hitched or landing) a worktree never leaves the merge queue on its own: no `hal2-cli-git worktree stop`, never `--release`, no `gh run cancel` of its own land run; on a red run it fixes its code until the CI/CD workflow passes. Only the user or the farmer takes it out (`worktree stop --release`). `ci-stop.sh` (the user's smuggle) only pauses another landing: its place stays held (hal2 plan 0383 D3). Record `~/.adr/queued-place-never-given-up.md`.
+
 ## Who starts it
 
 **The user** (the skill's command in this session), **or `/mtm` in smuggle mode** (hal2 plan 0360 D53, D75,
@@ -63,9 +66,9 @@ hal2's smuggle guide in docs/).
 | `/smuggle h` | print this table and stop |
 
 `hal2-cli-git worktree merge-to-main --smuggle` exits 0 landed or nothing to merge, 1 an error, 2 a usage error
-(`--local` and `--keep-reserved` are refused with it), 3 a conflict, 4 `checks_failed`, `gate_failed` or
-`delivery_failed`, 5 `stopped`, `cancelled` or `interrupted`, 6 `queued`; the [land](#land) section says what to do
-for each. The skill's own scripts exit 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool (run
+(`--local` and `--keep-reserved` are refused with it), 11 a conflict, 12 `checks_failed`, `gate_failed` or
+`delivery_failed`, 13 `stopped`, `cancelled` or `interrupted`, 10 `queued` (3, 4, 5 and 6 before plan 0318); the
+[land](#land) section says what to do for each. The skill's own scripts exit 0 ok, 1 red or not runnable (fix and rerun), 2 a missing tool (run
 `bash $S/install-prerequisites.sh`, then rerun), 3 a conflict, 4 a change outside the units (ask the user), 5 stopped
 by the user, 6 refused (`--from-mtm` in production mode), 7 a wait over `--max-wait`
 (default 60m: tell the user; a held reservation stays held), 64 a usage error. Long waits (`reserve`, `ci-stop.sh`,
@@ -102,11 +105,11 @@ result by exit code and `status`:
 |---|---|---|
 | 0 | `landed`, `nothing` | done. Report `phases`, `report` (its `ci` line lists the jobs left to the next land run), `warnings`, `gate_base` |
 | 1 | `failed` | report the error; fix and rerun |
-| 3 | `conflict` | resolve as the mfm skill does, commit, rerun |
-| 4 | `checks_failed`, `gate_failed`, `delivery_failed` | the smuggle left the queue: read `part` and `tail`, fix, commit, rerun (it queues again). A `delivery_failed` with `landed: true` is already on the default branch: fix it in a new smuggle |
-| 5 | `stopped`, `cancelled` | the user's stop is final: report and stop |
-| 5 | `interrupted` | its process went away: rerun the same command, it adopts the landing |
-| 6 | `queued` | the wait's slice passed: rerun the same command at once, the ticket keeps its place |
+| 11 (or 3) | `conflict` | resolve as the mfm skill does, commit, rerun |
+| 12 (or 4) | `checks_failed`, `gate_failed`, `delivery_failed` | the smuggle left the queue: read `part` and `tail`, fix, commit, rerun (it queues again). A `delivery_failed` with `landed: true` is already on the default branch: fix it in a new smuggle |
+| 13 (or 5) | `stopped`, `cancelled` | the user's stop is final: report and stop |
+| 13 (or 5) | `interrupted` | its process went away: rerun the same command, it adopts the landing |
+| 10 (or 6) | `queued` | the wait's slice passed: rerun the same command at once, the ticket keeps its place |
 
 Then **finish** as mtm steps 5-8 (plan steps checked after the landing, then land those too; CURRENT_PLAN;
 cleanup); the command released the queue itself, so no `smuggle.sh release`. The report adds:

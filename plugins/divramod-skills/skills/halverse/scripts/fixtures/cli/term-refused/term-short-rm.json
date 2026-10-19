@@ -1,7 +1,1 @@
-{
-  "error": {
-    "code": "no-short-form",
-    "message": "the glossary has no short form zz",
-    "detail": {}
-  }
-}
+{"error":{"code":"not_found","exit":3,"message":"the glossary has no short form zz","hint":null,"details":{"reason":"no-short-form"}}}

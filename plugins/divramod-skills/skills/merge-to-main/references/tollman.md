@@ -9,17 +9,26 @@ afterwards. `S=<skill-dir>/scripts`.
 ## The check
 
 `tollman.sh` reads `python3 <tollman skill>/scripts/tollman.py status --json` (state files and one
-timer probe; no model, no network) and the installed hal2-cli-git's help. It always exits 0; the answer is its one
+timer probe; no model, no network), the tollman's sleep flag and the installed hal2-cli-git's help. It always exits 0; the answer is its one
 line on stdout, the reason for a `no` one line on stderr.
 
 | Answer | When |
 |---|---|
-| `yes` | the worktree `tollman-<repo>` exists, its timer is loaded and its mode is `timer`, its last round is at most 30 minutes old, the worktree asked for is not the tollman's own, and `hal2-cli-git --help` names `worktree queue ready` |
-| `no` | anything else, and every doubt: a missing tool or tollman skill, a status that cannot be read, a last round in the future |
+| `yes` | the worktree `tollman-<repo>` exists, its timer is loaded and its mode is `timer`, its last round is at most 30 minutes old, the worktree asked for is not the tollman's own, `hal2-cli-git --help` names `worktree queue ready` and the tollman's sleep flag is off |
+| `no` | anything else, and every doubt: a missing tool or tollman skill, a status that cannot be read, a last round in the future; and an asleep tollman (its sleep flag `roles/tollman/sleep.json` in the field `tollman-<repo>` stands) |
 
 `no` is never a failure: `/mtm` lands as SKILL.md says. A tollman that goes down after a hitch does not
 strand the work either: the next `/mtm` of the worktree gets `no`, and its own `reserve` or `merge-to-main` takes
 the ready ticket over at its place.
+
+## The tollman asleep
+
+The tollman sleeps on its flag (`hal2-cli-roles sleep tollman on|off`, `/tollman sleep|wake`; hal2 plan 0365 D3, 0375).
+While the flag stands `tollman.sh` prints `no`: the tollman forms no train and starts no land run (a train it formed
+and has not started is dropped, its cars keep their places), so `/mtm` hitches nothing and lands itself as SKILL.md
+says (reserve, one landing in its turn of the one merge queue, wagons in queue order). A field that was hitched before
+is told once `land yourself now` (`/mtm`, which smuggles when its entry's mode is smuggle) and keeps its place; a train
+that is already landing goes on. When the flag is off, `tollman.sh` prints `yes` again.
 
 ## Smuggle mode
 
@@ -56,7 +65,7 @@ that is part of step 2, done once before the command is run again:
 | `has uncommitted changes in <n> tracked file(s)` | commit and push them (step 2), run the command again |
 | `holds nothing <default> lacks: nothing to bring in` | nothing to land: say so; steps 6 to 8 as after a landing that landed nothing |
 | `origin/<branch> is ahead of the worktree` | report it: someone else pushed to this branch |
-| `its ticket #<n> is at the head of the merge queue (...)`, `its own landing waits in the merge queue`, `its smuggle keeps a place` | this worktree's own landing is on its way: report the message, it names the way out (its `merge-to-main` lands it, `worktree release` or `stop` gives it up); never hitch around it |
+| `its ticket #<n> is at the head of the merge queue (...)`, `its own landing waits in the merge queue`, `its smuggle keeps a place` | this worktree's own landing is on its way: report the message, it names the way out (its `merge-to-main` lands it, `worktree release` or `stop --release` gives it up; a plain `stop` keeps the place); never hitch around it |
 | exit 2, `unknown ...` | the installed hal2-cli-git is older than the hitch: land as SKILL.md says |
 
 **Afterwards the session goes on working**, or ends its turn; a finished `Landing: auto` plan ends its turn here

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """A refusal of `hal2-cli-halverse term ...`, worded (plan 0276, D15, D53, D54).
 
-The CLI's error is `{code, message, detail}` and its exit code says the kind: 2 a wrong call or a file that cannot be
-read, 3 refused (nothing written), 4 a file changed meanwhile or the lock is held, 5 the write did not go through. Per
+The CLI's error is `{code, message, detail}` (cli.py reads the contract's `{code, exit, message, hint, details}` into it,
+the writer's code from `details.reason`) and this script's exit code says the kind: 2 a wrong call or a file that cannot
+be read, 3 refused or not found (nothing written), 4 a file changed meanwhile or the lock is held, 5 the write did not go
+through (cli.py tells these whatever exits the CLI used, 2, 4, 5 and 1 since plan 0318). Per
 code one advice, then the CLI's own message and what its detail names: the field, the file and the line that refused,
 the problems a write would cause, the lines of a refused dry run, what was undone, and what an interrupted earlier write
 left or had put back. Python stdlib only.

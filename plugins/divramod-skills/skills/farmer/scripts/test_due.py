@@ -56,6 +56,12 @@ class Cron(unittest.TestCase):
         self.assertEqual(due.loop_cron({"a": "* * * * *"}), "2-59/5 * * * *")
         self.assertEqual(due.loop_cron({"a": "7 9 * * *"}), "4 * * * *")
 
+    def test_a_role_with_a_one_minute_duty_loops_every_minute(self):
+        """Hal2 plan 0383 step 4: the tollman's watch (`* * * * *`); the default floor of 5 minutes stays."""
+        self.assertEqual(due.loop_cron({"watch": "* * * * *", "trains": "*/5 * * * *"}, 1), "* * * * *")
+        self.assertEqual(due.loop_cron({"checks": "*/2 * * * *", "trains": "*/5 * * * *"}, 1), "1-59/2 * * * *")
+        self.assertEqual(due.loop_cron({"watch": "* * * * *", "trains": "*/5 * * * *"}), "2-59/5 * * * *")
+
 
 class Role(unittest.TestCase):
     def test_only_what_is_opted_in(self):

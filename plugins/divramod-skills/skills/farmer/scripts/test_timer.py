@@ -24,6 +24,14 @@ class Cron(unittest.TestCase):
         with self.assertRaises(ValueError):
             timer.minutes("0 9 * * 1")
 
+    def test_the_every_minute_cron_runs_the_tick_at_all_sixty_minutes(self):
+        """Hal2 plan 0383 step 4: the tollman's watch is a duty on `* * * * *`."""
+        self.assertEqual(timer.minutes("* * * * *"), list(range(60)))
+        text = timer.plist("proj", "/x/tollman-proj", Path("/x/state"), "* * * * *")
+        self.assertEqual(text.count("<key>Minute</key>"), 60)
+        self.assertIn("OnCalendar=*-*-* *:" + ",".join(f"{m:02d}" for m in range(60)) + ":00",
+                      timer.systemd("proj", "/x/tollman-proj", Path("/x/state"), "* * * * *")[1])
+
     @unittest.skipUnless(shutil.which("plutil"), "plutil is macOS's (the gate job runs on Linux)")
     def test_the_plist_is_valid_and_runs_the_tick_at_each_minute(self):
         state = Path(tempfile.mkdtemp())

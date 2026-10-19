@@ -57,6 +57,17 @@ class Scan(unittest.TestCase):
         self.assertEqual(pr_scan.findings([pr(16, "land/08")], set(), set(), {}, T), [])
         self.assertEqual([f["kind"] for f in pr_scan.findings([old], set(), set(), {}, T)], ["land-stale"])
 
+    def test_a_train_s_landing_pr_is_kept_while_the_ticket_lands_on_its_branch(self):
+        """Hal2 plan 0383 step 1: a train's PR is `land/train-<plans>`; its carrier's ticket names that branch in
+        `land_ref`, not in its slot, so a red train waiting for its fix is not a leftover."""
+        old = pr(30, "land/train-0383-0365", updated="2026-10-04T09:00:00")
+        tickets = [{"slot": "tollman-hal2", "land_ref": "land/train-0383-0365"}, {"slot": "08", "land_ref": None}]
+        self.assertEqual(pr_scan.queued_names(tickets), {"tollman-hal2", "08", "train-0383-0365"})
+        self.assertEqual(pr_scan.kind_of(old), "landing")
+        self.assertEqual(pr_scan.findings([old], pr_scan.queued_names(tickets), set(), {}, T), [])
+        gone = pr_scan.findings([old], pr_scan.queued_names(tickets[1:]), set(), {}, T)
+        self.assertEqual([(f["kind"], f["slot"]) for f in gone], [("land-stale", "train-0383-0365")])
+
     def test_drafts_are_left_alone(self):
         self.assertEqual(pr_scan.findings([pr(9, "feature", draft=True)], set(), set(), {}, T), [])
 

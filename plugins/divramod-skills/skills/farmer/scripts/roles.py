@@ -50,7 +50,9 @@ class Wiring:
     `carries(field)`: the role's field holds other fields' commits by design now (the tollman's while a train
     stands, hal2 plan 0294 D22), so the round neither refuses them, merges from main nor commits a role file edit;
     `session_effort`: the role's session runs at its ROLE.md's `session_effort` (default high), also after a clear
-    (hal2 plan 0333 D4); `env`: the variables, besides PATH, the timer's unit passes on to the tick (plan 0311)."""
+    (hal2 plan 0333 D4); `env`: the variables, besides PATH, the timer's unit passes on to the tick (plan 0311);
+    `min_tick`: the shortest gap between two ticks (due.loop_cron), 5 minutes unless the role has a duty on a shorter
+    cron (hal2 plan 0383 step 4: the tollman's 1-minute watch)."""
     role: str
     cli: Path
     skill: Path
@@ -62,6 +64,7 @@ class Wiring:
     carries: Callable[[str], bool] | None = None
     session_effort: bool = False
     env: tuple[str, ...] = ("FARMER_DIR",)
+    min_tick: int = 5  # the shortest gap, in minutes, between two ticks the timer may run (the tollman's watch: 1)
 
     @property
     def role_file(self) -> str:

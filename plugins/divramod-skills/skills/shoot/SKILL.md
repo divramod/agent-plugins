@@ -24,8 +24,8 @@ would hide the table and most ids. Ask any other question by the global question
 1. `hal2-cli-shooter shots list-open [<shotfile>] --json` from the current directory. It always reads the main
    checkout's `shotfiles/` (the default branch), also from a worktree, so every worktree sees the same shots and
    ids; a worktree's own `shotfiles/` counts only when the main checkout has none. If the command is missing or
-   has no `shots list-open`, run `bash $S/install-prerequisites.sh` once and retry. Exit 1 prints why on stderr
-   (no `shotfiles/` folder, not a git repository): report it and stop.
+   has no `shots list-open`, run `bash $S/install-prerequisites.sh` once and retry. A failure (exit 1, or 3 when there is
+   no `shotfiles/` folder) prints why on stderr (not a git repository): report it and stop.
 2. The JSON is `{"shotfiles": <dir>, "shots": [{id, file, number, title, line, path, modified, body}]}`. Only open
    shots with a title are listed. `id` is the shot's position in the repo's full list, so it stays the same with
    or without a filter until a shotfile changes.
@@ -114,7 +114,7 @@ unknown id: say so and stop), before marking any: ids refer to that list.
    `hal2-cli-shooter shots mark-sent <file> <number> --json` (a global shot: `--global`). It turns the header
    into `## x shot <n> <title> (<timestamp>) [<worktree>]`, as hal2-nvim's `<space><NN>` does (a global shot:
    `[<repo>/<worktree>]`, e.g. `[hal2/00]`, since the shotfile names no repository), and prints the shot:
-   `{file, path, number, title, line, sent, worktree, body}`. Exit 1 (`already sent`, `no shot`): report that shot and
+   `{file, path, number, title, line, sent, worktree, body}`. A failure (exit 4 `already sent`, exit 3 `no shot`): report that shot and
    leave it out; the shotfile changed since the list.
 2. Print each marked shot in a code block, as `<space>00` shows what was sent:
 

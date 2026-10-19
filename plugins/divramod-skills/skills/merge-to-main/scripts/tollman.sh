@@ -8,8 +8,11 @@
 #   - its timer is loaded and its mode is `timer`;
 #   - its last round is at most 30 minutes old: a tollman that is down never holds the work;
 #   - <dir> is not the tollman's own worktree: that one lands itself;
+#   - the tollman is awake (hal2 plan 0365 D3, 0375): its sleep flag `roles/tollman/sleep.json` of its worktree
+#     (`hal2-cli-roles sleep tollman on|off`) is off; while it stands no train carries a hitched wagon: /mtm lands
+#     itself, alone, in its place in the queue;
 #   - the installed hal2-cli-git knows `worktree queue ready` (its help names it), or the hitch would fail.
-# The first three are read from `tollman.py status --json` of the tollman skill beside this one (its
+# The first four are read from `tollman.py status --json` of the tollman skill beside this one (its
 # state files and one `launchctl print` or `systemctl is-active`; no model, no network). Every doubt is `no`: a
 # missing tool or skill, an answer that cannot be read. Exit 0 either way: the answer is the line on stdout.
 set -uo pipefail
@@ -58,6 +61,8 @@ try:
         why = "the tollman has not run a round yet"
     elif type(age) is not int or not 0 <= age <= max_age:
         why = f"the last round of the tollman is {age} s old (limit {max_age} s)"
+    elif os.path.lexists(os.path.join(field, "roles", "tollman", "sleep.json")):
+        why = "the tollman is asleep (its sleep flag stands): no train carries this worktree, it lands itself alone in its turn"
     else:
         why = ""
 except Exception as e:

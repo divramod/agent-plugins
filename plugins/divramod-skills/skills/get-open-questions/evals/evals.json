@@ -1,0 +1,379 @@
+{
+  "skill_name": "get-open-questions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/get-open-questions",
+      "expected_output": "Q1 and Q3, as q.py prints them, nothing else",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "Q1 and Q3, as q.py prints them, nothing else"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "Q1"
+        },
+        {
+          "op": "contains",
+          "value": "Q3"
+        },
+        {
+          "op": "contains",
+          "value": "a) (Recommended) SQLite — one file, no server"
+        },
+        {
+          "op": "not_contains",
+          "value": "heron"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "What questions are still open in this checkout?",
+      "expected_output": "the two open questions (badger, otter), as printed",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the two open questions (badger, otter), as printed"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "otter"
+        },
+        {
+          "op": "contains",
+          "value": "badger"
+        },
+        {
+          "op": "not_contains",
+          "value": "lynx"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/get-open-questions a",
+      "expected_output": "the answered questions Q2 and Q4 with their answers",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the answered questions Q2 and Q4 with their answers"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "heron"
+        },
+        {
+          "op": "contains",
+          "value": "02:00"
+        },
+        {
+          "op": "not_contains",
+          "value": "badger"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/get-open-questions l",
+      "expected_output": "all five questions, the open first, the dropped walrus one too",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "all five questions, the open first, the dropped walrus one too"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "walrus"
+        },
+        {
+          "op": "contains",
+          "value": "badger"
+        },
+        {
+          "op": "contains",
+          "value": "lynx"
+        },
+        {
+          "op": "max_chars",
+          "value": 1800
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/get-open-questions h",
+      "expected_output": "the skill's call table as SKILL.md has it, no question listed",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the skill's call table as SKILL.md has it, no question listed"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "contains",
+          "value": "another checkout"
+        },
+        {
+          "op": "contains",
+          "value": "answered"
+        },
+        {
+          "op": "not_contains",
+          "value": "badger"
+        },
+        {
+          "op": "not_contains",
+          "value": "heron"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Show me which questions were already answered, with their answers.",
+      "expected_output": "Q2 and Q4 with their answers",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "Q2 and Q4 with their answers"
+      ],
+      "split": "train",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "lynx"
+        },
+        {
+          "op": "contains",
+          "value": "dark by default"
+        },
+        {
+          "op": "not_contains",
+          "value": "otter"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/get-open-questions answered",
+      "expected_output": "the answered questions Q2 and Q4",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the answered questions Q2 and Q4"
+      ],
+      "split": "val",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "dark by default"
+        },
+        {
+          "op": "contains",
+          "value": "heron"
+        },
+        {
+          "op": "not_contains",
+          "value": "badger"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "List all questions of this checkout, the dropped ones too.",
+      "expected_output": "all five questions",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "all five questions"
+      ],
+      "split": "val",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "walrus"
+        },
+        {
+          "op": "contains",
+          "value": "otter"
+        },
+        {
+          "op": "contains",
+          "value": "Dropped"
+        },
+        {
+          "op": "max_chars",
+          "value": 1800
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/get-open-questions help",
+      "expected_output": "the skill's call table as SKILL.md has it, no question listed",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the skill's call table as SKILL.md has it, no question listed"
+      ],
+      "split": "val",
+      "checks": [
+        {
+          "op": "contains",
+          "value": "another checkout"
+        },
+        {
+          "op": "contains",
+          "value": "answered"
+        },
+        {
+          "op": "not_contains",
+          "value": "otter"
+        },
+        {
+          "op": "not_contains",
+          "value": "lynx"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Any open questions?",
+      "expected_output": "the two open questions, as printed",
+      "files": [
+        {
+          "dest": "QUESTIONS.md",
+          "text": "# Questions and answers\n\n## Q1 · 2026-10-10 · agent · open\n\n**Q:** Which store should the badger cache use? The cache holds the parsed feeds between runs.\na) (Recommended) SQLite — one file, no server\nb) Postgres — needs the hub's database\nc) Plain JSON files — no index, slow at scale\n\n## Q2 · 2026-10-11 · user · answered 2026-10-12\n\n**Q:** \"Can the heron export run every night?\"\n**A:** \"yes, at 02:00, after the backup\"\n\n## Q3 · 2026-10-13 · agent · open\n\n**Q:** How long should the otter logs be kept? They grow by about 1 GB a week.\na) (Recommended) 30 days — enough to debug a release\nb) 7 days — saves disk, loses older incidents\nc) Forever — needs a bigger disk soon\n\n## Q4 · 2026-10-14 · agent · answered 2026-10-15\n\n**Q:** Should the lynx theme become the default? It is the dark theme the user asked for.\na) (Recommended) Yes — dark by default\nb) No — keep the light one\nc) Ask at the first start — one more dialog\n**A:** \"a, dark by default\"\n\n## Q5 · 2026-10-16 · user · dropped 2026-10-17\n\n**Q:** \"Rename the walrus job?\"\n**A:** \"not needed anymore, the job is gone\"\n"
+        }
+      ],
+      "expectations": [
+        "the two open questions, as printed"
+      ],
+      "split": "val",
+      "checks": [
+        {
+          "op": "tool_called",
+          "name": "Bash",
+          "input": "q.py"
+        },
+        {
+          "op": "contains",
+          "value": "badger"
+        },
+        {
+          "op": "contains",
+          "value": "a) (Recommended) 30 days — enough to debug a release"
+        },
+        {
+          "op": "not_contains",
+          "value": "walrus"
+        },
+        {
+          "op": "max_chars",
+          "value": 900
+        }
+      ]
+    }
+  ]
+}

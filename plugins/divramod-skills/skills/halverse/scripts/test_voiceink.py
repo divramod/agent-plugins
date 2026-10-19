@@ -177,6 +177,32 @@ class Errors(Fake):
         self.assertIn("CLI message: cli says " + kind, text)
         return text
 
+    def contract(self, exit_code, code, reason, message, details=None):
+        """The CLI's answer since plan 0318: the contract's error on stderr, the old code in `details.reason`."""
+        body = {"error": {"code": code, "exit": exit_code, "message": message, "hint": None,
+                          "details": dict(details or {}, reason=reason)}}
+        with open(self.path, "w") as handle:
+            handle.write("#!%s\nimport sys\nprint(%r, file=sys.stderr)\nsys.exit(%d)\n"
+                         % (sys.executable, json.dumps(body), exit_code))
+        os.chmod(self.path, os.stat(self.path).st_mode | stat.S_IXUSR)
+
+    def test_the_contracts_errors_are_read_and_told_in_the_scripts_codes(self):
+        for exit_code, code, reason, told, expect, details in [
+            (3, "not_found", "no-store", 3, "VoiceInk is not installed", {"path": "/x"}),
+            (4, "refused", "unknown-schema", 4, "Verified VoiceInk versions: 2.11", {"versions_verified": ["2.11"]}),
+            (5, "busy", "store-unavailable", 5, "Quit VoiceInk", {"why": "app-running"}),
+            (1, "failed", "write-failed", 6, "rolled back", {"written": False}),
+            (3, "not_found", "no-backup", 7, "no backup to restore", {}),
+            (2, "usage", "unreadable", 2, "dictation file /h/DICTATION.md cannot be read",
+             {"file": "dictation", "path": "/h/DICTATION.md"}),
+            (1, "failed", "unwritable", 2, "import file could not be written", {"path": "/x/words.json"}),
+        ]:
+            self.contract(exit_code, code, reason, "cli says " + reason, details)
+            text, got = voiceink.run("sync")
+            self.assertEqual(got, told, reason)
+            self.assertIn(expect, text, reason)
+            self.assertIn("CLI message: cli says " + reason, text)
+
     def test_no_store(self):
         self.check(3, "no-store", "VoiceInk is not installed, was never opened, or this is not a Mac")
 

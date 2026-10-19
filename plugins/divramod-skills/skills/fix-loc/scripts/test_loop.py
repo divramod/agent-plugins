@@ -91,8 +91,8 @@ class Loop(unittest.TestCase):
         self.assertEqual(result["action"], "next")
         self.assertEqual(result["files"], [f"{BIG}/src/a.ts"])
         self.assertEqual(result["command"][1:], [str(self.fake / "create.py"), "--repo", str(self.repo), "--from", "30",
-                                                 "--model", "claude-sonnet-5-5", "--effort", "medium", "--exact",
-                                                 "--prompt", "<prompt>"])
+                                                 "--model", "claude-sonnet-5-5", "--effort", "medium",
+                                                 "--role", "foreman", "--exact", "--prompt", "<prompt>"])
         self.assertIn(f"`{BIG}/src/a.ts` (40)", result["prompt"])
         self.assertIn(COORDINATOR, result["prompt"])
         self.assertIn("by default sonnet medium 1m", result["prompt"])

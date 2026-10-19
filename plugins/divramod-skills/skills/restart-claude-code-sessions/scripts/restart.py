@@ -27,6 +27,23 @@ def table(rows: list[dict]) -> list[str]:
     return lines
 
 
+def report_rows(stdout: str, stderr: str) -> list[dict] | None:
+    """The rows of `restart --json`: `{"sessions": [...]}` on stdout; on a failure or refusal the error document on
+    stderr carries them in `error.details.sessions`; a bare list is the CLI before plan 0318. None: no rows."""
+    for text, inner in ((stdout, False), (stderr, True)):
+        try:
+            doc = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if inner and isinstance(doc, dict):
+            doc = (doc.get("error") or {}).get("details") or {}
+        if isinstance(doc, dict):
+            doc = doc.get("sessions")
+        if isinstance(doc, list):
+            return doc
+    return None
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--dry-run", action="store_true")
@@ -44,9 +61,8 @@ def main(argv: list[str]) -> int:
     if a.wait:
         cmd += ["--wait", a.wait]
     r = subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        rows = json.loads(r.stdout)
-    except json.JSONDecodeError:
+    rows = report_rows(r.stdout, r.stderr)
+    if rows is None:
         print(f"restart.py: {' '.join(cmd[:3])} failed: {(r.stderr or r.stdout).strip()}", file=sys.stderr)
         return 1
     print("\n".join(table(rows)))

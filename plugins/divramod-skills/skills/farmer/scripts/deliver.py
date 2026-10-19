@@ -2,9 +2,9 @@
 
 `send(pane, text)` types only when hal2 lists the agent in a resting state and its prompt box holds no draft
 (no text typed by a person; the dim suggestion Claude Code shows there is no draft): hal2's own rule,
-`hal2-cli-agents send --if-empty` (hal2 plan 0125), which exits 3 with the reason (busy, dialog, draft, no-agent)
-and types nothing. `--submit` (hal2 plan 0139) sends it in the same call and confirms the session took it; when it
-did not, hal2 removes the text again and exits 4, so no message is ever left in a box. Then the tick hands the
+`hal2-cli-agents send --if-empty` (hal2 plan 0125), which exits 10 (3 before hal2 plan 0318) with the reason (busy,
+dialog, draft, no-agent) and types nothing. `--submit` (hal2 plan 0139) sends it in the same call and confirms the
+session took it; when it did not, hal2 removes the text again and exits 11 (was 4), so no message is ever left in a box. Then the tick hands the
 message to the woken farmer session as a relay (Claude Code's SendMessage queues for busy sessions).
 """
 
@@ -12,13 +12,25 @@ import json
 import subprocess
 
 READY = {"idle", "done", "sleeping"}
-REFUSED = 3
-NOT_SUBMITTED = 4
+REFUSED = (10, 3)  # `not_ready`: 3 before hal2 plan 0318
+NOT_SUBMITTED = (11, 4)  # `not_submitted`: 4 before hal2 plan 0318
 
 
 def cli(*args: str, timeout: int = 30) -> tuple[int, str]:
-    code, out, _ = run(*args, timeout=timeout)
-    return code, out
+    """A hal2-cli-agents call: its exit code and stdout; a failure without stdout gives its old `--json` body, which
+    hal2 plan 0318 moved into the error document's details on stderr (e.g. clear-and-continue's refusal)."""
+    code, out, err = run(*args, timeout=timeout)
+    return code, out if code == 0 or out.strip() else details(err) or out
+
+
+def details(err: str) -> str:
+    """The `details` of the error document on `err` as JSON text, "" when there is none or it is empty."""
+    try:
+        doc = json.loads(err.strip())
+    except json.JSONDecodeError:
+        return ""
+    found = doc.get("error", {}).get("details") if isinstance(doc, dict) and isinstance(doc.get("error"), dict) else None
+    return json.dumps(found) if isinstance(found, dict) and found else ""
 
 
 def run(*args: str, timeout: int = 30) -> tuple[int, str, str]:
@@ -35,7 +47,7 @@ def agent(pane: str) -> dict | None:
         data = json.loads(out) if code == 0 else {}
     except json.JSONDecodeError:
         return None
-    rows = data.get("list", []) if isinstance(data, dict) else data
+    rows = data.get("agents", []) if isinstance(data, dict) else data
     return next((a for a in rows if a.get("pane_id") == pane), None)
 
 
@@ -68,7 +80,7 @@ def send(pane: str, text: str, states: set[str] = READY) -> str | None:
         code, _, err = run(*[a for a in args if a != "--submit"])
         if code == 0 and cli("send", pane, "enter", "--key")[0]:
             return "hal2-cli-agents send failed"
-    if code in (REFUSED, NOT_SUBMITTED):
+    if code in REFUSED + NOT_SUBMITTED:
         return refusal(err)
     if code:
         return "hal2-cli-agents send failed"

@@ -11,10 +11,14 @@ Each entry has its own mode too (hal2 plan 0365 D5, D9): `queue --json` gives it
 `effective_mode`; the `lead` duty tells exactly the hitched fields whose effective mode is smuggle, in production mode too
 (an entry set to smuggle), and none whose effective mode is production, in smuggle mode too. An older hal2-cli-git
 without the fields reads as the queue's mode.
+
+While the tollman's sleep flag stands (`roles/tollman/sleep.json` of its field, hal2-roles', plan 0365 D3) the `lead`
+duty tells nobody: the tollman's own "land yourself now" reaches every hitched field (hal2 plan 0375 D4, D19).
 """
 
 import duties
 import mtm_scan
+import roles
 from tick import act
 
 PRODUCTION, SMUGGLE = "production", "smuggle"
@@ -40,6 +44,11 @@ def smuggle(mode: dict) -> bool:
     return mode.get("mode") == SMUGGLE
 
 
+def tollman_asleep(main: str) -> bool:
+    """Whether the tollman's sleep flag stands: hal2-roles' `roles/tollman/sleep.json` of the field `tollman-<repo>`."""
+    return (roles.slot_dir(main, "tollman") / "roles" / "tollman" / "sleep.json").exists()
+
+
 def effective(entry: dict, mode: dict) -> str:
     """An entry's effective mode: `effective_mode`, else its own `mode`, else the queue's (plan 0365 D5)."""
     return entry.get("effective_mode") or entry.get("mode") or mode.get("mode") or PRODUCTION
@@ -60,6 +69,8 @@ def harvested(t: dict) -> bool:
 def plan(item: dict, ctx: dict, doc: dict | None = None) -> list[dict]:
     """One `send` per harvested field whose effective mode is smuggle (see the module doc); `doc` is `queue --json`
     (read when None). The key names the period: the queue's mode `at`, or for an entry's own mode its ticket."""
+    if tollman_asleep(ctx["main"]):
+        return []  # the tollman tells every hitched field to land alone (plan 0375 D4)
     doc = doc if doc is not None else mtm_scan.run_json(QUEUE, ctx["main"]) or {}
     mode = of(doc)
     out = []

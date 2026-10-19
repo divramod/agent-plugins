@@ -18,7 +18,7 @@ export type Io = {
 }
 
 // The masterplan of the folder `cwd`, from `hal2-cli-plans masterplan --repo <cwd> --json`: one process, a timeout, and
-// null for everything else (the word `null`, a missing binary, an unknown subcommand of an older CLI, a failure).
+// null for everything else (the words `{}` and `null`, a missing binary, an unknown subcommand of an older CLI, a failure).
 export async function loadMasterplan(io: Pick<Io, 'run'>, cwd: string): Promise<RollUp | null> {
   if (!cwd) return null
   const out = await io.run(['hal2-cli-plans', 'masterplan', '--repo', cwd, '--json'], { timeoutMs: 3000 }).catch(() => undefined)

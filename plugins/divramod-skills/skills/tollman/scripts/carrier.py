@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""The carrier's git (hal2 plan 0313 steps 1 and 14): the tollman's field carries every train, and each train's
-landing pushes its head to the field's remote branch (`origin/tollman-<repo>`) without force. A train that does
+"""The carrier's git (hal2 plan 0313 steps 1 and 14): the carrier of a train, its own worktree `tollman-train-...`
+since plan 0375 D5 (the tollman's field before), and each train's landing pushes its head to the carrier's remote
+branch (`origin/tollman-train-...`) without force; the same cars form the same name again. A train that does
 not land leaves its head there, and the next train's push would be refused as not a fast-forward. `push_base` puts
 the remote branch back on a base with a leased push (D2, D6, D11): a breakup on the dead train's base, a new train's
 form on its own base."""

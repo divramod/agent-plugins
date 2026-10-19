@@ -6,7 +6,7 @@ documents from "The table (`--text`)" on.
 ## Roles
 
 `role.py` detects the role from the checkout of `--repo` (default the current folder), `--role <role>` overrides it
-(plan 0366 D2, D11). `farmer-<repo>` farmer, `tollman-<repo>` tollman, a field named `00`-`29` foreman, `30`-`99` servant,
+(plan 0366 D2, D11). `farmer-<repo>` farmer, `tollman-<repo>` tollman, a field named `00`-`99` servant when it holds `plans/LEAD` (the foreman's marker), else foreman (plan 0383 D16),
 a main checkout steward. `PLACES` maps the upper roles to their place's main checkout: mayor `~/a/village`
 (`HAL_VILLAGE`), lord `~/a/city` (`HAL_CITY`), pope `~/a/planet` (`HAL_PLANET`); the main checkout of a place is that
 role, so lord and pope are detected there and otherwise only by `--role`. Anything else is `unknown`: today's table as

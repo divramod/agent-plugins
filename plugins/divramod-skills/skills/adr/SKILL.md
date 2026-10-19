@@ -34,7 +34,7 @@ works, read-only and advisory:
 | `/adr search <words>` | `$A search <words>`: records holding every word (title hits first); then `$A show <slug>` for the ones that matter |
 | `/adr list [status]` | `$A list [--status proposed\|accepted\|deprecated\|superseded]` |
 | `/adr show <slug>` | `$A show <slug>` |
-| `/adr check` | `$A check`: the one check of every record the repository holds (its `.hal/records.toml` says which kinds apply; the binary knows the rest), each problem ending in its rule; fix every line it prints. Exit 2: a usage or read error, 3: the binary is older than the repository's `checker` asks (install a newer one). Without the binary: the advisory line above |
+| `/adr check` | `$A check`: the one check of every record the repository holds (its `.hal/records.toml` says which kinds apply; the binary knows the rest), each problem ending in its rule; fix every line it prints. Exit 2: a usage or read error, 10 (3 from a binary before hal2 plan 0318): the binary is older than the repository's `checker` asks (install a newer one). Without the binary: the advisory line above |
 | `/adr help`, `/adr h` | print this table and stop |
 
 ## Promote a decision

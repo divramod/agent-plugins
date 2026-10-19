@@ -187,5 +187,68 @@ class Ticks(Repo):
         self.assertFalse(wake.wake_file(str(self.main)).exists())
 
 
+class ReadFirst(unittest.TestCase):
+    """The handoff is item seq 0 of `wake`, in both outputs, and `--done` never drops it."""
+
+    def run_wake(self, handoff_file, *argv):
+        import argparse
+        import contextlib
+        import io
+
+        import role_cli
+        args = argparse.Namespace(repo="/x", json="--json" in argv,
+                                  done=int(argv[-1]) if argv and argv[-1].isdigit() else None)
+        data = {"woken_at": None, "items": [{"seq": 1, "do": "wake", "duty": "ci", "kind": "red", "slot": "07",
+                                             "text": "red", "instructions": "/i"}]}
+        out = io.StringIO()
+        with (mock.patch.object(role_cli.tick.mtm_scan, "main_checkout", return_value="/x"),
+              mock.patch.object(role_cli.handoff, "path", return_value=handoff_file),
+              mock.patch.object(role_cli.wake, "read", return_value=data),
+              mock.patch.object(role_cli.wake, "done", return_value=0),
+              contextlib.redirect_stdout(out)):
+            role_cli.run_wake(args, role_cli.roles.FARMER)
+        return out.getvalue()
+
+    def test_handoff_is_the_first_item_in_json_and_plain(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            h = Path(d) / "handoff.md"
+            h.write_text("x")
+            items = json.loads(self.run_wake(h, "--json"))["items"]
+            self.assertEqual([(i["seq"], i["do"], i["instructions"]) for i in items][0], (0, "read", str(h)))
+            self.assertEqual(len(items), 2)
+            plain = self.run_wake(h)
+            self.assertTrue(plain.startswith("  0 read"))
+            self.assertIn("2 items", plain)
+            self.assertEqual(self.run_wake(h, "--done", "5"), "1 items left\n")
+
+    def test_no_handoff_no_item(self):
+        from pathlib import Path
+        items = json.loads(self.run_wake(Path("/nonexistent/handoff.md"), "--json"))["items"]
+        self.assertEqual([i["seq"] for i in items], [1])
+        self.assertEqual(self.run_wake(Path("/nonexistent/handoff.md"), "--done", "5"), "0 items left\n")
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class CloseOlder(Wake):
+    """Plan 0383 D8: an item created before the handoff's last write is closed; a newer one, and one without a
+    stamp, stays; every new item carries its creation time."""
+
+    def test_items_are_stamped_and_the_older_than_the_handoff_are_closed(self):
+        self.over({"wake": [judgment("old one")]}, NOW)
+        self.over({"wake": [judgment("new one")]}, NOW + dt.timedelta(minutes=20))
+        data = wake.read(self.main)
+        self.assertEqual([i["at"] for i in data["items"]], ["2026-10-03T10:20:00", "2026-10-03T10:40:00"])
+        data["items"].append({"seq": 3, "duty": "lead", "kind": "question", "slot": "-", "do": "wake",
+                              "instructions": "x"})  # from before the stamp existed
+        wake.write(self.main, data)
+        closed = wake.close_older(self.main, (NOW + dt.timedelta(minutes=10)).timestamp())
+        self.assertEqual([i["text"] for i in closed], ["old one"])
+        self.assertEqual([i["seq"] for i in wake.read(self.main)["items"]], [2, 3])
+        self.assertEqual(wake.close_older(self.main, None), [], "no handoff.md: nothing closes")
+        wake.close_older(self.main, (NOW + dt.timedelta(minutes=30)).timestamp())
+        self.assertEqual([i["seq"] for i in wake.read(self.main)["items"]], [3])

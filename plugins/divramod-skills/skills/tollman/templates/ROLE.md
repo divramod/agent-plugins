@@ -9,6 +9,7 @@ duties:
   mtm: "*/10 * * * *"         # the merge-to-main boss: failed landings, held queues, pauses, orphans
   prune: "*/15 * * * *"       # landed fields: 00-09 cleaned, 10-99 removed with their branch; after the barn the cars cleared; free disk
   mainred: "*/10 * * * *"     # a red main: a transient one rerun by code, else the session fixes it (the next train's first car)
+  watch: "* * * * *"          # every minute, silent: leavers of the merge queue, the live land run's events (job failed, merge job green, workflow finished)
   checks: "*/2 * * * *"       # landings first: ci-check runs wait behind a landing or train, then run (instructions/checks.md)
   learn: "17 6 * * *"         # once a day: the untaken learnings (learnings.md) go to one foreman as a skill change
 notify: every-round

@@ -1,9 +1,13 @@
 """Hal2 plan 0360 step 25 (D75 3, D76): in smuggle mode the farmer tells every finished, harvested field (a hitched
 ticket) "smuggle mode: run /merge-to-main now", once per field and mode period, without asking the user; in production mode it
-says nothing. The queue is data: no real hal2-cli-git, no session."""
+says nothing; nothing while the tollman's sleep flag stands (plan 0375 D4: the tollman tells them). The queue is data:
+no real hal2-cli-git, no session."""
 
 import datetime as dt
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import farmer
 import queue_mode
@@ -28,6 +32,14 @@ def planned(doc, log=()):
 class SmuggleMode(unittest.TestCase):
     QUEUE = [hitched("07"), hitched("09"), hitched("31"), hitched("tollman-hal2"), hitched("11", rides_with="x"),
              {"slot": "12", "state": "waiting", "ready": None}, hitched("13", state="active")]
+
+    def setUp(self):  # the tollman's field (its sleep flag) in a scratch folder, never the host's
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.field = Path(d.name)
+        patch = mock.patch.object(queue_mode.roles, "slot_dir", lambda main, role: self.field)
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def test_the_mode_is_production_without_one(self):
         self.assertEqual(queue_mode.of({})["mode"], "production")
@@ -78,6 +90,14 @@ class SmuggleMode(unittest.TestCase):
                                            hitched("12")]}
         self.assertEqual([a["slot"] for a in planned(doc)], ["09", "12"], "12: no fields, the queue's mode")
         self.assertEqual(planned(doc)[0]["key"], "smuggle-mode:09:2026-10-17T12:00:00Z")
+
+    def test_an_asleep_tollman_tells_every_hitched_field_itself(self):
+        self.assertEqual(len(planned({"queue": self.QUEUE, "mode": SMUGGLE})), 2, "awake: the farmer's word")
+        flag = self.field / "roles" / "tollman" / "sleep.json"
+        flag.parent.mkdir(parents=True)
+        flag.write_text('{"schema": 1, "by": "user", "at": "2026-10-17T12:10:00Z", "why": ""}\n')
+        self.assertTrue(queue_mode.tollman_asleep("/x/hal2"))
+        self.assertEqual(planned({"queue": self.QUEUE, "mode": SMUGGLE}), [], "asleep: the tollman's word")
 
     def test_the_lead_round_carries_it(self):
         self.assertIs(farmer.HANDLERS["duty:lead"], queue_mode.plan_lead)
