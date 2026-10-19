@@ -81,6 +81,16 @@ def queue(main: str) -> list[dict] | None:
     return queue_state(main)["queue"]
 
 
+def workqueue_jobs() -> list[dict] | None:
+    """The jobs running now from `hal2-cli-workqueue status --json` (plan 0382 step 5): `field`, `class`, `head`, `since`
+    (RFC 3339), `source`, `flags` each; None when the CLI is missing, fails or gives no `live` list (shown as nothing)."""
+    raw = tool_json(["hal2-cli-workqueue", "status", "--json"])
+    if not isinstance(raw, dict) or not isinstance(raw.get("live"), list):
+        return None
+    return [{k: j.get(k) for k in ("field", "class", "head", "since", "source", "flags")}
+            for j in raw["live"] if isinstance(j, dict)]
+
+
 def git_numbers(path: str) -> dict | None:
     """The statusline's per-worktree numbers (`git-fields.js`'s mapping of `hal2-cli-git status --json --repo <path>`,
     plan 0369 D7): behind/ahead of the default branch, stash, untracked and added (always 0: the statusline does not

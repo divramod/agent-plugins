@@ -140,7 +140,27 @@ def line(data: dict) -> str:
     return "; ".join(parts)
 
 
+def running_for(since: str | None) -> str:
+    """`3m`, `2h` since an RFC 3339 time; "" when unknown."""
+    import datetime as dt
+    try:
+        secs = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(since.replace("Z", "+00:00"))).total_seconds()
+    except (AttributeError, ValueError):
+        return ""
+    return "<1m" if secs < 60 else age(int(secs))
+
+
+def jobs_text(jobs: list[dict] | None) -> str:
+    """The running workqueue jobs under the table, one line each: `Field | class | head | running for`; "" when none or unknown."""
+    if not jobs:
+        return ""
+    lines = [f"Running jobs: {len(jobs)}"] + [f"{j.get('field') or '?'} | {j.get('class') or ''} | {j.get('head') or ''} | {running_for(j.get('since'))}" for j in jobs]
+    return "\n".join(" ".join(l.split()) for l in lines)
+
+
 def table(data: dict) -> str:
     rows = [r.get("cells") or cells(r, data["default"]) for r in data["rows"]]
     head = ["| " + " | ".join(HEADER) + " |", "|" + "---|" * len(HEADER)]
-    return "\n".join(head + ["| " + " | ".join(esc(c) for c in r) + " |" for r in rows]) + "\n\n" + esc(line(data))
+    out = "\n".join(head + ["| " + " | ".join(esc(c) for c in r) + " |" for r in rows]) + "\n\n" + esc(line(data))
+    jobs = jobs_text(data.get("jobs"))
+    return out + ("\n\n" + jobs if jobs else "")

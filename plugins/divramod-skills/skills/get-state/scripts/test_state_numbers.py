@@ -77,3 +77,21 @@ class QueueOrder(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkqueueJobs(unittest.TestCase):
+    """`src.workqueue_jobs` reads `hal2-cli-workqueue status --json`'s `live` list (plan 0382 step 5); a missing CLI is None."""
+
+    def jobs(self, raw):
+        with mock.patch.object(src, "tool_json", lambda args, cwd=None: raw):
+            return src.workqueue_jobs()
+
+    def test_the_live_list_keeps_the_shown_keys_only(self):
+        live = [{"field": "hal2/16", "class": "test", "head": "cargo nextest", "since": "2026-10-18T10:00:00Z", "source": "run",
+                 "flags": [], "command": "cargo nextest --token=x", "pid": 4}]
+        self.assertEqual(self.jobs({"live": live}), [{"field": "hal2/16", "class": "test", "head": "cargo nextest",
+                                                       "since": "2026-10-18T10:00:00Z", "source": "run", "flags": []}])
+
+    def test_a_missing_cli_or_an_old_one_is_none(self):
+        self.assertIsNone(self.jobs(None))
+        self.assertIsNone(self.jobs({"running": []}))

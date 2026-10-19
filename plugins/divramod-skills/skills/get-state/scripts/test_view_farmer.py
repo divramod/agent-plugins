@@ -46,7 +46,7 @@ class Tables(unittest.TestCase):
     def test_five_grids_in_order_with_ids(self):
         title, sections = vf.view(data(row("01", 1, 5)), CTX)
         self.assertEqual(title, "proj · farmer")
-        self.assertEqual([(s["kind"], s["id"]) for s in sections], [("grid", i) for i in ("queue", "fields", "free", "questions", "decisions")])
+        self.assertEqual([(s["kind"], s["id"]) for s in sections], [("grid", i) for i in ("queue", "jobs", "fields", "free", "questions", "decisions")])
 
     def test_table_by_id_and_unknown_id(self):
         d = data(row("01", 1, 5))
@@ -243,8 +243,8 @@ class FarmerPage(Fixture):
         self.plan_in("03", "0101", 4, 5, "Needs one more step.")
         self.plan_in("04", "0102", 4, 6, "Nearly there.")  # 02 stays the rest (1 of 3); 1 is free
         page = self.page()
-        self.assertEqual(re.findall(r"<h2>(.*?)</h2>", page), ["Merge queue", "Fields with a plan", "Free fields", "Questions", "Decisions"])
-        self.assertEqual(re.findall(r'<section class="grid" data-grid="(.*?)"', page), ["queue", "fields", "free", "questions", "decisions"])
+        self.assertEqual(re.findall(r"<h2>(.*?)</h2>", page), ["Merge queue", "Running jobs", "Fields with a plan", "Free fields", "Questions", "Decisions"])
+        self.assertEqual(re.findall(r'<section class="grid" data-grid="(.*?)"', page), ["queue", "jobs", "fields", "free", "questions", "decisions"])
         self.assertIn("<title>proj · farmer</title>", page)
         self.assertIn('<p class="grid-note">Merge queue mode: ', page)
         self.assertIn("<th", page)
@@ -257,3 +257,12 @@ class FarmerPage(Fixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobsTableTest(unittest.TestCase):
+    def test_rows_and_a_missing_cli(self):
+        import view_farmer as v
+        shown = v.jobs_table({"jobs": [{"field": "hal2/16", "class": "test", "head": "cargo nextest", "since": None, "flags": ["hung"]}]})
+        self.assertEqual([(r["wt"], r["class"], r["head"], r["flags"]) for r in shown["rows"]], [("hal2/16", "test", "cargo nextest", "hung")])
+        self.assertEqual(v.jobs_table({})["empty"], "The workqueue is not known.")
+        self.assertEqual(v.jobs_table({"jobs": []})["empty"], "No heavy job runs.")

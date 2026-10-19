@@ -122,6 +122,7 @@ class Fixture(unittest.TestCase):
         for name, value in (("agents", agents), ("queue", queue), ("open_runs", runs)):
             self.mock(src, name, lambda *a, _v=value: _v)
         self.mock(src, "queue_state", lambda *a, _q=queue, _m=mode: {"queue": _q, "mode": _m})
+        self.mock(src, "workqueue_jobs", lambda: [{"field": "hal2/16", "class": "test", "head": "cargo nextest"}])
         self.mock(src, "git_numbers", lambda *a: None)  # no real `hal2-cli-git status` of the fixture's worktrees
         self.mock(ledger_sources, "cli_questions", lambda *a: None)  # no real `hal2-cli-plans`: the parser reads
         self.mock(steward_sources, "chores", lambda *a, **k: None)  # the steward and tollman pages call no real tool
@@ -149,7 +150,7 @@ class Slots(Fixture):
 
     def test_json_keys(self):
         out = state.collect(str(self.main))
-        self.assertEqual(set(out), {"repo", "default", "head", "head_age", "head_subject", "queue", "mode", "runs", "rows"})
+        self.assertEqual(set(out), {"repo", "default", "head", "head_age", "head_subject", "queue", "mode", "runs", "jobs", "rows"})
         self.assertEqual(out["default"], "main")
         self.assertEqual(len(out["head"]), 8)
         for r in out["rows"]:
@@ -168,8 +169,10 @@ class Slots(Fixture):
             self.assertEqual(state.main(["--repo", str(self.main), "--text"]), 0)
         lines = buf.getvalue().rstrip("\n").split("\n")
         self.assertEqual(lines[0], "| WT | Plan | Steps | State | Waits for |")
-        self.assertTrue(lines[-3].startswith("| **main** |") and lines[-2] == "")
-        self.assertTrue(lines[-1].startswith("main: "))
+        self.assertTrue(lines[-6].startswith("| **main** |") and lines[-5] == "")
+        self.assertTrue(lines[-4].startswith("main: ") and lines[-3] == "")
+        self.assertEqual(lines[-2], "Running jobs: 1")  # the mocked workqueue job (plan 0382 step 5)
+        self.assertTrue(lines[-1].startswith("hal2/16 | test | cargo nextest |"))
 
 
 class Plans(Fixture):

@@ -25,7 +25,7 @@ COLUMNS = ([{"key": "wt", "label": "Field", "type": "text"}, {"key": "plan", "la
             {"key": "state", "label": "State", "type": "text"}]
            + [{"key": k, "label": label, "type": "num"} for k, label in NUMBERS])
 GROUP_FILTERS = [("done", "Done"), ("one", "One step left"), ("nearly", "Nearly done"), ("rest", "The rest")]
-TABLE_IDS = ["queue", "fields", "free", "questions", "decisions"]
+TABLE_IDS = ["queue", "jobs", "fields", "free", "questions", "decisions"]
 
 
 def is_field(row: dict) -> bool:
@@ -98,6 +98,16 @@ def queue_table(data: dict) -> dict:
             "columns": [{"key": "place", "label": "Place", "type": "num"}, *COLUMNS], "rows": rows, "empty": empty}
 
 
+def jobs_table(data: dict) -> dict:
+    """The workqueue's running jobs (plan 0382 step 5): field, class, head, running for; a missing CLI shows an empty table."""
+    rows = [{"wt": j.get("field") or "?", "class": j.get("class") or "", "head": j.get("head") or "",
+             "running": state_table.running_for(j.get("since")), "flags": ", ".join(j.get("flags") or [])}
+            for j in data.get("jobs") or []]
+    cols = [("wt", "Field"), ("class", "Class"), ("head", "Job"), ("running", "Running for"), ("flags", "Marks")]
+    return {"kind": "grid", "id": "jobs", "heading": "Running jobs", "columns": [{"key": k, "label": label, "type": "text"} for k, label in cols],
+            "rows": rows, "empty": "No heavy job runs." if data.get("jobs") is not None else "The workqueue is not known."}
+
+
 def fields_table(data: dict) -> dict:
     rows = [cells(r, smuggling(data)) for r in fields_of(data) if r["plan"]]
     filters = [{"key": k, "label": label, "match": {"group": [k]}} for k, label in GROUP_FILTERS]
@@ -146,7 +156,7 @@ def decisions_table(data: dict) -> dict:
             "static": False}  # about 1000 rows: drawn by the script only, the page stays small (D14)
 
 
-TABLES = {"queue": queue_table, "fields": fields_table, "free": free_table, "questions": questions_table,
+TABLES = {"queue": queue_table, "jobs": jobs_table, "fields": fields_table, "free": free_table, "questions": questions_table,
           "decisions": decisions_table}
 
 

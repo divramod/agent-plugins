@@ -172,6 +172,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     slots.append({"path": main, "branch": src.git(main, "symbolic-ref", "--short", "-q", "HEAD"), "is_main": True})
     with ThreadPoolExecutor(POOL) as pool:
         f_agents, f_queue, f_runs = pool.submit(src.agents), pool.submit(src.queue_state, main), pool.submit(src.open_runs, main)
+        f_jobs = pool.submit(src.workqueue_jobs)
         f_questions = ledger_sources.submit_questions(ledger_rows(slots), pool) if ledgers else None
         f_facts = [pool.submit(worktree_facts, w, default, table_facts) for w in slots]
         log = src.farmer_log(main)
@@ -189,7 +190,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     stamp = int(head[1]) if len(head) == 3 and head[1].isdigit() else None
     out = {"repo": main, "default": default, "head": head[0][:8] or None if len(head) == 3 else None,
            "head_age": max(0, int(time.time()) - stamp) if stamp else None, "head_subject": head[2] if len(head) == 3 else None,
-           "queue": ctx["queue"], "mode": ctx["mode"], "runs": runs, "rows": rows}
+           "queue": ctx["queue"], "mode": ctx["mode"], "runs": runs, "jobs": f_jobs.result(), "rows": rows}
     return {**out, "questions": questions} if ledgers else out
 
 

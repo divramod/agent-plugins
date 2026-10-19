@@ -92,3 +92,23 @@ class TableTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobsTest(unittest.TestCase):
+    """The workqueue's running jobs under the text table and on the farmer's page (plan 0382 step 5)."""
+
+    def test_jobs_text(self):
+        import datetime as dt
+        since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5, seconds=3)).isoformat()
+        text = t.jobs_text([{"field": "hal2/16", "class": "test", "head": "cargo nextest", "since": since}])
+        self.assertEqual(text.splitlines(), ["Running jobs: 1", "hal2/16 | test | cargo nextest | 5m"])
+        self.assertEqual((t.jobs_text(None), t.jobs_text([])), ("", ""))
+
+    def test_table_appends_the_jobs_only_when_there_are_some(self):
+        data = {"default": "main", "queue": None, "runs": None, "rows": [], "head": None}
+        self.assertNotIn("Running jobs", t.table(data))
+        data["jobs"] = [{"field": "hal2/16", "class": "build", "head": "cargo build", "since": None}]
+        self.assertIn("cargo build", t.table(data))
+
+    def test_running_for_unknown(self):
+        self.assertEqual((t.running_for(None), t.running_for("x")), ("", ""))
