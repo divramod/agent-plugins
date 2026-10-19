@@ -1,6 +1,7 @@
 """plan.py changelog: the plan's changelog fragment (hal2 plan 0339, record changelog-fragments)."""
 import json
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -17,12 +18,17 @@ class ChangelogTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         testkit.init_repo(self.root)
+        # a PATH with git only: a CI laptop's /usr/bin may carry hal2-cli-changelog, which must stay hidden
+        self.bin = tempfile.TemporaryDirectory()
+        self.addCleanup(self.bin.cleanup)
+        git = shutil.which("git")
+        (Path(self.bin.name) / "git").symlink_to(git)
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_plan(self, *args, cli=None) -> subprocess.CompletedProcess:
-        env = {**os.environ, "PATH": "/usr/bin:/bin"}
+        env = {**os.environ, "PATH": self.bin.name}
         env.pop("HAL2_CLI_CHANGELOG", None)
         if cli:
             env["HAL2_CLI_CHANGELOG"] = str(cli)
