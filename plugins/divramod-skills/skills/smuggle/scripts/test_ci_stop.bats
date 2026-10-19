@@ -570,3 +570,13 @@ EOF
   [ ! -e .github/workflows/merge-to-main.yml ]
   [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
 }
+
+@test "link_tools_except starts ln once per folder, not once per tool, and leaves out the named tool" {
+  mkdir -p "$BATS_TEST_TMPDIR/fakeln"
+  printf '#!/bin/sh\necho x >> "%s/count"\nexec %s "$@"\n' "$BATS_TEST_TMPDIR" "$(command -v ln)" > "$BATS_TEST_TMPDIR/fakeln/ln"
+  chmod +x "$BATS_TEST_TMPDIR/fakeln/ln"
+  PATH="$BATS_TEST_TMPDIR/fakeln:$PATH" link_tools_except "$BATS_TEST_TMPDIR/tools" ls
+  [ "$(wc -l < "$BATS_TEST_TMPDIR/count")" -le 2 ]
+  [ -e "$BATS_TEST_TMPDIR/tools/cat" ] || [ -L "$BATS_TEST_TMPDIR/tools/cat" ]
+  [ ! -e "$BATS_TEST_TMPDIR/tools/ls" ] && [ ! -L "$BATS_TEST_TMPDIR/tools/ls" ]
+}

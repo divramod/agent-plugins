@@ -11,6 +11,7 @@ import json
 import os
 import re
 import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -75,23 +76,42 @@ def in_process(cwd, args, env):
 class Cases:
     """The tests, run by the two flavours below."""
 
+    @classmethod
+    def setUpClass(cls):
+        """The repo is built once per class (git init and a commit are the slow part); each test gets a copy."""
+        super().setUpClass()
+        cls.template_dir = tempfile.TemporaryDirectory()
+        cls.template = Path(os.path.realpath(cls.template_dir.name))
+        cls.write_in(cls.template, ".gitignore", "target/\nnode_modules/\ndist/\n.secrets/\nnotes.txt\n"
+                                                 "code/swift/libs/Hal2Core/Frameworks/\n")
+        cls.write_in(cls.template, "code/rust/src/lib.rs", "")
+        cls.write_in(cls.template, "dist/keep.txt", "tracked in an ignored folder\n")
+        subprocess.run(["git", "init", "-q"], cwd=cls.template, env=ENV, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=cls.template, env=ENV, check=True)
+        subprocess.run(["git", "add", "-f", "dist/keep.txt"], cwd=cls.template, env=ENV, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=cls.template, env=ENV, check=True)
+        cls.write_in(cls.template, "code/rust/target/debug/big", "x" * 5000)
+        cls.write_in(cls.template, "code/swift/libs/Hal2Core/Frameworks/Hal2Rust.xcframework/lib", "x")
+        cls.write_in(cls.template, "web/node_modules/pkg/index.js", "x")
+        cls.write_in(cls.template, "dist/out.js", "x")
+        cls.write_in(cls.template, ".secrets/00/TOKEN", "secret")
+        cls.write_in(cls.template, "notes.txt", "mine")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.template_dir.cleanup()
+        super().tearDownClass()
+
+    @staticmethod
+    def write_in(root, rel, text):
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(os.path.realpath(self.tmp.name))
-        self.write(".gitignore", "target/\nnode_modules/\ndist/\n.secrets/\nnotes.txt\n"
-                                 "code/swift/libs/Hal2Core/Frameworks/\n")
-        self.write("code/rust/src/lib.rs", "")
-        self.write("dist/keep.txt", "tracked in an ignored folder\n")
-        subprocess.run(["git", "init", "-q"], cwd=self.repo, env=ENV, check=True)
-        subprocess.run(["git", "add", "-A"], cwd=self.repo, env=ENV, check=True)
-        subprocess.run(["git", "add", "-f", "dist/keep.txt"], cwd=self.repo, env=ENV, check=True)
-        subprocess.run(["git", "commit", "-qm", "init"], cwd=self.repo, env=ENV, check=True)
-        self.write("code/rust/target/debug/big", "x" * 5000)
-        self.write("code/swift/libs/Hal2Core/Frameworks/Hal2Rust.xcframework/lib", "x")
-        self.write("web/node_modules/pkg/index.js", "x")
-        self.write("dist/out.js", "x")
-        self.write(".secrets/00/TOKEN", "secret")
-        self.write("notes.txt", "mine")
+        shutil.copytree(self.template, self.repo, symlinks=True, dirs_exist_ok=True)
         bin_ = tempfile.TemporaryDirectory()
         self.addCleanup(bin_.cleanup)
         self.bin = Path(os.path.realpath(bin_.name))
