@@ -30,34 +30,18 @@ class MtmCiTest(unittest.TestCase):
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
                          [("07", "landed", ""), ("03", "landed", ""), ("05", "failed", "gate")])
 
-    def test_a_red_macos_build_job_is_no_red_of_a_candidate(self):
-        # Plan 0263 D64: `mac-vm-build`'s jobs run beside the checks, outside `gate`'s needs, and carry no stop step.
-        build = {"name": "03-lmm1vx/rust-bundle-apps-macos", "conclusion": "failure"}
-        jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"}, build,
-                    {"name": "06-lmm1ha/deliver", "conclusion": "failure"}],
-                2: [{"name": "02-vhl1hb/rust-test", "conclusion": "failure"}, build,
-                    {"name": "03-lmm1vx/ts-bundle-desktop-macos", "conclusion": "cancelled"},
-                    {"name": "04-xxx1hx/gate", "conclusion": "failure"}]}
-        rows = mtm_ci.summary([run(1, "land/07", conclusion="failure"), run(2, "land/03", conclusion="failure")],
-                              lambda rid: jobs.get(rid, []), 0)
-        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
-                         [("07", "landed", ""), ("03", "failed", "02-vhl1hb/rust-test, 04-xxx1hx/gate")])
-        self.assertTrue(mtm_ci.is_build("03-lmm1va/ts-bundle-desktop-macos"))
-        # Plan 0263 D128: the build's plan on the Mac host, red (no VM came up): the landing stands, the candidate's
-        # red is its check's alone.
-        plan = {"name": "03-lmm1ha/mac-vm-build-plan", "conclusion": "failure"}
-        jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"}, plan],
-                2: [{"name": "02-vhl1hb/rust-test", "conclusion": "failure"}, plan,
-                    {"name": "04-xxx1hx/gate", "conclusion": "failure"}]}
-        rows = mtm_ci.summary([run(1, "land/07", conclusion="failure"), run(2, "land/03", conclusion="failure")],
-                              lambda rid: jobs.get(rid, []), 0)
-        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows],
-                         [("07", "landed", ""), ("03", "failed", "02-vhl1hb/rust-test, 04-xxx1hx/gate")])
-        self.assertTrue(mtm_ci.is_build("04-lmm1vx/rust-bundle-apps-macos"))
-        self.assertFalse(any(mtm_ci.is_build(n) for n in (
-            "03-lmm1vx/bash-test", "02-vhl1hb/rust-bundle-apps-linux", "03-xxx1hx/macos-build-nothing-to-run",
-            "rust-bundle-apps-macos", "b / rust-bundle-apps-macos", "06-lmm1ha/deliver", "mac-vm-build-plan",
-            "02-lmm1ha/mac-vm-wake", "")))
+    def test_a_red_macos_build_job_is_a_red_of_the_candidate(self):
+        # Plan 0391 D23 (the user, 2026-10-19: "If something is read in A, B, or C, in general, the run should be
+        # aborted. Only the cache clean jobs should run then afterwards, but no main merge."): land run 39252296374
+        # merged with c4-02-tmux-test-mac red; now its red skips git-merge and the landing is red at it.
+        jobs = {2: [{"name": "c4-01-bash-test", "conclusion": "success"},
+                    {"name": "c4-02-tmux-test-mac", "conclusion": "failure"},
+                    {"name": "d2-01-git-merge", "conclusion": "skipped"},
+                    {"name": "h1-01-ci-cache-clean-mac-host", "conclusion": "success"}]}
+        rows = mtm_ci.summary([run(2, "land/03", conclusion="failure")], lambda rid: jobs.get(rid, []), 0)
+        self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in rows], [("03", "failed", "c4-02-tmux-test-mac")])
+        self.assertFalse(mtm_ci.merged(jobs[2]))
+        self.assertFalse(hasattr(mtm_ci, "is_build"))
 
     def test_stage_and_code_names_read_as_the_old_ones_did(self):
         jobs = {1: [{"name": "05-xxx1hx/merge", "conclusion": "success"},
@@ -90,13 +74,10 @@ class MtmCiTest(unittest.TestCase):
                                                          "04-mac-host-a/01-git-pull-main", "04-mac-vm-a/02-agents-publish",
                                                          "04-mac-host-b/01-hub-deploy")))
         self.assertFalse(mtm_ci.is_ship("03-hz01-host-b/01-merge"))
-        self.assertTrue(all(mtm_ci.is_build(n) for n in ("02-mac-vm-a/01-tmux-build-mac", "03-mac-host-a/02-mac-vm-build-plan")))
-        self.assertFalse(mtm_ci.is_build("02-mac-vm-a/01-bash-test"))
         jobs = {1: [{"name": "03-hz01-host-b/01-merge", "conclusion": "success"},
-                    {"name": "04-mac-host-a/05-ci-cache-clean-mac-host", "conclusion": "failure"},
-                    {"name": "02-mac-vm-a/01-rust-build-mac", "conclusion": "failure"}]}
+                    {"name": "04-mac-host-a/05-ci-cache-clean-mac-host", "conclusion": "failure"}]}
         self.assertTrue(mtm_ci.merged(jobs[1]))
-        self.assertEqual(mtm_ci.red_jobs(jobs[1]), [], "a red delivery cleanup and a red build are no red of the landing")
+        self.assertEqual(mtm_ci.red_jobs(jobs[1]), [], "a red delivery cleanup is no red of the landing")
         jobs[1].append({"name": "02-hz01-host-b/03-rust-lint", "conclusion": "failure"})
         self.assertEqual(mtm_ci.red_jobs(jobs[1]), ["02-hz01-host-b/03-rust-lint"])
 
@@ -108,11 +89,8 @@ class MtmCiTest(unittest.TestCase):
         self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-02-ci-cache-clean-mac-host", "e2-01-git-pull-main",
                                                          "e3-01-agents-publish", "e4-01-hub-deploy")))
         self.assertFalse(mtm_ci.is_ship("d2-01-git-merge"))
-        self.assertTrue(all(mtm_ci.is_build(n) for n in ("c1-01-tmux-build-mac", "c4-02-tmux-test-mac")))
-        self.assertFalse(mtm_ci.is_build("c4-01-bash-test"))
         jobs = [{"name": "d2-01-git-merge", "conclusion": "success"},
-                {"name": "g1-02-ci-cache-clean-mac-host", "conclusion": "failure"},
-                {"name": "c1-02-rust-build-mac", "conclusion": "failure"}]
+                {"name": "g1-02-ci-cache-clean-mac-host", "conclusion": "failure"}]
         self.assertTrue(mtm_ci.merged(jobs))
         self.assertEqual(mtm_ci.red_jobs(jobs), [])
         jobs[0]["conclusion"] = "failure"

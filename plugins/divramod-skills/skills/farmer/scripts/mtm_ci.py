@@ -51,18 +51,11 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
              "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host",
              "hub-deploy"}  # the hub's deploy on mac-host-b (plan 0349 step 35)
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
-# The macOS build jobs (the workflow's `mac-vm-build`, plan 0263 D64) build beside the checks what the delivery installs,
-# and `mac-vm-build-plan` names them on the Mac host before (D128): `gate` needs none of them, so a red one is no red of
-# a candidate (hal2-git's ci/job_name.rs BUILD_JOBS).
-BUILD_JOBS = {"rust-bundle-apps-macos", "ts-bundle-desktop-macos", "mac-vm-build-plan",
-              # Plan 0349: the one VM lane's jobs after bash-test (D17-D20).
-              "tmux-build-mac", "tmux-test-mac", "rust-build-mac", "ts-bundle-desktop-mac"}
 # Since plan 0349 (D40) the job part of the names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
 # the job is the bare one, as in the names without it. Since D101 a name is `<matrix alias>-<NN>-<job>` (`c3-03-rust-lint`:
 # the stage's letter, the matrix's place in it, the job's position): the old forms stay for the runs before it.
 NEW = r"[a-z][1-9]-\d\d-"
 OLD = r"\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?"
-BUILD_NAME = re.compile(rf"^(?:{NEW}|{OLD})(?P<job>.+)$")  # these names only: no older run had these jobs
 NAME = re.compile(rf"^(?:{NEW}|{OLD}|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
@@ -104,12 +97,6 @@ def is_ship(name: str) -> bool:
     """A ship job: its job part in the fixed set (the new names), or an old lane `ship / `, `mac-host-ship / `."""
     m = NAME.match(name or "")
     return m["job"] in SHIP_JOBS or m["lane"] in SHIP_LANES
-
-
-def is_build(name: str) -> bool:
-    """A macOS build job, `c1-02-rust-build-mac` or `04-mac-vm-x/rust-bundle-apps-macos`, or the build's plan: red or not, it fails no candidate."""
-    m = BUILD_NAME.match(name or "")
-    return bool(m) and m["job"] in BUILD_JOBS
 
 
 def needed(job: dict) -> bool:
@@ -173,8 +160,8 @@ def stopped_by(jobs: list[dict]) -> list[str]:
 
 def red_jobs(jobs: list[dict]) -> list[str]:
     """The red jobs that count. In a run with a cause: the causes and a `gate` that is not green; every other
-    cancelled job only stopped and is left out. Never a ship job, a macOS build job or a stop job: `gate` needs
-    none of them (a stop job that failed to send its request is not the candidate's red)."""
+    cancelled job only stopped and is left out. Never a ship job or a stop job (a stop job that failed to send its
+    request is not the candidate's red); a red macOS build job counts like any check (plan 0391 D23)."""
     causes = stopped_by(jobs)
 
     def red(job: dict) -> bool:
@@ -186,7 +173,7 @@ def red_jobs(jobs: list[dict]) -> list[str]:
         return conclusion in RED
 
     return [j["name"] for j in jobs if red(j) and job_part(j.get("name", "")) not in NOT_COUNTED
-            and not is_ship(j.get("name", "")) and not is_build(j.get("name", "")) and not stop_job(j)]
+            and not is_ship(j.get("name", "")) and not stop_job(j)]
 
 
 def merged(jobs: list[dict]) -> bool:
