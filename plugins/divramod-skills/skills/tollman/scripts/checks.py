@@ -215,6 +215,8 @@ def busy(tickets: list[dict], train: dict | None, all_runs: list[dict] | None, n
                 return {"reason": f"the land run {r.get('databaseId')} of {name} on {branch} runs", "slot": "",
                         "train": name}
             return {"reason": f"the land run {r.get('databaseId')} on {branch} runs", "slot": name}
+    # A held queue, a red holder (plan 0370: a failed smuggle or landing keeping its place, "red, fixing") included,
+    # moves for nobody: waiting landings do not hold the runners, checks may run.
     stuck = any(t.get("state") == "held" for t in tickets)
     for t in tickets if not stuck else []:
         if waits(t, now, sessions):

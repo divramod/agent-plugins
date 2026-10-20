@@ -1,6 +1,6 @@
 ---
 name: smuggle
-description: smuggle — land the current git worktree from this machine past CI, merge-to-main's twin for when the normal landing cannot or should not wait: CI does not work (runners down, GitHub Actions or GitLab CI broken, a land run stuck), a broken local CLI, daemon, hook or install needs its fix landed and installed now, or the merge queue is in smuggle mode. It pauses the running landing or train in place (it resumes by itself), merges the default branch in, runs only the checks of what the branch changed on this machine (the touched units of `.hal/smuggle.toml`), lands the candidate straight onto the default branch with its version bumps and CHANGELOG.md as a landing writes them, starts no CI run (the next land run gates the smuggled range), installs what it changed so it works at once (`.hal/smuggle-main.sh`) and leaves the merge queue. A change outside the units of `.hal/smuggle.toml` warns with the CI jobs it would have run and lands only on the user's yes. Where hal2 has it, one call: `hal2-cli-git worktree merge-to-main --smuggle`; else this skill's steps with `--local` or plain git. `/smuggle configure` writes the scripts and the unit list for any repository. Started by the user, or in the merge queue's smuggle mode by /mtm (`/smuggle --from-mtm`; a plan's `Landing: auto` and the farmer's "smuggle mode: run /mtm now" included); never otherwise by a plan, the farmer or another session. Use when the user says /smuggle, "smuggle", "land without CI", "CI is down, land it anyway" or "land this fix now". `/smuggle --dry-run` changes nothing, `/smuggle h` shows help.
+description: smuggle — land the current git worktree from this machine past CI, merge-to-main's twin for when the normal landing cannot or should not wait: CI does not work (runners down, GitHub Actions or GitLab CI broken, a land run stuck), a broken local CLI, daemon, hook or install needs its fix landed and installed now, or the merge queue is in smuggle mode. It pauses the running landing or train in place (it resumes by itself), merges the default branch in, runs only the checks of what the branch changed on this machine (the touched units of `.hal/smuggle.toml`), lands the candidate straight onto the default branch with its version bumps and CHANGELOG.md as a landing writes them, starts no CI run (the next land run gates the smuggled range), installs what it changed so it works at once (`.hal/smuggle-main.sh`) and leaves the merge queue once landed; a red smuggle keeps holding the queue, its session fixes and reruns until it lands. A change outside the units of `.hal/smuggle.toml` warns with the CI jobs it would have run and lands only on the user's yes. Where hal2 has it, one call: `hal2-cli-git worktree merge-to-main --smuggle`; else this skill's steps with `--local` or plain git. `/smuggle configure` writes the scripts and the unit list for any repository. Started by the user, or in the merge queue's smuggle mode by /mtm (`/smuggle --from-mtm`; a plan's `Landing: auto` and the farmer's "smuggle mode: run /mtm now" included); never otherwise by a plan, the farmer or another session. Use when the user says /smuggle, "smuggle", "land without CI", "CI is down, land it anyway" or "land this fix now". `/smuggle --dry-run` changes nothing, `/smuggle h` shows help.
 ---
 
 # smuggle
@@ -44,7 +44,7 @@ hal2's smuggle guide in docs/).
 - **No CI run** (D68, D72): no `land/<slot>` candidate is pushed, the default branch's push starts nothing; the
   smuggle's ticket stays in the queue only as an unverified range, which the next land run (the resumed train's,
   else the next landing's) gates with `Hal2-Gate-Base` and clears when it lands. Nothing else of it stays queued: its
-  hitch and ticket go when it ends, also red (D80); a rerun queues again.
+  hitch and ticket go when it has landed; a red smuggle (conflict, checks, build, push) keeps the ticket held `failed`, blocks every new landing and smuggle, and its own rerun takes it over (plan 0370).
 - **Versions and CHANGELOG.md** (D68, D69): hal2-git's smuggle bumps the versions of the apps, libs and scripts it
   touches (the `Versions:` block of its merge commit, dependents included) and writes CHANGELOG.md from the plans'
   `changelog.md` fragments it brings in, as a landing does. The skill runs no bump of its own.
@@ -96,7 +96,7 @@ has the flag: take [one call](#with-hal2-one-call). Else (no hal2, an older one)
 Run `hal2-cli-git worktree merge-to-main --smuggle --json` **in the background** (`run_in_background`, the maximum
 timeout; a shell timeout's SIGTERM counts as the user's stop). It pauses the queue holder (never stops it), cancels
 this slot's unmerged land runs, merges the default branch in, runs the worktree script and the build in parallel,
-lands with the version bumps and CHANGELOG.md, installs, and leaves the queue (its range stays unverified for the
+lands with the version bumps and CHANGELOG.md, installs, and leaves the queue once landed (a red end keeps it; its range stays unverified for the
 next land run; no land run of its own). It does what the steps below do
 by hand (`ci-stop.sh`, `smuggle.sh reserve|checks|land|main|release`): run none of them beside it. Read the
 result by exit code and `status`:
@@ -104,9 +104,9 @@ result by exit code and `status`:
 | Exit | `status` | Do |
 |---|---|---|
 | 0 | `landed`, `nothing` | done. Report `phases`, `report` (its `ci` line lists the jobs left to the next land run), `warnings`, `gate_base` |
-| 1 | `failed` | report the error; fix and rerun |
-| 11 (or 3) | `conflict` | resolve as the mfm skill does, commit, rerun |
-| 12 (or 4) | `checks_failed`, `gate_failed`, `delivery_failed` | the smuggle left the queue: read `part` and `tail`, fix, commit, rerun (it queues again). A `delivery_failed` with `landed: true` is already on the default branch: fix it in a new smuggle |
+| 1 | `failed` | the smuggle still holds the queue: report the error, fix and rerun at once |
+| 11 (or 3) | `conflict` | the smuggle still holds the queue: resolve as the mfm skill does, commit, rerun at once |
+| 12 (or 4) | `checks_failed`, `gate_failed`, `delivery_failed` | the smuggle still holds the queue (held `failed`, new landings wait): read `part` and `tail`, fix the reasons, commit, rerun at once, on your own, until it lands (failed run > fix > next run); never release the place yourself, only the user's or the farmer's word does (`hal2-cli-git worktree stop|release --by <who>`). A `delivery_failed` with `landed: true` is already on the default branch: fix it in a new smuggle |
 | 13 (or 5) | `stopped`, `cancelled` | the user's stop is final: report and stop |
 | 13 (or 5) | `interrupted` | its process went away: rerun the same command, it adopts the landing |
 | 10 (or 6) | `queued` | the wait's slice passed: rerun the same command at once, the ticket keeps its place |

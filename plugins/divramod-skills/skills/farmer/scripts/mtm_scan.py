@@ -45,6 +45,7 @@ import roles
 
 import flaky_checks
 import mtm_ci
+import red_holder
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer worktree's roles/farmer/ (roles.state_dir)
 TOOLS = ("hal2-cli-git", "hal2-cli-agents", "git")
@@ -248,7 +249,8 @@ def session_works(w: dict) -> bool:
 def smuggle_owned(t: dict) -> bool:
     """A ticket of the user's smuggle (`smuggle` in `queue --json`) or one a smuggle paused (`paused_by`: a landing
     that resumes by itself within seconds of the smuggle's release, or a verification taken over): not a stuck
-    holder. The boss never wakes, releases or counts it, and never starts or releases a smuggle."""
+    holder. The boss never wakes, releases or counts it, and never starts or releases a smuggle. (A smuggle that
+    failed is the exception: a red holder, `red_holder.of`, woken to fix and rerun, still never released.)"""
     return bool(t.get("smuggle") or t.get("paused_by"))
 
 
@@ -287,7 +289,17 @@ def findings(snap: dict) -> list[dict]:
     # A role's own worktree (the tollman's, the carrier of every train) is held by its train: the engine's to move.
     # Nor is a leaving ticket anyone's to wake or release (`waits_for`, hal2 plan 0263 D129): it ended and goes by
     # itself once no run of its worktree goes.
-    if head and head["state"] == "held" and not roles.role_of(head["slot"]) and not head.get("waits_for"):
+    # A red holder (a failed smuggle or landing) keeps the queue until it lands: the boss wakes its session to fix and
+    # rerun, never releases it (plan 0370 D1, D6). Its own class, smuggle or land run alike.
+    first = queue[0] if queue and queue[0]["slot"] not in marked and not roles.role_of(queue[0]["slot"]) \
+        and not queue[0].get("waits_for") else None
+    red = red_holder.of(first, snap["landings"]) if first else None
+    if red:
+        agent = by_slot.get(first["slot"], {}).get("agent_state")
+        if not first.get("process_alive") and agent not in BUSY:
+            message = (first.get("hold") or {}).get("message") or ""
+            out.append(red_holder.finding(first, red, agent, failed_task(message), failing_tests(message)))
+    elif head and head["state"] == "held" and not roles.role_of(head["slot"]) and not head.get("waits_for"):
         age = now - (parse_time(head.get("enqueued")) or now)
         agent = by_slot.get(head["slot"], {}).get("agent_state")
         hold = head.get("hold") or {}

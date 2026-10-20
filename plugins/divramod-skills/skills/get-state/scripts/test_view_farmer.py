@@ -152,6 +152,11 @@ class FieldsTable(unittest.TestCase):
         qs = [{"kind": "questions", "open": ["Q5", "Q6", "Q7", "Q9"]}]
         self.assertEqual(state(row("01", 1, 9, waits=qs)), "idle; waits on Q5-Q7, Q9")
 
+    def test_a_red_holder_shows_its_failed_step(self):
+        queue = {"holds": True, "position": 0, "red": {"step": "checks", "attempts": 3}}
+        self.assertEqual(tables(row("09", 5, 5, queue=queue))["fields"]["rows"][0]["state"],
+                         "idle; holds the merge queue; red: checks failed, attempt 3")
+
     def test_a_sparse_row_does_not_raise(self):
         r = tables({"wt": "10", "cells": ["10"]})["free"]["rows"][0]
         self.assertEqual((r["wt"], r["plan"], r["state"]), ("10", "", ""))

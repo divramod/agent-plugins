@@ -99,7 +99,8 @@ def agent_facts(by_path: dict | None, path: str) -> dict:
 def queue_fact(tickets: list[dict] | None, path: str, wt: str) -> dict | None:
     for t in tickets or []:
         if t["worktree"] == os.path.realpath(path) or (t["worktree"] is None and t["slot"] == wt):
-            return {"holds": t["holding"], "position": t["position"], "state": t["state"]}
+            return {"holds": t["holding"], "position": t["position"], "state": t["state"],
+                    **({"red": t["red"]} if t.get("red") else {})}
     return None
 
 

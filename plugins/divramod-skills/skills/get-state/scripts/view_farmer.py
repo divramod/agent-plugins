@@ -51,6 +51,8 @@ def state_cell(row: dict, smuggle: bool) -> str:
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"queue {q['position']}")
+        if q.get("red"):
+            out.append(f"red: {state_table.red_phrase(q['red'])}")
         if smuggle:
             out.append("smuggling")
     for w in row["waits"]:

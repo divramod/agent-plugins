@@ -68,6 +68,14 @@ class TableTest(unittest.TestCase):
              "runs": [{}, {}], "rows": [row(wt="05", ci=[{"workflow": "ci", "status": "queued", "branch": "05"}]), row(wt="06")]}
         return {**d, **kw}
 
+    def test_red_holder_in_the_state_cell_and_the_line(self):
+        red = {"step": "checks", "attempts": 2}
+        r = row(wt="09", queue={"holds": True, "position": 0, "state": "held", "red": red})
+        self.assertEqual(t.state_cell(r, "main"), "holds the merge queue; red: checks failed, attempt 2, blocks the queue until it lands")
+        self.assertEqual(t.red_phrase({"step": None, "attempts": 1}), "failed")
+        queue = [{"slot": "09", "holding": True, "position": 0, "red": red}, {"slot": "02", "holding": False, "position": 1}]
+        self.assertEqual(t.queue_text(queue), "09 holds (red: checks failed, attempt 2); waiting: 02")
+
     def test_table_and_line(self):
         lines = t.table(self.data()).split("\n")
         self.assertEqual(lines[:2], ["| WT | Plan | Steps | State | Waits for |", "|---|---|---|---|---|"])

@@ -83,7 +83,7 @@ class Rounds(Farm):
                     train={"carrier": self.carrier(), "cars": [{"field": "06"}], "at": "2026-10-13T11:00:00Z"})
         self.round()
         self.assertEqual(self.gate.calls[1:], [["worktree", "queue", "train", self.carrier(), "--clear"],
-                                               ["worktree", "release", self.carrier()]])
+                                               ["worktree", "release", self.carrier(), "--by", "the user"]])
 
 
 if __name__ == "__main__":

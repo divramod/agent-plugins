@@ -5,6 +5,8 @@ and no land run: "The toll gate is empty." The raw queue comes from tollman_sour
 `state.collect`'s `runs`; a source that is unknown says so.
 """
 
+import state_sources as src
+import state_table
 import tollman_sources as ts
 
 EMPTY = "The toll gate is empty."
@@ -21,7 +23,10 @@ def mode_text(mode: dict | None) -> str:
 def note(t: dict) -> str:
     """The marks of a ticket in a few words, fixed order."""
     out = []
-    if t.get("state") == "held":
+    red = src.red_of(t)
+    if red:
+        out.append(f"red: {state_table.red_phrase(red)}; holds the queue until it lands or is released")
+    elif t.get("state") == "held":
         out.append("held" + (f": {t['hold'].get('reason') if isinstance(t['hold'], dict) else t['hold']}" if t.get("hold") else ""))
     if t.get("smuggle"):
         out.append("smuggle")

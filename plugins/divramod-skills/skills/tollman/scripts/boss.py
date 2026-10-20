@@ -29,10 +29,14 @@ ORPHAN = dt.timedelta(hours=3)
 STATE_WAKE = dt.timedelta(hours=24)  # an unchanged work-not-queued state wakes the model at most once a day
 COMMITS = re.compile(r"^(\d+) commits? not on main, plan ([^\s,]+)")
 JUDGE = ("active-long", "work-not-queued", "long-queue", "paused")
-LANDS = ("held-idle", "reserved-idle", "waiter-gone")  # the kinds whose text tells a worktree to land or queue
+LANDS = ("held-idle", "reserved-idle", "red-holder", "waiter-gone")  # the kinds whose text tells a worktree to land or queue
 TEXT = {
     "held-idle": BOSS + ": your failed landing holds the merge queue ({failure}). Fix the cause and rerun the "
                         "landing now (/merge-to-main). A test that fails only under load: say so in one line.",
+    "red-holder": BOSS + ": your red {what} holds the merge queue ({failure}, attempt {attempts}) and blocks every newcomer. "
+                         "Fix the reasons, commit and run it again now ({rerun}), as often as it takes until it lands; "
+                         "your place is given up only on the user's or the farmer's word. A test that fails only under "
+                         "load: say so in one line.",
     "reserved-idle": BOSS + ": you reserved the merge queue for your plan's finish and nothing lands. Finish and "
                             "land now (/merge-to-main).",
     "released": BOSS + ": your held landing has no session, so I released the merge queue. Fix it, then /merge-to-main "
@@ -98,10 +102,26 @@ class Planner:
         self.add(f["kind"], "notify", f["slot"], text=f"{role_of(self.ctx)}: {f['why']}",
                  key=f"reservation-waits:{f['slot']}:{f.get('seq')}", window=dt.timedelta(hours=6))
 
+    def red(self, f: dict) -> None:
+        """A red holder (a failed smuggle or landing, plan 0370 D1, D6) is never released by a script: its session is
+        woken (again every hour) to fix the reasons and rerun; one without a session is reported to the farmer, who or
+        the user alone gives the place up (`worktree release --by farmer`)."""
+        slot, seq = f["slot"], self.ticket(f["slot"]).get("seq")
+        if self.wt.get(slot, {}).get("agent_state") not in (None, "ended"):
+            rerun = "/smuggle" if f.get("what") == "smuggle" else "/merge-to-main"
+            text = TEXT["red-holder"].format(what=f.get("what") or "landing", failure=f.get("failure") or f["why"],
+                                             attempts=f.get("attempts") or 1, rerun=rerun)
+            self.tell(slot, f["kind"], text, f"wake:{slot}:{seq}", REWAKE)
+            return
+        self.add(f["kind"], "notify", slot, dt.timedelta(hours=6), key=f"red-holder-gone:{slot}:{seq}",
+                 text=f"{role_of(self.ctx)}: {slot}'s red {f.get('what')} holds the merge queue and has no session "
+                      f"({f['why']}): start one (/handoff c) to fix and rerun; only you or the user release it "
+                      f"(`hal2-cli-git worktree release {slot} --by farmer`)")
+
     def held(self, f: dict) -> None:
-        """A held queue nobody moves. A holder with a live session is woken (again every hour) and never released:
-        a red landing keeps the queue until its fix lands (the user, 2026-10-06: "run landing until everything is
-        fixed and merged and then release"). Only a holder without a session is released."""
+        """A held queue nobody moves, not red (a red holder is `red`'s). A holder with a live session is woken (again
+        every hour) and never released: a landing keeps the queue until its fix lands (the user, 2026-10-06: "run
+        landing until everything is fixed and merged and then release"). Only a holder without a session is released."""
         slot, seq = f["slot"], self.ticket(f["slot"]).get("seq")
         key, w = f"wake:{slot}:{seq}", self.wt.get(slot, {})
         if w.get("agent_state") not in (None, "ended"):
@@ -110,7 +130,7 @@ class Planner:
             return
         release = f"release:{slot}:{seq}"
         self.add("release", "run", slot, dt.timedelta(days=7), key=release,
-                 argv=["hal2-cli-git", "worktree", "release", slot, "--json"], text=f"released the queue held by {slot}",
+                 argv=["hal2-cli-git", "worktree", "release", slot, "--by", "tollman", "--json"], text=f"released the queue held by {slot}",
                  why="no session")
         self.tell(slot, "released", TEXT["released"], f"released:{slot}:{seq}", dt.timedelta(days=7), after=release)
         for t in self.queue:
@@ -241,6 +261,8 @@ class Planner:
                 self.priority(f)
             elif kind == "reservation-waits":
                 self.reservation(f)
+            elif kind == "red-holder":
+                self.red(f)
             elif kind in ("held-idle", "reserved-idle"):
                 self.held(f)
             elif kind == "load-high":

@@ -93,7 +93,7 @@ message `farmer (development foreman): smuggle mode: run /merge-to-main now`, th
 through CI: it runs the smuggle skill's [land](../smuggle/SKILL.md#land) flow in its place (`/smuggle --from-mtm`: the flag tells
 the skill's guard that `/mtm` started it): local checks of what the branch changed, versions, CHANGELOG.md,
 installs, the fast-forward push. The queue's lock keeps one smuggle at a time; the next one merges the new default
-branch first. A smuggle leaves the queue when it ends (its hitch and ticket gone, D80). The farmer's word counts as
+branch first. A smuggle leaves the queue only when it has landed: a red one (conflict, checks, build, push) keeps holding it and blocks every other landing, so fix, commit and rerun `/smuggle` at once until it lands; only the user's or the farmer's word releases it (`hal2-cli-git worktree stop|release --by <who>`). The farmer's word counts as
 the user's here (D76). When the worktree's mode is production go on below, also while the queue itself is in smuggle mode
 (this worktree's entry was set to production: the tollman's train brings it in).
 

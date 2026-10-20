@@ -1,6 +1,7 @@
 # Woken for merge-to-main (mtm)
 
-The tick already woke failed landings and released the held queues of fields without a session (a holder with a live
+The tick already woke failed landings and smuggles (`red-holder`: woken hourly to fix and rerun, the farmer notified when it
+has no session, never released) and released the other held queues of fields without a session (a holder with a live
 session is woken hourly, never released; through CI a red candidate keeps the queue until its session's fix lands, see
 [mtm's CI page](../../merge-to-main/references/ci.md)), took landed priority worktrees off `priority.json` (hal2 keeps the
 user's order: `worktree queue order`, the tick never re-ranks), told the user about a reservation waiting at the
@@ -37,7 +38,7 @@ foreman instead; when it holds the queue and no landing runs, release it (`hal2-
 A landing of it that has merged into main stays: notify the user.
 
 A ticket with `paused_by` or `smuggle` in `queue --json` (a landing a `/smuggle` paused, the smuggle
-itself, a smuggled range kept unverified) is not stuck: never wake or release it, never start a smuggle
+itself, a smuggled range kept unverified) is not stuck: never wake or release it, never start a smuggle (a failed one is a red holder, woken to fix and rerun)
 ([reasons.md](../subskills/merge-to-main-boss/reasons.md) C10).
 
 A worktree the boss paused (a `pause` entry in `log.jsonl` with no `go` after it) waits for that go, which the tick

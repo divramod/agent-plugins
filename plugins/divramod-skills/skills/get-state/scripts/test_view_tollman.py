@@ -61,6 +61,16 @@ class Sections(unittest.TestCase):
         t = ticket("12", 0, holding=True, state="held", hold={"reason": "red job"}, paused_by={"x": 1}, reserved={"by": "u"})
         self.assertEqual(vt.note(t), "held: red job; paused by a smuggle; reserved")
 
+    def test_a_red_holder_shows_its_failed_step_and_attempts(self):
+        hold = {"reason": "failed", "step": "checks", "spot": "smuggle checks", "message": "m", "attempts": 2}
+        t = ticket("09", 0, holding=True, state="held", hold=hold, smuggle={"phase": "checking"})
+        self.assertEqual(vt.note(t), "red: checks failed, attempt 2; holds the queue until it lands or is released; smuggle")
+        got = build([t, ticket("02", 1)])
+        self.assertEqual(got["Holder"]["rows"][0][3].split(";")[0], "red: checks failed, attempt 2")
+        first = {**hold, "attempts": 1}
+        self.assertTrue(vt.note(ticket("09", 0, state="held", hold=first)).startswith("red: checks failed;"))
+        self.assertNotIn("red", vt.note(ticket("09", 0, state="held", hold={"reason": "reserved"})))
+
     def test_smuggle_mode_text(self):
         got = build([ticket("a", 0)], mode={"mode": "smuggle", "by": "user", "why": "ci down"})
         self.assertEqual(got["Mode"]["text"], "Mode: smuggle (by user, why ci down)")

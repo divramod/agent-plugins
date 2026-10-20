@@ -271,6 +271,19 @@ class Tools(Fixture):
         self.assertEqual([w["kind"] for w in rows["02"]["waits"]], ["queue", "ci"])
         self.assertEqual(rows["02"]["waits"][0], {"kind": "queue", "holds": True, "position": 0})
 
+    def test_a_red_holder_is_found_in_the_queue_and_the_row(self):
+        hold = {"reason": "failed", "step": "checks", "attempts": 2}
+        raw = {"queue": [{"slot": "02", "worktree": None, "position": 0, "holding": True, "state": "held", "hold": hold},
+                         {"slot": "10", "worktree": None, "position": 1, "holding": False, "state": "waiting", "hold": None}]}
+        self.mock(src, "tool_json", lambda args, cwd=None: raw)
+        got = REAL_STATE(str(self.main))["queue"]
+        self.assertEqual(got[0]["red"], {"step": "checks", "attempts": 2})
+        self.assertIsNone(got[1]["red"])
+        self.assertIsNone(src.red_of({"state": "held", "hold": {"reason": "reserved"}}))
+        self.assertEqual(src.red_of({"state": "held", "hold": {"reason": "failed"}}), {"step": None, "attempts": 1})
+        self.assertEqual(state.queue_fact(got, "/nowhere", "02")["red"], {"step": "checks", "attempts": 2})
+        self.assertNotIn("red", state.queue_fact(got, "/nowhere", "10"))
+
     def test_the_queue_and_its_mode_come_from_one_call(self):
         raw = {"queue": [{"slot": "02", "worktree": None, "position": 0, "holding": True, "state": "held"}],
                "mode": {"mode": "smuggle", "by": "user", "at": "t", "why": None}}

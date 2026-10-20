@@ -57,6 +57,16 @@ def agents() -> dict[str, dict] | None:
     return {os.path.realpath(path): a for path, a in fl.agents_by_checkout(raw).items()}
 
 
+def red_of(ticket: dict) -> dict | None:
+    """`{"step", "attempts"}` of a held ticket whose landing or smuggle failed (hold reason `failed`, plan 0370): it keeps
+    the queue red until it lands or the user or the farmer releases it; None for any other ticket."""
+    hold = ticket.get("hold")
+    if ticket.get("state") != "held" or not isinstance(hold, dict) or hold.get("reason") != "failed":
+        return None
+    attempts = hold.get("attempts")
+    return {"step": hold.get("step") or None, "attempts": attempts if isinstance(attempts, int) and attempts > 0 else 1}
+
+
 def ticket_wt(t: dict) -> str | None:
     """The ticket's worktree name: its `slot` field, else the last part of its worktree path."""
     return t.get("slot") or (Path(t["worktree"]).name if t.get("worktree") else None)
@@ -70,7 +80,7 @@ def queue_state(main: str) -> dict:
         return {"queue": None, "mode": None}
     tickets = [{"slot": t.get("slot"), "wt": ticket_wt(t), "worktree": os.path.realpath(t["worktree"]) if t.get("worktree") else None,
                 "position": t.get("position"), "holding": bool(t.get("holding")), "state": t.get("state"),
-                "land_ref": t.get("land_ref")}  # a train's branch `land/train-...` (plan 0383), else None
+                "land_ref": t.get("land_ref"), "red": red_of(t)}  # a train's branch `land/train-...` (plan 0383), else None
                for t in raw["queue"] if isinstance(t, dict)]
     tickets.sort(key=lambda t: (not t["holding"], t["position"] if isinstance(t["position"], int) else 10**9))  # the holder, then by place
     mode = raw.get("mode")

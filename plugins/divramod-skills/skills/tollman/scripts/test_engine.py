@@ -218,7 +218,7 @@ class Standing(Farm):
                       "ready "
                       "again (`hal2-cli-git worktree queue ready`).", self.typed[0][1])
         old, new = "tollman-train-0294-f09", "tollman-train-0294"
-        self.assertIn(["worktree", "release", old], self.gate.calls, "its own failed landing's hold")
+        self.assertIn(["worktree", "release", old, "--by", "the user"], self.gate.calls, "its own failed landing's hold, by the user")
         self.assertEqual((self.carrier(), self.gate.calls[-1]), (new, ["worktree", "queue", "train", new, "07", "--train", "2", "--attempt", "1"]))
         self.assertFalse((self.wm.parent / old).exists(), "the broken train's worktree dropped (plan 0375 D5)")
         self.assertEqual(self.subjects(), [f"Merge branch '07' into {new}", "seven.txt"])

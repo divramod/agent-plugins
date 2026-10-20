@@ -61,6 +61,46 @@ class Held(unittest.TestCase):
         self.assertEqual(plan(s)[0], ("run", "release", "04"))
 
 
+RED = {"kind": "red-holder", "slot": "04", "what": "smuggle", "step": "checks", "attempts": 2, "why": "red smuggle",
+       "failure": "rust-test"}
+
+
+class RedHolder(unittest.TestCase):
+    """Plan 0370 D1, D6: a red smuggle or landing keeps the queue; no script releases it."""
+
+    def planned(self, s, log=()):
+        return boss.plan(s, {"now": NOW, "log": list(log), "main": "/x/hal2"})
+
+    def test_a_red_holder_with_a_session_is_woken_to_fix_and_rerun_and_never_released(self):
+        for state in ("done", "sleeping", "idle"):
+            s = snap([RED], Q, [wt("04", state=state), wt("05")])
+            planned = self.planned(s)
+            self.assertEqual([(a["do"], a["kind"], a["slot"]) for a in planned], [("send", "red-holder", "04")])
+            text = planned[0]["text"]
+            self.assertIn("/smuggle", text)
+            self.assertIn("attempt 2", text)
+            self.assertIn("user's or the farmer's word", text)
+        land = snap([dict(RED, what="landing")], Q, [wt("04"), wt("05")])
+        self.assertIn("/merge-to-main", self.planned(land)[0]["text"])
+        woke = [{"at": at(20), "key": "wake:04:7", "kind": "red-holder"}]
+        self.assertEqual(plan(snap([RED], Q, [wt("04")]), woke), [], "at most hourly")
+
+    def test_a_red_holder_without_a_session_is_reported_to_the_farmer_and_never_released(self):
+        for state in ("ended", None):
+            s = snap([RED], Q, [wt("04", state=state), wt("05")])
+            planned = self.planned(s)
+            self.assertEqual([(a["do"], a["kind"]) for a in planned], [("notify", "red-holder")])
+            self.assertNotIn("release", [a["kind"] for a in planned])
+            self.assertEqual([a for a in planned if a.get("argv") and "release" in a["argv"]], [])
+            self.assertIn("--by farmer", planned[0]["text"])
+            self.assertTrue(planned[0]["key"])
+
+    def test_the_release_of_an_idle_non_red_hold_names_who_gave_the_place_up(self):
+        s = snap([HELD], Q, [wt("04", state="ended"), wt("05")])
+        run = [a for a in self.planned(s) if a["do"] == "run"][0]
+        self.assertEqual(run["argv"], ["hal2-cli-git", "worktree", "release", "04", "--by", "tollman", "--json"])
+
+
 LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
 
 

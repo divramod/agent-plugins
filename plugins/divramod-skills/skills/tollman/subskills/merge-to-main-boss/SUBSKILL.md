@@ -30,7 +30,9 @@ its trains and nothing else.
 never the boss's: the farmer never starts one. `queue --json` shows its ticket with `smuggle` (`phase`, `since`, `run`, `gate_base`) and the
 landing it paused with `paused_by` (`slot`, `seq`, `since`); a paused landing resumes by itself within seconds of the
 smuggle's release. The scan leaves both out of its stuck-holder findings (no `held-idle`, `reserved-idle`,
-`active-long` or `waiter-gone` for them), see [reasons.md](reasons.md) C10.
+`active-long` or `waiter-gone` for them), see [reasons.md](reasons.md) C10. A smuggle (or landing) that failed is the
+exception, a **red holder** (`red-holder`, plan 0370): it keeps its place and the queue is blocked for newcomers; the
+boss wakes its session to fix the reasons and rerun, notifies the farmer when it has no session, and never releases it.
 
 ## Disable a flaky test
 
@@ -99,11 +101,13 @@ You never decide product questions, secrets, deploys to production, or anything 
   - edit permissions, settings or CLAUDE.md files;
   - decide product questions;
   - deploy.
-- `release` is allowed only for a `held` ticket with no live landing process and no session (none, or ended): a
-  holder with a live session is only woken, again every hour, never released (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"). Always tell its session.
+- `release` is allowed only for a `held` ticket that is not red (`red-holder`: hold `failed`, or `reserved` with a
+  failed land run, smuggle or landing) with no live landing process and no session (none, or ended); a red holder is
+  never released by the boss, only on the user's or the farmer's word (`release --by farmer`); with no session the
+  farmer is notified. A holder with a live session is only woken, again every hour, never released (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"). Always tell its session.
 - Never wake, release or count as `held-idle` a ticket with `paused_by` (a landing a smuggle paused) or one that is a
-  `smuggle` (also an unverified range a landed smuggle keeps, and one holding a takeover: a later smuggle's
-  `gate_base`). A smuggle is the user's landing: never `release` it, never start one.
+  `smuggle` and not red (also an unverified range a landed smuggle keeps, and one holding a takeover: a later smuggle's
+  `gate_base`). A smuggle is the user's landing: never `release` it, never start one; a red one is woken to fix and rerun.
 - Disabled tests are always recorded in the ledger and get a shot. The boss never deletes a test.
 - Never act on the boss's own session. Never start `/mtm` for a worktree without its session being told, except for
   orphaned work (R7).

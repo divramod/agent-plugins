@@ -246,7 +246,7 @@ def clear(top: str, why: str, now: dt.datetime | None = None) -> Done:
     except (json.JSONDecodeError, AttributeError):
         queue = []
     if any(t.get("slot") == field and t.get("state") == "held" and not t.get("waits_for") for t in queue):
-        cli(["worktree", "release", field, "--json"], main)  # its own failed landing's hold: that candidate is gone
+        cli(["worktree", "release", field, "--by", "the user", "--json"], main)  # the user's breakup: that candidate is gone
     pushed = ""
     if train and not gone:
         git(top, "merge", "--abort")

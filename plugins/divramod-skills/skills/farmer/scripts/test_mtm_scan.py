@@ -43,13 +43,13 @@ class FailingTests(unittest.TestCase):
 
 
 class Findings(unittest.TestCase):
-    def test_a_failed_landing_nobody_reruns_is_held_idle(self):
+    def test_a_failed_landing_nobody_reruns_is_a_red_holder(self):
         q = [{"slot": "12", "state": "held", "enqueued": "2026-10-03T02:33:17Z", "process_alive": False,
               "hold": {"reason": "failed", "step": "worktree-pre-merge", "attempts": 7,
                        "message": "libs.Hal2Kit test-unit (x) failed\n✘ Test slow() failed after 1 s"}}]
         w = [{"slot": "12", "ahead": 2, "agent_state": "sleeping", "agent_idle_seconds": 9000}]
         kinds = [(f["kind"], f["slot"]) for f in scan.findings(snap(queue=q, worktrees=w))]
-        self.assertEqual(kinds[0], ("held-idle", "12"))
+        self.assertEqual(kinds[0], ("red-holder", "12"))
         self.assertNotIn(("work-not-queued", "12"), kinds)
 
     def test_a_priority_slot_comes_first_with_its_place(self):
@@ -97,12 +97,32 @@ class Findings(unittest.TestCase):
         by = {"slot": "41", "seq": 7, "since": "2026-10-12T10:00:00Z"}
         smuggle = {"slot": "41", "state": "held", "process_alive": False, "hold": {"reason": "interrupted"},
                     "smuggle": {"phase": "verifying", "since": "2026-10-12T10:01:00Z", "run": 5}}
-        self.assertIn("held-idle", kinds([held]))
-        self.assertNotIn("held-idle", kinds([dict(held, paused_by=by), smuggle]))
+        self.assertIn("red-holder", kinds([held]))
+        self.assertNotIn("red-holder", kinds([dict(held, paused_by=by), smuggle]))
         self.assertNotIn("held-idle", kinds([smuggle]), "the user's smuggle is never released")
         self.assertNotIn("held-idle", kinds([dict(smuggle, paused_by=by)]), "a verification taken over")
         waiter = {"slot": "41", "state": "waiting", "process_alive": False, "smuggle": {"phase": "queued"}}
         self.assertNotIn("waiter-gone", kinds([dict(held, process_alive=True), waiter]))
+
+    def test_a_red_smuggle_or_land_run_is_a_red_holder_the_boss_wakes_and_never_releases(self):
+        # Plan 0370 D1, D6: a failed smuggle (hold `failed`) or a CI landing reserved with a failed land run keeps
+        # the queue; its own class, found for smuggle and landing alike, none while its session works.
+        red = {"slot": "09", "state": "held", "process_alive": False, "enqueued": "2026-10-18T03:00:00Z", "seq": 4,
+               "smuggle": {"phase": "checking"},
+               "hold": {"reason": "failed", "step": "checks", "attempts": 2, "message": "rust-test failed"}}
+        w = [{"slot": "09", "ahead": 2, "agent_state": "sleeping", "agent_idle_seconds": 9000}]
+        got = [f for f in scan.findings(snap(queue=[red], worktrees=w)) if f["kind"] == "red-holder"]
+        self.assertEqual([(f["slot"], f["what"], f["step"], f["attempts"]) for f in got], [("09", "smuggle", "checks", 2)])
+        busy = [dict(w[0], agent_state="working")]
+        self.assertEqual(scan.findings(snap(queue=[red], worktrees=busy)), [], "its session fixes it")
+        land = {"slot": "09", "state": "held", "process_alive": False, "enqueued": "2026-10-18T03:00:00Z",
+                "hold": {"reason": "reserved"}}
+        runs = [{"slot": "09", "outcome": "failed", "task": "rust-test"}]
+        got = [f for f in scan.findings(snap(queue=[land], worktrees=w, landings=runs)) if f["kind"] == "red-holder"]
+        self.assertEqual([(f["what"], f["step"]) for f in got], [("landing", "rust-test")])
+        ok = [{"slot": "09", "outcome": "running"}]
+        self.assertEqual([f["kind"] for f in scan.findings(snap(queue=[land], worktrees=w, landings=ok))],
+                         ["reserved-idle"], "a reservation without a failed run stays reserved-idle")
 
     def test_high_load_during_a_landing_names_the_busy_slots(self):
         q = [{"slot": "01", "state": "active", "process_alive": True, "active_seconds": 60}]
@@ -267,7 +287,7 @@ class Subservants(unittest.TestCase):
         self.assertEqual(f[0]["lead"], LEAD)
         unmarked = [dict(x, lead=None) for x in w]
         self.assertEqual([x["kind"] for x in scan.findings(snap(queue=q, worktrees=unmarked))],
-                         ["held-idle", "waiter-gone"])
+                         ["red-holder", "waiter-gone"])
 
 
 def iso(seconds_ago: float) -> str:
@@ -427,7 +447,7 @@ class Roles(unittest.TestCase):
             q[0].update(state="held", train=None, hold={"reason": "failed", "step": "gate", "attempts": 1})
             self.assertEqual(self.scan(d, q, [])["findings"], [])
             q[0]["slot"] = "12"
-            self.assertEqual([f["kind"] for f in self.scan(d, q, [])["findings"]], ["held-idle"])
+            self.assertEqual([f["kind"] for f in self.scan(d, q, [])["findings"]], ["red-holder"])
 
     def test_a_leaving_ticket_is_nobody_s_to_wake_or_release_and_no_waiter(self):
         # Hal2 plan 0263 D129 (in the barn since e754fa577): a head's ticket that ended stays held, `waits_for` says
@@ -446,7 +466,7 @@ class Roles(unittest.TestCase):
             self.assertNotIn("held-idle", [f["kind"] for f in self.scan(d, q, wts)["findings"]])
             self.assertIn("0. 12 held (leaving: run 9 of hal2/12 is still queued or in progress)",
                           scan.render_summary(got, [], [], ""))
-            for hold, kind in (({"reason": "reserved"}, "reserved-idle"), (left["hold"], "held-idle")):
+            for hold, kind in (({"reason": "reserved"}, "reserved-idle"), (left["hold"], "red-holder")):
                 held = [dict(left, hold=hold, waits_for=None)] + q[1:]
                 self.assertIn(kind, [f["kind"] for f in self.scan(d, held, wts)["findings"]], "the same ticket, held")
 

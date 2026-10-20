@@ -33,7 +33,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   holder in place instead of stopping it and cancels the land runs that have not merged.
 - **Remedy**: none. The paused landing resumes from merge-from-main within seconds of the smuggle's release (its
   cancelled run is re-run once and is no red); the boss does nothing: it does not wake or release the paused ticket,
-  never releases the smuggle's, and never starts a smuggle.
+  never releases the smuggle's, and never starts a smuggle. A smuggle that failed is no C10 but a red holder (R1).
 - **Lasting fix**: landed (hal2 plan 0228, 2026-10-10): `paused_by` and `smuggle` in the queue; the scan skips
   them.
 
@@ -199,17 +199,19 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
 
 ## R1 · A failed landing holds the queue while its agent sleeps
 
-- **Signature**: `scan.py` finding `held-idle`. The queue head is `held`, reason `failed`, with no live landing
-  process, and its agent is `sleeping` or `done`.
+- **Signature**: `scan.py` finding `red-holder` (before plan 0370: `held-idle`; a failed smuggle is one too). The queue
+  head is `held`, reason `failed` (or `reserved` with a failed land run), with no live landing process, and its agent
+  is `sleeping` or `done`.
 - **Cause**: the plan's landing rule says "notify and stop with the queue held" after repeated failures. Overnight
   nobody answers the notification, so the queue stays dead for hours. In this case wt 12 stopped at 02:40 after 7
   attempts and the queue stood still until 07:45.
 - **Occurrences**:
   - 2026-10-03, hal2 wt 12 (plan 0114), 5 h dead. The failure was a load-sensitive timing test that was also red
     on main alone.
-- **Remedy**: wake the holder by SendMessage. A test that fails on main too, or only under load, gets disabled
-  (R2) and the holder reruns its landing. If the holder does not move within one round: `hal2-cli-git worktree
-  release <slot>` frees the queue, and the holder requeues after its fix.
+- **Remedy**: wake the holder by SendMessage (the tick does, hourly). A test that fails on main too, or only under
+  load, gets disabled (R2) and the holder reruns its landing. Never release a red holder (plan 0370): with no
+  session the tick notifies the farmer; only the user's or the farmer's word frees the queue (`hal2-cli-git worktree
+  release <slot> --by farmer`).
 - **Lasting fix**: none. The idea is that the plan skill's landing rule asks the boss before it stops, not the
   sleeping user.
 

@@ -37,11 +37,20 @@ def run_phrase(run: dict) -> str:
     return f"{kind} run {'queued' if run.get('status') in QUEUED else 'running'}"
 
 
+def red_phrase(red: dict) -> str:
+    """`checks failed, attempt 2`: a red holder's failed step and its attempts (plan 0370)."""
+    step = red.get("step")
+    attempts = red.get("attempts") or 1
+    return f"{step + ' ' if step else ''}failed" + (f", attempt {attempts}" if attempts > 1 else "")
+
+
 def state_cell(row: dict, default: str) -> str:
     out = {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"waits in the queue at {q['position']}")
+        if q.get("red"):
+            out.append(f"red: {red_phrase(q['red'])}, blocks the queue until it lands")
     out += sorted({run_phrase(r) for r in row["ci"]}, key=lambda p: (p.split()[0], p))
     if row["uncommitted"]:
         out.append(f"{row['uncommitted']} uncommitted")
@@ -102,6 +111,9 @@ def queue_text(queue: list[dict] | None) -> str:
     holder = [t["slot"] for t in queue if t["holding"]]
     waiters = [t["slot"] for t in sorted((t for t in queue if not t["holding"]), key=lambda t: t["position"] or 0)]
     parts = [f"{', '.join(map(str, holder))} holds"] if holder else []
+    for t in queue:
+        if t.get("red") and t["holding"]:
+            parts[-1:] = [f"{parts[-1]} (red: {red_phrase(t['red'])})"]
     return "; ".join(parts + ([f"waiting: {', '.join(map(str, waiters))}"] if waiters else []))
 
 
