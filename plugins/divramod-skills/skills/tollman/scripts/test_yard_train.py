@@ -61,7 +61,7 @@ class Riding(YardFarm):
         self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.carrier()}",
                                                 "chore(yard): 1 file from the yard"], "before the wagons' merges")
         self.assertEqual((self.cw / "plans/CURRENT_PLAN").read_text(), "yard + 0294-tollman-role\n")
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07"]], "the mark names only fields")
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "--train", "1", "--attempt", "1"]], "the mark names only fields")
         self.assertEqual(self.state(), [("formed", self.carrier()), ("yard", self.carrier()), ("started", self.carrier())])
         car = train_state.lines(str(self.main))[1]
         self.assertEqual((car["commit"], car["files"], self.train()["yard"]),

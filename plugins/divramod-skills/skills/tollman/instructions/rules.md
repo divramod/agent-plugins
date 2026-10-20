@@ -31,8 +31,8 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
    place at once (`leavers.py`, the 1-minute watch included), tells its foreman to push its fix and holds the trains
    behind it (the next train does not start; a formed one goes on). A stopped ticket stays in place and holds the trains
    the same way. Only the user's or the farmer's word (`leavers.py release <slot>`) lets a place go.
-3. **The tollman forms every train, on its own branch** `train-<plan>-<plan>-...` (the plan numbers of its cars in train
-   order, e.g. `train-0379-0318-0367`); the landing pushes it as `land/train-<plan>-...` (`merge-to-main --land-ref`)
+3. **The tollman forms every train, in its own worktree** `tollman-train-<plan>-...` (the plan numbers of its cars in train
+   order); the train has a number `<n>` (a counter) and the landing pushes it as `land/train-<n>-<a>` (the mark's `--train/--attempt`, `a` = the start, plan 0398)
    and it lands through the toll gate like any landing. Cars, fixes and pushes live on that branch.
 4. **The watch speaks only on three events** (duty `watch`, every minute, code only, a quiet minute prints nothing and
    costs no tokens); each prints one line with the run's link:

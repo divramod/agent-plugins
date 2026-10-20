@@ -94,7 +94,7 @@ class Orders(Farm):
                          ([("restart", "run", "-")], 2, "landing", 2))
         self.assertEqual(out(self.cw, "log", "-1", "--format=%s"), MERGED,
                          "the merge is the new candidate: no empty retry commit")
-        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", C, "07", "09"], "the same cars")
+        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", C, "07", "09", "--train", "1", "--attempt", "2"], "the same cars, the next attempt")
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09"])
         self.broken_up_never()
 

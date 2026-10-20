@@ -8,6 +8,7 @@
     "schema": {"type": "integer", "minimum": 1, "maximum": 1},
     "kind": {"enum": ["formed", "yard", "regenerated", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared"]},
     "train": {"type": "string", "minLength": 1, "description": "The train's name, `<car>+<car>@<formed at>`."},
+    "number": {"type": "integer", "minimum": 1, "description": "A formed line: the train's number (hal2 plan 0398 D4, train_state.next_number), which names its land branch `land/train-<number>-<start>`; none on a train formed before it."},
     "cars": {
       "type": "array",
       "description": "A formed line: the cars in the order they are merged, each an object with field, branch, head and plan; a landed line: their fields."
@@ -16,7 +17,7 @@
     "worktree": {"type": "string", "description": "A formed line: the path of the train's own worktree `tollman-train-<plan>-...`, the carrier (hal2 plan 0375 D5)."},
     "pid": {"type": "integer", "minimum": 1, "description": "The landing's detached process."},
     "log": {"type": "string", "description": "The landing's output file."},
-    "land_ref": {"type": "string", "pattern": "^train-[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 195, "description": "A started line: the train's own branch, landed on `land/<land_ref>` (`merge-to-main --land-ref`, train_branch.py, plan 0383 D2)."},
+    "land_ref": {"type": "string", "pattern": "^train-[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 195, "description": "A started line: the train's own branch, landed on `land/<land_ref>`: `train-<number>-<start>` picked by merge-to-main from the mark's `--train/--attempt` (plan 0398), or, on a train without a number, the plan-named branch given as `--land-ref` (train_branch.py, plan 0383 D2)."},
     "status": {"type": "string", "description": "A red line: the landing's result (`gate_failed`, `conflict`, `error`, ...)."},
     "run": {"type": "string", "description": "The land run's address; a run line: the run of the landing that runs now, found by watch.py (plan 0360 step 5); a pause line: the run watched when the pause came (the one it cancels, step 18)."},
     "commit": {"type": "string", "description": "A landed line: the commit on the default branch; a yard line: the yard's commit in the carrier's field; a regenerated line: the train's last commit, which wrote the generated files again; a started line after a retry: the empty commit that gives the landing a new candidate, so a fresh run (plan 0313 step 13)."},

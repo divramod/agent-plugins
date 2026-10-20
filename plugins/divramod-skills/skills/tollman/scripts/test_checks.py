@@ -66,6 +66,12 @@ class Busy(unittest.TestCase):
         self.assertEqual(checks.busy([], None, push)["slot"], "07")
         self.assertEqual(checks.busy([{"slot": "06", "state": "waiting"}], None, [])["slot"], "06")
 
+    def test_a_train_land_branch_is_a_train_not_a_slot(self):
+        push = [{"event": "push", "headBranch": "land/train-3-2", "status": "in_progress", "databaseId": 9}]
+        got = checks.busy([], None, push)
+        self.assertEqual((got["slot"], got["train"]), ("", "train-3-2"))
+        self.assertIn("train-3-2", got["reason"])
+
     def test_free_when_nothing_lands_or_a_red_landing_holds_the_queue(self):
         self.assertIsNone(checks.busy([], None, [check_run(1, status="in_progress")]))
         self.assertIsNone(checks.busy([], {"state": "red"}, [{"event": "push", "headBranch": "land/07",

@@ -2,7 +2,7 @@
 skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, `at` in UTC with `Z`, `kind`,
 `slot`). Every change of a train is one appended line, written by one function of `engine.py`:
 
-  formed     the carrier (its key above), the train's own worktree `tollman-train-<plan>-...` (train_wt.py, plan 0375 D5; the
+  formed     `number` (the train's number, plan 0398 D4: `next_number`; none on a train formed before it), the carrier (its key above), the train's own worktree `tollman-train-<plan>-...` (train_wt.py, plan 0375 D5; the
              tollman's field before), `worktree` (its path); `train` (its name, `<car>+<car>@<at>`), `cars`
              ([{field, branch, head, plan}] in the order they are merged), `base` (the field's head before them);
              `pushed` when the carrier's remote branch still held an earlier train and went back on the base, or why
@@ -15,8 +15,8 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   pretest    the train's pretest before its landing (pretest_train.py, plan 0349 D75): `seconds`, `result`
              (green, red, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state cached, run,
              skipped or not needed), `why`; its jobs' output in the text log `train-pretest.log`
-  started    the landing's process: `pid`, `log`, `land_ref` (the train's own branch, `train-<plan>-...`, landed on
-             `land/<land_ref>`: train_branch.py, plan 0383 D2); written again by every restart; after a `retry` also
+  started    the landing's process: `pid`, `log`, `land_ref` (the train's own branch, landed on `land/<land_ref>`:
+             `train-<number>-<start>`, the mark's `--train/--attempt`, plan 0398; `train-<plan>-...` before it); written again by every restart; after a `retry` also
              `commit`, the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
   run        the landing's land run, found by watch.py while it lands (plan 0360 step 5): `run` (its address); the
              latest after the last `started` is this start's (`land_run`)
@@ -58,6 +58,7 @@ forms again). The landing's own output is the text log `train-landing.log`, rewr
 """
 
 import datetime as dt
+import fcntl
 import json
 import os
 import subprocess
@@ -68,7 +69,7 @@ import board
 import mtm_scan
 
 ROLE = "tollman"
-FILE, LOG = "train.jsonl", "train-landing.log"
+FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
 KINDS = ("formed", "yard", "regenerated", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed",
@@ -83,6 +84,21 @@ def utc(now: dt.datetime | None = None) -> str:
 
 def folder(main: str) -> Path:
     return mtm_scan.state_dir(main, ROLE)
+
+
+def next_number(main: str) -> int:
+    """The next train number (hal2 plan 0398 D4): a counter file `train-number` in the state folder, outside the
+    dated archive folders so it survives them, read and bumped under a lock; the first train is 1."""
+    f = folder(main)
+    f.mkdir(parents=True, exist_ok=True)
+    with (f / NUMBER).open("a+") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        fh.seek(0)
+        last = int(fh.read().strip() or 0)
+        fh.seek(0)
+        fh.truncate()
+        fh.write(f"{last + 1}\n")
+    return last + 1
 
 
 def append(main: str, kind: str, slot: str, now: dt.datetime | None = None, **keys) -> dict:
@@ -129,7 +145,7 @@ def standing(rows: list[dict]) -> dict | None:
         if kind == "formed":
             train = {"train": e.get("train"), "at": e.get("at"), "carrier": e.get("slot"), "cars": e.get("cars", []),
                      "worktree": e.get("worktree"),
-                     "base": e.get("base"), "state": "formed", "starts": 0, "pid": None, "unhitched": [], "yard": [],
+                     "base": e.get("base"), "number": e.get("number"), "state": "formed", "starts": 0, "pid": None, "unhitched": [], "yard": [],
                      "runner_retries": 0, "land_run": None, "orders": [], "fixed": False, "pauses": [],
                      "in_barn": [], "post": carry}
         elif not train or e.get("train") != train["train"]:

@@ -32,7 +32,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    unhitched with the finding lines, a field not at its hitched head waits ("no proof yet").
 4. **Form**: in the own field `tollman-<repo>`, on the barn's head: the yard's first car (the yard job), then a
    merge commit per car, `plans/CURRENT_PLAN` filled (the cars' plan names joined by ` + `: hal2-git reads the landing's descriptive subject and its `Plan:` trailers from it; the `Worktree:` trailer lists the cars' fields, `02, 03`, the yard as `main`), the
-   train marked (`worktree queue train <own field> <car>...`, a car's ticket then names its carrier as `rides_with`),
+   train marked (`worktree queue train <own field> <car>... --train <n> --attempt <a>`, a car's ticket then names its carrier as `rides_with`),
    and `hal2-cli-git worktree merge-to-main --json` started detached (`engine.py land` stays its parent; its output
    in `train-landing.log`). The tick never waits for CI.
 5. **Frozen** (plan 0360 D3, D7; `frozen.py`): from its `formed` line on nothing leaves the train. A wagon that
@@ -47,7 +47,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    reset to the barn, and the same round forms the next train (`chain.py`: the duty again until a wait, at most 3
    links). The foreman restocks, finishes its plan and mucks out; the tollman resets no other field.
 8. **Watch and red**: while the landing runs, each round reads its land run (`watch.py`: the run on the train's own branch
-   `land/train-<plan>-...`, plan 0383, after the last start, noted as a `run` line); its first red job is triaged (`triage.py`) and wakes once,
+   `land/train-<n>-<a>`, plan 0398, after the last start, noted as a `run` line); its first red job is triaged (`triage.py`) and wakes once,
    `train-red:<run>`. A red landing is triaged as code: a runner fault (the transient patterns, `transient.py`, in the
    failed log) lands the same cars again on a fresh run with no wake, after 3 in a row one `runner_broken` wake; the
    barn's red (the same job red in another slot's earlier land run on the same barn head) and a car's red are one

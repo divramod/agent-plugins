@@ -210,7 +210,11 @@ def busy(tickets: list[dict], train: dict | None, all_runs: list[dict] | None, n
     for r in all_runs:
         branch = r.get("headBranch") or ""
         if r.get("event") == "push" and branch.startswith("land/") and r.get("status") != "completed":
-            return {"reason": f"the land run {r.get('databaseId')} on {branch} runs", "slot": branch[len("land/"):]}
+            name = branch[len("land/"):]
+            if name.startswith("train-"):  # a train's candidate land/train-<n>-<a>: a train, not a slot
+                return {"reason": f"the land run {r.get('databaseId')} of {name} on {branch} runs", "slot": "",
+                        "train": name}
+            return {"reason": f"the land run {r.get('databaseId')} on {branch} runs", "slot": name}
     stuck = any(t.get("state") == "held" for t in tickets)
     for t in tickets if not stuck else []:
         if waits(t, now, sessions):

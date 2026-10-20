@@ -61,7 +61,7 @@ class GeneratedConflicts(Farm):
         self.assertEqual(([c["field"] for c in d["cars"]], d["unhitched"]), (["07", "13"], []))
         r = self.round()
         self.assertEqual((self.last, r["wake"]), ([("form", "run", "-")], []))
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "13"]])
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "13", "--train", "1", "--attempt", "1"]])
         self.assertEqual(self.state(), [("formed", self.carrier()), ("regenerated", self.carrier()), ("started", self.carrier())])
         self.assertEqual(self.subjects()[0], generated.SUBJECT, "the regeneration is the train's last commit")
         self.assertEqual(out(self.cw, "log", "-1", "--format=%(trailers:key=Worktree,valueonly,separator=%x2C)").strip().replace(" ", ""),

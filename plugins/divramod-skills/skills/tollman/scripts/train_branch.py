@@ -1,10 +1,13 @@
-"""A train's own landing branch (hal2 plan 0383 step 1, D2; learning L34): every train lands on
-`land/train-<part>-<part>-...` instead of the carrier's `land/<carrier>`, so each train has its own branch, pull
-request and runs and none adopts or cancels another's. `engine.restart` names it (`name`) in its `started` line
-(`land_ref`) and `engine.land` passes it to `hal2-cli-git worktree merge-to-main --land-ref`, which checks it and
-lands on `land/<name>` (the workflow runs only for `land/**`); `watch.find` looks for the run there (`land`).
+"""A train's own landing branch (hal2 plan 0383 step 1, D2; learning L34; plan 0398 D1, D4): every train lands on
+its own `land/train-<n>-<a>` instead of the carrier's `land/<carrier>`, so each train has its own branch, pull
+request and runs and none adopts or cancels another's. `<n>` is the train's number (`train_state.next_number`, on
+its `formed` line) and `<a>` the start (`starts + 1`): `engine.restart` marks the train with `--train <n> --attempt
+<a>` (`mark`), `hal2-cli-git worktree merge-to-main` then lands on `land/train-<n>-<a>` without a `--land-ref`
+(the workflow runs only for `land/**`), `ref` is the name it writes into the `started` line (`land_ref`) and
+`watch.find` looks for the run there (`land`).
 
-A part per car in train order: its plan's number (`0383` of `0383-train-rules`), else its field (lowercase letters
+A train formed before plan 0398 has no number: it keeps the plan-named branch (`name`, passed as `--land-ref`).
+Its part per car in train order: its plan's number (`0383` of `0383-train-rules`), else its field (lowercase letters
 and digits only); a part twice is named once. hal2-cli-git refuses a branch over 200 characters and one holding
 `probe` (the workflow's replays): a train too long keeps the parts that fit and `plus<n>` for the rest, and a part
 never holds `probe`.
@@ -38,6 +41,21 @@ def name(cars: list[dict]) -> str:
         if len(text) <= MAX:
             return text
     return (TRAIN + parts[0])[:MAX]
+
+
+def numbered(train: dict) -> bool:
+    """The train has a number (formed since plan 0398): the mark names its branch."""
+    return bool(train.get("number"))
+
+
+def mark(train: dict) -> list[str]:
+    """`--train <n> --attempt <a>` of the next start (a = starts + 1), none for a train without a number."""
+    return ["--train", str(train["number"]), "--attempt", str(train["starts"] + 1)] if numbered(train) else []
+
+
+def ref(train: dict) -> str:
+    """The `started` line's `land_ref` of the next start: `train-<n>-<a>`, else the plan-named `name`."""
+    return f"{TRAIN}{train['number']}-{train['starts'] + 1}" if numbered(train) else name(train["cars"])
 
 
 def land(train: dict) -> str:

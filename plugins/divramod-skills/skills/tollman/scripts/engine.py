@@ -80,11 +80,11 @@ def cli(args: list[str], cwd: str) -> Done:
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
-def spawn(top: str, log: Path, ref: str) -> int:
-    """Start `land` on the train's branch `ref` in a session of its own (no terminal, no parent that waits), its
-    output in `log`: its pid."""
+def spawn(top: str, log: Path, ref: str | None) -> int:
+    """Start `land` (`--land-ref ref` only for a train without a number) in a session of its own (no terminal, no
+    parent that waits), its output in `log`: its pid."""
     with log.open("w") as out:
-        argv = [sys.executable, str(Path(__file__).resolve()), "land", "--repo", top, "--land-ref", ref]
+        argv = [sys.executable, str(Path(__file__).resolve()), "land", "--repo", top, *(["--land-ref", ref] if ref else [])]
         p = subprocess.Popen(argv, cwd=top,
                              stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
     return p.pid
@@ -123,9 +123,10 @@ def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
         git(top, "merge", "--abort")
         return 1, f"{default} does not merge into {field}: no train formed; {train_wt.drop(top)[1]}"
     name = "+".join(c["field"] for c in cars) + "@" + train_state.utc(now)
+    number = train_state.next_number(main)  # plan 0398 D4: the train's number, the land branch `train-<n>-<a>`
     branch, base = git(top, "branch", "--show-current")[1] or field, git(top, "rev-parse", "HEAD")[1]
     pushed = push_base(top, field, base)  # a dead train an earlier end left on the remote (plan 0313 step 14)
-    train_state.append(main, "formed", field, now, train=name, cars=cars, base=base, worktree=top,
+    train_state.append(main, "formed", field, now, train=name, number=number, cars=cars, base=base, worktree=top,
                        **({"pushed": pushed} if pushed else {}))
     told = f"; {pushed}" if pushed else ""
     rides, note = load_yard(top, main, default, name, cars, now)
@@ -157,11 +158,12 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
     code, done = frozen.complete(top, train) if train["state"] == "formed" else (0, "")
     if code:
         return 1, done
-    code, out = cli(["worktree", "queue", "train", field, *(c["field"] for c in train["cars"]), "--json"], top)
+    code, out = cli(["worktree", "queue", "train", field, *(c["field"] for c in train["cars"]), *train_branch.mark(train),
+                     "--json"], top)
     if code:
         return 1, f"train {train['train']} was not marked: {out[-300:]}"
-    log, ref = train_state.folder(main) / train_state.LOG, train_branch.name(train["cars"])
-    pid = spawn(top, log, ref)
+    log, ref = train_state.folder(main) / train_state.LOG, train_branch.ref(train)
+    pid = spawn(top, log, None if train_branch.numbered(train) else ref)  # a numbered mark names its own branch
     train_state.append(main, "started", field, now, train=train["train"], pid=pid, log=str(log), commit=commit,
                        land_ref=ref)
     return 0, f"train {train['train']}: landing started (pid {pid}, start {train['starts'] + 1})"

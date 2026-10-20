@@ -51,6 +51,11 @@ kind = "keyed-log"
 key = "name"
 
 [[files]]
+path = "train-number"
+kind = "scalar"
+description = "The last train number given (hal2 plan 0398 D4, train_state.next_number): the next train is this plus one; it lives outside the dated archive folders."
+
+[[files]]
 path = "mode"
 kind = "scalar"
 values = ["claude", "timer"]

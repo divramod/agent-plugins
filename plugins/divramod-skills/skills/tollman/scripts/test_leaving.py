@@ -67,7 +67,7 @@ class Rounds(Farm):
         self.assertEqual(([c["field"] for c in d["cars"]], d["waiting"], d["unhitched"]), (["07", "09"], [], []))
         self.round()
         self.assertEqual((self.last, self.spawned), ([("form", "run", "-")], [self.carrier()]))
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "09"]],
+        self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "09", "--train", "1", "--attempt", "1"]],
                          "marked on its one ticket, nothing released")
         self.assertEqual([(t["slot"], bool(t.get("waits_for"))) for t in self.gate.tickets if t["state"] == "held"],
                          [("05", True), (OWN, True)], "the train rides in its own worktree's ticket (plan 0375 D5)")

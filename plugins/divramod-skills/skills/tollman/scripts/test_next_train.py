@@ -115,7 +115,7 @@ class MergeGreen(Trains):
         b = self.train()
         self.assertEqual(([c["field"] for c in b["cars"]], b["state"], len(self.spawned)), (["03"], "landing", 2),
                          "formed on the new main, its landing's process started: the pretest first")
-        self.assertEqual(self.refs[-1], "train-0382")
+        self.assertEqual((self.refs[-1], b["land_ref"]), (None, "train-2-1"), "numbered: no --land-ref (plan 0398)")
         kinds = [k for k, _ in self.state()]
         self.assertEqual(kinds[kinds.index("landed"):], ["landed", "formed", "started"])
         self.assertEqual(out(self.cw, "rev-parse", "HEAD~1"), out(self.main, "rev-parse", "origin/main"))
