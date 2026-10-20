@@ -40,5 +40,18 @@ class StopAllTest(unittest.TestCase):
         self.assertEqual(len(s["again"]), 1)
 
 
+    def test_no_abort_text_for_a_landing(self):
+        # gap 13 (plan 0397 D7): the stop pauses a landing in place and the continue resumes it, never "aborted"
+        skills = Path(__file__).resolve().parents[2]
+        texts = [(skills / n / "SKILL.md").read_text() for n in ("stop-all-agent-work", "continue-all-agent-work")]
+        for text in texts:
+            self.assertNotIn("aborts the landing", text)
+            self.assertNotIn("landing was aborted", text)
+            self.assertNotIn("start a NEW", text)
+            self.assertNotIn("start a new /mtm", text)
+        self.assertIn("never abort it", texts[0])
+        self.assertIn("adopts", texts[1])
+
+
 if __name__ == "__main__":
     unittest.main()

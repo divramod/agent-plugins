@@ -1,6 +1,6 @@
 ---
 name: stop-all-agent-work
-description: Stop the work of every Claude Code session on the machine at once, for a quiet system (performance benchmarks, a hot or slow Mac) — except the sessions the user names (`/stop-all-agent-work keep hal2/07`) — through Claude Code's own cross-session socket (ListAgents + SendMessage, not hal2): each session runs the `pause` skill (background shells frozen, subagents, workflows, monitors, cron jobs and /loop stopped, a pause record written), a session in a merge to main (/mtm) aborts the landing and starts a new one later; then a script quiets the rest of the machine (freezes processes still running below paused sessions, ends test leftovers, shuts down simulators, quits Ollama, unloads timer LaunchAgents such as an Ollama keepalive) and records each undo. Before stopping important work (data copied to a volume, a push, deploy, migration, install, upload, a landing, the CI runner) it asks the user one safety question. continue-all-agent-work undoes all of it. Use when the user says /stop-all-agent-work, "stop all agents", "tell all sessions to stop", "I need a quiet machine" or "benchmark time". `/stop-all-agent-work h` shows help.
+description: Stop the work of every Claude Code session on the machine at once, for a quiet system (performance benchmarks, a hot or slow Mac) — except the sessions the user names (`/stop-all-agent-work keep hal2/07`) — through Claude Code's own cross-session socket (ListAgents + SendMessage, not hal2): each session runs the `pause` skill (background shells frozen, subagents, workflows, monitors, cron jobs and /loop stopped, a pause record written), a session in a merge to main (/mtm) leaves the landing paused in place, never aborted (merge-queue-policy); then a script quiets the rest of the machine (freezes processes still running below paused sessions, ends test leftovers, shuts down simulators, quits Ollama, unloads timer LaunchAgents such as an Ollama keepalive) and records each undo. Before stopping important work (data copied to a volume, a push, deploy, migration, install, upload, a landing, the CI runner) it asks the user one safety question. continue-all-agent-work undoes all of it. Use when the user says /stop-all-agent-work, "stop all agents", "tell all sessions to stop", "I need a quiet machine" or "benchmark time". `/stop-all-agent-work h` shows help.
 ---
 
 # stop-all-agent-work
@@ -36,10 +36,11 @@ To every session to stop:
 > database migration, an install, an upload, a paid or outward-facing action), pause everything else, leave that
 > piece running and reply to <this session's name> at once: what it is, what breaks when it is frozen or killed,
 > and how long until a safe point. Then wait for the answer. If you were running a merge to
-> main (/mtm landing), stop the landing's running hooks/workflows too (TaskStop or kill their process tree), note
-> in the record that the landing was aborted, and on /continue start a NEW /mtm landing instead of resuming the
-> old one. Do not start builds, tests or anything else. Then stay idle until a message from <this session's
-> name> says all agents may continue; then run /continue.
+> main (/mtm landing), leave the landing as it is: never abort it, cancel its run or kill its processes (they are
+> frozen in place with the rest, as a smuggle pauses a landing), and note in the pause record that a landing was
+> running. Do not start builds, tests or anything else. Then stay idle until a message from <this session's
+> name> says all agents may continue; then run /continue and, for a landing, run /mtm again: it adopts the
+> paused landing.
 
 Then record it: `$R save --stopped <name>... --keep <name>... --note "<reason>"` (a stop that is active
 already gets the names added). A `[Cross-session delivery notice]` that a session holds or refuses the message:
@@ -53,12 +54,14 @@ work it left running goes into the safety question (step 5).
 
 ## 4. Quiet the machine (script)
 
-`$Q apply --keep-cwd <kept checkout>...` (preview with `--dry-run`). It freezes (SIGSTOP) busy processes still
+`$Q apply --keep-cwd <kept checkout>...` (preview with `--dry-run`; the same mechanism as the
+`important-interrupt` skill, which does it in one call). It freezes (SIGSTOP) busy processes still
 running below paused sessions (a build a session forgot, sourcekit-lsp indexing), terminates test leftovers
 under /tmp whose session is gone, shuts down booted simulators, quits Ollama (SIGTERM: its quit dialog blocks a
 polite quit; never call the `ollama` CLI, which starts Ollama.app again), unloads LaunchAgents that run on a
 timer (e.g. `local.ollama-keepalive`, every 60 s), pauses Docker containers, and writes every action with its
-undo into the stop record. Processes of the kept sessions, macOS daemons and the user's apps are only listed.
+undo into the stop record. A runner process or a CI job below one that it freezes also records a restart of the
+runner services as undo (a frozen runner stays online but deaf). Processes of the kept sessions, macOS daemons and the user's apps are only listed.
 Rows marked `CONFIRM` are important work (data copied or moved to a volume, a git push, merge or landing, a deploy,
 a database migration or dump, an install, an upload, a disk or backup operation, the CI runner): `apply` leaves
 them running and exits 3; they go into the safety question (step 5).

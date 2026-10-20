@@ -62,6 +62,38 @@ class QuietTest(unittest.TestCase):
             self.assertEqual(quiet.apply([], False, False, ["11"]), 0)
             self.assertIn(("STOP", 11), done)
 
+    def test_frozen_runner_is_restarted_by_the_undo(self):
+        table = {1: {"pid": 1, "ppid": 0, "cmd": "launchd"},
+                 20: {"pid": 20, "ppid": 1, "cmd": "/Users/m/actions-runner-a/bin/Runner.Listener run"},
+                 21: {"pid": 21, "ppid": 20, "cmd": "/x/Runner.Worker spawnclient"},
+                 22: {"pid": 22, "ppid": 21, "cmd": "cargo build"}}
+        self.assertTrue(quiet.runner_related(table, 22))
+        self.assertFalse(quiet.runner_related(table, 1))
+        rows = [{"kind": "session", "pid": 22, "session": "/w", "what": "cargo build"}]
+        sig, calls = [], []
+        with mock.patch.object(quiet, "scan", return_value=rows), mock.patch.object(quiet, "procs", return_value=table), \
+                mock.patch.object(quiet, "runner_services", return_value=[("actions.runner.o-r.mac-host-a", "/p")]), \
+                mock.patch.object(quiet, "perform", side_effect=lambda s: sig.append(s) or True):
+            quiet.apply([], False, False, [])
+        texts = [a["text"] for a in stopall.actions()]
+        self.assertEqual(texts[0], "restart runner service actions.runner.o-r.mac-host-a")
+        self.assertTrue(texts[1].startswith("freeze 22"))
+        with mock.patch.object(quiet, "perform", side_effect=lambda s: calls.append(s) or True):
+            quiet.restore(False)
+        # SIGCONT first, then the service is kickstarted
+        self.assertEqual(calls[0], ("CONT", 22))
+        self.assertEqual(calls[1][:3], ["launchctl", "kickstart", "-k"])
+        self.assertTrue(calls[1][3].endswith("/actions.runner.o-r.mac-host-a"))
+
+    def test_no_runner_restart_for_an_unrelated_freeze(self):
+        table = {1: {"pid": 1, "ppid": 0, "cmd": "launchd"}, 30: {"pid": 30, "ppid": 1, "cmd": "cargo build"}}
+        rows = [{"kind": "session", "pid": 30, "session": "/w", "what": "cargo build"}]
+        with mock.patch.object(quiet, "scan", return_value=rows), mock.patch.object(quiet, "procs", return_value=table), \
+                mock.patch.object(quiet, "runner_services", return_value=[("actions.runner.x", "/p")]), \
+                mock.patch.object(quiet, "perform", return_value=True):
+            quiet.apply([], False, False, [])
+        self.assertEqual([a["text"] for a in stopall.actions()], ["freeze 30 (/w)"])
+
     def test_ollama_never_through_its_cli(self):
         # `ollama ps` starts Ollama.app when the server is down: only HTTP may ask it.
         src = Path(quiet.__file__).read_text()

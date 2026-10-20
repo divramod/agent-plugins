@@ -1,6 +1,6 @@
 ---
 name: continue-all-agent-work
-description: The counterpart of stop-all-agent-work — after a system-wide stop (benchmarks done), undo the machine quieting (thaw frozen processes, load the unloaded LaunchAgents such as the Ollama keepalive, start Ollama again, unpause Docker containers) from the stop record, then tell every stopped Claude session through Claude Code's cross-session socket (SendMessage) to resume with /continue, sessions that aborted a merge to main start a new landing. Use when the user says /continue-all-agent-work, "all agents may continue", "benchmarks are done" or "let them work again". `/continue-all-agent-work h` shows help.
+description: The counterpart of stop-all-agent-work — after a system-wide stop (benchmarks done), undo the machine quieting (thaw frozen processes, load the unloaded LaunchAgents such as the Ollama keepalive, start Ollama again, unpause Docker containers) from the stop record, then tell every stopped Claude session through Claude Code's cross-session socket (SendMessage) to resume with /continue, a session whose landing was paused in place runs /mtm again, which adopts it. Use when the user says /continue-all-agent-work, "all agents may continue", "benchmarks are done" or "let them work again". `/continue-all-agent-work h` shows help.
 ---
 
 # continue-all-agent-work
@@ -22,7 +22,8 @@ the machine actions.
 ## 2. Undo the machine first
 
 `$Q restore` (preview with `--dry-run`) undoes the recorded actions in reverse: SIGCONT for frozen processes,
-`launchctl bootstrap` for unloaded LaunchAgents, `open -a Ollama`, `docker unpause`. Orphans and simulators had no
+`launchctl bootstrap` for unloaded LaunchAgents, `open -a Ollama`, `docker unpause`, and `launchctl kickstart -k` of every CI runner service the stop froze or stopped (a runner
+thawed by SIGCONT alone stays online but deaf); report each restarted service by name. Orphans and simulators had no
 undo. Report a step that failed (a process that is gone is fine).
 
 ## 3. Tell the sessions (SendMessage, all in one reply, in parallel)
@@ -30,7 +31,7 @@ undo. Report a step that failed (a process that is gone is fine).
 `ListAgents` first: send only to recorded names still listed (a session that ended: say so). To each:
 
 > All agents may continue: the system-wide stop is over. Run /continue now. If your pause record says a merge to
-> main (/mtm landing) was aborted, start a new /mtm landing instead of resuming the old one.
+> main (/mtm landing) was running, it was paused in place, not aborted: run /mtm again, it adopts the landing.
 
 ## 4. Close the stop
 

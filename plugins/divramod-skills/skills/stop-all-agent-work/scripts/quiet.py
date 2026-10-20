@@ -20,7 +20,9 @@ Kinds and what apply does:
   agent      a loaded LaunchAgent of ~/Library/LaunchAgents that runs on a timer (StartInterval, StartCalendarInterval),
              e.g. local.ollama-keepalive (every 60 s): launchctl bootout; undo launchctl bootstrap
   docker     a running container: docker pause; undo docker unpause
-  runner     a self-hosted GitHub Actions runner LaunchAgent: only with --runner (CI jobs wait meanwhile); bootout/bootstrap
+  runner     a self-hosted GitHub Actions runner LaunchAgent: only with --runner (CI jobs wait meanwhile); bootout/bootstrap.
+             A runner process (or a CI job below one) frozen or stopped by any row also records a `launchctl kickstart -k`
+             of every runner service as its undo: a frozen runner stays online but deaf (plan 0397 gap 12)
   report     listed only, never touched: macOS daemons (syspolicyd, mds, WindowServer), apps the user runs
              (Chrome, VoiceInk, ...), processes of the kept sessions
 CONFIRM: a session or orphan process doing important work (copying or moving data to a volume, a git push, merge
@@ -41,24 +43,15 @@ import sys
 import urllib.request
 from pathlib import Path
 
+import runners
 import stopall
+from important import important
 
 AGENTS = ("claude", "codex", "opencode")
 SYSTEM = ("/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/usr/bin/", "/bin/")
 OLLAMA = "http://127.0.0.1:11434"
 LAUNCH_AGENTS = Path.home() / "Library" / "LaunchAgents"
 NEVER_BOOTOUT = ("local.hal2.daemon",)  # the kept session's tools may need it
-# Work that breaks or leaves something half done when frozen or killed mid-way: apply asks first (--yes).
-IMPORTANT = [
-    (r"\b(rsync|ditto|scp)\b|\b(cp|mv)\b.*(/Volumes/|/media/)", "copies or moves data"),
-    (r"\bgit\b.*\b(push|merge|rebase|commit)\b|merge-to-main|\bland\b", "git write or landing"),
-    (r"\b(deploy|terraform|ansible-playbook|pulumi|kubectl (apply|delete)|helm (install|upgrade))\b",
-     "deploys"),
-    (r"\b(migrate|migration|psql|pg_dump|pg_restore|mysqldump|sqlite3)\b", "touches a database"),
-    (r"\b(brew (install|upgrade|reinstall)|softwareupdate|installer|pkgutil|xcodes install)\b", "installs software"),
-    (r"\b(notarytool|altool|docker push|tart push|twine upload|npm publish|cargo publish)\b", "uploads or publishes"),
-    (r"\b(diskutil|hdiutil|asr|tmutil)\b", "disk or backup operation"),
-]
 
 
 def need(tool: str):
@@ -139,12 +132,13 @@ def timer_agents(runner: bool) -> list:
     return found
 
 
-def important(cmd: str) -> str:
-    """Why stopping this process mid-way is risky, or ''."""
-    for pattern, why in IMPORTANT:
-        if re.search(pattern, cmd):
-            return why
-    return ""
+def runner_related(table: dict, pid: int) -> bool:
+    """A runner process itself, or a process below one (a CI job's build)."""
+    return runners.related(table[p]["cmd"] for p in chain(table, pid))
+
+
+def runner_services() -> list:
+    return runners.services(run(["launchctl", "list"]), LAUNCH_AGENTS)
 
 
 def key(row: dict) -> str:
@@ -253,6 +247,8 @@ def apply(keep: list, runner: bool, dry: bool, yes: list) -> int:
     """Exit 3 when rows wait for the user's confirmation (--yes <pid|label>); everything else is done."""
     rows = scan(keep, runner)
     done, waiting = [], []
+    table = procs()
+    restarted = False
     for row in rows:
         act = action(row)
         if not act:
@@ -264,6 +260,10 @@ def apply(keep: list, runner: bool, dry: bool, yes: list) -> int:
         ok = True if dry else perform(do)
         print(f"{'would ' if dry else ''}{text}: {show(do)}{'' if ok else '  (failed)'}")
         if ok and not dry:
+            if row["kind"] in ("session", "orphan") and not restarted and runner_related(table, row["pid"]):
+                # before the freeze entry: the undo runs in reverse, so SIGCONT first, then the restart
+                done.extend(runners.restarts(runner_services()))
+                restarted = True
             done.append({"text": text, "do": list(do) if isinstance(do, tuple) else do,
                          "undo": list(undo) if isinstance(undo, tuple) else undo})
     if done:
