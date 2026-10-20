@@ -1,0 +1,8 @@
+# {name}
+
+The rules every agent (Claude Code, Codex, OpenCode) follows in {name}; the global ones are in `~/AGENTS.md`.
+
+- Read [INTENT.md](INTENT.md) and [GLOSSARY.md](GLOSSARY.md) first; the hal way is in [README.md](README.md).
+- Every piece of work has a numbered plan in `plans/`; commit heads are `<type>(<NNNN>|<step>): <what>`.
+- Work in a field (`~/.hal/git/worktree/{name}/<NN>`), never plan work in the farmer's field `farmer-{name}`.
+- Secrets only by `hal2-cli-secrets set` from a field, never plaintext in a commit.

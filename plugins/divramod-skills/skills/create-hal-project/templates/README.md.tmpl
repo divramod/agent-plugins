@@ -1,0 +1,22 @@
+# {name}
+
+<!-- Purpose: one line on what {name} is for. -->
+
+## The hal way, on one page
+
+{name} is a hal farm: agent sessions work it in parallel, each in its own git worktree, and land through one queue.
+
+- **Roles** (`roles/<role>/ROLE.md`): the **steward** works with you in this main checkout (`~/a/{name}`, branch
+  `main`); the **farmer** keeps the farm running from its own worktree `farmer-{name}` (`roles/farmer/ROLE.md`, its
+  duties and rules); a **foreman** runs one plan in a field; a **servant** does a part of a foreman's plan.
+- **Fields**: numbered worktrees `~/.hal/git/worktree/{name}/<NN>` on branch `<NN>`; fields 00-09 stay, 10-99 come
+  and go. Start a session in one with `hal2-cli-git worktree run <NN> --agent claude`.
+- **Plans** (`plans/<NNNN>-<slug>/plan.md`): every piece of work is a numbered plan with a step table; a foreman
+  runs its steps, commits per step (`<type>(<NNNN>|<step>): <what>`) and lands it at the end.
+- **Landing**: a field's finished work comes into `main` by `/mtm` (merge to main); never commit straight to `main`
+  from a field.
+- **Decisions**: lasting ones in [INTENT.md](INTENT.md), rules as records in `.adr/<slug>.md`; terms in
+  [GLOSSARY.md](GLOSSARY.md).
+- **Where things live**: code `code/<language>/{apps,libs,scripts}/<name>/`, guides `docs/`, designs `designs/`,
+  research `research/<NNNN>-<slug>/`, seeds `shotfiles/`, secrets `.secrets/` (set by `hal2-cli-secrets set` from a
+  field, never plaintext in a commit).
