@@ -35,7 +35,7 @@ class QCheckTest(unittest.TestCase):
         cls.template = tempfile.TemporaryDirectory()
         root = Path(cls.template.name).resolve() / "repo"
         testkit.init_repo(root)
-        result = testkit.run(SCRIPT, ["--root", str(root), "new", "Tiny"], cwd=root)
+        result = testkit.run(SCRIPT, ["--root", str(root), "new", "Tiny", "--schema", "1"], cwd=root)
         assert result.returncode == 0, result.stderr
         cls.plan_path = json.loads(result.stdout)["path"]
         plan = root / cls.plan_path

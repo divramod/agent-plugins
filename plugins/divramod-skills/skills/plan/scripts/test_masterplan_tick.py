@@ -99,7 +99,7 @@ class TickTest(unittest.TestCase):
         master.write_bytes(master.read_bytes().replace(b"\n", b"\r\n"))
         inode, files = master.stat().st_ino, sorted(p.name for p in master.parent.iterdir())
 
-        self.plan("new", "view", "--parent", "1")  # its row is added
+        self.plan("new", "view", "--parent", "1", "--schema", "1")  # its row is added
         self.assertNotEqual(master.stat().st_ino, inode)  # a temp file moved over it, never a write in place
         self.assertEqual(self.finish(TOOLS)["tick"]["row"], "1")  # row 1 is ticked
         data = master.read_bytes()

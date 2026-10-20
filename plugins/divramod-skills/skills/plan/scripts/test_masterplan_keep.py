@@ -22,7 +22,7 @@ class KeepTest(unittest.TestCase):
         once by `new`, later tests start from a copy (testkit.fill_once)."""
         def build():
             self.farm()
-            self.plan("new", "view", "--parent", "1")
+            self.plan("new", "view", "--parent", "1", "--schema", "1")
         if self.plans.exists():
             build()
         else:

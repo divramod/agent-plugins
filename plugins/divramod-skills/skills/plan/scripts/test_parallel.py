@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import field_free
 import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
@@ -67,6 +68,7 @@ class ParallelTest(unittest.TestCase):
 
     def run_plan(self, *args, root=None, cwd=None, env=None) -> subprocess.CompletedProcess:
         env = {**os.environ, **(env or {})}
+        field_free.free(root or self.root, args)
         return testkit.run(SCRIPT, ["--root", str(root or self.root), *args], cwd=cwd or self.base, env=env)
 
     def plan(self, *args, root=None) -> dict:

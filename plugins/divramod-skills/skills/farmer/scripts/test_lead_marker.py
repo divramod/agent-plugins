@@ -60,6 +60,11 @@ class State(Fields):
         self.assertEqual(got["state"], "stale")
         self.assertIn("plan 0275-masterplan of field 09 is done", got["reason"])
 
+    def test_dropped_rows_are_no_open_work(self):
+        """A schema 2 plan (hal2 plan 0376) keeps its dropped rows in the overview's step table."""
+        self.plan("| # | Step | Status |\n|---|---|---|\n| 01.01 | a | done |\n| 01.02 | b | dropped |\n")
+        self.assertEqual(self.state(self.session())["state"], "stale")
+
     def test_the_foremans_plan_gone_is_stale(self):
         (self.foreman / "plans/0275-masterplan/plan.md").unlink()
         got = self.state(self.session())

@@ -136,7 +136,8 @@ Times are UTC.
   is locked, gh calls GitHub anonymously: 401 on runners, 404 on a private repository's jobs.
 - **Fix**: hal2 plan 0349 step 42: the daemon's gh calls get `GH_TOKEN` from `~/.config/hal2/gh-token` (mode 0600,
   written once by the user: `gh auth token > ~/.config/hal2/gh-token && chmod 600 ~/.config/hal2/gh-token`), else a
-  `gh auth token` read once and kept in memory (hal2_core's GitHub token).
+  `gh auth token` read once and kept in memory (hal2_core's GitHub token). Since plan 0349 D126 (step 54) the token
+  is hal2-secrets' global `HAL2_DAEMON_GH_TOKEN_SEC` instead of the file.
 - **Tests**: step 42's token tests in hal2_core and the daemon's gh callers.
 - **Would have caught it sooner**: a doctor round; the supervisor's `could not look: ... HTTP 401` warnings were in
   the log all night.

@@ -2,7 +2,7 @@
 """Start an agent session in the repository's first free and clean worktree.
 
   create.py [--repo DIR] [--agent claude|codex|opencode] [--model ID] [--effort LEVEL] [--tmux] [--prompt TEXT] [--exact]
-            [--role foreman|servant] [--from NN] [--to NN] [--min-free-gb 50]
+            [--role foreman|servant] [--from NN] [--to NN] [--min-free-gb 50] [--lead "<field> <plan> <step|NN-slug>"]
 
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
@@ -22,10 +22,18 @@ runs a plan (a foreman) or a foreman's step (a servant, in a field holding `plan
 ends it there (default 99, also the farmer's foremen: a foreman works in any field, its role comes from `plans/LEAD`,
 not the number, D16). A field holding `plans/LEAD` is a servant's and is skipped unless `--role servant`. A missing worktree is
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
+
+`--lead "<foreman's field> <plan> <step|NN-slug>"` (plan 0376 D6; only with `--from 30` or more) makes the session a
+servant: `plans/LEAD` and `plans/CURRENT_PLAN` (the plan) are written into its worktree (before the start when the
+worktree exists, else right after hal2 created it) and the first prompt merges the foreman's pushed branch
+(`git merge origin/<field>`) and runs `/servant`. The third word is a legacy step or row (digits) or a sub-plan
+`NN-slug`, as `plan.py ready` prints the line. It is a servant start (`--role servant` implied: it may take a field
+holding `plans/LEAD`; `--role foreman` is refused).
 """
 import json
 import os
 import shlex
+import re
 import shutil
 import subprocess
 import sys
@@ -177,6 +185,37 @@ def arg(argv: list[str], flag: str) -> str | None:
     return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
 
 
+LEAD = re.compile(r"^(\d{2}) (\d{4}-[a-z0-9-]+) (\d+|\d{2}-[a-z0-9-]+)$")
+
+
+def lead_of(argv: list[str], first: int) -> str | None:
+    """The `--lead` line as `plans/LEAD` holds it, None without the flag; dies when it is malformed or `--from` < 30
+    (a servant works only in a worktree from 30 to 99)."""
+    if "--lead" not in argv:
+        return None
+    line = " ".join((arg(argv, "--lead") or "").split())
+    if first < 30:
+        die("--lead needs --from 30 or more: a servant works only in a worktree from 30 to 99")
+    if not LEAD.match(line):
+        die(f"--lead needs \"<field> <plan> <step or NN-slug>\" (07 0376-one-plan-shape 02-readers), not '{line}'")
+    return line
+
+
+def write_lead(folder: Path, line: str) -> None:
+    """The servant's marker and current plan (both gitignored, plans/LEAD and plans/CURRENT_PLAN)."""
+    (folder / "plans").mkdir(parents=True, exist_ok=True)
+    (folder / "plans" / "LEAD").write_text(line + "\n")
+    (folder / "plans" / "CURRENT_PLAN").write_text(line.split()[1] + "\n")
+
+
+def lead_prompt(line: str, prompt: str | None) -> str:
+    field, plan, part = line.split()
+    task = (f"You are the servant of field {field} for sub-plan or step {part} of plan {plan} (plans/LEAD and "
+            f"plans/CURRENT_PLAN are written). Merge the foreman's pushed branch first (`git fetch origin && git "
+            f"merge origin/{field}`), then run /servant.")
+    return f"{task}\n\n{prompt}" if prompt else task
+
+
 def main(argv: list[str]) -> int:
     if argv and argv[0] in ("-h", "--help"):
         print(__doc__)
@@ -188,15 +227,22 @@ def main(argv: list[str]) -> int:
     last = arg(argv, "--to") or "99"
     if not last.isdigit() or not int(first) <= int(last) <= 99:
         die(f"--to needs a worktree from {first} to 99, not '{last}'")
-    for gone in ("--lead", "--base"):
-        if gone in argv:
-            die(f"{gone} is gone (skills plan 0016): a plan's steps run in subagents, never in servant worktrees")
+    if "--base" in argv:
+        die("--base is gone (skills plan 0016): a plan's steps run in subagents, never in servant worktrees")
+    lead = lead_of(argv, int(first))
     role = arg(argv, "--role")
     if role and role not in ROLES:
         die(f"--role needs foreman or servant, not '{role}'")
-    slot, skipped, entry = choose(repo, int(first), int(last), role == "servant")
+    if lead and role == "foreman":
+        die("--lead starts a servant: drop --role foreman")
+    slot, skipped, entry = choose(repo, int(first), int(last), role == "servant" or bool(lead))
     prepare(repo, entry, float(arg(argv, "--min-free-gb") or 50))
-    report = start(repo, slot, argv, first_prompt(arg(argv, "--prompt"), "--exact" in argv, role))
+    prompt = lead_prompt(lead, arg(argv, "--prompt")) if lead else arg(argv, "--prompt")
+    if lead and entry and entry.get("path"):
+        write_lead(Path(entry["path"]), lead)
+    report = start(repo, slot, argv, first_prompt(prompt, "--exact" in argv and not lead, None if lead else role))
+    if lead and not (entry and entry.get("path")) and report.get("worktree"):
+        write_lead(Path(report["worktree"]), lead)
     result = {
         "repo": repo.name,
         "slot": report.get("slot") or slot,
@@ -207,6 +253,7 @@ def main(argv: list[str]) -> int:
         "model": arg(argv, "--model"),
         "effort": arg(argv, "--effort"),
         "skipped": skipped,
+        **({"lead": lead} if lead else {}),
     }
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0

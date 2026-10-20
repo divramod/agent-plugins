@@ -7,7 +7,7 @@ description: The servant (German Knecht), a session in a field 30-99 that a fore
 
 A servant is a session in a field 30-99 that a foreman created: it does a part of the foreman's plan, reports back to
 it and never lands (`~/.claude/GLOSSARY.md`, entry **servant**). Its field holds the foreman's marker `plans/LEAD`
-(`<foreman's field> <plan> <step>`), which says it is a servant's, not the number; how it works is the [plan](../plan/SKILL.md) skill's "Work as a servant".
+(`<foreman's field> <plan> <step>`; a whole sub-plan of a schema 2 plan: `<field> <plan> <NN-slug>`), which says it is a servant's, not the number; how it works is the [plan](../plan/SKILL.md) skill's "Work as a servant".
 
 | Call | Does |
 |---|---|
@@ -23,11 +23,15 @@ the repository's `roles/servant/ROLE.md` ([role_duties.py](../farmer/scripts/rol
 ### one-step
 Do the step `plans/LEAD` names, in a hand (`plan.py prompt <n> --plan <its plan>`), only in this field (hal2 record
 [subservants-in-slots-30-99](https://github.com/divramod/hal2/blob/main/.adr/subservants-in-slots-30-99.md)); never
-delete the marker, never edit `plan.md` or mark a step.
+delete the marker, never edit `plan.md` or mark a step. When LEAD names a sub-plan (`NN-slug`), the whole sub-plan is
+yours: each of its steps in a hand (`plan.py prompt <NN>.<step>`), and you mark its steps yourself
+(`plan.py status <NN>.<step> next|running|blocked|done`, `done` once the step's done-when passed); nothing else of the
+plan is yours to write (`plan.py` refuses it).
 
 ### report
 Commit the step, write its `## Notes` and report to the foreman (`SendMessage` to its field's session): what is done,
-the commits, what could not be verified. The foreman merges, checks, marks it and removes this field.
+the commits, what could not be verified. A sub-plan's servant reports once, after its last step, pushed:
+`sub-plan <NN-slug> done: field <NN> at <sha>; done-when: <last output line>`. The foreman merges, checks, marks it and removes this field.
 
 ### never-land
 A servant never lands, hitches or smuggles: `plan.py`, merge-to-main's guard and hal2's merge queue refuse it. Its

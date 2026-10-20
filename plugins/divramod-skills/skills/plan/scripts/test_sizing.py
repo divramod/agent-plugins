@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
 
+import field_free  # noqa: E402
 import checker  # noqa: E402
 import sizing  # noqa: E402
 
@@ -65,6 +66,7 @@ class SizingTest(unittest.TestCase):
         return env
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
+        field_free.free(self.root, args)
         return testkit.run(SCRIPT, ["--root", str(self.root), *args], env=self.env(), cwd=self.root)
 
     def plan(self, *args) -> dict:
@@ -140,7 +142,7 @@ class SizingTest(unittest.TestCase):
         self.assertEqual(self.check(), (0, []))
 
     def test_new_writes_the_live_values_into_run_else_the_templates(self):
-        info = self.plan("new", "deploy the hub")
+        info = self.plan("new", "deploy the hub", "--schema", "1")
         text = (self.root / info["path"]).read_text()
         self.assertIn("\nrun: opus medium 1m\n", text)
         self.assertIn("| # | Step | Done when | Model | Effort | Window | Size | Status |", text)

@@ -40,7 +40,7 @@ class ChangelogTest(unittest.TestCase):
         return json.loads(result.stdout)
 
     def test_the_new_plan_row_asks_for_the_fragment_and_keeps_the_uat_prefix(self):
-        last = self.plan("new", "plugin-plan 3 tabs")["steps"][-1]
+        last = self.plan("new", "plugin-plan 3 tabs", "--schema", "1")["steps"][-1]
         self.assertTrue(last["step"].startswith("Write the UATs and the changelog fragment: `uat.md` and `changelog.md`"))
         self.assertIn("hal2-cli-changelog check", last["done_when"])
 

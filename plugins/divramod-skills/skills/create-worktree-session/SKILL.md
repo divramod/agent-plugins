@@ -15,6 +15,7 @@ description: Start a new agent session (Claude by default) in the current reposi
 | `... --repo <dir>` | another repository (any of its checkouts) |
 | `... --agent codex\|opencode`, `--model <id>`, `--effort <level>`, `--tmux` | another agent, its model and effort (per process, saved nowhere; the JSON echoes them), a window of tmux session `hal-<repo>` instead of a terminal host |
 | `... --exact` | the first prompt exactly as given, without `/mfm` first |
+| `... --lead "<field> <plan> <step or NN-slug>"` | with `--from 30` or more: write `plans/LEAD` and `plans/CURRENT_PLAN` into the servant field; the first prompt merges `origin/<field>` and runs `/servant` (the line `plan.py ready` prints) |
 | `... --from <NN>` | start the worktree search at `<NN>` (00 to 99) instead of 01 (the farmer's foremen: `--from 00`; a foreman's servants: `--from 30`) |
 | `... --to <NN>` | end the search at `<NN>` (default 99, also for the farmer's foremen: a foreman works in any field). A field holding `plans/LEAD` is a servant's and is skipped unless `--role servant`. None free in the range: exit 3 |
 | `... --role foreman\|servant` | the session loads its role skill first (`/foreman`, `/servant`: the skill's duties and the repository's `roles/<role>/ROLE.md`), after `/mfm` and before `<prompt>`, also with `--exact`; pass it for a session that runs a plan (foreman) or a foreman's step (servant, in a field holding `plans/LEAD`) (hal2 plan 0383, D15) |

@@ -38,7 +38,7 @@ has each file's form. Wherever this skill says `HANDOFF.md`, a record plan's ses
 
 ## Continue
 
-**In a servant's worktree** (`plans/LEAD` holds `<foreman's field> <plan> <step>`, `decisions.py`
+**In a servant's worktree** (`plans/LEAD` holds `<foreman's field> <plan> <step>`, or in a schema 2 plan `<field> <plan> <NN-slug>`, a whole sub-plan whose steps it continues one after another; `decisions.py`
 prints a `foreman:` line) `/handoff c` continues **that one step only**, as the plan skill's [Work as a
 servant](../plan/SKILL.md#work-as-a-servant) says: never the plan's next step, never `/mtm`, never an edit of
 `plan.md`; `CURRENT_PLAN` keeps naming the foreman's plan. A masterplan's servant (the marker names the masterplan

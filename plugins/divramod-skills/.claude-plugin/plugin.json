@@ -1,6 +1,6 @@
 {
   "name": "divramod-skills",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
   "author": {
     "name": "Arvid Petermann",

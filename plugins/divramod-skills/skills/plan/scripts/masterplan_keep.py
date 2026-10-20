@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 
 import masterplan
+import occupied
+import shape
 import table
 
 MAIN = masterplan.MAIN
@@ -113,13 +115,26 @@ def leave(pointer: Path, steps_of, release: bool = False) -> dict:
       goes on with its next plan;
     - `deleted`: the plan is finished and belongs to no unfinished masterplan (a masterplan's last plan too), or the
       file named a shot or a task: the work is in, the file is gone. With `release` (`leave --release`: the field
-      does not carry on with the masterplan) also where the file would name the masterplan or names it already."""
+      does not carry on with the masterplan) also where the file would name the masterplan or names it already.
+    - `restored`: the work is in and plans/PREVIOUS_PLAN (a `--here` switch, D4) keeps a plan still unfinished: the
+      file names it again and PREVIOUS_PLAN goes (D5); `release` drops PREVIOUS_PLAN without restoring it.
+    A plan of schema 2 is finished when its derived status is `uat` or `done` (D15), kept while it is `open`."""
     was = pointer.read_text(encoding="utf-8").strip() if pointer.is_file() else ""
 
     def result(action: str, line: str, current: str = "") -> dict:
         return {"was": was, "current": current, "action": action, "line": line}
 
+    def restored(why: str) -> dict | None:
+        root = pointer.parent.parent
+        if release:
+            (root / occupied.PREVIOUS).unlink(missing_ok=True)
+            return None
+        back = occupied.restore_previous(root)
+        return result("restored", f"{POINTER} names {back} again, kept by a --here switch: {why}", back) if back else None
+
     def deleted(why: str) -> dict:
+        if (back := restored(why)) is not None:
+            return back
         pointer.unlink()
         return result("deleted", f"{POINTER} deleted: {why}")
 
@@ -136,14 +151,19 @@ def leave(pointer: Path, steps_of, release: bool = False) -> dict:
     if release and masterplan.of(path):
         return deleted(f"the field is released from the masterplan {was} and is free again")
     steps = steps_of(path)
-    still = [s["number"] for s in steps if not is_done(s["status"])]
+    shaped = path.name == MAIN and shape.is_shape(path.parent)
+    still = ["open"] if shaped and occupied.status_of(path) == "open" else \
+        [] if shaped else [s["number"] for s in steps if not is_done(s["status"])]
     part = "row" if masterplan.of(path) else "step"
-    if still or not steps and masterplan.key(masterplan.read(path), "status") != DONE:
+    bare = not shaped and not steps and masterplan.key(masterplan.read(path), "status") != DONE
+    if still or bare:
         why = f"{part}(s) {', '.join(still)} open" if still else f"it has no {part}"
         return result("kept", f"{POINTER} keeps naming {was}: {why}", was)
     master = unfinished_master(path, steps_of)
     if master is None:
         return deleted(f"{was} is finished")
+    if (back := restored(f"{was} is finished")) is not None:
+        return back
     home = masterplan.slug_of(master)
     row = masterplan.row_of(path, int(home[:4]))
     its = f"{was}, its row {row}," if row else was

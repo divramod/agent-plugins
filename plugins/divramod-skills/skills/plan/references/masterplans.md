@@ -21,5 +21,10 @@ back (`running`); commit both `plan.md` files. Between two plans `CURRENT_PLAN` 
 - `plan.py masterplan [--plan <ref>] [--json]`: the roll-up of `hal2-cli-plans masterplan` (`$HAL2_CLI_PLANS`, else on
   PATH; `+` while a row is `draft`), without it the own rows and one line, exit 0: never add up step tables yourself.
   Its `after_landing`: the plans whose open steps are all checked after the landing (`/mtm` finishes them).
+- **Schema 2** (the one plan shape, SKILL.md): a masterplan stays a plan of plans, schema 1, rows under `## Steps`, no
+  `subplans/`, never converted (`new --masterplan` always writes the old table; `convert` skips it). Its plans may be
+  schema 2 (`convert`), keeping `parent`; a row of such a plan turns `done` when the
+  plan's derived status is `uat` or `done`, and goes back when it is `open` again. A servant of a masterplan row
+  still holds `<field> <the masterplan> <its row>`.
 - On the masterplan `ready --json`, `assign` and `status <row> <status>` work as on a parallel plan. Its rows are no
   steps: not sized, no step file on `next`; `prompt <row>` and `uat` refuse and name the row's plan.

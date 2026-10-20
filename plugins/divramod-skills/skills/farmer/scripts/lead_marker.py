@@ -156,7 +156,7 @@ def foreman_over(foreman: Path, lead: dict) -> tuple[bool | None, str]:
         cells = None
     if cells is None:
         return None, f"the step table of plan {plan} in field {slot} cannot be read"
-    if all(c.lower().lstrip("*_ ").startswith("done") for c in cells):
+    if all(c.lower().lstrip("*_ ").startswith(("done", "dropped")) for c in cells):  # a dropped row is no open work
         return True, f"plan {plan} of field {slot} is done"
     return False, f"plan {plan} of field {slot} is open"
 

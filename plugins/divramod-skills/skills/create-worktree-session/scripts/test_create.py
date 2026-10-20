@@ -33,7 +33,7 @@ elif args[:2] == ["worktree", "queue"]:
     print(json.dumps({"queue": [{"repo": name, "slot": "07", "state": "held"}]}))
 elif args[:2] == ["worktree", "run"]:
     print("setup ...")
-    print(json.dumps({"mode": "terminal", "pane": "t:abc", "slot": args[2], "worktree": "/wt/" + args[2]}))
+    print(json.dumps({"mode": "terminal", "pane": "t:abc", "slot": args[2], "worktree": os.path.join(os.environ["FAKE_WT"], args[2])}))
 '''
 
 SHELL = '#!/bin/sh\n# a login shell without the login: runs the command it gets with -lc\nexec /bin/sh -c "$2"\n'
@@ -153,13 +153,40 @@ class TestCreate(unittest.TestCase):
         self.assertIn("a new worktree needs 999999999 (--min-free-gb)", error)
         self.assertFalse(self.log.exists() and "run" in self.log.read_text())
 
-    def test_the_subservant_flags_are_gone(self):
-        # Skills plan 0016 (D12): a plan's steps run in subagents; no worktree is marked plans/LEAD any more.
-        for flag in ("--lead", "--base"):
-            error = self.refused("--from", "30", flag, "x")
-            self.assertIn(f"{flag} is gone", error)
+    LEAD = "07 0376-one-plan-shape 02-readers"
+
+    def test_base_is_gone(self):
+        self.assertIn("--base is gone", self.refused("--from", "30", "--base", "x"))
         self.assertFalse(self.log.exists() and "run" in self.log.read_text())
 
+    def test_lead_needs_a_servant_field_and_a_well_formed_line(self):
+        self.assertIn("--lead needs --from 30", self.refused("--lead", self.LEAD))
+        self.assertIn("--lead needs --from 30", self.refused("--from", "29", "--lead", self.LEAD))
+        self.assertIn("--lead needs \"<field>", self.refused("--from", "30", "--lead", "07 0376 x"))
+        self.assertIn("--lead needs \"<field>", self.refused("--from", "30", "--lead", "07 0376-one-plan-shape"))
+        self.assertFalse(self.log.exists() and "run" in self.log.read_text())
+
+    def check_lead(self, line: str, folder: Path):
+        out = self.run_create("--from", "30", "--lead", line, "--model", "m", "--effort", "high", extra="30")
+        self.assertEqual((out["slot"], out["lead"]), ("30", line))
+        self.assertEqual((folder / "plans" / "LEAD").read_text(), line + "\n")
+        self.assertEqual((folder / "plans" / "CURRENT_PLAN").read_text(), line.split()[1] + "\n")
+        run = self.run_call()
+        prompt = run[run.index("--prompt") + 1]
+        self.assertTrue(prompt.startswith("Run /merge-from-main first, then:"), prompt)
+        self.assertIn("git merge origin/07", prompt)
+        self.assertIn("run /servant", prompt)
+        self.assertEqual(run[run.index("--model") + 1], "m")
+        self.log.unlink()
+
+    def test_lead_writes_the_markers_for_a_sub_plan_and_for_a_legacy_row(self):
+        self.check_lead(self.LEAD, self.wt / "30")
+        self.check_lead("07 0376-one-plan-shape 5", self.wt / "30")
+
+    def test_lead_in_a_missing_worktree_writes_after_hal2_made_it(self):
+        out = self.run_create("--from", "31", "--lead", self.LEAD)
+        self.assertEqual(out["slot"], "31")
+        self.assertEqual((self.wt / "31" / "plans" / "LEAD").read_text(), self.LEAD + "\n")
 
 if __name__ == "__main__":
     unittest.main()

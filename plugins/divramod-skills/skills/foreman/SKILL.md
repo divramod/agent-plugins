@@ -31,14 +31,19 @@ Restock first (`/merge-from-main`), write the task into `plans/CURRENT_PLAN`
 Every step runs in one hand (a subagent) at its row's model, effort and window, at most five at once; the foreman
 stays on `opus[1m]` high (hal2 record
 [plan-steps-as-subagents](https://github.com/divramod/hal2/blob/main/.adr/plan-steps-as-subagents.md)). A hand's
-description is `Plan <NNNN> row <step>: <title>` (`~/.adr/subagent-names-plan-row.md`).
+description is `Plan <NNNN> row <step>: <title>` (`~/.adr/subagent-names-plan-row.md`). In a plan of schema 2 the step is its
+ref (`Plan 0376 row 01.03: <title>`), and `plan.py ready --json` says what runs now.
 
 ### servants
-A part of the plan may go to a servant: a session in a field 30-99 the foreman creates, holding the marker
+A part of the plan may go to a servant: in a plan of schema 2 a whole sub-plan, by the rule of `plan.py ready` (one ready
+sub-plan the foreman runs itself in hands; several ready in the same wave each get a servant, D19). It is a session in a field 30-99 the foreman creates, holding the marker
 `plans/LEAD` (hal2 record [subservants-in-slots-30-99](https://github.com/divramod/hal2/blob/main/.adr/subservants-in-slots-30-99.md)).
 Start it with `create.py --from 30 --role servant --prompt "<its step>"` (create-worktree-session): its first prompt loads
 `/servant` (the skill's duties and `roles/servant/ROLE.md`) before the task, and `/handoff c` reloads it after every clear
-(hal2 plan 0383, D15). The servant reports; the foreman merges its branch, checks the step and marks it done.
+(hal2 plan 0383, D15). For a sub-plan use `--lead "<field> <plan> <NN-slug>"` (the line `ready` prints), which writes the marker and starts
+the servant on the foreman's pushed branch. The servant reports; the foreman merges its branch (`--no-ff`), checks the
+step (a sub-plan: its Done when, then `plan.py overview --write`) and marks it done (a sub-plan's servant marks its
+own steps). The foreman's own sub-plans build on the side branch `<field>-<NN>` (`plan.py subplan start|finish <NN>`).
 
 ### remove-servant-fields
 When a servant's step is in the foreman's branch, the foreman stops the servant's session and removes its field and

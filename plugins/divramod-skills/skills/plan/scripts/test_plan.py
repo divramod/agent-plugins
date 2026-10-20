@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import field_free
 import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
@@ -36,6 +37,7 @@ class PlanTest(unittest.TestCase):
         return path
 
     def run_plan(self, *args) -> subprocess.CompletedProcess:
+        field_free.free(self.root, args)
         return testkit.run(SCRIPT, ["--root", str(self.root), *args], cwd=self.root)
 
     def plan(self, *args) -> dict:
@@ -110,7 +112,7 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(legacy["brief"])
 
     def test_check_reports_an_unwritten_brief_and_seed_until_the_plan_is_done(self):
-        info = self.plan("new", "deploy the hub")
+        info = self.plan("new", "deploy the hub", "--schema", "1")
         path = self.root / info["path"]
         lines = [l for l in self.run_plan("check").stdout.splitlines() if l.endswith("(plan-brief-filled)")]
         self.assertEqual(len(lines), 2)  # Out and Proof; a new plan without `--seed` has no Seed line
@@ -227,7 +229,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(self.plan("grilled")["grilled"], info["grilled"])  # idempotent, one line
 
     def test_last_step_done_stamps_finished_and_reopening_removes_it(self):
-        info = self.plan("new", "Tiny")
+        info = self.plan("new", "Tiny", "--schema", "1")
         path = self.root / info["path"]
         self.assertEqual(info["finished"], "")
         self.plan("status", "1", "done")
@@ -249,7 +251,7 @@ class PlanTest(unittest.TestCase):
         self.assertNotIn("Finished:", path.read_text())
 
     def test_new_plan_ends_with_the_uat_step_but_a_research_plan_does_not(self):
-        info = self.plan("new", "plugin-plan 3 tabs")
+        info = self.plan("new", "plugin-plan 3 tabs", "--schema", "1")
         self.assertEqual([s["step"].split(":")[0] for s in info["steps"]][-1], "Write the UATs and the changelog fragment")
         self.assertIn("hal2-cli-changelog check", info["steps"][-1]["done_when"])
         research = self.plan("new", "Compare tabs", "--research")
@@ -266,7 +268,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(len(info["steps"]), 2)
 
     def test_uat_scaffolds_once_with_the_feature_shotfile(self):
-        info = self.plan("new", "plugin-plan 3 tabs")
+        info = self.plan("new", "plugin-plan 3 tabs", "--schema", "1")  # schema 2: `uat add` (test_shape_status)
         self.assertEqual((info["uat"], info["uat_checks"]), ("", []))
         info = self.plan("uat")
         uat = self.root / info["uat"]

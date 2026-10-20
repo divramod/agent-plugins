@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import field_free
 import testkit
-
 HERE = Path(__file__).resolve().parent
 PLAN = HERE / "plan.py"
 ACTIONS = HERE.parent.parent
@@ -59,6 +59,7 @@ class SpecLinkTest(unittest.TestCase):
         return testkit.run(script, ["--root" if script == PLAN else "--repo", str(self.root), *args], cwd=self.root)
 
     def plan(self, *args) -> dict:
+        field_free.free(self.root, args)
         result = self.run_cmd(PLAN, *args)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
@@ -235,7 +236,7 @@ class SpecLinkTest(unittest.TestCase):
 
     def test_the_plan_made_from_a_spec_passes_the_plan_check(self):
         self.new_spec()
-        self.plan("new", "--spec", "1")
+        self.plan("new", "--spec", "1", "--schema", "1")
 
         result = self.run_cmd(PLAN, "check", str(self.plans / "0001-login-speed"))
 

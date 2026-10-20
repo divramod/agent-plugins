@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import field_free
 import testkit
-
 import masterplan
 import masterplan_view
 
@@ -75,6 +75,7 @@ class MasterplanTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_plan(self, *args, cli: Path | None = None, pre: tuple = ()) -> subprocess.CompletedProcess:
+        field_free.free(self.root, args)
         missing = str(self.base / "no-such-binary")
         env = {**os.environ, masterplan_view.ENV: str(cli or missing), "HAL2_CLI_RECORDS": missing}
         return testkit.run(SCRIPT, [*pre, "--root", str(self.root), *args], cwd=self.base, env=env)
@@ -100,7 +101,7 @@ class MasterplanTest(unittest.TestCase):
         of the process that asks, every later test starts from a copy (testkit.fill_once)."""
         def build():
             self.plan("new", "Masterplan farm view", "--masterplan")
-            self.plan("new", "tools", "--parent", "1")
+            self.plan("new", "tools", "--parent", "1", "--schema", "1")
         if self.plans.exists():  # not a fresh repository: the copy would not be what `new` makes here
             build()
         else:

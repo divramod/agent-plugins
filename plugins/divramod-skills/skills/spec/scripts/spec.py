@@ -33,6 +33,7 @@ from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0
 
 sys.path.insert(0, str(sibling("plan") / "scripts"))
 import envelope  # noqa: E402  (the plan skill's front matter reader)
+import occupied  # noqa: E402  (a started plan keeps the field, plan 0376 D2)
 import names  # noqa: E402  (plan-names-are-short)
 import plan_number  # noqa: E402  (unique numbers across worktrees and branches)
 
@@ -131,8 +132,11 @@ def describe(root: Path, folder: Path) -> dict:
     }
 
 
-def new(root: Path, title: str, description: str = "", fetch: bool = False) -> dict:
-    """Write the spec folder and name it in plans/CURRENT_PLAN; refused before any number is taken."""
+def new(root: Path, title: str, description: str = "", fetch: bool = False, here: bool = False) -> dict:
+    """Write the spec folder and name it in plans/CURRENT_PLAN; refused before any number is taken, and in an
+    occupied field (a started plan is current) unless `here`: the user's switch, the plan goes to PREVIOUS_PLAN."""
+    if (found := occupied.of(root)) is not None and not here:
+        raise SpecError(occupied.refuse_text(found, "spec new"))
     try:
         names.refuse(title)
     except names.NameTooLong as error:
@@ -163,6 +167,12 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False) -> d
         description=envelope.quote(description), date=dt.date.today().isoformat())
     folder.mkdir(parents=True)
     (folder / SPEC).write_text(text)
+    if here:
+        try:
+            occupied.switch_here(root, folder.name)
+        except ValueError as error:
+            shutil.rmtree(folder)
+            raise SpecError(str(error)) from None
     (plans / POINTER).write_text(folder.name + "\n")
     return describe(root, folder)
 
@@ -194,6 +204,7 @@ def parser() -> argparse.ArgumentParser:
     p_new.add_argument("title")
     p_new.add_argument("--description", default="")
     p_new.add_argument("--fetch", action="store_true", help="git fetch --all first, to see other clones' numbers")
+    p_new.add_argument("--here", action="store_true", help="the user's words only: switch an occupied field")
     p_new.add_argument("--json", action="store_true")
     for name in ("show", "approve"):
         p = sub.add_parser(name)
@@ -212,7 +223,7 @@ def main(argv: list[str]) -> int:
             print(json.dumps(rows, indent=2) if args.json else "\n".join(map(line, rows)) or "no spec in plans/")
             return 0
         if args.command == "new":
-            info = new(root, args.title, args.description, args.fetch)
+            info = new(root, args.title, args.description, args.fetch, args.here)
         elif args.command == "approve":
             info = approve(root, args.spec)
         else:

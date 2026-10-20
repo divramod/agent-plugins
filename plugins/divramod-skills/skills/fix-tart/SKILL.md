@@ -122,8 +122,8 @@ back-to-back VM jobs (`mode = "ephemeral"` in `utils/vms/ci-runner-macos/vm.toml
 **The gh token.** Every gh call of the daemon (registration, `busy`, the supervisor's looks) used gh's keychain
 token; a slow or locked keychain made gh call GitHub anonymously: `gh: Requires authentication (HTTP 401)` on
 runners, `gh: Not Found (HTTP 404)` on the private repository's jobs. Since step 42 the daemon passes `GH_TOKEN`
-from `~/.config/hal2/gh-token` (mode 0600; the user writes it once: `gh auth token > ~/.config/hal2/gh-token &&
-chmod 600 ~/.config/hal2/gh-token`), else a `gh auth token` read once and kept in memory.
+from hal2-secrets' global `HAL2_DAEMON_GH_TOKEN_SEC` (plan 0349 D126; set once: `gh auth token | hal2-cli-secrets set
+HAL2_DAEMON_GH_TOKEN_SEC --layer global`; no plain token file), else a `gh auth token` read once and kept in memory.
 
 **The secrets.** The boot resolves `${SECRET:...}` through hal2-secrets and gpg. Since plan 0391 step 11 a
 definition's `[env]` is resolved once per daemon and kept (`code/rust/libs/hal2-vm/src/env_kept.rs`; one look for all
@@ -171,7 +171,7 @@ the clone's id), `hal2-daemon vms runner <vm> on|off`, `tart list`, `pmset -g lo
 <!-- strings -->
 `registering `, `booted in `, `copy in`, `removing `, `generate-jitconfig`, `ci-supervisor/power.log`,
 `mac vm runner `, `off (park)`, `on (wake)`, `(mac_vm.labels) lacks`, `mac vm runner restarted`,
-`mac vm: start still not online`, `mac kept awake`, `mac may sleep again`, `gh-token`,
+`mac vm: start still not online`, `mac kept awake`, `mac may sleep again`, `HAL2_DAEMON_GH_TOKEN_SEC`,
 `still holds a job on GitHub`, `the secrets did not resolve within`, `env: kept from`, `again in this clone`,
 `the clone goes`, `got no job within`
 <!-- /strings -->

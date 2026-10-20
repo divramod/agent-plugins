@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with plans/CURRENT_PLAN naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /handoff c on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
+description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with plans/CURRENT_PLAN naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /handoff c on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). A plan of schema 2 (`new --schema 2`, `convert`) is sub-plans with steps (refs `01.03`) and a generated overview. Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
 ---
 
 # plan
@@ -139,6 +139,15 @@ plans. `-g` goes before the command: `python3 $S/plan.py -g new "<title>"` (numb
 `-g grilled --plan <n>`. A global plan has no `CURRENT_PLAN` (no statusline), so always name it (`--plan <n>`),
 and its steps are not committed (the folder is no repository) unless the user keeps that folder in git.
 
+## The one plan shape (schema 2)
+
+hal2 plan 0376: a plan of schema 2 has no step table; `plan.md` holds the goal, brief, context, a **generated**
+`## Overview` (never edit it by hand) and Pre-authorized, the work is in `subplans/NN-<slug>/` (steps `step-NN.md`, refs
+`01.03`) and `subplans/99-uat/`. Both shapes are read; `new` writes schema 1 until plan 0409 moves the farm's readers,
+so `new --schema 2` is the opt-in and `convert` the way for an old plan. Layout, `subplan`, `step add`, `uat add`,
+`overview`, refs, `ready` on two levels and D19's who, side branches, `new` mid-plan, `convert`: [references/one-plan-shape.md](references/one-plan-shape.md),
+read it before working on a plan of schema 2.
+
 ## Pick the action
 
 | Call | Short | Does |
@@ -154,8 +163,8 @@ and its steps are not committed (the folder is no repository) unless the user ke
 | `/plan done [<step>]` | `/plan d [<step>]` | [finish a step](#finish-a-step) after its check passes |
 | `/plan prompt <n>` | | `python3 $S/plan.py prompt <n> [--part <k>] [--effort <e>] [--model <m>]`: the Agent call that runs step `<n>` in one subagent ([Run the plan](#run-the-plan)) |
 | `/plan run --sync\|--check` | | `python3 $S/plan.py run --sync`: write the session's live model, effort and window into `run`; `--check`: compare them, write nothing |
-| `/plan migrate` | | `python3 $S/plan.py migrate`: give a running record plan the Window and Size columns and a three-word `run` ([`plan-steps-sized`](#model-effort-and-window-per-step)) |
-| `/plan use <slug or number>` | `/plan u <ref>` | `python3 $S/plan.py use <ref>`, then Status |
+| `/plan convert <plan>... \| --all [--dry-run]`, `/plan migrate` | | `python3 $S/plan.py convert`: an old plan into schema 2 (hal2 plan 0376 design §7: sub-plan `01-<slug>`, `99-uat` from uat.md, put back when its check fails; skips masterplans and plans a field holds; `-g`: after a tar backup); `migrate`: a running schema 1 plan gets Window and Size ([`plan-steps-sized`](#model-effort-and-window-per-step)) |
+| `/plan use <slug or number>` | `/plan u <ref>` | `python3 $S/plan.py use <ref>` (refused in an occupied field; `--here`: only on the user's words, `new` there adds a sub-plan), then Status |
 | `/plan uat` | | `python3 $S/plan.py uat`: scaffold the current plan's `uat.md` (see above) |
 | `/plan changelog` | | `python3 $S/plan.py changelog`: scaffold the current plan's `changelog.md` fragment (see above) |
 | `/plan landing auto\|manual` | `/plan l a\|m` | `python3 $S/plan.py landing <auto\|manual>`: whether the current plan lands itself at its end |
@@ -166,7 +175,10 @@ and its steps are not committed (the folder is no repository) unless the user ke
 | `/plan masterplan` | | `python3 $S/plan.py masterplan [--plan <ref>] [--json]`: the masterplan the plan is, or is a plan of: plans brought in of all, steps done of all, a row per plan, `after_landing`; `plan.py leave` (the end of `/mtm`) keeps `CURRENT_PLAN` on the masterplan, `leave --release` deletes it in a field that does not carry on with it |
 | `/plan new -g <title>` | `/plan r -g <topic>` | a global plan (see "Global plans" above; `--research` works too) |
 | `/plan s -g <n>`, `/plan n -g <n>`, `/plan d -g <n> [<step>]` | | status, run, finish a step of global plan `<n>` |
-| `/plan check` | `/plan c` | `python3 $S/plan.py check`: report plan numbers used twice, every problem of the plan folders' records and every unsized open step (`plan-steps-sized`) and a Brief whose `Out` or `Proof` is still the placeholder (`plan-brief-filled`) |
+| `/plan check` | `/plan c` | `python3 $S/plan.py check`: report plan numbers used twice, every problem of the plan folders' records and every unsized open step (`plan-steps-sized`) and a Brief whose `Out` or `Proof` is still the placeholder (`plan-brief-filled`); on schema 2 also `plan-shape`, `spec:budgets`, `overview-current`, `status-derived`, `waves-disjoint` (`--json`: `records_skipped` when hal2-cli-records is older than 0.7.0) |
+| `/plan subplan new <title>`, `step add <NN> <title>`, `uat add <title>`, `assign <NN> <who>`, `subplan start\|finish <NN>`, `overview [--write\|--check]` | | a plan of schema 2 (`subplans/`, hal2 plan 0376): the next sub-plan `NN-<slug>` or step (`--wave n` joins a wave), a 99-uat check `U<n>` (`--steps`, `--expected`, `--open`, `--run`), the sub-plan's `who` (`foreman`, `field NN`, `-`), its side branch `<field>-<NN>` (`finish`: every step done or dropped, merged `--no-ff` into `<field>`), the generated overview; every write regenerates it |
+| `/plan status <ref> <status> [--why <t>]`, `prompt <ref>`, `trailers [<ref>]` | | schema 2 names a step by its ref `01.03` (a bare number is refused): the step file's status, then the overview (`finished` while `uat` or `done`); the hand's Agent call `Plan <NNNN> row 01.03: <title>`; `Step: <ordinal>/<work steps>`. A servant (`plans/LEAD` `<field> <plan> <NN-slug>`) writes only its sub-plan's steps and never plan.md |
+| `/plan ready` (schema 2) | | `ready --json`: sub-plans and steps by `schedule` (`serial`, `waves`), `touches`, `@vm` 2, `@ci` and `@land` 1; one ready sub-plan is the foreman's, several get servants (`create.py --from 30 --lead`), a running sub-plan's wave steps parallel hands; 99-uat never before the landing |
 | `/plan help` | `/plan h` | print this table and stop |
 
 ## New plan
@@ -197,6 +209,7 @@ already says so when `new --spec` seeded it).
    python3 $S/plan.py new "<title>" --goal "<goal>"              # add --research for a research plan
    python3 $S/plan.py new "<title>" --seed <seedbag>#<n>         # a plan grown from a seed: links and marks it
    python3 $S/plan.py new --spec <n>                             # a plan of a spec folder: Brief seeded from it
+   python3 $S/plan.py new "<title>" --schema 2                  # the one plan shape (default schema 1 until plan 0409)
    ```
    With `--seed` the seed's words are the start of the Goal and Brief and the seed is marked sent with the plan;
    a seed it cannot mark (`seed.marked` false, with the reason) never stops the plan.
@@ -362,22 +375,9 @@ no approval, no plan mode and no per-step grill offer until the plan's end. What
 
 ## Run a parallel plan
 
-A big plan runs its independent steps at once, as parallel subagents of its coordinator, never in other sessions.
-Its table (`plan.py new --parallel`) adds three columns after Step: **Needs** (the steps that must be done first,
-ids and ranges `1, 3-7`; blank or `-` is none; ids are integers, never renumbered), **Touches** (what the step
-changes: `rust:<crate>`, `ts:<package>`, `proto:<package>`, `docs`, and resources a machine has once such as `@vm`,
-`@ci`, `@land`; two steps sharing one never run at once, a `Capacity: @vm=3` line under the title changes that) and
-**Who** (`subagent`; `lead` (the value stays) for the foreman's own bookkeeping, such as a milestone; `user` for a batched
-physical action). Status is blank, `running`, `blocked <why>` or `done`; `problems` names bad ids, Needs and cycles:
-fix them before dispatching.
-
-1. `python3 $S/plan.py ready --json`: the open steps whose Needs are done and whose Touches are free, and why the others wait.
-2. Write each ready step's Task, `plan.py assign <n> subagent`, then one `plan.py prompt <n>` each and all their
-   Agent calls in one message. Their Touches are disjoint; builds and test runs that share a machine resource run
-   one at a time. Worktree isolation only when the repo's tracked `.claude/settings.json` sets
-   `"worktree": {"baseRef": "head"}` (otherwise the isolated tree branches from the default branch).
-3. As each reports: its done-when, the diff, its commit, `status <n> done`, then `ready` again. Shared files
-   (`plan.md`, `INTENT.md`, `AGENTS.md`, lockfiles, generated files, CI config) are the coordinator's alone.
+A big plan runs its independent steps at once, as parallel subagents of its coordinator, never in other sessions: the
+table (`new --parallel`) adds Needs, Touches and Who; `plan.py ready --json`, `assign <n> subagent`, one `prompt <n>` each,
+all Agent calls in one message. The columns, the Touches rules and the steps: [references/parallel-plans.md](references/parallel-plans.md).
 
 **A wait is never idle** (the user, 2026-10-12: "you should always trigger work, which can be done while you are
 waiting for a pipeline run to finish ... i dont want to babysit"; the global record `a-wait-is-never-idle`). Whenever
@@ -393,10 +393,8 @@ this, before it ends the turn:
    change in a worktree the landing locks.
 4. Only when nothing is left, wait, and say in one line per step why it could not start.
 
-**Milestones** land a plan too big to land once in parts: a row "Milestone n: land ...", whose Needs name what it
-carries and which touches `@land`; before it, every gate job the candidate touches runs green locally, then the
-farmer's (or the user's) "land now" and `/mtm milestone` (the queue is not kept, `CURRENT_PLAN` stays). Only the
-plan's last landing is the plan's own ([Land the plan](#land-the-plan)).
+**Milestones** (a row "Milestone n: land ..." that touches `@land`) land a plan too big to land once in parts; only the plan's last landing
+is the plan's own ([Land the plan](#land-the-plan)); the rule: [references/parallel-plans.md](references/parallel-plans.md#milestones).
 
 ## Masterplans
 
@@ -409,13 +407,16 @@ working on a masterplan.
 ## Work as a servant
 
 A servant's field (30 to 99) holds its foreman's marker `plans/LEAD`, `<foreman's field> <plan> <step>` (a whole plan
-of a masterplan: `<field> <the masterplan> <its row>`, `CURRENT_PLAN` naming the masterplan); it never deletes it.
+of a masterplan: `<field> <the masterplan> <its row>`, `CURRENT_PLAN` naming the masterplan; in schema 2 a whole
+sub-plan: `<field> <plan> <NN-slug>`, CURRENT_PLAN the plan); it never deletes it.
 It does its steps, each in a hand (`plan.py prompt <n> --plan <its plan>`), commits them, writes their Notes and
 reports; the foreman merges, checks, marks them (`status <n> done --plan <its plan>`) and brings them in. It never
 edits `plan.md`, marks a step or lands: `plan.py`, mtm's guard and hal2's merge queue refuse it. Once a servant's step
 is in the foreman's branch, the foreman stops it and removes its field and branch at once (`hal2-cli-git worktree
 remove <NN> --remote --stop`, which refuses unsaved work; never 00-09; plan 0360 D78, the
 [foreman](../foreman/SKILL.md)'s duty `remove-servant-fields`).
+
+A servant of a schema 2 sub-plan takes the whole sub-plan and marks its own steps: [references/one-plan-shape.md](references/one-plan-shape.md#a-servant-of-a-sub-plan).
 
 ## Land the plan
 

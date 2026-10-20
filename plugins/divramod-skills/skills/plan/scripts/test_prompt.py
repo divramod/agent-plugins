@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import field_free
 import testkit
-
 import prompt
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
@@ -195,7 +195,8 @@ class PromptTest(unittest.TestCase):
         self.assertEqual(self.call("1", "--plan", "2", "--model", "sonnet")["model"], "sonnet")
 
     def test_the_fixture_from_plan_new_prints_row_1(self):
-        out = testkit.run(SCRIPT, ["--root", str(self.root), "new", "fresh work"], cwd=self.root)
+        field_free.free(self.root, ["new"])
+        out = testkit.run(SCRIPT, ["--root", str(self.root), "new", "fresh work", "--schema", "1"], cwd=self.root)
         self.assertEqual(out.returncode, 0, out.stderr)
         plan = self.root / json.loads(out.stdout)["path"]
         self.task(plan, "1")

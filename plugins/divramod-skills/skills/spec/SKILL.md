@@ -42,7 +42,7 @@ An unanswered question never stops the spec: it goes into the spec's `## Open qu
 
 1. `python3 $S/spec.py new "<title>"` (at most four words: plan-names-are-short; `--fetch` first when other clones
    may have taken numbers). It takes the next number with the plan skill's `plan_number.py` (never a hand number),
-   writes `spec.md` from `templates/spec.md` and names the folder in `plans/CURRENT_PLAN`. It refuses a long title
+   writes `spec.md` from `templates/spec.md` and names the folder in `plans/CURRENT_PLAN`. It refuses in a field whose `plans/CURRENT_PLAN` names a started plan (`--here` only on the user's words: the plan goes to `plans/PREVIOUS_PLAN`). It refuses a long title
    and a slug a folder of `plans/` already has: then continue that one or pick another title.
 2. Fill every section of `spec.md` from the answers; replace every `<...>` placeholder. Ids: goals `G<n>`,
    requirements `R<n>`, acceptance criteria `A<n>` (one table row each: ID, Given, When, Then; happy, edge and failure

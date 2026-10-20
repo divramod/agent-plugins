@@ -21,6 +21,7 @@ SCRIPT = HERE / "plan.py"
 sys.path.insert(0, str(HERE))
 
 import checker  # noqa: E402
+import field_free
 import envelope  # noqa: E402
 import folder  # noqa: E402
 
@@ -71,7 +72,8 @@ class FolderTest(unittest.TestCase):
 
     def new(self, *args, brief: bool = True) -> Path:
         """`plan.py new`, the plan's Brief written (a fresh one holds placeholders, which `check` reports)."""
-        result = self.run_plan("new", *args)
+        field_free.free(self.root, ["new", *args])
+        result = self.run_plan("new", *args, "--schema", "1")  # the record format of schema 1 (test_shape_new.py: 2)
         self.assertEqual(result.returncode, 0, result.stderr)
         path = self.root / json.loads(result.stdout)["path"]
         if brief:
