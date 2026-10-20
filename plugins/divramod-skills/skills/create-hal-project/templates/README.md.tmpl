@@ -17,6 +17,22 @@
   from a field.
 - **Decisions**: lasting ones in [INTENT.md](INTENT.md), rules as records in `.adr/<slug>.md`; terms in
   [GLOSSARY.md](GLOSSARY.md).
-- **Where things live**: code `code/<language>/{apps,libs,scripts}/<name>/`, guides `docs/`, designs `designs/`,
-  research `research/<NNNN>-<slug>/`, seeds `shotfiles/`, secrets `.secrets/` (set by `hal2-cli-secrets set` from a
+- **Where things live** (the same in every hal repository): code `code/<language>/{apps,libs,scripts}/<name>/`,
+  guides `docs/`, designs `designs/`, research `research/<NNNN>-<slug>/`, seeds `shotfiles/` (gitignored), logos
+  `assets/logos/`, `utils/`, `workflows/`, `projects/`, secrets `.secrets/` (set by `hal2-cli-secrets set` from a
   field, never plaintext in a commit).
+- **Checks**: `code/bash/scripts/gate/main.sh all` runs the repository's checks (`list` names them); the pre-push
+  hook runs the light ones for what a push changes. `/mfm` installs it in every field (`.hal/setup.toml`); by hand:
+  `bash code/bash/scripts/pre-push/main.sh --install`.
+
+## Making it public
+
+{name} starts private and is kept publishable from its first commit: secrets live only encrypted in `.secrets/`
+(plain `*_SEC` files and `.env*` are gitignored), and the gate's `secrets-scan` (gitleaks) checks every push. To
+make it public:
+
+1. `code/bash/scripts/gate/main.sh secrets-scan` green over the whole history (gitleaks installed).
+2. Choose a license and replace [LICENSE](LICENSE) (all rights reserved until then).
+3. The hook point `.hal/hooks/publish.sh` (not there yet) is where a leak scan and a public mirror plug in once
+   hal2 provides them; until then the history is published as it is.
+4. `gh repo edit --visibility public --accept-visibility-change-consequences`.

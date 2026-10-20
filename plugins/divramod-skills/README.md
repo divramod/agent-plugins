@@ -59,7 +59,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [continue](skills/actions/continue/SKILL.md), [pause](skills/actions/pause/SKILL.md) | pause a session's work and pick it up again |
 | [continue-all-agent-work](skills/actions/continue-all-agent-work/SKILL.md), [stop-all-agent-work](skills/actions/stop-all-agent-work/SKILL.md) | stop every session for a quiet machine, and undo it |
 | [important-interrupt](skills/actions/important-interrupt/SKILL.md) | quiet the whole Mac in one script call (`done` undoes it), no question |
-| [create-hal-project](skills/actions/create-hal-project/SKILL.md) | sets up a new hal project: private GitHub repo, `~/a/<name>` with the hal layout, smug windows; dry run first, acts on the user's go (`scripts/create_project.py`) |
+| [create-hal-project](skills/actions/create-hal-project/SKILL.md) | sets up a new hal project: private GitHub repo, `~/a/<name>` with the hal layout, gate, pre-push hook and `.hal/` tasks in the first commit, smug windows; dry run first, acts on the user's go (`scripts/create_project.py`) |
 | [create-shot](skills/actions/create-shot/SKILL.md), [shoot](skills/actions/shoot/SKILL.md) | write a shot, list and send open shots |
 | [create-worktree-session](skills/actions/create-worktree-session/SKILL.md), [delete-field](skills/actions/delete-field/SKILL.md) | start or stop an agent session in a worktree |
 | [daybook](skills/actions/daybook/SKILL.md), [daily](skills/shortcuts/daily/SKILL.md) | the farm's daily chores, open ones carried on, with its plans and watches (`scripts/daybook.py`; format in its [README](skills/actions/daybook/README.md)); `/daily` is the alias |

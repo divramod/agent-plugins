@@ -1,0 +1,36 @@
+# gate
+
+The repository's checks, one job each; the pre-push hook, agents and a later CI run the same jobs.
+
+```
+code/bash/scripts/gate/main.sh list            # the jobs, their phase and what each does
+code/bash/scripts/gate/main.sh <job>           # one job, from the repo root
+code/bash/scripts/gate/main.sh all             # every job, a summary, exit 1 when any failed
+code/bash/scripts/gate/main.sh <job> --changed # only the units changed against main (GATE_BASE overrides)
+```
+
+A job finds its own files and is green without them, so a repository without a language yet passes. A tool a job
+needs that is not installed (shellcheck, bats, python3, gitleaks) skips the job with a line and exit 0; with
+`CI=true` the job fails instead.
+
+## Jobs
+
+| Job | Phase | Runs |
+|---|---|---|
+| `bash-lint` | lint | shellcheck over `code/bash/**/*.sh`, `*.bash` |
+| `bash-test` | test-unit | bats over `code/bash/**/*.bats`, parallel with GNU parallel |
+| `python-test` | test-unit | `python3 -m unittest discover` in each folder of `code/python` with a `test_*.py` |
+| `secrets-scan` | lint | gitleaks over HEAD's history (`--changed`: the branch's commits) and the uncommitted changes |
+
+A new job is a new file `jobs/<job>.sh` with the header `# does:`, `# phase: lint|build|test-unit|test-e2e` and
+`# timeout:` (minutes); `list` and `all` pick it up. A job in `lint-jobs.txt` also runs in the pre-push hook.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `main.sh` | the dispatcher: `<job>`, `all`, `list`, `--changed`; a job's `# timeout:` when `timeout`/`gtimeout` exists |
+| `lib.sh` | helpers the jobs source: `gate_skip`, `gate_base`, `gate_changed_files`, `gate_files` |
+| `jobs/<job>.sh` | one job |
+| `lint-jobs.txt` | the jobs the pre-push hook runs |
+| `test.bats`, `test_helper.bash` | bats tests with fake CLIs on PATH |

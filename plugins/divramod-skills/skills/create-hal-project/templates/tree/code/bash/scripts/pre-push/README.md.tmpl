@@ -1,0 +1,39 @@
+# pre-push
+
+The git pre-push hook's checks: the gate's light jobs for only what the pushed branch changes, so a push never
+carries what a laptop catches in seconds. Not a pre-commit hook; `git push --no-verify` skips it once, `PRE_PUSH=0`
+always.
+
+For each pushed branch head the hook takes the range `merge-base(<base>, <sha>)..<sha>` (the base: `PRE_PUSH_BASE`,
+else `origin/main`, else `main`) and runs the jobs of [`../gate/lint-jobs.txt`](../gate/lint-jobs.txt) whose paths the
+range changes, each as `gate/main.sh <job> --changed`:
+
+| Job | Runs when the range changes |
+|---|---|
+| `bash-*` | `code/bash/` |
+| `python-*` | `code/python/` |
+| any other job in the list (`secrets-scan`) | any file |
+
+It prints `pre-push: <job> ok|FAILED (<n>s)`; a red job prints the tail of its log and refuses the push (exit 1).
+Skipped: deletions, tags, pushes to `land/*`. The jobs read the working tree, so they check what is checked out.
+
+## Use
+
+```
+bash code/bash/scripts/pre-push/main.sh --install     # the hook shim in the shared hooks folder (every worktree)
+bash code/bash/scripts/pre-push/main.sh --dry-run     # the jobs HEAD against the base would run
+bash code/bash/scripts/pre-push/main.sh --run [base]  # run them without a push
+bats code/bash/scripts/pre-push                       # the tests
+```
+
+`--install` writes a `#!/bin/sh` shim (marker line `# Written by code/bash/scripts/pre-push/main.sh --install`) that
+runs the pushing checkout's own `main.sh`, or lets the push go where the checkout has none. It prints `wrote` or
+`is current`; another tool's hook is refused with a message (exit 1) and never touched. `.hal/setup.toml` runs it in
+every worktree (`/mfm`).
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `main.sh` | the hook, `--install`, `--dry-run`, `--run` |
+| `test.bats` | bats tests in a scratch repository with a fake gate |

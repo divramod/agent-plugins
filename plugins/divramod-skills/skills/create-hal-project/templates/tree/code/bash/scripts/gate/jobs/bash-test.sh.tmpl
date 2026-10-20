@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# does: the bats tests of code/bash, in parallel when GNU parallel is installed (--changed: the changed units')
+# phase: test-unit
+# timeout: 15
+set -euo pipefail
+# shellcheck source=SCRIPTDIR/../lib.sh
+source "$GATE_DIR/lib.sh"
+files=()
+while IFS= read -r file; do
+  files+=("$file")
+done < <(gate_files code/bash -name '*.bats')
+if ((${#files[@]} == 0)); then
+  echo "bash-test: no bats files"
+  exit 0
+fi
+command -v bats >/dev/null 2>&1 || gate_skip bats "brew install bats-core"
+args=()
+if command -v parallel >/dev/null 2>&1; then
+  args+=(--jobs "$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 1)")
+fi
+bats ${args[@]+"${args[@]}"} ${files[@]+"${files[@]}"}

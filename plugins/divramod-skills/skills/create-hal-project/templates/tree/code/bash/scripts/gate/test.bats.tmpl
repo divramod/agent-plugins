@@ -1,0 +1,172 @@
+#!/usr/bin/env bats
+# Tests of the gate unit: the dispatcher (list, one job, all) and the jobs' tool handling, with fake CLIs.
+
+load test_helper
+
+@test "list prints every job with its phase and does line" {
+  run "$gate/main.sh" list
+  [ "$status" -eq 0 ]
+  for job in bash-lint bash-test python-test secrets-scan; do
+    [[ "$output" == *"$job"* ]]
+  done
+  [[ "$output" == *"test-unit"* ]]
+}
+
+@test "every job file has the does, phase and timeout header" {
+  for file in "$BATS_TEST_DIRNAME"/jobs/*.sh; do
+    grep -q '^# does: ' "$file"
+    grep -Eq '^# phase: (lint|build|test-unit|test-e2e)$' "$file"
+    grep -Eq '^# timeout: [0-9]+$' "$file"
+  done
+}
+
+@test "lint-jobs.txt names only existing jobs" {
+  while IFS= read -r job; do
+    [ -f "$BATS_TEST_DIRNAME/jobs/$job.sh" ]
+  done <"$BATS_TEST_DIRNAME/lint-jobs.txt"
+}
+
+@test "usage errors exit 2: no argument, an unknown job, two jobs, an unknown option" {
+  run "$gate/main.sh"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Usage:"* ]]
+  run "$gate/main.sh" nope
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown job nope"* ]]
+  run "$gate/main.sh" bash-lint bash-test
+  [ "$status" -eq 2 ]
+  run "$gate/main.sh" list --nope
+  [ "$status" -eq 2 ]
+}
+
+@test "one job runs from the repo root and passes its exit code on" {
+  stub_jobs bad:3
+  printf '#!/usr/bin/env bash\n# does: x\n# phase: lint\n# timeout: 1\npwd\n' >"$gate/jobs/where.sh"
+  run "$gate/main.sh" where
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(cd "$repo" && pwd -P)" ] || [ "$output" = "$repo" ]
+  run "$gate/main.sh" bad
+  [ "$status" -eq 3 ]
+}
+
+@test "all runs every job, also after a failing one, and fails with a summary" {
+  stub_jobs a:0 b:1 c:0
+  run "$gate/main.sh" all
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ran a"*"ran b"*"ran c"* ]]
+  [[ "$output" == *"ok    a"* ]]
+  [[ "$output" == *"FAIL  b"* ]]
+  stub_jobs a:0 b:0
+  run "$gate/main.sh" all
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"gate summary"* ]]
+}
+
+@test "--changed reaches the job as GATE_CHANGED=1" {
+  printf '#!/usr/bin/env bash\n# does: x\n# phase: lint\n# timeout: 1\necho "changed=${GATE_CHANGED:-0}"\n' \
+    >"$gate/jobs/a.sh"
+  run "$gate/main.sh" a --changed
+  [ "$output" = "changed=1" ]
+  run "$gate/main.sh" a
+  [ "$output" = "changed=0" ]
+}
+
+@test "a job without its files is green and needs no tool, also on CI" {
+  CI=true GATE_PYTHON=gate-test-no-python run "$gate/main.sh" python-test
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no test_*.py files"* ]]
+  CI=true run "$gate/main.sh" bash-test
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no bats files"* ]]
+}
+
+@test "a missing tool skips locally and fails on CI" {
+  GATE_SHELLCHECK=gate-test-no-shellcheck run "$gate/main.sh" bash-lint
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"skip, shellcheck is not installed"* ]]
+  CI=true GATE_SHELLCHECK=gate-test-no-shellcheck run "$gate/main.sh" bash-lint
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"on CI the job needs it"* ]]
+  run "$gate/main.sh" secrets-scan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"skip, gitleaks is not installed"* ]]
+}
+
+@test "bash-lint runs shellcheck over every shell file, red when it is" {
+  fake shellcheck
+  run "$gate/main.sh" bash-lint
+  [ "$status" -eq 0 ]
+  grep -q '^shellcheck -x .*code/bash/scripts/gate/lib.sh' "$CALLS"
+  grep -q 'code/bash/scripts/gate/main.sh' "$CALLS"
+  fake shellcheck 1
+  run "$gate/main.sh" bash-lint
+  [ "$status" -eq 1 ]
+}
+
+@test "bash-lint --changed checks only the changed units' files" {
+  fake shellcheck
+  put code/bash/scripts/other/main.sh
+  git_repo
+  echo y >"$repo/code/bash/scripts/other/main.sh"
+  run "$gate/main.sh" bash-lint --changed
+  [ "$status" -eq 0 ]
+  grep -q 'other/main.sh' "$CALLS"
+  ! grep -q 'gate/lib.sh' "$CALLS" || false
+}
+
+@test "bash-test runs bats over the bats files, only the changed units' with --changed" {
+  fake bats
+  put code/bash/scripts/a/test.bats code/bash/scripts/b/test.bats
+  git_repo
+  run "$gate/main.sh" bash-test
+  [ "$status" -eq 0 ]
+  grep -q 'a/test.bats .*b/test.bats' "$CALLS"
+  run "$gate/main.sh" bash-test --changed
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no bats files"* ]]
+  echo y >"$repo/code/bash/scripts/b/test.bats"
+  : >"$CALLS"
+  run "$gate/main.sh" bash-test --changed
+  grep -q 'b/test.bats' "$CALLS"
+  ! grep -q 'a/test.bats' "$CALLS" || false
+}
+
+@test "python-test runs unittest discover per folder and is red when one is" {
+  fake py
+  put code/python/scripts/a/test_main.py code/python/scripts/b/test_main.py
+  GATE_PYTHON=py run "$gate/main.sh" python-test
+  [ "$status" -eq 0 ]
+  grep -qx 'py -m unittest discover -s code/python/scripts/a -p test_\*.py' "$CALLS"
+  grep -q 'scripts/b' "$CALLS"
+  fake py 1
+  GATE_PYTHON=py run "$gate/main.sh" python-test
+  [ "$status" -eq 1 ]
+}
+
+@test "secrets-scan runs gitleaks over HEAD's history and the uncommitted changes, red on a leak" {
+  fake gitleaks
+  git_repo
+  run "$gate/main.sh" secrets-scan
+  [ "$status" -eq 0 ]
+  grep -qx 'gitleaks git --no-banner --redact --log-opts=HEAD .' "$CALLS"
+  grep -q -- '--pre-commit --staged' "$CALLS"
+  fake gitleaks 1
+  run "$gate/main.sh" secrets-scan
+  [ "$status" -eq 1 ]
+}
+
+@test "secrets-scan --changed scans only the branch's commits; without a commit only the changes" {
+  fake gitleaks
+  run "$gate/main.sh" secrets-scan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no commit yet"* ]]
+  ! grep -q -- '--log-opts' "$CALLS" || false
+  git_repo
+  git -C "$repo" checkout -q -b topic
+  put docs/a.md
+  commit topic
+  : >"$CALLS"
+  run "$gate/main.sh" secrets-scan --changed
+  [ "$status" -eq 0 ]
+  grep -q -- '--log-opts=[0-9a-f]*\.\.HEAD' "$CALLS"
+}

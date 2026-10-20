@@ -1,0 +1,55 @@
+# shellcheck shell=bash
+# Helpers the gate's jobs source: `source "$GATE_DIR/lib.sh"` (main.sh exports GATE_DIR and runs from the root).
+
+# gate_skip <tool> <what>: a missing tool skips the job locally (exit 0) but fails it on CI (CI=true).
+gate_skip() {
+  if [[ "${CI:-}" == true ]]; then
+    echo "gate: $1 is not installed; on CI the job needs it ($2)" >&2
+    exit 1
+  fi
+  echo "gate: skip, $1 is not installed ($2)"
+  exit 0
+}
+
+# gate_base: the ref the --changed mode compares with (GATE_BASE, else origin/main, else main).
+gate_base() {
+  local ref
+  for ref in "${GATE_BASE:-}" origin/main main; do
+    [[ -n "$ref" ]] || continue
+    if git rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then
+      git merge-base "$ref" HEAD 2>/dev/null || echo "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# gate_changed_files: the files the branch and the working tree changed against gate_base, existing ones only.
+gate_changed_files() {
+  local base file
+  base="$(gate_base)" || return 0
+  {
+    git diff --name-only "$base" --
+    git ls-files --others --exclude-standard
+  } | sort -u | while IFS= read -r file; do
+    [[ -f "$file" ]] && echo "$file"
+  done
+}
+
+# gate_files <dir> <find name args...>: the files under <dir> that match, sorted; with --changed (GATE_CHANGED=1)
+# only those in a unit (code/<language>/<kind>/<name>/) the branch changed. Nothing when <dir> is missing.
+gate_files() {
+  local dir=$1 units unit
+  shift
+  [[ -d "$dir" ]] || return 0
+  if [[ "${GATE_CHANGED:-}" != 1 ]]; then
+    find "$dir" -type f \( "$@" \) -not -path '*/__pycache__/*' | sort
+    return 0
+  fi
+  units="$(gate_changed_files | sed -n "s|^\($dir/[^/]*/[^/]*\)/.*|\1|p" | sort -u)"
+  [[ -n "$units" ]] || return 0
+  while IFS= read -r unit; do
+    [[ -d "$unit" ]] || continue
+    find "$unit" -type f \( "$@" \) -not -path '*/__pycache__/*'
+  done <<<"$units" | sort -u
+}
