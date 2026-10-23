@@ -129,16 +129,28 @@ class Fields(Farm):
             with self.assertRaises(facts.FactsError):
                 facts.fields(str(self.main))
 
-    def test_agents_as_a_list_or_under_list_and_their_sessions_per_field(self):
+    def test_agents_as_a_list_or_under_agents_and_their_sessions_per_field(self):
         rows = [{"pane_id": "%1", "checkout": str(self.base / "13"), "state": "idle", "since": 5},
                 {"pane_id": "%2", "checkout": str(self.base / "13"), "state": "ended", "since": 6}]
         self.agents = rows
         self.assertEqual(facts.agents(str(self.main)), rows)
-        self.agents = {"list": rows}
+        self.agents = {"agents": rows}  # the real shape of `hal2-cli-agents list --json`
         got = facts.agents(str(self.main))
+        self.assertEqual(got, rows)
         field = {"path": str(self.base / "13")}
         self.assertEqual(facts.session(field, got), [{"pane_id": "%1", "state": "idle", "since": 5}])
         self.assertEqual(facts.session({"path": str(self.base / "14")}, got), [])
+
+    def test_an_unreadable_list_is_none_never_an_empty_list(self):
+        for bad in ("", "not json", "{}", '{"agents": 3}'):
+            with mock.patch.object(facts, "call", return_value=bad):
+                self.assertIsNone(facts.agents(str(self.main)), bad)
+        self.assertEqual(facts.session({"path": str(self.base / "13")}, None), [])
+
+    def test_an_unreadable_list_refuses_every_field(self):
+        fs = facts.fields(str(self.main))
+        why = facts.proofs(fs, {}, None, NOW_MS, lambda path: False)
+        self.assertTrue(why and all(w and "could not be read" in w for w in why.values()), why)
 
 
 class Context(Farm):

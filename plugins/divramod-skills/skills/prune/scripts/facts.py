@@ -16,6 +16,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import field_facts
+import live_sessions
 import logstate
 import prune_proof
 import roles
@@ -85,15 +86,17 @@ def fields(main: str) -> list[dict]:
     return sorted(out, key=lambda f: f["slot"])
 
 
-def agents(main: str) -> list[dict]:
-    """Every agent session `hal2-cli-agents list --json` knows (all repositories)."""
-    data = call_json(["hal2-cli-agents", "list", "--json"], main)
-    rows = data.get("list", []) if isinstance(data, dict) else data
-    return [a for a in rows or [] if isinstance(a, dict)]
+def agents(main: str) -> list[dict] | None:
+    """Every agent session `hal2-cli-agents list --json` knows (all repositories), by the farmer's one lookup
+    (live_sessions.read, hal2 plan 0412): None when the list cannot be read, never an empty list (the proof then
+    refuses every field)."""
+    return live_sessions.read(lambda argv: call_json(argv, main))
 
 
-def session(field: dict, rows: list[dict]) -> list[dict]:
-    """The field's live sessions as `{pane_id, state, since}` (ended and failed ones are none)."""
+def session(field: dict, rows: list[dict] | None) -> list[dict]:
+    """The field's live sessions as `{pane_id, state, since}` (an ended one is none; a failed one is live)."""
+    if rows is None:
+        return []
     return [{"pane_id": a.get("pane_id"), "state": a.get("state"), "since": a.get("since")}
             for a in prune_proof.sessions(rows, field["path"])]
 
@@ -111,7 +114,7 @@ def context(main: str, now: dt.datetime | None = None) -> dict:
             "log": logstate.read_log(main, "tollman"), "farmer_log": logstate.read_log(main, roles.ROLE)}
 
 
-def proofs(fs: list[dict], ctx: dict, rows: list[dict], now_ms: float | None = None,
+def proofs(fs: list[dict], ctx: dict, rows: list[dict] | None, now_ms: float | None = None,
            build=prune_proof.build_running) -> dict[str, str | None]:
     """{slot: None when the field is free, else why not}, one field after the other (D14: only measuring runs in
     parallel)."""

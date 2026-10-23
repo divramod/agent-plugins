@@ -11,8 +11,11 @@ The list: `free` (paths never warned about and no unit's: plans, generated files
 SMUGGLE_YARD (the main checkout) and SMUGGLE_FILES (the unit's changed paths, one a line)). A path matches a pattern
 that is the path itself, a folder above it or an fnmatch glob. The changes: <base>'s merge base .. --rev, and with
 --rev HEAD the working tree's changes and untracked files too. --base defaults to origin/<default branch>.
-`run` runs the touched units one after the other, a unit stopping at its first red command; `--report` gets a JSON
-line per unit (`lane`, `status`, `seconds`, `jobs`), the form hal2-git's smuggle reads (SMUGGLE_REPORT).
+`run checks` in a repository with `.github/hal2-changes.toml` runs the job map's selection instead (jobmap.py: one
+`hal2-cli-git changes --keys --json`, the selected gate jobs with their packages, a job green before skipped, a green
+one on a clean tree marked); the units' `checks` are the fallback without a map. `run` runs the touched units one after the other, a unit stopping at its first red command; `--report` gets a JSON
+line per unit (`lane`, `status`, `seconds`, `jobs`), the form hal2-git's smuggle reads (SMUGGLE_REPORT). With
+SMUGGLE_RUN_LOGS set each command is a step of the smuggle's run, timed and measured (runsteps.py).
 Exit: 0 ok, 1 red or an error, 4 a path outside the units (warn), 64 usage.
 """
 
@@ -23,6 +26,10 @@ import os
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import jobmap  # noqa: E402
+import runsteps  # noqa: E402
 
 LIST = ".hal/smuggle.toml"
 KEYS = ("checks", "build", "install")
@@ -118,20 +125,38 @@ def warn(repo, base, yes):
 def run_unit(repo, unit, key, env, dry):
     """Runs <unit>'s <key> commands; its report line."""
     start, status = time.monotonic(), "ok"
+    lane = runsteps.Lane(unit["name"], {} if dry else env)
     for command in unit[key]:
         if dry:
             print(f"would run: {unit['name']}: {command}")
             continue
         print(f"== {unit['name']}: {command}", flush=True)
-        if subprocess.run(["bash", "-c", command], cwd=repo, env=env, check=False).returncode != 0:
+        step = runsteps.step_name(command)
+        if lane.run(step, ["bash", "-c", command], repo, env, rust="cargo" in command) != 0:
             print(f"== {unit['name']}: red", flush=True)
             status = "red"
             break
     return {"lane": unit["name"], "status": status, "seconds": round(time.monotonic() - start), "jobs": unit[key]}
 
 
+def run_job_map(repo, base, rev, report, dry, env):
+    """`run checks` with a job map: the selected gate jobs instead of the units' commands; None without one."""
+    sel = jobmap.select(repo, base, rev)
+    if sel is None:
+        return None
+    line = jobmap.run_selection(repo, sel, base, rev, env, dry)
+    if report and not dry:
+        with open(report, "a", encoding="utf-8") as out:
+            out.write(json.dumps(line) + "\n")
+    return 1 if line["status"] == "red" else 0
+
+
 def run(repo, key, base, rev, report, dry):
     state = touched(repo, base, rev)
+    if key == "checks" and any(unit["checks"] for unit in state["units"]):
+        mapped = run_job_map(repo, base, rev, report, dry, dict(os.environ, SMUGGLE_BASE=base))
+        if mapped is not None:
+            return mapped
     yard = git(repo, "worktree", "list", "--porcelain").stdout.split("\n")[0].removeprefix("worktree ")
     red = 0
     for unit in state["units"]:

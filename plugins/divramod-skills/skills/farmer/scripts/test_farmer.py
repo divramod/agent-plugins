@@ -3,6 +3,7 @@ import datetime as dt
 import fcntl
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -14,6 +15,7 @@ import due
 import git_seed
 import mtm_scan
 import farmer
+import roles
 import role_cli
 import tick
 
@@ -50,6 +52,9 @@ class Repo(unittest.TestCase):
         git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
         self.data = self.tmp / "state"
         patches = [mock.patch.object(m, "DATA", self.data) for m in (due, mtm_scan)]
+        # The child processes a test starts (and roles.state_dir, which refuses a state outside the temp dir under
+        # this mark) see the same temp state folder and never the role's live one (hal2 plan 0412 step 5).
+        patches += [mock.patch.dict(os.environ, {roles.UNDER_TEST: "1", "FARMER_DIR": str(self.data)})]
         patches += [mock.patch.object(tick.deliver, "cli", return_value=(0, "[]")),
                     mock.patch.object(mtm_scan, "run_json", return_value=None)]
         for p in patches:

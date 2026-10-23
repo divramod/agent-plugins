@@ -16,6 +16,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import lead_marker
+import live_sessions
 import logstate
 import mtm_scan
 import tick
@@ -24,7 +25,6 @@ from skillpath import sibling
 CLEANUP = sibling("cleanup") / "scripts/cleanup.py"
 NUMBERED = re.compile(r"\d\d")
 BUSY = {"working", "starting", "blocked"}
-GONE = {"ended", "failed"}
 QUIET = 30 * 60  # a 10-99 session active more recently is left alone
 SUBSERVANT_QUIET = 3600  # a marked 30-99 worktree: the foreman may reuse it with its warm build cache meanwhile
 SUBSERVANTS_FROM = 30  # servants work only in worktrees 30-99 (the user, skills plan 0013)
@@ -77,10 +77,15 @@ def build_running(path: str) -> bool:
     return p.returncode == 1
 
 
-def sessions(agents: list[dict], path: str) -> list[dict]:
-    here = Path(path).resolve()
-    return [a for a in agents if a.get("checkout") and Path(a["checkout"]).resolve() == here
-            and a.get("state") not in GONE]
+def sessions(agents: list[dict] | None, path: str) -> list[dict]:
+    """The field's live sessions, by the farmer's one lookup (hal2 plan 0412, D2, live_sessions.py): every entry of the
+    checkout, tmux and terminal host, any state but `ended`, so a failed or sleeping one counts. An unreadable list
+    (None) answers one stand-in `{"state": "unknown"}`: never an empty field (D3)."""
+    if agents is None:
+        return [live_sessions.live_session(None, path)]
+    here = live_sessions.key(path)
+    return [a for a in agents if a.get("checkout") and live_sessions.key(a["checkout"]) == here
+            and live_sessions.live(a)]
 
 
 def held(slot: str, ctx: dict) -> str | None:
@@ -92,12 +97,14 @@ def held(slot: str, ctx: dict) -> str | None:
     return None
 
 
-def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=None, base=None) -> str | None:
+def refusal(w: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build=None, base=None) -> str | None:
     """Why the worktree `w` (path, `slot`) may not be pruned now, None when it may. `build` defaults to
     `build_running`, looked up at the call so a test can stub it; `base`, origin's default branch, to the worktree's
     (`base()` asks it: every worktree of a repository shares it, so a scan asks once)."""
     build = build or build_running
     slot, path = w["slot"], w["path"]
+    if agents is None:
+        return "the session list could not be read, so no field is known free"
     lead = marker(path)
     if lead is not None:
         return subservant_refusal(w, lead, ctx, agents, now_ms, build)
@@ -117,7 +124,7 @@ def refusal(w: dict, ctx: dict, agents: list[dict], now_ms: float, build=None, b
     return None
 
 
-def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict], now_ms: float, build) -> str | None:
+def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build) -> str | None:
     """`refusal` for a worktree marked plans/LEAD: its work belongs in origin/<foreman>, never on main."""
     slot, path = w["slot"], w["path"]
     if lead.get("bad"):
@@ -156,7 +163,7 @@ def slots(main: str) -> list[dict]:
     return sorted(out, key=lambda w: w["slot"])
 
 
-def scan(main: str, ctx: dict, agents: list[dict], now_ms: float | None = None, build=None) -> list[dict]:
+def scan(main: str, ctx: dict, agents: list[dict] | None, now_ms: float | None = None, build=None) -> list[dict]:
     now_ms = now_ms if now_ms is not None else time.time() * 1000
     known = []
 

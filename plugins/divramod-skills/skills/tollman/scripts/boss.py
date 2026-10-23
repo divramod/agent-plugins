@@ -58,6 +58,14 @@ def role_of(ctx: dict) -> str:
     return ctx["wiring"].role if ctx.get("wiring") else ROLE
 
 
+def guarded_start(slot: str, w: dict, ctx: dict) -> list[str]:
+    """The orphan start as orphan_start.py runs it (hal2 plan 0412, D3): the agents list is asked again right when the
+    action is carried out and the start runs only into a field with no live session, a terminal host's included."""
+    return [sys.executable, str(Path(__file__).resolve().parent / "orphan_start.py"), "--path", w.get("path", ""),
+            "--slot", slot, "--main", ctx["main"], "--role", role_of(ctx), "--", "hal2-cli-git", "worktree", "run",
+            slot, "--agent", "claude", "--detach", "--prompt", "/handoff c"]
+
+
 def has_handoff(checkout: Path, plan: str) -> bool:
     """Is there a handoff `/handoff c` can continue from: the current plan's own, or the checkout's root file?"""
     own = checkout / "plans" / plan / "handoff.md" if plan and "/" not in plan else None
@@ -218,9 +226,8 @@ class Planner:
             self.add("orphan", "wake", slot, REWAKE, key=f"orphan:{slot}", text=f"orphaned work: {f['why']}",
                      evidence=f)
         elif (w.get("plan") or lead) and has_handoff(Path(w.get("path", "")), w.get("plan") or ""):
-            self.add("orphan", "run", slot, ORPHAN, key=f"orphan:{slot}",
-                     argv=["hal2-cli-git", "worktree", "run", slot, "--agent", "claude", "--detach", "--prompt",
-                           "/handoff c"], text=f"started a session in {slot} with /handoff c")
+            self.add("orphan", "run", slot, ORPHAN, key=f"orphan:{slot}", argv=guarded_start(slot, w, self.ctx),
+                     text=f"started a session in {slot} with /handoff c")
         else:
             self.add("orphan", "wake", slot, REWAKE, key=f"orphan:{slot}", text=f"orphaned work: {f['why']}",
                      evidence=f)

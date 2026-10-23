@@ -41,6 +41,7 @@ import time
 from pathlib import Path
 
 import lead_marker
+import live_sessions
 import roles
 
 import flaky_checks
@@ -182,13 +183,8 @@ def unmerged(path: str, default: str) -> int:
 
 
 def agents_by_checkout(agents: list[dict]) -> dict[str, dict]:
-    by: dict[str, dict] = {}
-    for a in agents:
-        if a.get("kind") in (None, "claude", "codex", "opencode") and a.get("checkout"):
-            prev = by.get(a["checkout"])
-            if prev is None or a.get("state") in BUSY:
-                by[a["checkout"]] = a
-    return by
+    """The live session of each checkout, tmux and terminal host, any state but ended (live_sessions, plan 0412)."""
+    return live_sessions.by_checkout(agents)
 
 
 def landings_summary(landings: list[dict], since: float) -> tuple[list[dict], dict[str, dict]]:
@@ -252,6 +248,12 @@ def smuggle_owned(t: dict) -> bool:
     holder. The boss never wakes, releases or counts it, and never starts or releases a smuggle. (A smuggle that
     failed is the exception: a red holder, `red_holder.of`, woken to fix and rerun, still never released.)"""
     return bool(t.get("smuggle") or t.get("paused_by"))
+
+
+def no_session(w: dict) -> bool:
+    """The field holds no live session: none listed, or only an ended one. `unknown` (the list could not be read) is
+    never "no session" (plan 0412: fail closed)."""
+    return w.get("agent_state") in (None, live_sessions.GONE)
 
 
 def orphaned_subservant(w: dict) -> dict:
@@ -339,10 +341,10 @@ def findings(snap: dict) -> list[dict]:
     queued = {t["slot"] for t in queue}
     for w in snap["worktrees"]:
         if w.get("lead"):  # a servant: measured against its foreman's branch, never main
-            if w.get("missing") and w["slot"] not in queued and w.get("agent_state") is None:
+            if w.get("missing") and w["slot"] not in queued and no_session(w):
                 out.append(orphaned_subservant(w))
             continue
-        if w["ahead"] and w["slot"] not in queued and w.get("agent_state") is None:
+        if w["ahead"] and w["slot"] not in queued and no_session(w):
             out.append({"kind": "work-without-agent", "slot": w["slot"],
                         "why": f"{w['ahead']} commits not on main, plan {w.get('plan') or '-'}, no agent session"})
             continue
@@ -384,9 +386,9 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
         run(["git", "fetch", "--quiet", "origin", default], main)
     q_raw = run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
     q = q_raw.get("queue", [])
-    agents_raw = run_json(["hal2-cli-agents", "list", "--json"]) or {}
-    agents = agents_raw.get("agents", []) if isinstance(agents_raw, dict) else agents_raw
-    by_checkout = agents_by_checkout(agents)
+    # An unreadable list is no empty one (plan 0412): every field's agent is then `unknown`, never "no session".
+    agents = live_sessions.read(run_json)
+    by_checkout = agents_by_checkout(agents or [])
     unfinished = 0
     ci = mtm_ci.ci_mode(run, main, default)
     if ci:
@@ -415,14 +417,16 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
               and not roles.role_of(Path(w["path"]).name)]
     if fetch:
         fetch_leads(main, [w["path"] for w in listed])
-    wts = [worktree_entry(w, by_checkout.get(w["path"], {}), default, now) for w in listed]
+    unknown = {"state": live_sessions.UNKNOWN}
+    wts = [worktree_entry(w, (live_sessions.session_of(by_checkout, w["path"]) or {}) if agents is not None
+                          else unknown, default, now) for w in listed]
     load1 = os.getloadavg()[0]
     cores = os.cpu_count() or 1
     pause_file = state_dir(main, role) / "paused.json"
     if (cli_tests := flaky_checks.tests(run_json, main)) is not None:
         tests = cli_tests  # the installed CLI knows `worktree checks`: its flaky list is the source (plan 0289 D20)
     snap = {
-        "now": now, "repo": main, "default": default, "ci": ci, "runs_unfinished": unfinished, "queue": queue, "worktrees": wts,
+        "now": now, "repo": main, "default": default, "agents_read": agents is not None, "ci": ci, "runs_unfinished": unfinished, "queue": queue, "worktrees": wts,
         "landings": recent, "tests": tests,
         "load": {"load1": load1, "cores": cores, "per_core": round(load1 / cores, 2)},
         "paused": json.loads(pause_file.read_text()) if pause_file.exists() else None,
@@ -531,7 +535,9 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     lines = [f"# {role} {at}", ""]
     lines.append(f"Load {snap['load']['load1']:.1f} on {snap['load']['cores']} cores. "
                  + (f"Queue head: {head['slot']} {head['state']}." if head else "Queue empty.")
-                 + (f" Paused: {snap['paused'].get('note', '')}." if snap.get("paused") else ""))
+                 + (f" Paused: {snap['paused'].get('note', '')}." if snap.get("paused") else "")
+                 + (" Agents: hal2-cli-agents list unreadable, every field's session unknown." if
+                    snap.get("agents_read") is False else ""))
     if notes:
         lines += ["", notes.strip()]
     if lead:
@@ -574,6 +580,8 @@ def print_text(snap: dict) -> None:
     head = snap["queue"][0] if snap["queue"] else None
     print(f"repo {snap['repo']}  load {snap['load']['load1']:.1f}/{snap['load']['cores']} cores"
           f"  queue {len(snap['queue'])}" + (f"  head {head['slot']} {head['state']}" if head else ""))
+    if snap.get("agents_read") is False:
+        print("agents: hal2-cli-agents list unreadable, every field's session unknown (no orphan is named)")
     for f in snap["findings"]:
         print(f"- {f['kind']:16} {f['slot']:10} {f['why']}")
     if not snap["findings"]:

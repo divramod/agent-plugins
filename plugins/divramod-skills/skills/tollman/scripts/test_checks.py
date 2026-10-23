@@ -37,9 +37,10 @@ ACTIVE = [{"slot": "05", "state": "active"}, {"slot": "06", "state": "waiting"}]
 class Store(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
-        patch = mock.patch.object(checks, "folder", lambda main: self.dir)
-        patch.start()
-        self.addCleanup(patch.stop)
+        for patch in (mock.patch.object(checks, "folder", lambda main: self.dir),
+                      mock.patch.object(mtm_scan, "DATA", self.dir / "state")):  # train.jsonl too: never the live one
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def defer(self, slot="13", minutes=0, title=None, **kw):
         at = NOW + dt.timedelta(minutes=minutes)

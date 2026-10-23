@@ -9,11 +9,15 @@ told once. gh is gh_fake.py's, the queue engine_farm's Gate, git a temporary rep
 session."""
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import checks
 import modes
+import mtm_scan
 import roles
 import train_state
 import trains
@@ -114,6 +118,12 @@ class Asleep(unittest.TestCase):
         self.assertEqual(kinds(plan([FORMED], alive=())), [("asleep", "record")], "smuggle mode drops nothing")
 
     def test_the_checks_duty_lets_no_check_through(self):
+        data = tempfile.TemporaryDirectory()  # train.jsonl of "/no/such/farm": a temp state, never a live one
+        self.addCleanup(data.cleanup)
+        patch = mock.patch.object(mtm_scan, "DATA", Path(data.name))
+        patch.start()
+        self.addCleanup(patch.stop)
+
         def run_json(args, cwd=None):
             return {"queue": [], "mode": SMUGGLE} if args[:3] == ["hal2-cli-git", "worktree", "queue"] else []
         s = checks.state("/no/such/farm", run_json, sessions=set())

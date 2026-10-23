@@ -415,7 +415,10 @@ class Roles(unittest.TestCase):
     def scan(self, d, queue, wts):
         from pathlib import Path
         from unittest import mock
-        answers = lambda args, cwd=None: {"queue": queue} if args[:3] == ["hal2-cli-git", "worktree", "queue"] else None
+        def answers(args, cwd=None):  # no session runs (an empty list, read: plan 0412 tells it from an unreadable one)
+            if args[:3] == ["hal2-cli-git", "worktree", "queue"]:
+                return {"queue": queue}
+            return {"agents": []} if args == ["hal2-cli-agents", "list", "--json"] else None
         with mock.patch.object(scan, "run", return_value=""), mock.patch.object(scan, "run_json", answers), \
                 mock.patch.object(scan, "worktrees", return_value=wts), \
                 mock.patch.object(scan, "unmerged", return_value=3), \
@@ -496,7 +499,8 @@ class Roles(unittest.TestCase):
             fake = lambda args, cwd=None: porcelain if args[:3] == ["git", "worktree", "list"] else ""
             for p in (field, nested, lone):
                 p.mkdir(parents=True)
-            with mock.patch.object(scan, "run", fake), mock.patch.object(scan, "run_json", lambda *a, **k: None), \
+            no_agents = lambda args, cwd=None: {"agents": []} if args[:2] == ["hal2-cli-agents", "list"] else None
+            with mock.patch.object(scan, "run", fake), mock.patch.object(scan, "run_json", no_agents), \
                     mock.patch.object(scan, "unmerged", return_value=3), \
                     mock.patch.object(scan.mtm_ci, "ci_mode", return_value=False), \
                     mock.patch.object(scan, "state_dir", return_value=Path(d) / "state"):

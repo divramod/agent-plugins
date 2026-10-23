@@ -15,7 +15,7 @@ from worktree_farm import NOW_MS
 
 class Scanning:
     def why(self, ctx=None, agents=(), build=lambda path: False):
-        found = prune_proof.scan(str(self.main), ctx or {}, list(agents), NOW_MS, build)
+        found = prune_proof.scan(str(self.main), ctx or {}, None if agents is None else list(agents), NOW_MS, build)
         return {w["slot"]: w["why"] for w in found}
 
 
@@ -64,6 +64,28 @@ class Scan(Slots):
         self.assertIsNone(self.why(agents=[recent("03")])["03"])
         old = {**recent("13"), "since": NOW_MS - 2 * 3600_000}
         self.assertIsNone(self.why(agents=[old])["13"])
+
+    def test_a_terminal_host_session_in_any_state_but_ended_holds_a_10_99_slot(self):
+        """Learning L49 (plan 0412): `t:` panes of a terminal host count; sleeping, idle and failed are live."""
+        host = lambda state: {"pane_id": "t:abc", "session": "terminal", "kind": "claude", "state": state,  # noqa: E731
+                              "checkout": str(self.base / "13"), "since": NOW_MS - 60_000}
+        for state in ("sleeping", "idle", "failed", "done"):
+            self.assertIn("active", self.why(agents=[host(state)])["13"], state)
+        self.assertIsNone(self.why(agents=[host("ended")])["13"])
+        busy = host("working")
+        self.assertIn("working", self.why(agents=[busy])["13"])
+        old = {**host("failed"), "since": NOW_MS - 2 * 3600_000}
+        self.assertEqual([a["pane_id"] for a in prune_proof.sessions([old], str(self.base / "13"))], ["t:abc"])
+
+    def test_the_checkout_matches_by_its_realpath(self):
+        link = self.base / "link13"
+        link.symlink_to(self.base / "13")
+        a = {"pane_id": "t:abc", "checkout": str(link), "state": "idle", "since": NOW_MS - 60_000}
+        self.assertIn("active", self.why(agents=[a])["13"])
+
+    def test_an_unreadable_list_refuses_every_slot(self):
+        why = self.why(agents=None)
+        self.assertTrue(all(w and "could not be read" in w for w in why.values()), why)
 
 
 class Marked(MarkedSlots):

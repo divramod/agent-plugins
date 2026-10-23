@@ -88,7 +88,7 @@ its `--dir`, so the farmer reuses it), `learn.py` (the duty `learn`, generic in 
 `run` detached; `prune.py plan|start`), `barn.py` (after the barn: the last train's cars cleared or woken for; their
 removal is /prune's run), `yard.py` (what the yard holds and what rides), `yard_rules.py` (a path's
 name: secret-shaped, junk, a root outside the allowlist), `yard_report.py` (the farmer's notes and the dry run's
-lines), `boss.py` (the duty `mtm`; `flaky_brief.py` places its load-flaky test as a brief in the farmer's delegation ledger). `test_e2e.py` proves the pieces on a scratch farm with the `hal2-cli-git` built
+lines), `boss.py` (the duty `mtm`; `orphan_start.py` guards its orphan start: the agents list is asked again right before `worktree run`, a field with a live session or an unreadable list is skipped, exit 75; `flaky_brief.py` places its load-flaky test as a brief in the farmer's delegation ledger). `test_e2e.py` proves the pieces on a scratch farm with the `hal2-cli-git` built
 from the checkout (`cargo build -p hal2-cli-git`); without that binary it is skipped.
 
 | Call | Does |

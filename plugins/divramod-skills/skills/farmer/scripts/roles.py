@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,7 @@ ROLE_IGNORE = f"roles/{ROLE}/.gitignore"
 GITIGNORE = ("# The role's folder (hal2 .adr/roles-folder.md): ROLE.md is committed, every runtime file is ignored.\n"
              "*\n!.gitignore\n!ROLE.md\n")
 OVERRIDE = Path(os.environ["FARMER_DIR"]) if os.environ.get("FARMER_DIR") else None
+UNDER_TEST = "HAL2_ROLES_UNDER_TEST"  # set by a test's base class (test_farmer.Repo): a role's real state is off limits
 LEGACY = Path.home() / "skills" / "farmer"  # the state root before plan 0143: <LEGACY>/<repo>/
 BOSS = "merge-to-main boss"  # who says `land now` on a farm without a tollman
 TOLLMAN_BOSS = f"tollman ({BOSS})"  # as the tollman's boss signs its messages (its boss.py)
@@ -164,6 +166,23 @@ def is_slot(top: str | Path, role: str = ROLE) -> bool:
     return Path(top).name == slot_name(top, role)
 
 
+class RealStateRefused(RuntimeError):
+    """A test asked for a role's real state folder (hal2 plan 0412 D4)."""
+
+
+def refuse_real_state(d: Path, role: str, env: Mapping[str, str] | None = None) -> None:
+    """Under a test (`$HAL2_ROLES_UNDER_TEST`, inherited by the child processes a test starts) a role's state folder
+    must lie under the temp dir; any other, the live `roles/<role>/` included, is refused before anything is
+    created or written: a test that reaches it is a bug, never a quiet write into the live train."""
+    if not (env if env is not None else os.environ).get(UNDER_TEST):
+        return
+    temp = {Path(t).resolve() for t in (tempfile.gettempdir(), "/tmp")}
+    real = d.resolve()
+    if not any(t == real or t in real.parents for t in temp):
+        raise RealStateRefused(f"refusing the {role} state folder {d} under a test: it is not under the temp dir "
+                               f"({UNDER_TEST} is set); a test keeps its own ($FARMER_DIR, test_farmer.Repo)")
+
+
 def state_dir(repo: str | Path, override: Path | None = None, role: str = ROLE) -> Path:
     """The role's state folder: `$FARMER_DIR/<repo>` with an override (another role than the farmer:
     `$FARMER_DIR/<repo>/<role>`, so two roles never share a folder), else `roles/<role>/` of the role's worktree.
@@ -171,10 +190,12 @@ def state_dir(repo: str | Path, override: Path | None = None, role: str = ROLE) 
     returned as it is, reading it finds nothing. A new role folder gets the GITIGNORE."""
     if override is not None:
         d = override / main_checkout(repo).name / ("" if role == ROLE else role)
+        refuse_real_state(d, role)
         d.mkdir(parents=True, exist_ok=True)
         return d
     slot = slot_dir(repo, role)
     d = slot / "roles" / role
+    refuse_real_state(d, role)
     if slot.is_dir():
         d.mkdir(parents=True, exist_ok=True)
         if not (d / ".gitignore").exists():
