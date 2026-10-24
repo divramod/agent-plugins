@@ -75,6 +75,18 @@ class Lookup(unittest.TestCase):
         self.assertIsNone(live_sessions.live_session([host("01", "ended")], f"{HOME}/01"))
         self.assertEqual(live_sessions.live_session([host("01", "failed")], f"{HOME}/01")["state"], "failed")
 
+    def test_a_list_with_warnings_is_unreadable_though_it_has_rows(self):
+        """Plan 0426 D5: an unreadable terminal-host registry keeps tmux's rows, adds `warnings` and exits 1;
+        mtm_scan.run_json sees only stdout, so the rows must not read as the whole list (field 01's host missing)."""
+        partial = {"agents": [tmux("03", "idle")], "warnings": ["terminal hosts' registry ... is unreadable"]}
+        self.assertIsNone(live_sessions.read(lambda args: partial))
+        self.assertEqual(live_sessions.live_session(live_sessions.read(lambda args: partial), f"{HOME}/01")["state"],
+                         "unknown")
+        self.assertEqual(live_sessions.read(lambda args: {"agents": [], "warnings": []}), [])
+        done = mock.Mock(returncode=1, stdout='{"agents": [], "warnings": ["unreadable"]}')
+        with mock.patch.object(live_sessions.subprocess, "run", return_value=done):
+            self.assertIsNone(live_sessions.read(), "exit 1 with rows")
+
     def test_the_cli_is_asked_once_and_a_failure_or_timeout_reads_as_none(self):
         done = lambda code, out: mock.Mock(returncode=code, stdout=out)
         with mock.patch.object(live_sessions.subprocess, "run", return_value=done(0, '{"agents": []}')) as run:

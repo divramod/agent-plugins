@@ -66,14 +66,12 @@ def worktrees(main: str) -> list[dict]:
     return items
 
 
-def agents_by_checkout(agents: list[dict]) -> dict[str, dict]:
-    by: dict[str, dict] = {}
-    for a in agents:
-        if a.get("kind") in (None, "claude", "codex", "opencode") and a.get("checkout"):
-            prev = by.get(a["checkout"])
-            if prev is None or a.get("state") in BUSY:
-                by[a["checkout"]] = a
-    return by
+def _no_sessions(agents: list[dict]) -> dict[str, dict]:
+    return {}
+
+
+# The one lookup of live sessions (plan 0412, tmux and terminal host alike); without the farmer skill, no sessions (0426 D3).
+agents_by_checkout = mtm_scan.agents_by_checkout if mtm_scan else _no_sessions
 
 
 def foreman_of(path: str | Path) -> str | None:

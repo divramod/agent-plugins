@@ -5,7 +5,8 @@ A repository with `.github/hal2-changes.toml` says which gate jobs a change runs
 and their content keys. Each selected job runs as `gate/main.sh <job> --branch <base>`, one after the other; a job whose
 key was green before (`gate green check`, the store and salt of code/bash/scripts/smuggle/green.sh) is skipped, a job
 green on a clean tree is marked (`gate green mark`). `select()` returns None when it cannot say: the caller falls back
-to the units' own `checks`.
+to the units' own `checks`; it also lists the run jobs the gate does not know (`unmapped`), which the caller covers
+with the units' `checks` (plan 0427).
 """
 
 import json
@@ -40,7 +41,8 @@ def salt(repo):
 
 
 def select(repo, base, rev):
-    """{"jobs": [{name, key, packages(list or None), keys(map)}], "salt", "gate"} or None."""
+    """{"jobs": [{name, key, packages(list or None), keys(map)}], "unmapped": [run jobs the gate does not know],
+    "salt", "gate"} or None. A caller whose map leaves jobs unmapped or runnable ones empty also runs the units' checks."""
     gate = gate_path(repo)
     if not (os.path.exists(os.path.join(repo, MAP)) and os.path.exists(gate)):
         return None
@@ -55,15 +57,18 @@ def select(repo, base, rev):
     except (OSError, ValueError, KeyError, TypeError):
         return None
     known = set(sh(repo, "bash", gate, "list").stdout.split())
-    picked = []
+    picked, unmapped = [], []
     for job in jobs:
         name = job.get("name")
-        if not job.get("run") or name not in known:
+        if not job.get("run"):
+            continue
+        if name not in known:
+            unmapped.append(name)
             continue
         key = keys.get(name, {})
         picked.append({"name": name, "key": key.get("key"), "packages": job.get("packages"),
                        "keys": key.get("packages") or {}})
-    return {"jobs": picked, "salt": salt_value, "gate": gate}
+    return {"jobs": picked, "unmapped": unmapped, "salt": salt_value, "gate": gate}
 
 
 def green_hit(repo, gate, job):

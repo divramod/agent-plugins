@@ -53,7 +53,7 @@ FAKE_GATE = textwrap.dedent('''\
 ''')
 
 KEYS = {"jobs": [{"name": "rust-test", "run": True, "packages": ["hal2-core", "hal2-git"]},
-                 {"name": "ts-test", "run": True}, {"name": "bash-lint", "run": False}, {"name": "gone", "run": True}],
+                 {"name": "ts-test", "run": True}, {"name": "bash-lint", "run": False}],
         "keys": [{"name": "rust-test", "key": "k-rust", "packages": {"hal2-core": "p1", "hal2-git": "p2"}},
                  {"name": "ts-test", "key": "k-ts"}, {"name": "bash-lint", "key": "k-bash"}]}
 
@@ -209,11 +209,52 @@ class Units(unittest.TestCase):
         self.assertIn("gate green restore rust-test", log)
         self.assertIn("gate green save rust-test", log)
         self.assertNotIn("gate bash-lint", log)  # run: false
-        self.assertNotIn("gate gone", log)  # not a gate job
         self.assertIn("gate green mark rust-test k-rust ", log)
         self.assertIn("gate green mark ts-test k-ts ", log)
         line = json.loads(report.read_text())
         self.assertEqual((line["lane"], line["status"], line["jobs"]), ("checks", "ok", ["rust-test", "ts-test"]))
+
+    def write_keys(self, jobs):
+        (self.tmp / "keys.json").write_text(json.dumps({"jobs": jobs, "keys": []}))
+
+    def test_voice_agent_layout_unknown_map_jobs_run_the_units_checks(self):
+        self.job_map()
+        self.write_keys([{"name": n, "run": True} for n in ("rust-workspace", "tauri-app", "web", "ci-workflow")])
+        out = self.units("run", "checks")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("skills-check origin/main", out.stdout)
+        self.assertIn("rust-workspace", out.stdout)
+        self.assertNotIn("gate rust-workspace", self.cli_log())
+        self.write("red", "")
+        self.commit("nvim/x.lua")
+        self.assertEqual(self.units("run", "checks").returncode, 1)
+        out = self.units("run", "checks", "--dry-run")
+        self.assertIn("would run: skills: echo skills-check", out.stdout)
+
+    def test_mixed_known_and_unknown_jobs_run_both(self):
+        self.job_map()
+        self.write_keys([{"name": "ts-test", "run": True}, {"name": "gone", "run": True}])
+        report = self.tmp / "report.jsonl"
+        out = self.units("run", "checks", "--report", str(report))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("gate ts-test --branch", self.cli_log())
+        self.assertNotIn("gate gone", self.cli_log())
+        self.assertIn("skills-check origin/main", out.stdout)
+        lanes = [json.loads(line)["lane"] for line in report.read_text().splitlines()]
+        self.assertEqual(lanes, ["checks", "skills"])
+
+    def test_mixed_red_map_job_still_runs_the_units_and_is_red(self):
+        self.job_map(FAIL_JOB="ts-test")
+        self.write_keys([{"name": "ts-test", "run": True}, {"name": "gone", "run": True}])
+        out = self.units("run", "checks")
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("skills-check origin/main", out.stdout)
+
+    def test_no_runnable_job_runs_the_units_checks(self):
+        self.job_map()
+        self.write_keys([{"name": "bash-lint", "run": False}])
+        out = self.units("run", "checks")
+        self.assertIn("skills-check origin/main", out.stdout)
 
     def test_job_green_before_is_skipped_and_reported(self):
         self.job_map()

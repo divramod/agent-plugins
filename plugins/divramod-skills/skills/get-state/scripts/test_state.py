@@ -251,6 +251,30 @@ class Tools(Fixture):
         self.mock(src, "agents", lambda: None)
         self.assertEqual((self.rows()["02"]["agent"], self.rows()["02"]["agent_state"]), (None, None))
 
+    def test_a_terminal_host_session_is_counted_in_its_field(self):
+        rows_json = [{"kind": "claude", "checkout": str(self.wt / "02"), "state": "sleeping", "pane_id": "t:abc"},
+                     {"kind": "terminal", "checkout": str(self.wt / "10"), "state": "idle", "pane_id": "t:def"},
+                     {"kind": "claude", "checkout": str(self.wt / "1"), "state": "ended", "pane_id": "%3"}]
+        self.mock(src, "tool_json", lambda args, cwd=None: {"agents": rows_json})
+        got = REAL["agents"]()
+        real = os.path.realpath
+        self.assertEqual(got[real(self.wt / "02")]["pane_id"], "t:abc")
+        self.assertEqual(got[real(self.wt / "10")]["state"], "idle")
+        self.assertNotIn(real(self.wt / "1"), got)
+        self.mock(src, "agents", lambda: got)
+        rows = self.rows()
+        self.assertEqual((rows["02"]["agent"], rows["02"]["agent_state"]), ("idle", "sleeping"))
+        self.assertEqual(rows["10"]["agent"], "idle")
+        self.assertEqual(rows["1"]["agent"], "none")
+
+    def test_a_list_exiting_1_with_rows_is_unknown(self):
+        """Plan 0426 D5: an unreadable terminal-host registry keeps tmux's rows and exits 1: no field reads "none"."""
+        partial = json.dumps({"agents": [{"kind": "claude", "checkout": str(self.wt / "02"), "state": "idle",
+                                          "pane_id": "%2"}], "warnings": ["terminal hosts' registry is unreadable"]})
+        done = subprocess.CompletedProcess(["hal2-cli-agents"], 1, stdout=partial, stderr="warning")
+        with mock.patch.object(src.subprocess, "run", return_value=done):
+            self.assertIsNone(REAL["agents"]())
+
     def test_queue_places_and_ci_runs_by_branch(self):
         real = os.path.realpath
         queue = [{"slot": "02", "worktree": real(self.wt / "02"), "position": 0, "holding": True, "state": "held"},

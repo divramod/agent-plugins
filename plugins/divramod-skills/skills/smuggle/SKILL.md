@@ -56,7 +56,8 @@ hal2's smuggle guide in docs/).
   the CI jobs `hal2-cli-git changes` names), exit 4. In a repository with `.github/hal2-changes.toml`, `units.py run
   checks` runs the job map's selection instead of the units' `checks` (`jobmap.py`: one `changes --keys --json`, jobs with
   their packages, a job green before skipped and listed in the report, a green one on a clean tree marked); the
-  units' `checks` are the fallback without a map or when the call fails. With `SMUGGLE_RUN_LOGS` set (hal2-git's
+  units' `checks` are the fallback without a map or when the call fails, and run besides the map's jobs when a run job
+  is unknown to the gate or none is runnable (a repository whose map names jobs the gate lacks still gets its unit checks). With `SMUGGLE_RUN_LOGS` set (hal2-git's
   smuggle) every job or unit command is a step of the smuggle's run (`runsteps.py`: `<lane>.jobs` lines with the exit,
   cpu, load, sccache delta and key; its output in `<lane>.log`, printed only when red).
 

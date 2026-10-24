@@ -6,7 +6,9 @@ A live session is any `hal2-cli-agents list --json` entry of the checkout whose 
 whatever its kind and its host: a tmux pane (`%<n>`) or a terminal host (`t:<id>`, `session: terminal`), sleeping,
 idle, done and failed included, as `hal2-cli-git worktree run` refuses a field (occupied.rs). A list that cannot be
 read is no empty list: `read` gives None, and its callers fail closed (2026-10-20: a list read that failed under load
-made every field "no agent session", and the orphan rule started `/handoff c` into fields holding sessions).
+made every field "no agent session", and the orphan rule started `/handoff c` into fields holding sessions). A list
+with `warnings` (an unreadable terminal-host registry: tmux's rows only, exit 1; hal2 plan 0426 D4) is no complete
+list either: None too, also where the caller saw only its stdout (mtm_scan.run_json).
 """
 
 import json
@@ -22,9 +24,12 @@ TIMEOUT = 120  # seconds; the list takes 2 s on a quiet Mac, a loaded one has ne
 
 def read(run_json=None) -> list[dict] | None:
     """Every entry of `hal2-cli-agents list --json`, or None when the list cannot be read (the CLI is missing, fails,
-    times out, prints no or broken JSON, or a body without an `agents` list). `run_json(args)` answers like
-    mtm_scan.run_json (parsed JSON or None); without one the CLI is asked here."""
+    times out, prints no or broken JSON, a body without an `agents` list, or one with `warnings`: rows it could not
+    all read, plan 0426). `run_json(args)` answers like mtm_scan.run_json (parsed JSON or None, the exit code unseen);
+    without one the CLI is asked here."""
     data = run_json(LIST) if run_json else _ask()
+    if isinstance(data, dict) and data.get("warnings"):
+        return None
     rows = data.get("agents") if isinstance(data, dict) else data
     if not isinstance(rows, list):
         return None

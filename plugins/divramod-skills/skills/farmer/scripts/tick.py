@@ -275,8 +275,11 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
     if a["do"] in ("wake", "notify", "relay"):
         out.setdefault(a["do"], []).append(a)
     note = a.get("why", "") + (f" (exit {a['exit']})" if a.get("exit") else "")
+    # A run that exited OFFLINE did not run (the orphan start guard's skip, plan 0426 D2): it logs no key, so the next
+    # round plans it again at once instead of waiting out the key's window.
+    key = "" if a["do"] == "run" and a.get("exit") == OFFLINE else a.get("key", "")
     mtm_scan.log(main, {"kind": a["kind"], "slot": a["slot"], "what": a.get("text") or " ".join(a.get("argv", [])),
-                        "note": note, "by": "tick", "duty": a["duty"], "do": a["do"], "key": a.get("key", "")},
+                        "note": note, "by": "tick", "duty": a["duty"], "do": a["do"], "key": key},
                  wiring.role)
 
 

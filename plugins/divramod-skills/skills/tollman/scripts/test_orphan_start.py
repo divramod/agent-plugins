@@ -2,6 +2,7 @@
 
 import datetime as dt
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -10,6 +11,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import farmer_frame
+import tick
 import boss
 import mtm_scan
 import orphan_start
@@ -108,6 +110,41 @@ class Guard(unittest.TestCase):
         with mock.patch("sys.stderr", err):
             code = orphan_start.main(a["argv"][2:], read=lambda: [], run=lambda *x, **k: done)
         self.assertEqual((code, err.getvalue()), (1, "no field"))
+
+
+class SkippedStartSetsNoKey(Guard):
+    """Plan 0426 step 1 (D2): a start the guard skipped (exit 75) logs no `orphan:<NN>` key; a real start does."""
+
+    def tick(self, exit_code, now):
+        """One round: plan the orphan 01, drop what the log already holds, carry the rest out with the start's exit
+        code faked (tick.sh), log it as the frame does. Returns the actions that were carried out."""
+        log = mtm_scan.entries(mtm_scan.state_dir(MAIN, "tollman") / "log.jsonl")
+        a = [x for x in tick.fresh([self.planned("01")], log, now, "tollman") if x["kind"] == "orphan"]
+        with mock.patch.object(tick, "sh", return_value=(exit_code, "x")), \
+                mock.patch.object(mtm_scan, "log", side_effect=lambda m, e, r="tollman": self.write(m, e, r, now)):
+            for x in a:
+                tick.execute(x, "/x/tollman-hal2", MAIN, {})
+        return a
+
+    def write(self, main, entry, role, now):
+        path = mtm_scan.state_dir(MAIN, "tollman") / "log.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a") as f:
+            f.write(json.dumps({"at": now.isoformat(), **entry}) + "\n")
+
+    def test_a_skipped_start_is_planned_again_at_once(self):
+        self.assertEqual(len(self.tick(orphan_start.SKIPPED, NOW)), 1)
+        again = self.tick(0, NOW + dt.timedelta(minutes=1))
+        self.assertEqual(len(again), 1, "the skip set no key, so the next tick starts the session")
+
+    def test_a_real_start_still_waits_out_its_window(self):
+        self.assertEqual(len(self.tick(0, NOW)), 1)
+        self.assertEqual(self.tick(0, NOW + dt.timedelta(minutes=1)), [])
+        self.assertEqual(len(self.tick(0, NOW + boss.ORPHAN + dt.timedelta(minutes=1))), 1)
+
+    def test_a_failed_start_keeps_its_key(self):
+        self.assertEqual(len(self.tick(1, NOW)), 1)
+        self.assertEqual(self.tick(0, NOW + dt.timedelta(minutes=1)), [])
 
 
 if __name__ == "__main__":
