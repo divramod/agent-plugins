@@ -14,7 +14,7 @@ import re
 
 import trial as trial_merge
 
-LANDING = re.compile(r"^\.github/workflows/(merge-to-main|dev-merge-to-main|land)\.ya?ml$")  # the mtm skill's names
+LANDING = re.compile(r"^\.github/workflows/(merge-to-main|merge-to-main-local|merge-to-main-cloud|dev-merge-to-main|land)\.ya?ml$")  # the mtm skill's names
 TRIGGER = ("on", "name", "run-name")  # the top-level keys that start the run and name it
 KINDS = {"A": "adds", "D": "removes", "R": "renames"}
 

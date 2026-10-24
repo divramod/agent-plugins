@@ -21,10 +21,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gp_scan  # noqa: E402
 
+sys.path.insert(0, next(str(p / "scripts") for p in Path(__file__).resolve().parents if (p / ".claude-plugin").is_dir()))
+import landing_workflow  # noqa: E402  (the skills unit's scripts/)
+
 TYPES = ("feat", "fix", "docs", "test", "ci", "perf", "style", "refactor", "build", "chore")
 HEAD = re.compile(r"^(" + "|".join(TYPES) + r")(\([A-Za-z0-9._/,@|-]+\))?!?: \S.*$")
 STEP = re.compile(r"^\d+/\d+$")
-WORKFLOWS = ("dev-merge-to-main.yml", "merge-to-main.yml")
+WORKFLOWS = landing_workflow.NAMES  # plan 0423 D4: local, cloud, then the older names
 
 
 class Refused(Exception):

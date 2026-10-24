@@ -49,8 +49,8 @@ class Collect(unittest.TestCase):
     def test_missing_cli_is_a_message(self):
         with mock.patch.dict(os.environ, {"HAL2_WORKQUEUE_BIN": ""}), mock.patch("shutil.which", return_value=None):
             res = check.collect("24h", False, 0.25)
+            self.assertEqual(check.main(["--no-bench"]), 3)
         self.assertIn("not installed yet", res["missing"][0])
-        self.assertEqual(check.main(["--no-bench"]), 3)
 
     def test_bad_window(self):
         self.assertEqual(check.main(["--since", "soon"]), 2)

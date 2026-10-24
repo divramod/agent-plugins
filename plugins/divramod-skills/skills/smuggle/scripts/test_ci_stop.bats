@@ -21,7 +21,8 @@ build() {
   # $FAKE/attempt-<id> says. A cancel ends its run at once;
   # with $FAKE/linger (a number) a run only notes the request and every run ends after that many rounds (lists of
   # a known workflow file). $FAKE/refuses: the cancel fails.
-  echo dev-merge-to-main.yml > "$fake/unknown"
+  # The new names (plan 0423 D4) are unknown too until a test lets GitHub know them.
+  printf '%s\n' dev-merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml > "$fake/unknown"
   cat > "$fake/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE/gh-calls"
@@ -464,7 +465,7 @@ EOF
   run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
   [ "$(cat "$fake/cancelled")" = 31 ]
-  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main-cloud.yml merge-to-main-local.yml merge-to-main.yml" ]
 }
 
 @test "github: unfinished runs of both workflow files are stopped, a merged one of either is waited for" {
@@ -483,15 +484,15 @@ EOF
   run bash "$here/ci-stop.sh" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"would cancel run 35"* ]]
-  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(asked)" = "dev-merge-to-main.yml merge-to-main-cloud.yml merge-to-main-local.yml merge-to-main.yml" ]
   [ ! -e "$fake/cancelled" ]
 }
 
 @test "github: GitHub knows neither land workflow: nothing is known, exit 1" {
-  printf '%s\n' dev-merge-to-main.yml merge-to-main.yml > "$fake/unknown"
+  printf '%s\n' merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml merge-to-main.yml > "$fake/unknown"
   run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 1 ]
-  [[ "$output" == *"GitHub knows none of the land workflows (merge-to-main.yml dev-merge-to-main.yml)"* ]]
+  [[ "$output" == *"GitHub knows none of the land workflows (merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml)"* ]]
   [[ "$output" == *"listing the github land runs failed"* ]]
 }
 
@@ -514,14 +515,14 @@ EOF
   [ -z "$(workflows)" ]
   run bash "$here/ci-stop.sh" --interval 0
   [ "$status" -eq 0 ]
-  [[ "$output" == *"no land workflow (LAND_WORKFLOWS, .github/workflows/dev-merge-to-main.yml or merge-to-main.yml)"* ]]
+  [[ "$output" == *"no land workflow (LAND_WORKFLOWS, .github/workflows/merge-to-main-local.yml, merge-to-main-cloud.yml or an older name)"* ]]
   [ ! -e "$fake/gh-calls" ]
 }
 
 @test "github: without LAND_WORKFLOWS, only merge-to-main.yml in the worktree: both names are asked, a dev-merge-to-main.yml run is stopped" {
   printf 'PROVIDER=github\n' > .hal/smuggle.conf
   commit_workflow merge-to-main.yml
-  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml" ]
   : > "$fake/unknown" # main was renamed meanwhile: GitHub knows both, the running landing is under the new name
   run_under dev-merge-to-main.yml 37 land/03 "queued none 05-x-host-x/merge"
   run bash "$here/ci-stop.sh" --interval 0
@@ -532,7 +533,7 @@ EOF
 @test "github: without LAND_WORKFLOWS, only dev-merge-to-main.yml in the worktree: both names are asked, a merge-to-main.yml run is stopped" {
   printf 'PROVIDER=github\n' > .hal/smuggle.conf
   commit_workflow dev-merge-to-main.yml
-  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml merge-to-main.yml" ]
   : > "$fake/unknown" # the worktree renames it: main's running landing is still under the old name
   run_on 38 land/04 "queued none merge"
   run_under dev-merge-to-main.yml 39 land/05 "queued none 05-x-host-x/merge"
@@ -545,15 +546,15 @@ EOF
   printf 'PROVIDER=github\n' > .hal/smuggle.conf
   commit_workflow merge-to-main.yml
   commit_workflow dev-merge-to-main.yml
-  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\n' > .hal/smuggle.conf
-  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS="merge-to-main.yml local-macos-26-macbook-18.4.yml"\n' > .hal/smuggle.conf
-  [ "$(workflows)" = "merge-to-main.yml local-macos-26-macbook-18.4.yml dev-merge-to-main.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml local-macos-26-macbook-18.4.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS=.github/workflows/merge-to-main.yml\n' > .hal/smuggle.conf
-  [ "$(workflows)" = ".github/workflows/merge-to-main.yml dev-merge-to-main.yml" ]
+  [ "$(workflows)" = ".github/workflows/merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS=dev-merge-to-main.yml\n' > .hal/smuggle.conf
-  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main.yml" ]
+  [ "$(workflows)" = "dev-merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml merge-to-main.yml" ]
   printf 'PROVIDER=github\nLAND_WORKFLOWS="deploy.yml release.yml"\n' > .hal/smuggle.conf
   [ "$(workflows)" = "deploy.yml release.yml" ]
 }
@@ -568,7 +569,13 @@ EOF
   git remote set-head origin main
   git reset -q --hard HEAD~1
   [ ! -e .github/workflows/merge-to-main.yml ]
-  [ "$(workflows)" = "merge-to-main.yml dev-merge-to-main.yml" ]
+  [ "$(workflows)" = "merge-to-main.yml merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml" ]
+}
+
+@test "github: a repository with merge-to-main-cloud.yml (plan 0423 D4) has it as its land workflow, the older names ride along" {
+  printf 'PROVIDER=github\n' > .hal/smuggle.conf
+  commit_workflow merge-to-main-cloud.yml
+  [ "$(workflows)" = "merge-to-main-cloud.yml merge-to-main-local.yml dev-merge-to-main.yml merge-to-main.yml" ]
 }
 
 @test "link_tools_except starts ln once per folder, not once per tool, and leaves out the named tool" {

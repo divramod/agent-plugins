@@ -24,7 +24,7 @@
       the priority, the pause flag, the last scan, the actions of the last 6 h
 
 Reads hal2 (hal2-cli-git worktree queue, hal2-cli-agents list), git and the recent
-landings: GitHub's dev-merge-to-main.yml and merge-to-main.yml runs (gh) where the default branch has one (mtm_ci.py),
+landings: GitHub's landing workflow runs (merge-to-main-local.yml, merge-to-main-cloud.yml and the older names) (gh) where the default branch has one (mtm_ci.py),
 else `hal2-cli-git worktree landings`; writes only the farmer's state folder (roles/farmer/ of its worktree). Exit 0 on success,
 2 when a tool is missing. Every command takes `--role <role>` (hal2 plan 0294): that role's state folder and log.
 """

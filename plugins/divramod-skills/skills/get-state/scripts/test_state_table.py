@@ -40,7 +40,7 @@ class CellsTest(unittest.TestCase):
         self.assertEqual(t.state_cell(row(), "main"), "")  # nothing known, nothing said
 
     def test_a_run_of_the_landing_workflow_under_any_name_is_a_land_run(self):
-        for name in ("dev-merge-to-main", "merge-to-main", "land"):  # plan 0349 D52's name, the ones before it
+        for name in ("merge-to-main-local", "merge-to-main-cloud", "dev-merge-to-main", "merge-to-main", "land"):  # plan 0423 D4's names, the ones before
             self.assertEqual(t.run_phrase({"workflow": name, "status": "in_progress", "branch": "07"}), "land run running")
         self.assertEqual(t.run_phrase({"workflow": "local-macos-26-macbook-18.4", "status": "queued", "branch": "07"}),
                          "check run queued")

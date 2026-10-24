@@ -91,7 +91,7 @@ def flag_of(argv: list[str], flag: str) -> str:
 def find_run(main: str, entry: dict, since: float, run_json, sleep, tries: int = 6) -> dict | None:
     """The run a dispatch made: the newest dispatch of its branch with its title, created after `since`."""
     branch = flag_of(command(entry["argv"]), "--ref")
-    args = ["gh", "run", "list", "--workflow", checks.WORKFLOW, "--event", "workflow_dispatch", "--limit", "10",
+    args = ["gh", "run", "list", "--workflow", checks.workflow(main), "--event", "workflow_dispatch", "--limit", "10",
             "--json", checks.FIELDS] + (["--branch", branch] if branch else [])
     for n in range(tries):
         for r in run_json(args, main) or []:

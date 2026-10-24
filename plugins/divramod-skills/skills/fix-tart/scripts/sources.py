@@ -10,7 +10,7 @@ Every source is overridable (a flag, else an environment variable) so the tests 
   tart list    --tart-list       FIX_TART_TART_LIST    `tart list`
   GitHub jobs  --gh-jobs         FIX_TART_GH_JOBS      `gh api` (the unfinished runs' jobs, TSV id/status/labels)
 
-<state> is $HAL2_STATE_ROOT, else ~/.local/state/hal2 (hal2-daemon's state root: the parent of its `daemon/`).
+<state> is $HAL2_STATE_DIR, else ~/.local/state/hal2 (below $HAL2_HOME when set) (hal2-daemon's state root: the parent of its `daemon/`).
 """
 
 import json
@@ -22,7 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HOME = Path.home()
-STATE = Path(os.environ.get("HAL2_STATE_ROOT", HOME / ".local/state/hal2"))
+# The names hal2_core::paths reads (HAL2_STATE_DIR, HAL2_HOME); a plugin cannot import the repository's shared helper.
+STATE = Path(os.environ.get("HAL2_STATE_DIR") or Path(os.environ.get("HAL2_HOME") or HOME) / ".local/state/hal2")
 VM = "hal2/ci-runner-macos"
 REPO = "divramod/hal2"
 # hal2-ci-supervisor's MacVm default labels (config.rs); ~/.config/hal2/ci-supervisor.toml [mac_vm] labels wins.

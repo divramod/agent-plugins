@@ -12,7 +12,6 @@ import datetime as dt
 from tick import act
 
 ROLE = "tollman"
-WORKFLOW = "merge-to-main.yml"
 TELL = dt.timedelta(days=1)  # a dispatched or given-up check older than this is not told any more
 SEND_WINDOW = dt.timedelta(minutes=30)  # a message not typed (relayed) goes out again after this
 SEND_TRIES = 3  # how often one message is planned at most
@@ -63,7 +62,7 @@ def told(s: dict, now: dt.datetime, tries: int) -> list[dict]:
         if at(e) < cutoff:
             continue
         if e["kind"] == "dispatched" and e.get("by") == "checks":
-            url = e.get("url") or f"(its run not seen yet: gh run list --workflow {WORKFLOW})"
+            url = e.get("url") or f"(its run not seen yet: gh run list --workflow <the landing workflow>)"
             out += send(s, e, "check-runs", f"checks-runs:{e['id']}",
                         TEXT["runs"].format(title=e.get("title"), url=url))
         elif e["kind"] == "failed" and (e.get("attempt") or 0) >= tries:

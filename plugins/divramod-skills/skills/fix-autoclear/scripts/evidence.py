@@ -32,7 +32,8 @@ import time
 from pathlib import Path
 
 HOME = Path.home()
-STATE = Path(os.environ.get("HAL2_STATE_ROOT", HOME / ".local/state/hal2"))
+# The names hal2_core::paths reads (HAL2_STATE_DIR, HAL2_HOME); a plugin cannot import the repository's shared helper.
+STATE = Path(os.environ.get("HAL2_STATE_DIR") or Path(os.environ.get("HAL2_HOME") or HOME) / ".local/state/hal2")
 JOBS = STATE / "agents" / "autoclear"
 API_LOG = HOME / "Library/Logs/hal2-api.log"
 PROJECTS = HOME / ".claude/projects"

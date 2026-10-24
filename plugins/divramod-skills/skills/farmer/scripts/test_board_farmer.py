@@ -179,7 +179,8 @@ class Files(FarmerBoard):
             f.write(json.dumps({"schema": 1, "at": board.utc(), "kind": "train", "slot": OWN, "from": OWN, "to": "-"}) + "\n")
             f.write(json.dumps({"schema": 1, "at": board.utc(), "kind": "note", "slot": "%54", "from": OWN, "to": "%54"}) + "\n")
         p = subprocess.run(args, capture_output=True, text=True)
-        found = json.loads(p.stdout)["problems"]
+        self.assertEqual(p.returncode, 1, p.stdout)  # problems fail the check: the report is in the error's details
+        found = json.loads(p.stderr)["error"]["details"]["problems"]
         self.assertEqual({x["path"].rsplit("/", 1)[-1] for x in found}, {"board.jsonl"}, p.stdout)
         self.assertEqual(len({x["line"] for x in found}), 2, "the tollman's kind and the pane id, each line named")
 

@@ -62,6 +62,14 @@ class PushTests(Base):
         self.assertIn("/mtm", err)
         self.assertEqual(git(self.remote, "branch").strip(), "")
 
+    def test_refuses_default_branch_with_a_local_or_cloud_landing_workflow(self):
+        for name in ("merge-to-main-local.yml", "merge-to-main-cloud.yml"):  # plan 0423 D4
+            write(self.root, f".github/workflows/{name}", "name: x\n")
+            code, _, err = run_gp("--repo", str(self.root), "push")
+            self.assertEqual(code, 1, name)
+            self.assertIn("/mtm", err)
+            Path(self.root, ".github/workflows", name).unlink()
+
     def test_pushes_the_head_to_the_branch_of_its_own_name(self):
         run_gp("--repo", str(self.root), "push")
         git(self.root, "checkout", "-q", "-b", "05")

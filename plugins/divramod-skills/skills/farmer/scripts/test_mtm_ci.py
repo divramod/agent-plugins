@@ -264,8 +264,9 @@ class MtmCiTest(unittest.TestCase):
     def test_ci_mode_asks_for_every_workflow_file_on_the_default_branch(self):
         seen = []
         self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: seen.append(argv) or "", "/m", "main"))  # none
-        self.assertEqual([argv[-1] for argv in seen], ["origin/main:.github/workflows/dev-merge-to-main.yml",
-                                                       "origin/main:.github/workflows/merge-to-main.yml"])
+        self.assertEqual([argv[-1] for argv in seen], [f"origin/main:.github/workflows/{n}" for n in
+                                                       ("merge-to-main-local.yml", "merge-to-main-cloud.yml",
+                                                        "dev-merge-to-main.yml", "merge-to-main.yml")])
         self.assertEqual(seen[0][:3], ["git", "cat-file", "-t"])
         self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n", "/m", "main"))  # both
 
@@ -275,6 +276,9 @@ class MtmCiTest(unittest.TestCase):
         other = lambda argv, cwd: "blob\n" if argv[-1].endswith("/ci.yml") else ""
         self.assertTrue(mtm_ci.ci_mode(only_new, "/m", "main"))
         self.assertTrue(mtm_ci.ci_mode(only_dev, "/m", "main"))
+        for new in ("local", "cloud"):  # plan 0423 D4
+            self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n" if argv[-1].endswith(f"-{new}.yml") else "",
+                                           "/m", "main"))
         self.assertFalse(mtm_ci.ci_mode(other, "/m", "main"))
 
     def test_runs_of_every_workflow_file_are_joined_newest_first(self):
@@ -285,13 +289,13 @@ class MtmCiTest(unittest.TestCase):
                                          run(1, "land/03", status="in_progress", conclusion="",
                                              at="2026-10-11T06:00:00Z")]}
         asked = []
-        both = lambda args, cwd: asked.append(args) or answers[args[args.index("--workflow") + 1]]
+        both = lambda args, cwd: asked.append(args) or answers.get(args[args.index("--workflow") + 1], [])
         self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(both, "/m")], [5, 4, 3, 2, 1])
         self.assertEqual([a[a.index("--workflow") + 1] for a in asked],
-                         ["dev-merge-to-main.yml", "merge-to-main.yml"])
+                         ["merge-to-main-local.yml", "merge-to-main-cloud.yml", "dev-merge-to-main.yml", "merge-to-main.yml"])
         self.assertEqual(asked[0][:3] + asked[0][5:7], ["gh", "run", "list", "--limit", "100"])
         self.assertEqual(mtm_ci.unfinished(both, "/m"), 3)  # the unfinished runs of both files
-        rows = mtm_ci.landings(lambda args, cwd: answers[args[args.index("--workflow") + 1]]
+        rows = mtm_ci.landings(lambda args, cwd: answers.get(args[args.index("--workflow") + 1], [])
                                if args[:3] == ["gh", "run", "list"] else {"jobs": []}, "/m", 0)
         self.assertEqual([(r["slot"], r["outcome"]) for r in rows],
                          [("09", "running"), ("08", "running"), ("05", "landed"), ("07", "landed"), ("03", "running")])

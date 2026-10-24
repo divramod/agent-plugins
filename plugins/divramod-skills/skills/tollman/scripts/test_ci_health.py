@@ -28,7 +28,7 @@ LOG = """2026-10-18T18:40:25Z hz01: hetzner says up; no queued or running job of
 WOKEN = """2026-10-18T20:19:51Z hz01: wake (hetzner says parked; 1 jobs: run 501 job 7): ok
 """
 HZ = ["self-hosted", "linux", "x64", "hz01-host-a"]
-MAC = ["self-hosted", "macOS", "ARM64", "mac-host-a"]
+MAC = ["self-hosted", "macOS", "ARM64", "mac-host-hal2-a"]
 VM = ["self-hosted", "macOS", "ARM64", "hal2", "mac-vm-a"]
 CI_CHANGES = api_job(117778863640, "b1-01-ci-changes", HZ, "2026-10-18T20:17:09Z")
 
@@ -112,9 +112,9 @@ class Healthy(Health):
         self.assertEqual(self.tick(), "", "hz01 and az01 are parked, no queued job wants them")
 
     def test_a_busy_runner_is_a_queue_not_a_problem_and_github_hosted_jobs_are_not_ours(self):
-        self.fleet(**{"mac-host-a": "online"})
+        self.fleet(**{"mac-host-hal2-a": "online"})
         self.gh.runners[[r["name"] for r in self.gh.runners].index(
-            next(r["name"] for r in ci_fleet.catalog(str(self.main)) if r["code"] == "mac-host-a"))]["busy"] = True
+            next(r["name"] for r in ci_fleet.catalog(str(self.main)) if r["code"] == "mac-host-hal2-a"))]["busy"] = True
         self.queue(api_job(1, "a1-01-ci-route", MAC, stamp(self.now - dt.timedelta(minutes=30))),
                    api_job(2, "x", ["ubuntu-latest"], stamp(self.now - dt.timedelta(minutes=30))))
         self.assertEqual(self.tick(), "")
@@ -143,12 +143,12 @@ class Problems(Health):
         self.assertEqual(a["evidence"]["job"]["labels"], sorted(x.lower() for x in VM))
 
     def test_a_job_whose_host_runner_is_offline_is_reported_after_the_restart_grace(self):
-        self.fleet(**{"mac-host-a": "offline"})
+        self.fleet(**{"mac-host-hal2-a": "offline"})
         self.queue(api_job(3, "a1-01-ci-route", MAC, stamp(self.now - dt.timedelta(minutes=1))))
         self.assertEqual(self.check(), [])
         self.queue(api_job(3, "a1-01-ci-route", MAC, stamp(self.now - dt.timedelta(minutes=4))))
         (a,) = self.check()
-        self.assertIn("waits 4 min for [arm64,mac-host-a,macos]: mac-host-a offline", a["text"])
+        self.assertIn("waits 4 min for [arm64,mac-host-hal2-a,macos]: mac-host-hal2-a offline", a["text"])
         self.assertEqual(self.check(), [])
 
     def test_a_job_no_runner_of_the_toml_can_take_is_unserved(self):
@@ -157,21 +157,21 @@ class Problems(Health):
         self.assertIn("no runner of hal2-runners.toml has these labels", a["text"])
 
     def test_an_idle_pipeline_host_runner_offline_is_reported_once_after_the_grace(self):
-        self.fleet(**{"mac-host-b": "offline"})
+        self.fleet(**{"mac-host-hal2-b": "offline"})
         self.assertEqual(self.check(0), [], "first seen: GitHub flaps")
         self.assertEqual(self.check(2), [])
         (a,) = self.check(4)
-        self.assertEqual(a["text"], "runners: host runner mac-host-b is offline for 4 min (the supervisor restarts it)")
+        self.assertEqual(a["text"], "runners: host runner mac-host-hal2-b is offline for 4 min (the supervisor restarts it)")
         self.assertEqual(self.check(5), [], "once while it lasts")
         self.fleet()
         self.assertEqual(self.check(6), [], "back online: cleared")
-        self.fleet(**{"mac-host-b": "offline"})
+        self.fleet(**{"mac-host-hal2-b": "offline"})
         self.assertEqual((self.check(7), len(self.check(11))), ([], 1), "offline again: a new problem, after the grace")
 
     def test_hand_started_and_parked_runners_are_no_problem_while_idle(self):
         self.fleet(online=False)  # everything offline: the parked servers, the VM and Docker runners, the old laptops
         found = {a["text"].split()[3] for a in self.check(0) + self.check(5)}
-        self.assertEqual(found, {"mac-host-a", "mac-host-b", "mac-host-c"}, "only the Mac's pipeline host runners")
+        self.assertEqual(found, {"mac-host-hal2-a", "mac-host-hal2-b", "mac-host-hal2-c"}, "only the Mac's pipeline host runners")
 
 
 class Reading(unittest.TestCase):

@@ -15,7 +15,7 @@ nothing, so a quiet minute costs no model call. The printed line wakes the tollm
    - any other runner offline `HOST_GRACE` (180 s, the supervisor's restart grace) after the job queued: `offline`
    - no runner of hal2-runners.toml has the labels: `unserved` after `HOST_GRACE`
 2. **A pipeline host runner offline** `HOST_GRACE` seconds (kind `host`, carrying a label of PIPELINE: `hal2`,
-   `hal2-gate`, `hal2-stack`, `hal2-mac-host`), its machine not parked or waking, no job waiting for it (that is 1.);
+   `hal2-gate`, `hal2-stack`, `mac-host-hal2`, `hal2-mac-host`), its machine not parked or waking, no job waiting for it (that is 1.);
    the hand-started runners (the Mac's VM and Docker runners, `hal2-linux-host`, `hal2-windows-host`) are no problem
    while idle.
 
@@ -40,7 +40,7 @@ SCHEMA = 1
 DUTY = "ci-health"  # the actions' duty: a wake that reads instructions/ci-health.md; minute.py prints its text
 VM_GRACE = 300
 HOST_GRACE = 180
-PIPELINE = {"hal2", "hal2-gate", "hal2-stack", "hal2-mac-host"}
+PIPELINE = {"hal2", "hal2-gate", "hal2-stack", "mac-host-hal2", "hal2-mac-host"}
 HOURS = "2"  # the window of the doctor
 
 

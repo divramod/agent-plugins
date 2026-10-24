@@ -58,6 +58,13 @@ dev_cli() {
     "  merge-to-main.yml, its name before plan 0349), push it to land/<slot>"
 }
 
+# The help of the CLI that reads the local and cloud files (hal2 plan 0423).
+local_cli() {
+  fake_cli "usage: hal2-cli-git worktree merge-to-main [<slot>] [--keep-reserved] [--local] [--json]" \
+    "  the candidate merge commit and, when the repository has .github/workflows/merge-to-main-local.yml or" \
+    "  merge-to-main-cloud.yml, push it to land/<slot>"
+}
+
 add_workflow() { # <workflow file>...: one commit with them
   local file
   mkdir -p .github/workflows
@@ -192,4 +199,27 @@ EOF
   [ "$(wc -l < "$BATS_TEST_TMPDIR/count")" -le 2 ]
   [ -e "$BATS_TEST_TMPDIR/tools/cat" ] || [ -L "$BATS_TEST_TMPDIR/tools/cat" ]
   [ ! -e "$BATS_TEST_TMPDIR/tools/ls" ] && [ ! -L "$BATS_TEST_TMPDIR/tools/ls" ]
+}
+
+@test "merge-to-main-local.yml: a CLI that knows only the older names is refused, one that names it passes" {
+  add_workflow merge-to-main-local.yml dev-merge-to-main.yml
+  dev_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 8 ]
+  [[ "$output" == *".github/workflows/merge-to-main-local.yml"* ]]
+  local_cli
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 0 ]
+}
+
+@test "the setting .hal/landing.toml workflow = cloud makes merge-to-main-cloud.yml the file the CLI must know" {
+  add_workflow merge-to-main-local.yml merge-to-main-cloud.yml
+  mkdir -p .hal
+  printf 'workflow = "cloud"\n' > .hal/landing.toml
+  fake_cli "usage: merge-to-main-local.yml only"
+  run bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 8 ]
+  [[ "$output" == *".github/workflows/merge-to-main-cloud.yml"* ]]
+  run env HAL2_LAND_WORKFLOW=local bash "$here/check-landing-cli.sh" "$tmp/wt"
+  [ "$status" -eq 0 ]
 }

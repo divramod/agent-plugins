@@ -37,6 +37,9 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+
+sys.path.insert(0, next(str(p / "scripts") for p in Path(__file__).resolve().parents if (p / ".claude-plugin").is_dir()))
+import landing_workflow  # noqa: E402  (the skills unit's scripts/, plan 0423 D4)
 import checks_tell
 import deliver
 import gh_runs
@@ -50,7 +53,7 @@ ROLE = "tollman"
 FILE = "checks.jsonl"
 SCHEMA = 1
 KINDS = ("deferred", "dispatched", "cancelled", "superseded", "failed")
-WORKFLOW = "merge-to-main.yml"
+WORKFLOW = "merge-to-main.yml"  # the file when the checkout has none of the landing names (workflow())
 CHECK = re.compile(r"^\[(?P<slot>[^\]]+)\] ci-check\b")
 FIELDS = "databaseId,event,status,headBranch,displayTitle,url,createdAt"
 FREE_JOBS = ("ci-route", "ci-changes", "route", "changes")  # what may have run on a check still cancelled (D5; D101 names first)
@@ -157,13 +160,18 @@ def recorded(rows: list[dict], run: dict, now: dt.datetime) -> dict | None:
                  and at(r) >= cutoff), None)
 
 
-def list_args(limit: int = 50) -> list[str]:
-    return ["gh", "run", "list", "--workflow", WORKFLOW, "--limit", str(limit), "--json", FIELDS]
+def workflow(main: str = "") -> str:
+    """The landing workflow file of the checkout `main` (landing_workflow.pick: the setting's file first)."""
+    return (landing_workflow.pick(main) if main else None) or WORKFLOW
+
+
+def list_args(limit: int = 50, main: str = "") -> list[str]:
+    return ["gh", "run", "list", "--workflow", workflow(main), "--limit", str(limit), "--json", FIELDS]
 
 
 def runs(run_json, main: str) -> list[dict] | None:
-    """merge-to-main.yml's runs, newest first, once per round (gh_runs); None: `gh run list` failed."""
-    got = gh_runs.listed(run_json, list_args(), main)
+    """The landing workflow's runs, newest first, once per round (gh_runs); None: `gh run list` failed."""
+    got = gh_runs.listed(run_json, list_args(main=main), main)
     return got if isinstance(got, list) else None
 
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The guard before a landing through CI (references/ci.md): a repository whose landing workflow is
-# .github/workflows/dev-merge-to-main.yml (hal2 plan 0349 D52) or merge-to-main.yml needs a hal2-cli-git that knows
-# that name. One that knows only an older name (merge-to-main.yml) finds no
+# .github/workflows/merge-to-main-local.yml or merge-to-main-cloud.yml (hal2 plan 0423 D4; the one `.hal/landing.toml`
+# chooses first), else dev-merge-to-main.yml or merge-to-main.yml, needs a hal2-cli-git that knows
+# that name. One that knows only an older name finds no
 # workflow, takes the repository for one without CI and lands the worktree as a plain merge, untested, or waits for
 # a run of the old name that never comes.
 #   check-landing-cli.sh [<dir>]     <dir>: the worktree that lands (default .)
@@ -16,6 +17,13 @@
 set -euo pipefail
 dir="${1:-.}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+u="$here"; until [ -d "$u/.claude-plugin" ] || [ "$u" = / ]; do u="$(dirname "$u")"; done
+if [ -f "$u/scripts/landing-workflow.sh" ]; then
+  . "$u/scripts/landing-workflow.sh"  # LANDING_WORKFLOWS, landing_workflow_order <dir> (plan 0423 D4)
+else  # outside a skills unit (a copied script): the names, no setting
+  LANDING_WORKFLOWS="merge-to-main-local.yml merge-to-main-cloud.yml dev-merge-to-main.yml merge-to-main.yml"
+  landing_workflow_order() { printf '%s\n' $LANDING_WORKFLOWS; }
+fi
 if ! command -v git >/dev/null 2>&1; then
   echo "check-landing-cli.sh: git is missing -> bash $here/install-prerequisites.sh" >&2
   exit 2
@@ -25,9 +33,9 @@ if ! git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
   exit 2
 fi
 default=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)
-# The newest name either ref has: the one the CLI must know.
+# The first name of the order either ref has (the setting's file first): the one the CLI must know.
 file="" found=""
-for name in dev-merge-to-main.yml merge-to-main.yml; do
+for name in $(landing_workflow_order "$dir"); do
   for ref in HEAD "$default"; do
     if git -C "$dir" cat-file -e "$ref:.github/workflows/$name" 2>/dev/null; then
       found="${found:+$found and }$ref"

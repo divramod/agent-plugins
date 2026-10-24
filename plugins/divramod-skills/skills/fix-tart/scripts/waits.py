@@ -9,7 +9,7 @@ import json
 import statistics
 from datetime import datetime
 
-WORKFLOW = "merge-to-main.yml"
+WORKFLOWS = ("merge-to-main-cloud.yml", "merge-to-main-local.yml", "dev-merge-to-main.yml", "merge-to-main.yml")  # plan 0423 D4
 TARGET = 15  # seconds: a VM job waits seconds, not minutes (plan 0391 D11)
 CODE = "mac-vm-a"  # the VM runner's own label
 
@@ -45,7 +45,11 @@ def summary(rows, target=TARGET):
 
 def land_runs(run, repo, count):
     """The last `count` land runs as [(run id, its jobs)] through `run` (sources.run); None when gh failed."""
-    out = run(["gh", "api", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?per_page={count}"])
+    out = None  # the first name GitHub knows (hal2 lands as the cloud file once renamed)
+    for name in WORKFLOWS:
+        out = run(["gh", "api", f"repos/{repo}/actions/workflows/{name}/runs?per_page={count}"])
+        if out is not None:
+            break
     if out is None:
         return None
     found = []

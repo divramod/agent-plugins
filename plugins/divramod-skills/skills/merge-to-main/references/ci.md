@@ -1,7 +1,6 @@
 # Landing through CI
 
-A repository whose default branch (or this worktree's `HEAD`) has `.github/workflows/dev-merge-to-main.yml` (or
-`merge-to-main.yml`, its name before hal2 plan 0349) lands through
+A repository whose default branch (or this worktree's `HEAD`) has `.github/workflows/merge-to-main-local.yml` or `merge-to-main-cloud.yml` (the one `.hal/landing.toml` `workflow = "local"|"cloud"` names first; `HAL2_LAND_WORKFLOW` overrides it; no setting: local first; hal2 plan 0423), or their older names `dev-merge-to-main.yml`, `merge-to-main.yml` lands through
 GitHub Actions (hal2's plan 0131 and its decision record
 [landings-on-github-actions](https://github.com/divramod/hal2/blob/main/.adr/landings-on-github-actions.md)). Nothing is tested on this machine:
 `hal2-cli-git worktree merge-to-main` takes the worktree's turn in the merge queue, merges the default branch in,
@@ -21,7 +20,7 @@ after exit 11 or 12 (3 or 4 from a hal2-cli-git before plan 0318; a new candidat
 ahead; a wait over 10 minutes loses its parked ticket, so it reruns at once):
 
 0. `bash $S/check-landing-cli.sh` first, before anything is reserved. Exit 8: the repository's workflow is
-   `dev-merge-to-main.yml` or `merge-to-main.yml` and the installed hal2-cli-git does not know that name (its
+   one of those files and the installed hal2-cli-git does not know that name (its
    `--help` does not name it): it would find no workflow it knows and land this worktree **as a plain merge,
    untested**. Nothing lands: stop and tell the
    user what the script printed (the binary, the install command); a plan's landing pushes a notification first.
@@ -32,8 +31,8 @@ ahead; a wait over 10 minutes loses its parked ticket, so it reruns at once):
    rerun at once; after exit 11 or 12 (or 3, 4) the queue is still held for this worktree: skip this). The hold keeps any other
    landing from starting while you wait; `merge-to-main` takes it over.
 2. `bash $S/land-runs.sh`, in the background too. It runs `gh run list --workflow <file> --limit 10 --json
-   databaseId,headBranch,status --jq '.[] | select(.status != "completed")'` for `dev-merge-to-main.yml`,
-   and `merge-to-main.yml` every minute (a run started before a rename finishes under the old name; a
+   databaseId,headBranch,status --jq '.[] | select(.status != "completed")'` for each of `merge-to-main-local.yml`,
+   `merge-to-main-cloud.yml`, `dev-merge-to-main.yml` and `merge-to-main.yml` every minute (a run started before a rename finishes under the old name; a
    file GitHub does not know has no runs) and exits 0 once none
    prints anything; while it lists a run, an earlier landing still runs or ships (`queued` counts too: a run whose
    ship job waits for a runner is queued), so never push meanwhile. Exit 7: a run stayed unfinished for an hour
@@ -79,7 +78,7 @@ SKILL.md step 6 as milestone mode says.
 | 13 (or 5) | `stopped`, `cancelled` | the user ended it: report and stop, never rerun on your own (your own shell's time limit is no user stop: rerun) |
 | 13 (or 5) | `interrupted` | its process went away, not the user: rerun at once; it adopts the same landing and its run (never cancel the run) |
 | 1 | `error` | uncommitted changes: SKILL.md step 2. Anything else: report the `message`; the queue may be held for this worktree, so ask the user (fix, or `hal2-cli-git worktree release`) |
-| 8 | none (`check-landing-cli.sh: nothing was landed ...`) | the guard stopped the command before hal2-cli-git ran: the installed one does not know `dev-merge-to-main.yml` or `merge-to-main.yml` (step 0 above). Never run `merge-to-main` without the guard to get past it. This landing cannot go on until the CLI is installed: `hal2-cli-git worktree release --json [<slot>]` when the queue is held or reserved for this worktree (`hal2-cli-git worktree queue --json`), then stop and tell the user what the script printed |
+| 8 | none (`check-landing-cli.sh: nothing was landed ...`) | the guard stopped the command before hal2-cli-git ran: the installed one does not know the repository's landing workflow file (step 0 above). Never run `merge-to-main` without the guard to get past it. This landing cannot go on until the CLI is installed: `hal2-cli-git worktree release --json [<slot>]` when the queue is held or reserved for this worktree (`hal2-cli-git worktree queue --json`), then stop and tell the user what the script printed |
 
 **Watch the run every 5 minutes while it is tested** (the user, 2026-10-06). Once the candidate's run is known (exit
 10 names `run`; else `hal2-cli-git worktree landings --json`), look at its jobs every 5 minutes
