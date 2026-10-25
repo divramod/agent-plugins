@@ -1,6 +1,6 @@
 {
   "name": "divramod-skills",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
   "author": {
     "name": "Arvid Petermann",
@@ -43,6 +43,7 @@
     "./skills/design",
     "./skills/digest-todolist",
     "./skills/farmer",
+    "./skills/find-and-fix-vulnerabilities",
     "./skills/fix-autoclear",
     "./skills/fix-loc",
     "./skills/fix-tart",

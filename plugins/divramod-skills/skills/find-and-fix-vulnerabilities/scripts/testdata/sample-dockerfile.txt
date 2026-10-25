@@ -1,0 +1,9 @@
+ARG NODE_VERSION=22
+ARG REGISTRY
+FROM --platform=linux/amd64 node:${NODE_VERSION}-slim AS build
+RUN echo hi
+FROM build AS test
+FROM ${REGISTRY}/base:1 AS unresolved
+FROM scratch
+FROM rust:1.90 AS rust
+FROM gcr.io/distroless/cc-debian12

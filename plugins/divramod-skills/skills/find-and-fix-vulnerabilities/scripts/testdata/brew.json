@@ -1,0 +1,2 @@
+{"formulae": [{"name": "openssl@3", "installed_versions": ["3.5.0"], "current_version": "3.5.1", "pinned": false, "pinned_version": null}],
+ "casks": [{"name": "ghostty", "installed_versions": ["1.1.0"], "current_version": "1.2.0"}]}

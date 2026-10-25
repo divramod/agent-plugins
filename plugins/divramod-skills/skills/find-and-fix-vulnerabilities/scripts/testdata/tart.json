@@ -1,0 +1,2 @@
+[{"Name": "hal2/ci-runner-macos", "Source": "local", "Disk": 80, "Size": 31, "Running": false, "State": "stopped"},
+ {"Name": "ghcr.io/cirruslabs/macos-sequoia-base:latest", "Source": "OCI", "Disk": 50, "Size": 20, "Running": false, "State": "stopped"}]

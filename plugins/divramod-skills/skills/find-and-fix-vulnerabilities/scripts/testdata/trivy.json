@@ -1,0 +1,46 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "node:22-slim",
+  "ArtifactType": "container_image",
+  "Results": [
+    {
+      "Target": "node:22-slim (debian 12.5)",
+      "Class": "os-pkgs",
+      "Type": "debian",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-2961",
+          "PkgName": "libc6",
+          "InstalledVersion": "2.36-9+deb12u4",
+          "FixedVersion": "2.36-9+deb12u6",
+          "Severity": "HIGH",
+          "Title": "glibc: Out of bounds write in iconv",
+          "CVSS": {"nvd": {"V3Score": 8.8}, "redhat": {"V3Score": 7.3}}
+        },
+        {
+          "VulnerabilityID": "CVE-2023-31439",
+          "PkgName": "libsystemd0",
+          "InstalledVersion": "252.22-1",
+          "Severity": "LOW",
+          "Description": "An issue was discovered in systemd 253.\nMore text."
+        }
+      ]
+    },
+    {
+      "Target": "usr/lib/node_modules/npm/package.json",
+      "Class": "lang-pkgs",
+      "Type": "node-pkg",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-21538",
+          "PkgName": "cross-spawn",
+          "InstalledVersion": "7.0.3",
+          "FixedVersion": "7.0.5, 6.0.6",
+          "Severity": "HIGH",
+          "CVSS": {"ghsa": {"V3Score": 7.7}}
+        }
+      ]
+    },
+    {"Target": "empty", "Class": "lang-pkgs", "Type": "gobinary"}
+  ]
+}

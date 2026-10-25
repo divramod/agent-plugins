@@ -1,0 +1,61 @@
+{
+  "results": [
+    {
+      "source": {"path": "/home/test/a/io/pnpm-lock.yaml", "type": "lockfile"},
+      "packages": [
+        {
+          "package": {"name": "lodash", "version": "4.17.20", "ecosystem": "npm"},
+          "vulnerabilities": [
+            {
+              "id": "GHSA-35jh-r3h4-6jhm",
+              "aliases": ["CVE-2021-23337"],
+              "summary": "Command Injection in lodash",
+              "database_specific": {"severity": "HIGH"},
+              "affected": [
+                {"package": {"name": "lodash", "ecosystem": "npm"},
+                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "4.17.21"}]}]}
+              ]
+            },
+            {
+              "id": "GHSA-29mw-wpgm-hmr9",
+              "aliases": ["CVE-2020-28500"],
+              "summary": "Regular Expression Denial of Service (ReDoS) in lodash",
+              "database_specific": {"severity": "MODERATE"},
+              "affected": [
+                {"package": {"name": "lodash", "ecosystem": "npm"},
+                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "4.17.21"}]}]}
+              ]
+            }
+          ],
+          "groups": [
+            {"ids": ["GHSA-35jh-r3h4-6jhm", "CVE-2021-23337"], "aliases": ["CVE-2021-23337", "GHSA-35jh-r3h4-6jhm"], "max_severity": "7.2"},
+            {"ids": ["GHSA-29mw-wpgm-hmr9"], "aliases": ["CVE-2020-28500", "GHSA-29mw-wpgm-hmr9"], "max_severity": "5.3"}
+          ]
+        }
+      ]
+    },
+    {
+      "source": {"path": "/home/test/a/io/api/Cargo.lock", "type": "lockfile"},
+      "packages": [
+        {
+          "package": {"name": "time", "version": "0.1.43", "ecosystem": "crates.io"},
+          "vulnerabilities": [
+            {
+              "id": "RUSTSEC-2020-0071",
+              "aliases": ["CVE-2020-26235", "GHSA-wcg3-cvx6-7396"],
+              "summary": "Potential segfault in the time crate",
+              "database_specific": {"severity": "MODERATE"},
+              "affected": [
+                {"package": {"name": "time", "ecosystem": "crates.io"},
+                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "0.2.0"}, {"fixed": "0.2.23"}]}]}
+              ]
+            }
+          ]
+        },
+        {
+          "package": {"name": "fine", "version": "1.0.0", "ecosystem": "crates.io"}
+        }
+      ]
+    }
+  ]
+}
