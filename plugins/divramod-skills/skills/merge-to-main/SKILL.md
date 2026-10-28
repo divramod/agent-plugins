@@ -115,7 +115,7 @@ worktree's `HEAD` or in origin's default branch: the landing then runs through G
 `bash $S/check-landing-cli.sh`: exit 8 means the installed hal2-cli-git does not know the repository's newest name
 (`merge-to-main-local.yml` or `merge-to-main-cloud.yml`, else an older name) and would
 land this worktree as a plain merge, untested: nothing lands, stop and tell the user what it printed; the same
-guard stands in front of every `merge-to-main` of that page. Before it
+guard stands in front of every `merge-to-main` of that page. The driver itself runs as the branch's build when the branch changes its crates (stderr: `driver: the branch's hal2-cli-git ...`), and the checks take the candidate's own hal2 CLIs the same way (`.hal/own-cli.sh`). Before it
 lands, it reserves the queue and `bash $S/land-runs.sh` waits until no run of any of the three names is
 unfinished (`gh run list --workflow <file>` for each, queued runs too), again before a rerun with a new candidate
 (exit 11 or 12; 3 or 4 from an older hal2-cli-git), never before an

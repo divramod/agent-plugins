@@ -3,7 +3,7 @@
 The tick forms, starts and settles the trains itself (the ready wagons in queue order, the trial merge, the own
 field as carrier, the detached landing, "in the barn" to every car, a conflicting wagon unhitched with its reason:
 [merge-train](../subskills/merge-train/SUBSKILL.md)); a servant's field (one holding `plans/LEAD`) never rides, a foreman's wagon from any field 00-99 does. No car rides without its light gate
-checks (names, records) green on its hitched head (`proof.py`): a red one is unhitched and told the finding lines, a
+checks (names, records; the records CLI is the candidate's own build when the car changes it, `.hal/own-cli.sh`) green on its hitched head (`proof.py`): a red one is unhitched and told the finding lines, a
 field not at its hitched head waits ("no proof yet"), never a wake. Those are the drop-outs before forming: a formed
 train is frozen (plan 0360 D3): nothing leaves it, a wagon that hitches meanwhile rides the next one, and no wait
 limit ends a waiting or red train (D7); the session's `unhitch` of its car and `engine.py breakup` are refused. Only

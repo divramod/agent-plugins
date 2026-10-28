@@ -6,7 +6,8 @@ red unhitches the car with the finding lines, wait leaves it waiting, green lets
 The light checks, run read-only in the field on its hitched head, as the gate runs them:
   names    the field's own `code/python/scripts/names-inventory/main.py check --branch <barn> --root <field>`
            (gate job python-lint): no old word in the prose lines the crop added
-  records  `hal2-cli-records check --repo <field>` (gate job records-check), when the crop touches `plans/`,
+  records  `hal2-cli-records check --repo <field>` (gate job records-check; the candidate's own build when the
+           field's `.hal/own-cli.sh` names one, own_cli.py), when the crop touches `plans/`,
            `.adr/`, `docs/` or a `*.md` file
 
   - A field whose checkout is not at the hitched head: `wait` ("no proof yet"), never unhitched, never cached.
@@ -29,6 +30,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
+import own_cli
 
 ROLE = "tollman"
 NAMES = "code/python/scripts/names-inventory/main.py"
@@ -39,12 +41,12 @@ KEEP = 7 * 24 * 3600
 SHOWN = 5  # finding lines a verdict keeps
 
 
-def sh(argv: list[str], cwd: str) -> tuple[int, str]:
+def sh(argv: list[str], cwd: str, timeout: int = TIMEOUT) -> tuple[int, str]:
     """A command's exit and its output (stdout, then stderr); 127 when it cannot start, 124 on a timeout. No
     `__pycache__` is written into the field."""
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     try:
-        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
+        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     except FileNotFoundError:
         return 127, ""
     except subprocess.TimeoutExpired:
@@ -73,10 +75,17 @@ def checks_for(files: list[str]) -> list[str]:
     return ["names"] + (["records"] if any(DOCS.search(f) for f in files) else [])
 
 
-def argv_of(check: str, field: str, barn: str) -> list[str] | None:
-    """The check's command in the field; None when the field has no such check (another farm)."""
+def build_run(run):
+    """`run` for the own-CLI hook, which may build: the real `sh` with the longer limit, a test's fake as it is."""
+    return (lambda argv, cwd: sh(argv, cwd, timeout=own_cli.BUILD)) if run is sh else run
+
+
+def argv_of(check: str, field: str, barn: str, head: str = "", run=sh) -> list[str] | None:
+    """The check's command in the field; None when the field has no such check (another farm) or its CLI cannot be
+    had (the repository's `.hal/own-cli.sh` fails: plan 0431 D6), so the check is skipped."""
     if check == "records":
-        return [*RECORDS, "--repo", field]
+        cli = own_cli.resolve(field, RECORDS[0], barn, head, build_run(run))
+        return [cli, *RECORDS[1:], "--repo", field] if cli else None
     script = Path(field) / NAMES
     return ["python3", str(script), "check", "--branch", barn, "--root", field] if script.is_file() else None
 
@@ -102,7 +111,7 @@ def prove(field: str, head: str, barn: str, run=sh) -> dict:
     names, unclean = set(files), dirty(field, run=run)
     out = {"state": "green", "lines": [], "checks": [], "skipped": [], "dropped": 0}
     for check in checks_for(files):
-        argv = argv_of(check, field, barn)
+        argv = argv_of(check, field, barn, head, run=run)
         code, text = run(argv, field) if argv else (127, "")
         if code not in (0, 1):
             out["skipped"].append(check)

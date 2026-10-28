@@ -107,6 +107,11 @@ next land run; no land run of its own). It does what the steps below do
 by hand (`ci-stop.sh`, `smuggle.sh reserve|checks|land|main|release`): run none of them beside it. Read the
 result by exit code and `status`:
 
+The driver runs as the branch's own build when the branch changes its crates (stderr: `driver: the branch's
+hal2-cli-git <path> (<reason>)`), and every hal2 CLI of the checks and the install is the candidate's own build when
+the branch changes it, else the installed one (`.hal/own-cli.sh`, record
+`gate-binaries-not-older-than-candidate` in hal2's `.adr/`).
+
 | Exit | `status` | Do |
 |---|---|---|
 | 0 | `landed`, `nothing` | done. Report `phases`, `report` (its `ci` line lists the jobs left to the next land run), `warnings`, `gate_base` |
