@@ -14,7 +14,7 @@ the session is self-contained, and decisions are written down so a cleared sessi
 
 | Call | Does |
 |---|---|
-| `/grill-plan` | grill the current plan (`plans/CURRENT_PLAN`) |
+| `/grill-plan` | grill the current plan (the `CURRENT_PLAN` pointer) |
 | `/grill-plan <subject>` | grill a plan file, an idea or a decision |
 | `/grill-plan auto [<subject>]`, `/grill-plan a` | [auto](#auto): one round without questions, every branch decided by you |
 | `/grill-plan q [<subject>]`, `/grill-plan quick` | [quick](#quick): one round on the top risks, for a single step |
@@ -22,7 +22,7 @@ the session is self-contained, and decisions are written down so a cleared sessi
 
 ## Start
 
-1. **Subject.** The argument, or else the current plan (`plans/CURRENT_PLAN` → `plans/<slug>/plan.md`; when it
+1. **Subject.** The argument, or else the current plan (the `CURRENT_PLAN` pointer → `plans/<slug>/plan.md`; when it
    names a shot `<shotfile>/<n>[/<title-slug>]` instead, that shot in `shotfiles/<shotfile>.md`), or else ask what to grill.
 2. **Already decided.** Read the subject plus the repo's decision records (`INTENT.md` or equivalent, the plan's
    ledger `decisions.md` or its **Decisions** section, `.adr/`). Anything answered there is settled: never ask it again; only reopen it when
@@ -113,6 +113,10 @@ others instead of repeating it:
 
 A decision that adds, splits or changes a step row also sets that row's Model, Effort, Window and Size ([Auto](#auto)
 point 4).
+
+In the store home (hal2 plan 0409: `hal2-cli-plans home` says `store`) the plan's files are a copy outside the tree:
+`python3 <plan-skill-dir>/scripts/plan.py edit` names its folder, edit the ledger and plan.md there, then `plan.py
+apply`.
 
 Mark superseded decisions instead of deleting them. Don't commit; the user or `/handoff` does.
 

@@ -1,6 +1,6 @@
 ---
 name: design
-description: Design a spec's or plan's feature before it is built, on one interactive page `plans/<plan>/design.html` — `/design` (alias `/d`) reads the spec.md or plan.md of the plan in `plans/CURRENT_PLAN`, splits it into feats (a tab each), decides per feat what needs designing and which kinds (GUI as a real HTML prototype inside the app's current look; backend as current vs new flow in Mermaid, ERD in DBML diffed green/yellow/red, Excalidraw; plus acceptance scenarios, states and sequence with contract of research 0093), writes them as versioned files through `design.py new` and renders the page; a simple feat gets no design. `/design update <feat>` writes the feat's next version and keeps the old ones to compare; `/design serve` opens the page where the user toggles each design accepted and comments; `/design status` reads the review back (accepted versions, open comments) and answers the comments with updates. The page's layout is fixed (the desktop app reads it later); only `design.py` writes it. Use when the user says /design, /d, "design this feature", "make a prototype", "draw the flow / the ERD", "update the design of <feat>", "which designs are accepted", or a spec or plan needs its design. `/design h` shows help.
+description: Design a spec's or plan's feature before it is built, on one interactive page `plans/<plan>/design.html` — `/design` (alias `/d`) reads the spec.md or plan.md of the plan in the `CURRENT_PLAN` pointer, splits it into feats (a tab each), decides per feat what needs designing and which kinds (GUI as a real HTML prototype inside the app's current look; backend as current vs new flow in Mermaid, ERD in DBML diffed green/yellow/red, Excalidraw; plus acceptance scenarios, states and sequence with contract of research 0093), writes them as versioned files through `design.py new` and renders the page; a simple feat gets no design. `/design update <feat>` writes the feat's next version and keeps the old ones to compare; `/design serve` opens the page where the user toggles each design accepted and comments; `/design status` reads the review back (accepted versions, open comments) and answers the comments with updates. The page's layout is fixed (the desktop app reads it later); only `design.py` writes it. Use when the user says /design, /d, "design this feature", "make a prototype", "draw the flow / the ERD", "update the design of <feat>", "which designs are accepted", or a spec or plan needs its design. `/design h` shows help.
 ---
 
 # design (alias d)
@@ -9,17 +9,20 @@ description: Design a spec's or plan's feature before it is built, on one intera
 `meta.json`, and one generated page `plans/<plan>/design.html` shows them (decisions D3-D7 of hal2 plan 0364).
 `design.py` is the deterministic part: the store, the versions, the render, the review state. You only judge: what
 needs designing, which kinds, and the designs' content. The folder may be a spec folder without `plan.md` (spec skill).
+In a farm whose plans live in its plan store (hal2 plan 0409) the folder is a copy outside the tree whose paths
+`design.py` prints absolute: write the files there, never under `plans/`; every command takes the copy in, and
+`design.py apply` does after your own edits.
 
 | Call | Does |
 |---|---|
-| `/design` (`/d`, `/design create`) | design the plan or spec named in `plans/CURRENT_PLAN`: feats, kinds, first versions, render |
+| `/design` (`/d`, `/design create`) | design the plan or spec named in the `CURRENT_PLAN` pointer: feats, kinds, first versions, render |
 | `/design create <plan>` | the same for another plan folder (`364`, `0364`, its folder name) |
 | `/design update <feat> [<what>]` | the feat's next version of the kinds the change touches; older versions stay (D6) |
 | `/design serve` | serve the page on 127.0.0.1 so the accept toggles and comments save (D7) |
 | `/design status` | per feat and kind: versions, the accepted one, the comments; then answer open comments |
 | `/design h` | print this table and stop |
 
-Every `design.py` call takes `--plan <n|slug>` (else `plans/CURRENT_PLAN`) and `--repo <dir>`. Commands:
+Every `design.py` call takes `--plan <n|slug>` (else the `CURRENT_PLAN` pointer) and `--repo <dir>`. Commands:
 `new <feat> <kind> [--title T] [--base NOTE] [--json]`, `render [--out PATH]`, `list [--json]`,
 `serve [--port 0] [--open]`, `status [--json]`, `accepted --json`.
 

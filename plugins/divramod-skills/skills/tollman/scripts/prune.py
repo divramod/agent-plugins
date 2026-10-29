@@ -13,10 +13,14 @@ cleared (barn.py). The deciding and the deleting are /prune's (the proof, the or
 The tick (`handler`) runs /prune's `plan --json` each round and plans nothing while a detached run lives or /prune
 plans nothing. Otherwise it keeps the old triggers: a free keeper 00-09 mucked out once per landing (keyed on HEAD),
 one removal of a field 10-99 per round (the last train's cars come first in /prune's order), a stale pointer cleared,
-a trim while the disk is short, and starts one run for them (the first action runs, the others are record lines
+a trim while the disk is short and, after the trims, /prune's responses (`tart prune`, the listed caches: disk
+watermark, plan 0472 D2); trims, muck outs and responses wait while a train builds (a workqueue hold or a train's local
+phase, plan 0472), and starts one run for them (the first action runs, the others are record lines
 carrying their keys). After the barn (barn.py) a car's session is cleared; every 6 hours the free disk and the biggest
-fields come from /prune's facts, a notice under 100 GB free. /prune not installed or its plan failing wakes the
-tollman once per 6 hours.
+fields come from /prune's facts. The notices use /prune's own threshold and goal (its plan's `short` and `goal_met`,
+no constant here): a warning once per 6 hours above the goal (default 85% used) before the threshold bites, a
+low-disk notice past the threshold (default 90% used or under 150 GB free). /prune not installed or its plan failing
+wakes the tollman once per 6 hours.
 Exit 0 done, 1 failed (the tick then wakes the tollman), 2 a tool missing.
 """
 
@@ -34,17 +38,20 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import barn
 import mtm_scan
 import tick
+import train_state
 from skillpath import sibling
 from tick import act
 
 ROLE = "tollman"
-LOW_DISK_GB = 100
 REPORT_EVERY = 6 * 3600
 TOP = 5
 PLAN_TIMEOUT = 120  # a round asks with --cached-sizes (no walk, D26); the detached run measures and fills the cache
 RUN_FILE, RUN_LOG = "prune-run.json", "prune-run.log"
 RUN_MAX_AGE = 6 * 3600  # a pid file older than this belongs to a run that died, its pid maybe reused
-WINDOWS = {"clean": 30 * 24 * 3600, "remove": 3600, "pointer": 3600, "trim": REPORT_EVERY}
+# A trim and a response may come again after an hour: a train's builds regrow the disk (train 25 reached 97% while a
+# trim of the same field and HEAD was held back for 6 hours).
+WINDOWS = {"clean": 30 * 24 * 3600, "remove": 3600, "pointer": 3600, "trim": 3600, "response": 3600}
+RESPONSES = ("tart-prune", "cache-clear")
 
 
 def script() -> Path:
@@ -95,20 +102,21 @@ def running(main: str, now: float | None = None) -> bool:
         return False
 
 
-def launch_argv(main: str, slot: str, fields: list[str]) -> list[str]:
-    run = [sys.executable, str(script()), "run", "--repo", main] + [x for f in fields for x in ("--field", f)]
+def launch_argv(main: str, slot: str, fields: list[str], responses: bool = False) -> list[str]:
+    run = [sys.executable, str(script()), "run", "--repo", main] + [x for f in fields for x in ("--field", f)] \
+        + (["--responses"] if responses else [])
     if shutil.which("hal2-cli-runs"):
         return ["hal2-cli-runs", "exec", "--workflow", "prune", "--slot", slot, "--trigger",
                 "the tollman's duty prune", "--"] + run
     return run
 
 
-def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen) -> int:
+def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen, responses: bool = False) -> int:
     """`prune.py start`: the detached run of /prune, its pid kept; one at a time."""
     if running(main):
         print("prune run already going")
         return 0
-    argv = launch_argv(main, slot, fields)
+    argv = launch_argv(main, slot, fields, responses)
     folder = state(main)
     with (folder / RUN_LOG).open("w") as out:
         p = spawn(argv, cwd=main, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
@@ -120,21 +128,51 @@ def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen) -> in
 
 
 def report(main: str, ctx: dict, data: dict) -> list[dict]:
-    """Every REPORT_EVERY: the free disk and the biggest fields (from /prune's facts) as a record, a notice when low."""
+    """Every REPORT_EVERY: the free disk and the biggest fields (from /prune's facts) as a record; the watermark's
+    notices (`watermark`) are their own, once per window each."""
     now = ctx["now"]
-    if any(str(e.get("key", "")).startswith("prune:disk:") and
-           (now - dt.datetime.fromisoformat(e["at"])).total_seconds() < REPORT_EVERY for e in ctx.get("log", [])):
-        return []
-    free = data["facts"]["disk"]["free_gb"]
-    big = sorted(((f["size"]["bytes"] / 1e9, f["slot"]) for f in data["facts"]["fields"]
-                  if f.get("size") and f["size"].get("bytes")), reverse=True)[:TOP]
-    biggest = ", ".join(f"{slot} {gb:.0f} GB" for gb, slot in big) or "unknown"
-    out = [act("prune", "disk", "record", key=f"prune:disk:{now:%Y-%m-%dT%H}", window=REPORT_EVERY,
-               text=f"free disk {free:.0f} GB; biggest worktrees: {biggest}")]
-    if free < LOW_DISK_GB:
-        out.append(act("prune", "low-disk", "notify", key="prune:low-disk", window=REPORT_EVERY,
-                       text=f"only {free:.0f} GB free on the disk of {main}; biggest worktrees: {biggest}"))
-    return out
+    out = []
+    if not any(str(e.get("key", "")).startswith("prune:disk:") and
+               (now - dt.datetime.fromisoformat(e["at"])).total_seconds() < REPORT_EVERY for e in ctx.get("log", [])):
+        free = data["facts"]["disk"]["free_gb"]
+        big = sorted(((f["size"]["bytes"] / 1e9, f["slot"]) for f in data["facts"]["fields"]
+                      if f.get("size") and f["size"].get("bytes")), reverse=True)[:TOP]
+        biggest = ", ".join(f"{slot} {gb:.0f} GB" for gb, slot in big) or "unknown"
+        out.append(act("prune", "disk", "record", key=f"prune:disk:{now:%Y-%m-%dT%H}", window=REPORT_EVERY,
+                       text=f"free disk {free:.0f} GB; biggest worktrees: {biggest}"))
+    return out + tick.fresh(watermark(main, data), ctx.get("log", []), now)
+
+
+def watermark(main: str, data: dict) -> list[dict]:
+    """The disk watermark's notices (plan 0472 D2), read from /prune's plan (`short`: past its threshold, `goal_met`):
+    `low-disk` past the threshold (what is deferred or planned is said), `disk-warn` above the goal before it bites."""
+    p, d = data["plan"], data["facts"]["disk"]
+    state = f"{d['used_pct']:g}% used, {d['free_gb']:.0f} GB free on the disk of {main}"
+    if p.get("short"):
+        wait = p.get("busy") or "/prune frees what is safe between trains"
+        return [act("prune", "low-disk", "notify", key="prune:low-disk", window=REPORT_EVERY,
+                    text=f"disk {state}: past /prune's threshold; {wait}")]
+    if p.get("goal_met") is False:
+        g = p.get("goal") or {}
+        return [act("prune", "disk-warn", "notify", key="prune:disk-warn", window=REPORT_EVERY,
+                    text=f"disk {state}: above /prune's goal ({g.get('used_pct', '?')}% used, {g.get('free_gb', '?')} GB "
+                         "free); the safe response starts at its threshold")]
+    return []
+
+
+def building(main: str, data: dict) -> str | None:
+    """Why trims, muck outs and size walks wait (plan 0472 D1): /prune's own answer (a live workqueue hold, busy.py) or
+    the tollman's train in its local phase (started, its mtm process alive, no land run yet), else None."""
+    if data["facts"].get("busy"):
+        return data["facts"]["busy"]
+    try:
+        train = train_state.standing(train_state.lines(main))
+    except OSError:
+        return None
+    if train and train["state"] in ("landing", "fixing", "retry") and not train.get("land_run") and train.get("pid") \
+            and train_state.alive(train["pid"]):
+        return f"deferred: train building (train {train.get('train')} in its local phase)"
+    return None
 
 
 def failed(text: str) -> dict:
@@ -142,15 +180,18 @@ def failed(text: str) -> dict:
 
 
 def wanted(plan: dict, heads: dict[str, str]) -> list[dict]:
-    """The planned actions as keyed log lines: a clear of a pointer, a muck out per HEAD, a removal, trims."""
+    """The planned actions as keyed log lines: a clear of a pointer, a muck out per HEAD, a removal, trims, responses."""
     out = []
-    for job in ("stale-pointers", "phase-1", "phase-2", "phase-3"):
+    for job in ("stale-pointers", "phase-1", "phase-2", "phase-3", "responses"):
         for a in plan["jobs"].get(job, {}).get("actions", []):
             slot, head = a["field"], heads.get(a["field"], "")
-            kind = {"clear-pointer": "pointer", "muck-out": "clean", "remove": "remove", "trim": "trim"}.get(a["action"])
+            kind = {"clear-pointer": "pointer", "muck-out": "clean", "remove": "remove", "trim": "trim",
+                    "tart-prune": "response", "cache-clear": "response"}.get(a["action"])
             if kind is None:
                 continue  # an `ask` is the foreman's to answer (/prune's report), never this duty's
             key = f"prune:{kind}:{slot}:{a.get('plan') if kind == 'pointer' else head}"
+            if kind == "response":
+                slot, key = a["field"], f"prune:response:{a['field']}"
             out.append(act("prune", kind, "record", slot, key=key, window=WINDOWS[kind], field=slot,
                            text=f"{a['action']} field {slot} ({a['why']})"))
     return out
@@ -170,14 +211,17 @@ def plan(item: dict, ctx: dict, data: dict | None = None, landed: dict | None = 
     heads = {w["slot"]: w["head"] for w in found}
     landed = barn.last_landed(main) if landed is None else landed
     todo = tick.fresh(wanted(data["plan"], heads), ctx.get("log", []), ctx["now"])
+    if building(main, data):  # trims, muck outs and responses are mass deletes: they wait for the gap between trains
+        todo = [a for a in todo if a["kind"] not in ("trim", "clean", "response")]
     first = next((a for a in todo if a["kind"] == "remove"), None)  # one removal per round, the cars first
     todo = [a for a in todo if a["kind"] != "remove" or a is first]
     out = []
     if todo:
-        fields = sorted({a["field"] for a in todo})
+        fields = sorted({a["field"] for a in todo if a["kind"] != "response"})
         todo[0] = {**todo[0], "do": "run", "cwd": main, "on_fail": [failed("prune.py start failed")],
                    "argv": [sys.executable, str(Path(__file__).resolve()), "start", "--repo", main,
-                            "--slot", Path(ctx.get("top", main)).name] + [x for f in fields for x in ("--field", f)]}
+                            "--slot", Path(ctx.get("top", main)).name] + [x for f in fields for x in ("--field", f)]
+                            + (["--responses"] if not fields else [])}
         out = todo
     return out + barn.actions(ctx, found, landed) + report(main, ctx, data)
 
@@ -192,6 +236,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--repo", default=".")
     p.add_argument("--slot")
     p.add_argument("--field", action="append", default=[])
+    p.add_argument("--responses", action="store_true", help="the run does only /prune's watermark responses")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
     main_dir = mtm_scan.main_checkout(args.repo)
@@ -202,7 +247,7 @@ def main(argv: list[str]) -> int:
         return 2
     if args.cmd == "plan":
         return subprocess.call([sys.executable, str(prune), "plan", "--repo", main_dir, *(["--json"] * args.json)])
-    return start(main_dir, args.slot or Path(args.repo).resolve().name, args.field)
+    return start(main_dir, args.slot or Path(args.repo).resolve().name, args.field, responses=args.responses)
 
 
 if __name__ == "__main__":

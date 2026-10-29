@@ -4,6 +4,7 @@ after the merge is ordered to its car's foreman and rides the next train, never 
 train. Whole passes and rounds on engine_farm.py's farm (a bare origin, no landing), gh is gh_fake.py's."""
 # enforces .adr/deterministic-first.md, .adr/merge-queue-policy.md and .adr/tollman.md
 
+import os
 import contextlib
 import io
 import types
@@ -23,6 +24,8 @@ import tollman
 from engine_farm import Farm, out
 from gh_fake import FakeGh, job, run
 from test_farmer import git
+
+os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
 
 ROLE = """---
 duties:

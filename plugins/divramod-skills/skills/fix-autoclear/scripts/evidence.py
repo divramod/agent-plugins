@@ -426,7 +426,7 @@ def selfcheck(args):
     skill = SKILL_MD.read_text()
     drift = []
     for rel in sorted(set(re.findall(r"`((?:code|\.hal|docs|research|plans)/[^`\s]+?)`", skill))):
-        # plans/CURRENT_PLAN is per-checkout runtime state: absent while no plan runs.
+        # the CURRENT_PLAN pointer is per-checkout runtime state: absent while no plan runs.
         if rel == "plans/CURRENT_PLAN":
             continue
         if "<" not in rel and "*" not in rel and not (repo / rel).exists():

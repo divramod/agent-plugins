@@ -14,7 +14,10 @@ from pathlib import Path
 import farmer_link as fl
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
-from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+from skillpath import load, pointers as _pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+planread = load("plan", "planread", __file__)  # a plan's files in either home (hal2 plan 0409 step 9)
+pointers = _pointers(__file__)  # CURRENT_PLAN and LEAD in the git dir, else plans/ (step 12)
 
 TIMEOUT = 10
 OPEN_STATUSES = {"queued", "in_progress", "waiting", "pending", "requested"}
@@ -55,6 +58,16 @@ def agents() -> dict[str, dict] | None:
     if not isinstance(raw, list):
         return None
     return {os.path.realpath(path): a for path, a in fl.agents_by_checkout(raw).items()}
+
+
+def paused_fields(main: str) -> dict[str, dict] | None:
+    """The paused fields by number (`{by, why, since}` each) from `hal2-cli-git worktree paused --json` (plan 0458, D2);
+    None when the CLI gives nothing (an older one has no such command): then nothing is shown paused."""
+    raw = tool_json(["hal2-cli-git", "worktree", "paused", "--json"], main)
+    fields = raw.get("fields") if isinstance(raw, dict) else None
+    if not isinstance(fields, list):
+        return None
+    return {f["field"]: {k: f.get(k) for k in ("by", "why", "since")} for f in fields if isinstance(f, dict) and f.get("field")}
 
 
 def red_of(ticket: dict) -> dict | None:
@@ -158,7 +171,7 @@ def unacked(log: list[dict] | None, now: dt.datetime | None = None) -> dict[str,
 
 def open_questions(root: str | Path, plan_slug: str | None) -> list[str]:
     """The ids (`Q31`) of the plan's open questions in its `questions.md` (`## Q<n> · date · who · open`)."""
-    f = Path(root) / "plans" / plan_slug / "questions.md" if plan_slug else None
+    f = planread.plan_dir(root, plan_slug) / "questions.md" if plan_slug else None
     try:
         return OPEN_QUESTION.findall(f.read_text()) if f and f.is_file() else []
     except OSError:
@@ -172,7 +185,7 @@ def plan_of(root: str | Path, current: str) -> dict:
            "description": None}
     current = current.strip().removesuffix("/plan.md").rstrip("/").removeprefix("plans/")  # a path names its plan too
     m = PLAN_NAME.match(current)
-    plan_md = Path(root) / "plans" / current / "plan.md"
+    plan_md = planread.plan_dir(root, current) / "plan.md" if m else Path(root) / "plans" / current / "plan.md"
     if not m or not plan_md.is_file():
         return out
     out.update(plan_number=m.group(1), plan_name=m.group(2), plan_slug=current)
@@ -220,7 +233,8 @@ def steps(root: str | Path, plan_md: Path) -> tuple[int | None, int | None]:
         sys.path.append(str(scripts))  # appended: the farmer's own modules keep their names
     try:
         import plan
-        d = plan.describe_safe(Path(root), plan_md)
+        with planread.registered(root):
+            d = plan.describe_safe(Path(root), plan_md)
     except Exception:  # noqa: BLE001  (the plan skill's parser failing never fails the report)
         return None, None
     if "total" not in d:

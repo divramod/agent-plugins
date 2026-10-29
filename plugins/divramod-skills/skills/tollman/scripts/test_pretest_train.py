@@ -15,13 +15,23 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
+import local_load
 import pretest
 import pretest_train
 import train_state
 from engine_farm import Farm
 from pretest_stub import Stub, config
 
+os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
+
 SKILL = Path(__file__).resolve().parents[1]
+
+
+def probes():
+    """The fake machine: 20 s, load 3.0 then 7.5, 1000 more disk operations."""
+    yield {"at": 0.0, "utc": "2026-10-29T10:00:00Z", "load1": 3.0, "ops": 5000}
+    yield {"at": 20.0, "utc": "2026-10-29T10:00:20Z", "load1": 7.5, "ops": 6000}
+
 
 
 class Landing(Farm):
@@ -29,9 +39,11 @@ class Landing(Farm):
 
     def setUp(self):
         super().setUp()
+        self.probes = probes()
         self.stub = Stub(self.tmp / "gate")
         for p in (mock.patch.object(pretest, "GATE", str(self.stub.main)),
                   mock.patch.object(pretest, "salt", return_value="s"),
+                  mock.patch.object(local_load, "probe", side_effect=lambda: next(self.probes)),
                   mock.patch.object(engine, "LAND", [sys.executable, "-c", "open(__import__('sys').argv[1], 'w')",
                                                      str(self.tmp / "landed")])):
             p.start()
@@ -137,6 +149,15 @@ class Landing(Farm):
         config(self.cw / pretest.CONFIG, ["python-lint"])
         self.assertEqual(self.land()[0], 0, "a restart of the same train adopts its landing")
         self.assertEqual((len(self.pretests()), self.stub.calls()), (1, []))
+
+    def test_the_pretest_line_carries_what_the_local_phase_cost(self):
+        self.assertEqual(self.land()[0], 0)
+        (line,) = self.pretests()
+        self.assertEqual(self.roles_check(), [], "the `local` key as the manifest's schema declares it")
+        local = line["local"]
+        self.assertEqual([m["t"] for m in local["marks"]], ["start", "end"])
+        self.assertEqual((local["seconds"], local["load_peak"], local["disk_ops_s"]), (20.0, 7.5, 50.0))
+        self.assertEqual(local["marks"][1]["ops_s"], 50.0)
 
     def test_no_train_no_pretest(self):
         self.assertEqual(engine.breakup(str(self.wm), "test", user=True)[0], 0)

@@ -22,6 +22,8 @@ import tick
 import timer
 import wake
 
+import quiet_marker  # noqa: E402  (the skills unit's scripts/, on the path through roles)
+
 TOOLS = ("git", "gh", "hal2-cli-git", "hal2-cli-agents")
 MODES = ("claude", "timer")
 
@@ -93,6 +95,15 @@ def print_round(r: dict, wiring: roles.Wiring) -> None:
         print(f"summary: {r['summary']}")
     if r.get("timing"):
         print(tick.timing_line(r["timing"], r.get("gh")))
+
+
+def quiet(wiring: roles.Wiring, dry: bool, env=None) -> bool:
+    """Whether the round is skipped: the machine is quiet (hal2 plan 0442 D11, hal2-core's marker), said in one
+    line; a dry run, which touches nothing, still plans."""
+    why = None if dry else quiet_marker.refusal(env)
+    if why:
+        print(f"{wiring.cli.name}: {why}")
+    return bool(why)
 
 
 def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.Wiring, all_due: bool = False,

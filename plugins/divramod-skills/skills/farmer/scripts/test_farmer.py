@@ -246,5 +246,25 @@ class Cli(Repo):
             self.assertEqual(self.call("tick"), (0, "busy: another tick runs\n"))
 
 
+class QuietSkipsTheRound(unittest.TestCase):
+    """hal2 plan 0442 D11: while the machine is quiet a tick does nothing (no board, no round); a dry run plans."""
+
+    def test_a_tick_while_quiet_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "quiet.json").write_text(json.dumps({"schema": 1, "active": True, "holds": {}}))
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"HAL2_STATE_DIR": tmp}), \
+                    mock.patch.object(farmer.board, "safely", side_effect=AssertionError("board")), \
+                    mock.patch.object(role_cli, "run_tick", side_effect=AssertionError("round")), \
+                    contextlib.redirect_stdout(out):
+                self.assertEqual(farmer.run_tick(tmp, False, False), 0)
+            self.assertIn("the machine is quiet", out.getvalue())
+            with mock.patch.dict(os.environ, {"HAL2_STATE_DIR": tmp}):
+                self.assertFalse(role_cli.quiet(farmer.WIRING, True), "a dry run still plans")
+            (Path(tmp) / "quiet.json").write_text(json.dumps({"schema": 1, "active": False, "holds": {}}))
+            with mock.patch.dict(os.environ, {"HAL2_STATE_DIR": tmp}):
+                self.assertFalse(role_cli.quiet(farmer.WIRING, False))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -27,6 +27,11 @@ The record format is hal2's decision record `record-formats`; the plan skill's "
 has each file's form. Wherever this skill says `HANDOFF.md`, a record plan's session reads "the handoff"
 (`where.py`'s `file`).
 
+**The store home** (hal2 plan 0409: `hal2-cli-plans home` says `store`): the plan's files are not in the tree;
+`where.py` names absolute paths of a copy in the farm's edit folder (`file`, `plan`, `decisions`, `questions`), write
+there, and `commit-handoff.sh` applies the copy to the plan store (and runs its sync trigger) before it commits what
+else you name; a records problem refuses the apply (exit 1: fix the copy, run it again). Commit no plan file.
+
 ## Usage
 
 | Call | Short | Does |
@@ -72,7 +77,7 @@ after the landing. When the report is pushed and the foreman told, the work is d
      --sync`; the session's values win, no second switch) and say so in the first report (step 5).
 1. Read the handoff (`python3 $S/where.py` names it; a record plan: then `plan.md`, `decisions.md` and what the
    plan's Context links) and every file its **Read first** and **Plan** sections link to. When **Plan** links a plan
-   with steps left and `plans/CURRENT_PLAN` is missing or names something else (another machine, a fresh
+   with steps left and the `CURRENT_PLAN` pointer is missing or names something else (another machine, a fresh
    worktree), write the plan's slug into it so the statusline shows it; otherwise write a short name of the first
    **Next** task.
 2. **Check the decisions yourself; send no decision check.** The decisions in force are in HANDOFF.md's
@@ -236,7 +241,7 @@ own).
 - `git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -10`, `git status --short`, and
   `git log --oneline @{u}..HEAD` for unpushed commits (skip if there is no upstream).
 - The existing handoff (`python3 $S/where.py`), if any: keep what is still true, drop what is done or stale.
-- **The plan.** Look for one, in this order: a `CURRENT_PLAN` pointer file (`plans/CURRENT_PLAN`, whose
+- **The plan.** Look for one, in this order: a `CURRENT_PLAN` pointer file (the `CURRENT_PLAN` pointer, whose
   content names the active plan); a plan linked from the existing handoff; a plan named in this conversation; plan
   files in the repo (`plans/`, `PLAN.md`, a spec or research doc with a numbered step list). `CURRENT_PLAN` is gitignored per-worktree state and may name a shot (`<shotfile>/<n>/<title-slug>`) or a task instead of a plan: then take the plan from the other sources. When `CURRENT_PLAN` points at a finished or missing plan, do not link it as current: list
   it under **Open** as stale, with a suggestion (update or delete it). A plan exists only if it is a file; a plan
@@ -394,8 +399,10 @@ bash $S/commit-handoff.sh "docs(<NNNN>): <what you recorded, e.g. the decisions 
 
 The message is a Conventional Commits subject whose scope is the plan's number, `docs(<NNNN>): ...` (a plan of a
 masterplan `docs(<master>|<NNNN>)`; without a plan `docs(plans)`; hal2 plan 0391 D22), saying what the commit holds,
-never the worktree; the script adds the trailers `Worktree: <NN>` and, when `plans/CURRENT_PLAN` names a plan, `Plan:
-<NNNN>-<slug>` (hal2 plan 0355), before any `Co-Authored-By:`/`Claude-Session:` lines you pass.
+never the worktree; the script adds the trailers `Worktree: <NN>` and, when the `CURRENT_PLAN` pointer names a plan, `Plan:
+<NNNN>-<slug>` (hal2 plan 0355), before any `Co-Authored-By:`/`Claude-Session:` lines you pass. In a farm whose commits
+are neutral (the plan skill's `planread.py neutral` prints `on`; hal2 plan 0409 D15) the script adds none, drops a plan
+scope (`docs: ...`) and names the plan for the plan store's post-commit link instead.
 It commits exactly the docs you changed in steps 1, 2, 3b and 4 (the questions file too, when it changed; a record
 plan's `handoff.md` is one of them, its `plan.md` when step 3b changed `run`, and a decision record goes with its regenerated index: the `adr` skill),
 leaving everything else staged or unstaged as it was, and

@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import local_load
 import mtm_scan
 import pretest
 import train_state
@@ -57,7 +58,7 @@ def before_landing(top: str) -> bool:
     if not train or train.get("pretest") not in (None, "red"):
         return False
     state, progress = train_state.folder(main), {}
-    with sigterm_exits():
+    with sigterm_exits(), local_load.Phase() as phase:  # what the pretest costs the machine (plan 0472 step 4)
         try:
             r = pretest.pretest(top, state, default_ref(top), state / LOG, progress=progress)
         except Exception as e:  # noqa: BLE001  (a broken pretest is no red train, unless a red was already known)
@@ -65,7 +66,7 @@ def before_landing(top: str) -> bool:
                  "why": f"the pretest broke: {e}"[:300]}
     with contextlib.suppress(OSError):
         train_state.append(main, "pretest", Path(top).name, train=train["train"], seconds=r["seconds"],
-                           result=r["result"], jobs=r["jobs"], why=r["why"] or None)
+                           result=r["result"], jobs=r["jobs"], why=r["why"] or None, local=phase.record())
     print(f"pretest: {r['result']} in {r['seconds']} s" + (f" ({r['why']})" if r["why"] else ""), flush=True)
     if r["result"] != "red":
         return False

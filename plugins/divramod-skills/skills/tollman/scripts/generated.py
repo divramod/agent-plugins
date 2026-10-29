@@ -145,7 +145,7 @@ def regenerate(top: str, taken: list[str], fields: list[str] | None = None) -> t
         return 0, "the generated files were up to date", None, []
     code, out = git(top, "commit", "-q", "-m", SUBJECT, "-m", "Conflicts taken from the barn: " + ", ".join(taken)
                     + ".\nWritten again by .github/hal2-versions.toml's [[generated]] commands: " + ", ".join(written),
-                    "-m", origin.trailers(fields or [Path(top).name]))
+                    *origin.paragraph(top, fields or [Path(top).name]))
     if code:
         return 1, f"the generated files were not committed: {out[-300:]}", None, []
     return 0, f"the generated files written again ({len(written)})", git(top, "rev-parse", "HEAD")[1], written

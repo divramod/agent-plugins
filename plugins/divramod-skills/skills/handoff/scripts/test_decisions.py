@@ -44,6 +44,16 @@ def git(repo, *args):
     return subprocess.run(["git", *args], cwd=repo, env=ENV, text=True, capture_output=True, check=True).stdout
 
 
+def hide(checkout, name, text):
+    """The pointer `name` only in the checkout's own git dir (a worktree's admin dir), plans/ without it."""
+    out = subprocess.run(["git", "-C", str(checkout), "rev-parse", "--absolute-git-dir"], check=True, text=True,
+                         capture_output=True)
+    file = Path(out.stdout.strip()) / "hal" / name
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text)
+    return file
+
+
 class DecisionsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -105,6 +115,13 @@ class DecisionsTest(unittest.TestCase):
         master.write_text(master.read_text().replace("status: open\n", "status: open\nparent: 274\n"))
         text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
         self.assertIn("plan 0001-masterplan-farm, step 2: a servant, continue that one step only", text)
+
+    def test_the_pointers_in_the_git_dir_are_read(self):
+        hide(self.slot, "LEAD", "02 0003-x 4\n")
+        self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0003-x", "step": "4"})
+        hide(self.slot, "CURRENT_PLAN", "0003-x\n")
+        self.assertEqual(self.run_it()["plan"], "plans/0003-x/plan.md")
+        self.assertFalse((self.slot / "plans" / "CURRENT_PLAN").exists())
 
     def test_a_broken_marker_still_marks_the_slot(self):
         # review 1 finding 10: bad but marked, as the farmer reads it (prune refuses it, mtm_scan skips its landing)

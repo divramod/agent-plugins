@@ -6,6 +6,8 @@ those fields, so a cleared field is planned again, never in a phase on its old p
 10-99 removed, 00-09 mucked out, never removed; a servant whose commits are not in its foreman's branch is an `ask`),
 `phase-2` (session-less fields not free, and free 00-09 ones after their muck out, D24: trimmed) and `phase-3` (idle
 live fields, trimmed), the last two only while the disk is short (D15) and then until the goal: the executor reads the disk before each action and stops at the goal.
+`responses` follows them on the same terms (short disk, no train building): `tart prune --entries caches` and the
+caches `.hal/prune.toml` lists (responses.py), each with its measured size, run only while the disk is still above the goal.
 In a job the last train's cars come first, then the biggest field; an unknown size counts by its lower bound.
 An action is `{field, action, why, bytes, lower_bound, ...}`; `left` holds the fields no job acts on, with why.
 """
@@ -15,7 +17,8 @@ import prune_proof
 import sizes
 
 STALE, PHASE1, PHASE2, PHASE3 = "stale-pointers", "phase-1", "phase-2", "phase-3"
-JOBS = (STALE, PHASE1, PHASE2, PHASE3)
+RESPONSES = "responses"  # after the trims, still above the goal: Tart's OCI cache, the listed caches (plan 0472 D2)
+JOBS = (STALE, PHASE1, PHASE2, PHASE3, RESPONSES)
 FINISHED_STATES = ("finished", "missing")
 
 
@@ -61,11 +64,13 @@ def asks(f: dict, now_ms: float) -> str | None:
     return lead["slot"]
 
 
-def phase1(fs: list[dict], cars: list[str], now_ms: float) -> list[dict]:
+def phase1(fs: list[dict], cars: list[str], now_ms: float, wait: str | None = None) -> list[dict]:
     out = []
     for f in ordered(fs, cars):
         if f["free"]:
             if f["kind"] == "keeper":
+                if wait:
+                    continue  # a muck out is a mass delete: it waits for the gap between trains (plan 0472 D1)
                 out.append(action(f, "muck-out", "free by the proof; 00-09 are never removed"))
             else:
                 stop = [s["pane_id"] for s in f["sessions"]]
@@ -93,12 +98,13 @@ def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None)
     fs = [f for f in facts["fields"] if only is None or f["slot"] in only]
     cfg, disk, cars = facts["config"], facts["disk"], facts.get("cars", [])
     short = farm_facts.short_of_space(disk, cfg)
+    wait = facts.get("busy")  # a train builds (busy.py): no trim, no muck out
     cleared = [f for f in fs if stale(f)]
     rest = [f for f in fs if f not in cleared]
     jobs = {STALE: {"skipped": None if cleared else "no stale pointer", "actions": [
         action(f, "clear-pointer", f"CURRENT_PLAN {f['pointer']['plan']} cleared: {f['pointer']['state']}",
                plan=f["pointer"]["plan"], recheck=True) for f in ordered(cleared, cars)]}}
-    one = phase1(rest, cars, now_ms)
+    one = phase1(rest, cars, now_ms, wait)
     jobs[PHASE1] = {"skipped": None if one else "no free field", "actions": one}
     done = {a["field"] for a in one if a["action"] == "remove"}
     p2 = [f for f in rest if f["slot"] not in done and (not f["free"] or f["kind"] == "keeper") and not f["sessions"]
@@ -107,11 +113,24 @@ def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None)
     for name, cands, flag, why in ((PHASE2, p2, "trim_session_less", "session-less, not free"),
                                    (PHASE3, p3, "trim_idle_live", "idle live field")):
         off = skipped(cfg["phases"][flag], short, disk, flag)
+        off = wait if wait and off is None else off
         acts = [] if off else trims(ordered(cands, cars), cfg, why)
         jobs[name] = {"skipped": off or (None if acts else "no candidate"), "actions": acts, "until_goal": True}
+    jobs[RESPONSES] = responses_job(facts.get("responses", []), short, disk, wait)
     acted = {a["field"] for j in jobs.values() for a in j["actions"]} | {f["slot"] for f in cleared}
-    left = [{"field": f["slot"], "why": f.get("proof") or "nothing to do"} for f in fs if f["slot"] not in acted]
-    return {"short": short, "goal_met": farm_facts.goal_met(disk, cfg), "disk": disk, "goal": cfg["goal"], "jobs": jobs, "left": left}
+    left = [{"field": f["slot"], "why": f.get("proof") or (wait if wait and f["free"] else "nothing to do")}
+            for f in fs if f["slot"] not in acted]
+    return {"short": short, "goal_met": farm_facts.goal_met(disk, cfg), "disk": disk, "goal": cfg["goal"], "busy": wait, "jobs": jobs, "left": left}
+
+
+def responses_job(found: list[dict], short: bool, disk: dict, wait: str | None) -> dict:
+    """The watermark's responses (plan 0472 D2): the biggest first; a tool or folder that is not there is said."""
+    notes = [c["why"] for c in found if c["action"] == "missing"]
+    off = skipped(True, short, disk, "responses")
+    off = wait if wait and off is None else off
+    acts = [] if off else sorted((c for c in found if c["action"] != "missing"), key=lambda c: (-c["bytes"], c["field"]))
+    return {"skipped": off or (None if acts else "; ".join(notes) or "no candidate"), "actions": acts,
+            "until_goal": True, "notes": notes}
 
 
 def field_line(f: dict) -> str:
@@ -134,6 +153,10 @@ def describe(a: dict, dry: bool = True) -> str:
     if a["action"] == "remove":
         stop = f"stop session {', '.join(a['stop_sessions'])}, " if a.get("stop_sessions") and dry else ""
         return f"{'would ' + stop + 'remove' if dry else 'removed'} {field}{size}: {why}"
+    if a["action"] == "tart-prune":
+        return f"{'would run' if dry else 'ran'} tart prune --entries caches --older-than={a['older_than_days']}{size}: {why}"
+    if a["action"] == "cache-clear":
+        return f"{'would clear' if dry else 'cleared'} {a['target']}{size}: {why}"
     paths = ", ".join(a["paths"]) if a.get("paths") else "cleanup's own set"
     return f"{'would trim' if dry else 'trimmed'} {field} {paths}{size}: {why}"
 
@@ -147,5 +170,6 @@ def lines(p: dict) -> list[str]:
         job = p["jobs"][name]
         out.append(f"{name}: skipped: {job['skipped']}" if job["skipped"] else f"{name}:")
         out += [f"  {describe(a)}" for a in job["actions"]]
+        out += [f"  note: {n}" for n in job.get("notes", [])]
     out += [f"left {x['field']}: {x['why']}" for x in p["left"]]
     return out

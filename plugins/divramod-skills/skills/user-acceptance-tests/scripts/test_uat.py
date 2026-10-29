@@ -81,6 +81,12 @@ class UatTest(unittest.TestCase):
         self.assertIn("several plans", err)
         self.assertEqual(self.call("plan", "99")[0], 2)
 
+    def test_current_plan_may_sit_in_the_git_dir_only(self):
+        (self.root / "plans" / "CURRENT_PLAN").unlink()
+        (self.root / ".git" / "hal").mkdir(parents=True)
+        (self.root / ".git" / "hal" / "CURRENT_PLAN").write_text(PLAN + "\n")
+        self.assertEqual(self.call("plan")[1], PLAN + "\n")
+
     def test_current_plan_that_is_no_folder(self):
         (self.root / "plans" / "CURRENT_PLAN").write_text("shot/3/x\n")
         code, _, err = self.call("list")

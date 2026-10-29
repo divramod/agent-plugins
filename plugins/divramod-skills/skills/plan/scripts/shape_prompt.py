@@ -13,6 +13,7 @@ import prompt as step_prompt
 import shape
 import shape_names as names
 import sizing
+import planhome
 from shape_names import ShapeError
 
 PLACEHOLDER = re.compile(r"^<what (the step does|to change)\b.*>$", re.S)
@@ -34,7 +35,7 @@ def refuse(rel: str, at, doc, task: str, effort: str) -> None:
 
 
 def reads(root: Path, folder: Path, sub, step, links: list[str]) -> list[str]:
-    rel = lambda p: p.relative_to(root).as_posix()  # noqa: E731
+    rel = lambda p: planhome.rel(p, root, posix=True)  # noqa: E731
     out = [f"your step file {rel(folder / step.file)}", f"its sub-plan {rel(folder / sub.file)}",
            f"the plan {rel(folder / 'plan.md')} (its Goal, Brief and Context)"]
     if (folder / "decisions.md").is_file():
@@ -42,7 +43,7 @@ def reads(root: Path, folder: Path, sub, step, links: list[str]) -> list[str]:
     base = (folder / step.file).parent
     for link in links:
         target = Path(os.path.normpath(base / link))
-        out.append(rel(target) if target.is_relative_to(root) else link)
+        out.append(rel(target) if planhome.inside(target, root) else link)
     return out
 
 
@@ -62,7 +63,7 @@ def text(root: Path, folder: Path, sub, step, at, part: int | None) -> str:
         f"Size: {doc.size} of {doc.window}",
         f"Sub-plan {sub.id}: {sub.doc.title}. Goal: {goal or '-'} Deliverable: {sub.doc.description}",
         "Read first: " + "; ".join(reads(root, folder, sub, step, envelope.links(doc.body)))
-        + (f". The repo's rules: {rules}." if rules else "."),
+        + (f". The repo's rules: {rules}." if rules else ".") + planhome.store_note(root, number),
         "Rules: edit files, but never commit, push, land or change git state, never set a status and never edit "
         "plan.md, a subplan.md or another step's file (the coordinator reviews, marks and commits). First write "
         "your step file's `## Approach`; at the end its `## Notes` (what changed, the checks and results, what you "

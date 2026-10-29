@@ -10,7 +10,13 @@ Each place is overridden by its environment variable (`HAL_VILLAGE`, `HAL_CITY`,
 """
 
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import pointers as _pointers  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+pointers = _pointers(__file__)  # LEAD in the git dir, else plans/ (hal2 plan 0409 step 12)
 
 ROLES = ("farmer", "foreman", "servant", "steward", "tollman", "mayor", "lord", "pope")
 UNKNOWN = "unknown"
@@ -34,7 +40,7 @@ def field_role(name: str, path: str | None = None) -> str | None:
     `feature`). The role comes from the marker, never from the number: a foreman may work in any field (D16)."""
     if len(name) != 2 or not name.isdigit():
         return None
-    return "servant" if path and (Path(path) / "plans" / "LEAD").is_file() else "foreman"
+    return "servant" if path and pointers.exists(path, "LEAD") else "foreman"
 
 
 def detect(top: str | None, main: str | None) -> str:

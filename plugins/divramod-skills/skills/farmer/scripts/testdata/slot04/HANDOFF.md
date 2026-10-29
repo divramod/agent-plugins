@@ -40,7 +40,7 @@ Land worktree 04's cleanup train (04 + 06, 08, 11, 16, 20, 22) on main, so every
 3. Before every reland: if 09 (plan 0147) reported origin/09 done and pushed, merge origin/09 into 04 first and fix
    its reds like any passenger's; never cancel a run going green to take 09 in (INTENT.md, cleanup train row).
 4. Report each step to the farmer (SendMessage `farmer-hal2-71`, or the newest farmer in ListAgents).
-5. After the landing: `/mtm` step 5 to 8 (release the queue, delete `plans/CURRENT_PLAN` and this file, cleanup).
+5. After the landing: `/mtm` step 5 to 8 (release the queue, delete the `CURRENT_PLAN` pointer and this file, cleanup).
 
 Done when: `git log origin/main..HEAD` is empty and the queue no longer lists 04.
 

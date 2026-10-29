@@ -76,5 +76,5 @@ def problems(root: Path, plans: list[Path], current: str, slug_of) -> list[str]:
         elif git_ok(root, "cat-file", "-e", f"{ref}:{path.resolve().relative_to(root.resolve()).as_posix()}"):
             continue
         found.append(f"{path.resolve().relative_to(root.resolve())}: {message(slug, True)} (rename its folder, "
-                     f"plans/CURRENT_PLAN and links)")
+                     f"the CURRENT_PLAN pointer and links)")
     return found

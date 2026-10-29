@@ -14,6 +14,8 @@ import engine
 import pretest_train
 import train_wt
 
+os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
+
 
 def git(cwd, *args) -> str:
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()

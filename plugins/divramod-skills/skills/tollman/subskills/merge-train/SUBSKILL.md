@@ -31,7 +31,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    (names; records for `plans/`, `.adr/`, `docs/`, `*.md`) green on its hitched head in its own field; red is
    unhitched with the finding lines, a field not at its hitched head waits ("no proof yet").
 4. **Form**: in the own field `tollman-<repo>`, on the barn's head: the yard's first car (the yard job), then a
-   merge commit per car, `plans/CURRENT_PLAN` filled (the cars' plan names joined by ` + `: hal2-git reads the landing's descriptive subject and its `Plan:` trailers from it; the `Worktree:` trailer lists the cars' fields, `02, 03`, the yard as `main`), the
+   merge commit per car, the `CURRENT_PLAN` pointer filled (the cars' plan names joined by ` + `: hal2-git reads the landing's descriptive subject and its `Plan:` trailers from it; the `Worktree:` trailer lists the cars' fields, `02, 03`, the yard as `main`), the
    train marked (`worktree queue train <own field> <car>... --train <n> --attempt <a>`, a car's ticket then names its carrier as `rides_with`),
    and `hal2-cli-git worktree merge-to-main --json` started detached (`engine.py land` stays its parent; its output
    in `train-landing.log`). The tick never waits for CI.

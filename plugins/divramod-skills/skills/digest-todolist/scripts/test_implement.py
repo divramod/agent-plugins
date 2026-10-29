@@ -162,5 +162,24 @@ class TestImplement(unittest.TestCase):
         self.assertEqual(mark[mark.index("--worktree") + 1], "app/02")
 
 
+class TestStoreHome(unittest.TestCase):
+    """A shotfile in the plan store has a virtual path (`store:farm/<name>.md`): its text comes from the CLI."""
+
+    def test_the_text_of_a_store_shotfile_is_read_through_the_cli(self):
+        import importlib.util
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location("implement", HERE / "implement.py")
+        implement = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(implement)
+        shown = json.dumps({"text": "# the feature\n\n## shot 4 tabs\n"})
+        with mock.patch.object(implement, "run", return_value=shown) as run:
+            text = implement.shotfile_text(Path("store:farm/app.md"), Path("/r"), "app", False)
+        self.assertEqual(text, "# the feature\n\n## shot 4 tabs\n")
+        self.assertEqual(run.call_args.args, ("hal2-cli-shooter", "shots", "show", "app", "--repo", "/r", "--json"))
+        values = implement.prompt_values(Path("store:farm/app.md"), "4", "tabs", "body", "me/app", False, text)
+        self.assertEqual(values["file_title"], "the feature")
+        self.assertEqual(values["file_path"], "store:farm/app.md")
+
+
 if __name__ == "__main__":
     unittest.main()

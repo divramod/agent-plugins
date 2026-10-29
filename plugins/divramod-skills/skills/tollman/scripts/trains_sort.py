@@ -16,10 +16,8 @@ HELD_LEFT = ("the place of field {field} in the queue ended unmerged or was stop
 
 
 def current_plan(worktree: str) -> str:
-    """The first line of the worktree's plans/CURRENT_PLAN, or ''."""
-    current = Path(worktree) / "plans/CURRENT_PLAN"
-    text = current.read_text() if current.exists() else ""
-    return next((line.strip() for line in text.splitlines() if line.strip()), "")
+    """The first line of the worktree's CURRENT_PLAN (the git dir's, else plans/), or ''."""
+    return lead_marker.current_plan(worktree).partition("\n")[0].strip()
 
 
 def servant(worktree: str | None) -> bool:

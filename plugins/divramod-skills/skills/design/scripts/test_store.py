@@ -39,6 +39,12 @@ class PlanFolderTest(unittest.TestCase):
         (self.root / "plans" / "CURRENT_PLAN").write_text("0042-login-page\n")
         self.assertEqual(store.plan_dir(self.root, None), folder)
 
+    def test_pointer_in_the_git_dir_only(self):
+        folder = make_plan(self.root, "0042-login-page", "---\ntitle: \"login page\"\n---\n# Plan 0042\n")
+        (self.root / ".git" / "hal").mkdir(parents=True)
+        (self.root / ".git" / "hal" / "CURRENT_PLAN").write_text("0042-login-page\n")
+        self.assertEqual(store.plan_dir(self.root, None), folder)
+
     def test_missing_plan_is_an_error(self):
         (self.root / "plans").mkdir()
         with self.assertRaises(store.StoreError):

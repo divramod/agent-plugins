@@ -18,6 +18,7 @@ import shape
 import shape_names as names
 import shape_new
 import trailers
+import planhome
 from shape_names import ShapeError, StepRef
 
 PLAN_FILE = "plan.md"
@@ -77,7 +78,7 @@ def set_status(root: Path, folder: Path, text: str, status: str, why: str | None
     if why:
         keys["why"] = why
     path = shape.write_step(folder, at, **keys)
-    out = {"ref": str(at), "status": keys["status"], "file": path.relative_to(root).as_posix()}
+    out = {"ref": str(at), "status": keys["status"], "file": planhome.rel(path, root, posix=True)}
     if lead is not None:
         return {**out, "overview": LEAD_SKIP}
     out["overview"] = shape.write_overview(root, folder)

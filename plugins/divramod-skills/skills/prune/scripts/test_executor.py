@@ -21,7 +21,7 @@ import store
 from fake_clis import jobs, parse
 from test_farmer import git
 
-SIX = ["facts", "stale-pointers", "phase-1", "phase-2", "phase-3", "report"]
+SIX = ["facts", "stale-pointers", "phase-1", "phase-2", "phase-3", "responses", "report"]
 SHORT = {"free_gb": 100.0, "used_pct": 91.0, "total_gb": 1000.0}
 GOAL = {"free_gb": 300.0, "used_pct": 70.0, "total_gb": 1000.0}
 

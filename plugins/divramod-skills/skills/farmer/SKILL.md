@@ -103,6 +103,14 @@ Autoclear failures found and fixed (`duties.plan_autoclear`, fix-autoclear's doc
 The `## Tasks` of the repository's ROLE.md, each on its cron (`tasks.py`, machine form or prose). Woken for:
 [instructions/task.md](instructions/task.md).
 
+## Paused fields
+
+A field the user paused (`hal2-cli-git worktree pause <NN> --why ...`; list with `worktree paused`) is never started,
+sent to, cleared or restarted (record [paused-fields-never-woken](../../../../../../../.adr/paused-fields-never-woken.md)):
+the tick drops every run/send/wake/clear act for it and logs it as a `paused-skip` record in `roles/farmer/log.jsonl`
+(one line a day per field, duty and kind); `/list-free-worktrees` and `/create-worktree-session` never offer it. Only the farmer resumes a field
+(`hal2-cli-git worktree resume <NN>`), when it relays the user's go; never `--force`.
+
 ## Silent
 
 `/farmer silence` (marker file `silent` in `roles/farmer/`, gitignored): a real round prints **one table line**
@@ -116,7 +124,7 @@ reads. The foremen are unchanged. `/farmer unsilence` removes the marker. The to
 
 1. This must be the farmer's worktree (`git rev-parse --show-toplevel` ends in `/farmer-<repo>`); anywhere else say "start
    me in my own worktree: `hal2-cli-git worktree run farmer-<repo> --agent claude`" and stop (a worktree still named `farmer`: "run
-   `farmer.py migrate` first"; start-check's exit 4 says which). Write `farmer` into `plans/CURRENT_PLAN`.
+   `farmer.py migrate` first"; start-check's exit 4 says which). Write `farmer` into the `CURRENT_PLAN` pointer.
    Read `handoff.md` (`python3 $S/farmer.py handoff` names it) when there is one.
 2. `python3 $S/farmer.py start-check`. Exit 2: `bash $S/install-prerequisites.sh` once, then again. Exit 3 (no
    roles/farmer/ROLE.md) or 1 (invalid): tell the user what is missing, point to [the template](templates/ROLE.md),

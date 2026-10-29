@@ -123,16 +123,21 @@ class Draft(Crops):
             for f, t in zip(("07", "09"), q)])
         self.assertEqual((d["unhitched"], d["waiting"], d["alone"], d["base"]), ([], [], False, "main"))
 
-    def test_no_ready_ticket_is_no_train_and_a_train_stops_at_six_cars(self):
-        # Hal2 plan 0333 step 10 (D12, the user: "4-6 fields brought in at once"): a 7th clean car waits.
+    def test_no_ready_ticket_is_no_train_and_every_clean_car_rides(self):
+        # Hal2 plan 0463 D1 (the user, 2026-10-29): no car limit; every clean ready car rides.
         waiter = dict(ticket("03", 0, "x", self.d), ready=None)
         self.assertEqual(self.draft([waiter])["cars"], [])
         q = self.queue(**{f"0{n}": {f"f{n}.rs": "x\n"} for n in range(1, 9)})
         d = self.draft(q)
-        self.assertEqual((self.cars(d), d["alone"]), ([f"0{n}" for n in range(1, 7)], False))
-        self.assertEqual(d["waiting"], [{"field": f, "why": "rides in the next train, this one is full (6 cars)"}
-                                        for f in ("07", "08")])
-        self.assertEqual(self.cars(self.draft(q[6:])), ["07", "08"], "fewer only when fewer are ready")
+        self.assertEqual((self.cars(d), d["alone"], d["waiting"]), ([f"0{n}" for n in range(1, 9)], False, []))
+        self.assertEqual(self.cars(self.draft(q[6:])), ["07", "08"], "fewer when fewer are ready")
+
+    def test_fourteen_clean_ready_cars_are_one_train(self):
+        # Hal2 plan 0463 D1: the old cap of 6 is gone; 14 clean cars ride as one train, nothing waits.
+        q = self.queue(**{f"{n:02d}": {f"f{n}.rs": "x\n"} for n in range(1, 15)})
+        d = self.draft(q)
+        self.assertEqual((self.cars(d), d["alone"], d["waiting"], d["unhitched"]),
+                         ([f"{n:02d}" for n in range(1, 15)], False, [], []))
 
     def test_what_cannot_ride_is_unhitched_at_once(self):
         q = self.queue(**{"31": {"servant.rs": "s\n"}, "07": {"seven.rs": "7\n"}, "05": {"gone.rs": "g\n"}})
@@ -202,7 +207,7 @@ class Draft(Crops):
 
     def test_gate_cars_ride_with_the_others_as_one_train(self):
         # Hal2 plan 0333 step 3 (D3), 2026-10-14: the gate cars 09, 05, 08, 14 and 21 rode as five trains of one;
-        # step 10 (D12): they ride with 17 as one train, and the 7th car, 22, waits for the next.
+        # step 10 (D12): they ride with 17 and 22 as one train (plan 0463: no car limit).
         gate = {"09": ".github/workflows/nine.yml", "05": "code/bash/scripts/gate/five.sh",
                 "08": ".github/hal2-caches.toml", "14": ".github/workflows/fourteen.yml",
                 "21": "code/bash/scripts/gate/twentyone.sh", "22": "code/bash/scripts/gate/main.sh"}
@@ -211,9 +216,9 @@ class Draft(Crops):
                           "14": crops["14"], "21": crops["21"], "22": crops["22"]})
         d = self.draft(q)
         self.assertEqual((self.cars(d), d["alone"], d["unhitched"]),
-                         (["09", "05", "17", "08", "14", "21"], False, []))
-        self.assertEqual(d["waiting"], [{"field": "22", "why": "rides in the next train, this one is full (6 cars)"}])
-        self.assertEqual(trains.train_actions("/f", d, {})[-1]["text"], "wagon train: 09, 05, 17, 08, 14, 21")
+                         (["09", "05", "17", "08", "14", "21", "22"], False, []))
+        self.assertEqual(d["waiting"], [])
+        self.assertEqual(trains.train_actions("/f", d, {})[-1]["text"], "wagon train: 09, 05, 17, 08, 14, 21, 22")
 
     def test_the_replay_of_09_08_21_22_is_one_train(self):
         # D12's why: on 2026-10-14 the alone rule kept 09, 08, 21 and 22 out of a train although their trial merges

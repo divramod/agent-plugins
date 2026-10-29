@@ -105,7 +105,9 @@ def start_check(repo: str) -> tuple[int, dict]:
 
 def run_tick(repo: str, dry: bool, as_json: bool, all_due: bool = False) -> int:
     """A round, with the message board's messages and acks (the log) copied before and after it (plan 0290 D23,
-    as the tollman's tick does); a dry run writes nothing."""
+    as the tollman's tick does); a dry run writes nothing. None while the machine is quiet (role_cli.quiet)."""
+    if role_cli.quiet(WIRING, dry):
+        return 0
     main_dir = tick.mtm_scan.main_checkout(repo)
     if not dry:
         board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE)

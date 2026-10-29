@@ -27,7 +27,7 @@ the pane `%<n>` or `t:<id>` from them itself); `autoclear_reason` says why not. 
 Prints JSON: {"known", "used", "window", "percent", "raw_percent", "threshold", "stop", "source", "autoclear",
 "autoclear_reason", "model_source", "model", "effort", "sources", "plan", "run", "drift"}. `model`, `effort` and
 `sources` (where model, effort and window came from) are session.py's; `model_source` is `sources.model`. `plan` is
-the current plan (plans/CURRENT_PLAN of the repository around the working directory), `run` its `run: <model>
+the current plan (the CURRENT_PLAN pointer of the repository around the working directory), `run` its `run: <model>
 <effort> <window>` (null without), `drift` the fields where the session differs from `run`, e.g. {"effort":
 {"session": "medium", "plan": "max"}} (a model compares by family, `[1m]` aside; `{}` without a plan or `run`). `stop` is true when percent >= threshold. When nothing can be measured (another
 agent, no transcript yet) `known` is false and `stop` is null: the agent judges for itself. Always exits 0 unless the arguments are wrong.
@@ -84,7 +84,7 @@ def agent_pane() -> str:
 
 
 def plan_run(start: Path) -> tuple[str | None, str]:
-    """The current plan's slug (plans/CURRENT_PLAN of the repository around `start`) and its `run` value
+    """The current plan's slug (the CURRENT_PLAN pointer of the repository around `start`) and its `run` value
     (front matter `run`, a legacy plan's `Run:` line); (None, "") without a current plan."""
     import plan  # plan.py's own reading; imported here so context.py starts fast and stands alone in tests
     try:

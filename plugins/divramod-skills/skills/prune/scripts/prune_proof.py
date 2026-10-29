@@ -2,7 +2,7 @@
 farmer's, then the tollman's by plan 0360 step 7; copied into /prune by plan 0377 step 3, D11).
 
 A field is free when nothing in it is unsaved: no commit (its branch or a side branch `NN-*`) that origin's default
-branch lacks, no change, no plans/CURRENT_PLAN, no merge queue ticket or boss pause, no busy agent (working,
+branch lacks, no change, no CURRENT_PLAN pointer, no merge queue ticket or boss pause, no busy agent (working,
 starting, blocked), no session active in the last 30 minutes (10-99), no build running in it (cleanup's `busy`) and no
 open question to the user (the tollman's log and the farmer's). A field marked `plans/LEAD` (a servant's) is measured
 against its foreman's branch instead (`subservant_refusal`). Never main, a role field or a name that is not two digits.
@@ -21,6 +21,8 @@ import logstate
 import mtm_scan
 import tick
 from skillpath import sibling
+
+POINTER_WHY = "the CURRENT_PLAN pointer names "  # the reason a live pointer gives; the facts and halfway filter on it
 
 CLEANUP = sibling("cleanup") / "scripts/cleanup.py"
 NUMBERED = re.compile(r"\d\d")
@@ -49,9 +51,8 @@ def unsaved(path: str, slot: str, base: str) -> list[str]:
             out.append(f"side branch {ref}: {n} commit(s) not on {base}")
     if git(path, "status", "--porcelain"):
         out.append("uncommitted changes")
-    plan = Path(path) / "plans/CURRENT_PLAN"
-    if plan.exists() and plan.read_text().strip():
-        out.append(f"plans/CURRENT_PLAN names {plan.read_text().strip()}")
+    if plan := lead_marker.current_plan(path):  # either place: the git dir's, else plans/
+        out.append(f"{POINTER_WHY}{plan}")
     return out
 
 
@@ -62,7 +63,7 @@ def marker(path: str) -> dict | None:
     if lead is None:
         return None
     try:
-        return {**lead, "at": (Path(path) / LEAD).stat().st_mtime}
+        return {**lead, "at": lead_marker.pointers.path(path, LEAD.name).stat().st_mtime}
     except OSError:
         return {**lead, "at": time.time()}
 

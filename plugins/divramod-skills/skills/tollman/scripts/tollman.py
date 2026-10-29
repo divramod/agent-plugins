@@ -290,7 +290,9 @@ def go_on(repo: str) -> int:
 
 def tick(args) -> int:
     """A round, with the message board's messages and acks (the frame's log) posted before and after it (step 7);
-    a dry run writes nothing."""
+    a dry run writes nothing. None, not even the minute's watch, while the machine is quiet (role_cli.quiet)."""
+    if role_cli.quiet(WIRING, args.dry_run):
+        return 0
     main_dir = mtm_scan.main_checkout(args.repo)
     if not (args.dry_run or args.json) and minute.light(args.repo, WIRING):
         return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, a quiet minute prints nothing

@@ -81,6 +81,10 @@ Ask first (it types into the user's pane): rerun the job for the pane with `hal2
 and continues), or leave it to the next sweep tick (every `sweep_minutes`, it retries up to 3 attempts per
 session), or the user continues by hand. Then watch the job log until `continued`.
 
+**A paused field is never resumed** (hal2 plan 0458): `hal2-cli-git worktree paused` lists the paused fields. The
+doctor may list one of their failures, but never rerun a job, send or continue in it; tell the farmer in one line
+instead. Only the farmer resumes a field (`worktree resume <NN>`, on the user's go).
+
 ## 6. Learn
 
 1. Append the case to [cases.md](cases.md) (newest first): date, worktree, **signature**, root cause, fix commit,

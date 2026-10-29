@@ -8,14 +8,14 @@ runs `prune.py plan --json` of /prune (its facts and the planned actions per job
 your state folder; the run shows on the run page as a run of the workflow `prune`). Nothing of it needs you unless it
 failed or a car of a landed train is stuck. A field is free when nothing in it is unsaved (/prune's proof, the
 global record never-delete-unsaved-work): no commit (its branch or a side branch `NN-*`) that origin's default branch
-lacks, no change, no live `plans/CURRENT_PLAN`, no merge queue ticket or boss pause, no busy agent, no session active in
+lacks, no change, no live `CURRENT_PLAN` pointer, no merge queue ticket or boss pause, no busy agent, no session active in
 the last 30 minutes (10-99), no build running in it and no open question to the user. Main, the role fields
 (`farmer-<repo>`, `tollman-<repo>`, ...) and other names are never touched.
 
 - **00-09**: mucked out once per landing (keyed on HEAD), never removed.
 - **10-99**, one per round, the cars of the last landed train first (/prune's order): the idle session stopped by signal,
   then `hal2-cli-git worktree remove NN --remote`, a removal never under a timeout, a half-removed field resumed.
-- **A stale pointer** (`plans/CURRENT_PLAN` naming a finished or missing plan on a field with nothing unsaved and no
+- **A stale pointer** (the `CURRENT_PLAN` pointer naming a finished or missing plan on a field with nothing unsaved and no
   session) is cleared, then the proof runs again.
 - **While the disk is short** (/prune's threshold, `.hal/prune.toml`) the build folders (`trim` paths) of session-less
   fields and then of idle live ones are deleted until the goal.

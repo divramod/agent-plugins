@@ -10,8 +10,12 @@
   design.py status [--json]                               per feat and kind: versions, the accepted one, comments
   design.py accepted --json                               only the accepted versions with their file paths
 
-Every command takes `--plan <n|slug>` (else plans/CURRENT_PLAN) and `--repo <path>` (else the repository around the
-working directory). A version's files are named by what they show: `screen.html`, `flow.mmd`, `schema.dbml`,
+  design.py apply                                         the store home: take the copy's edits into the plan store
+
+Every command takes `--plan <n|slug>` (else the CURRENT_PLAN pointer) and `--repo <path>` (else the repository around the
+working directory). In a farm whose plans live in its plan store the plan folder is a copy outside the tree (its
+paths are printed absolute; design_home.py): write the files there, every command applies it back.
+A version's files are named by what they show: `screen.html`, `flow.mmd`, `schema.dbml`,
 `drawing.excalidraw`, `scenarios.md`, or `current.<ext>` beside `new.<ext>` for old and new side by side.
 Exit 0 on success, 1 on a usage or store error.
 """
@@ -24,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import design_home  # noqa: E402
 import render  # noqa: E402
 import review  # noqa: E402
 import serve  # noqa: E402
@@ -32,7 +37,7 @@ import store  # noqa: E402
 
 def parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--plan", help="the plan's number or folder name (default: plans/CURRENT_PLAN)")
+    common.add_argument("--plan", help="the plan's number or folder name (default: the CURRENT_PLAN pointer)")
     common.add_argument("--repo", help="the repository (default: the one around the working directory)")
     top = argparse.ArgumentParser(prog="design.py", description=__doc__.split("\n\n")[0],
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -55,12 +60,13 @@ def parser() -> argparse.ArgumentParser:
     state.add_argument("--json", action="store_true", help="print JSON")
     ok = sub.add_parser("accepted", parents=[common], help="the accepted versions with their file paths")
     ok.add_argument("--json", action="store_true", help="print JSON")
+    sub.add_parser("apply", parents=[common], help="the store home: take the copy's edits into the plan store")
     return top
 
 
 def folder_of(args) -> Path:
     root = Path(args.repo).resolve() if args.repo else store.repo_root(Path.cwd())
-    return store.plan_dir(root, args.plan)
+    return design_home.folder(root, args.plan) or store.plan_dir(root, args.plan)
 
 
 def cmd_new(args) -> int:
@@ -109,6 +115,8 @@ def cmd_list(args) -> int:
 
 def cmd_serve(args) -> int:
     folder = folder_of(args)
+    if design_home._VIEWS:
+        design_home.follow(review)
     server = serve.make_server(folder, args.host, args.port)
     render.render(folder)
     url = serve.url_of(server)
@@ -154,12 +162,21 @@ def cmd_accepted(args) -> int:
     return 0
 
 
+def cmd_apply(args) -> int:
+    folder = folder_of(args)
+    print(f"applied {folder}" if design_home._VIEWS else f"{folder}: the files home, nothing to apply")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     commands = {"new": cmd_new, "render": cmd_render, "list": cmd_list, "serve": cmd_serve, "status": cmd_status,
-                "accepted": cmd_accepted}
+                "accepted": cmd_accepted, "apply": cmd_apply}
     try:
-        return commands[args.command](args)
+        code = commands[args.command](args)
+        if code == 0:
+            design_home.apply()
+        return code
     except (store.StoreError, OSError, json.JSONDecodeError) as err:
         print(f"design.py: {err}", file=sys.stderr)
         return 1

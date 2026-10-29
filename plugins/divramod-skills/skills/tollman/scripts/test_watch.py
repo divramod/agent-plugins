@@ -32,6 +32,25 @@ def shape(actions):
     return [(a["kind"], a["do"], a["key"]) for a in actions]
 
 
+class LocalPhase(unittest.TestCase):
+    """Plan 0467 D21, D23: the train's first `run` line carries `local_phase_seconds` (formed → the run's creation)."""
+
+    def phase(self, rows, runs, url=OURS["url"]):
+        FakeGh(runs).start(self)
+        train = train_state.standing(rows)
+        return watch.local_phase_seconds(MAIN, train, rows, url, dt.datetime(2026, 10, 17, 12, 0, tzinfo=dt.timezone.utc))
+
+    def test_the_first_run_line_measures_formed_to_the_runs_creation(self):
+        self.assertEqual(self.phase([FORMED, STARTED], [OURS]), 360.0)  # formed 10:00, run created 10:06
+
+    def test_a_run_gh_does_not_list_is_measured_to_the_moment_of_the_note(self):
+        self.assertEqual(self.phase([FORMED, STARTED], []), 7200.0)
+
+    def test_a_later_run_line_of_the_same_train_has_none(self):
+        rows = [FORMED, STARTED, line("run", at="2026-10-17T10:07:00Z", run=OURS["url"]), STARTED]
+        self.assertIsNone(self.phase(rows, [OURS]))
+
+
 class Watch(unittest.TestCase):
     def watch(self, gh, rows=(FORMED, STARTED)):
         gh.start(self)

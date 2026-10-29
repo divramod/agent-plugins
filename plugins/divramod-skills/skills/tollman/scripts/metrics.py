@@ -15,6 +15,11 @@ Per UTC day and for the whole window (`since` inclusive, `until` exclusive, UTC;
                             reasons of the cars unhitched from that train (a car blamed: car)
   hitch_to_barn_min         {n, median, p90}: per landed car, its first ready mark (`board.jsonl`, else the first
                             train it rode) to the train's landing, minutes; a car unhitched starts again
+  local_phase_min           {n, median, p90}: per train, the `local_phase_seconds` of its first `run` line (formed →
+                            land run created, watch.py, plan 0467 D23: the budget is 10 min), in minutes
+  local_load, local_disk_ops   {n, median, p90} over the trains' local phase (the `local` key of a `pretest`
+                            line, local_load.py, plan 0472 step 4): the peak 1-minute load average, the mean
+                            whole-disk operations per second; a train without the key (older, or no probe) is left out
   restarts, breakups, hand_fixes   `log.jsonl` counts (the legacy lines carry local time; hand_fixes are the
                             `train-failed` notes that are neither the red report nor an unhitch)
   runner_minutes_per_landing, queue_wait_min   from the ci-analyzer's runs (`main.py fetch --json`): the runner
@@ -23,123 +28,21 @@ Per UTC day and for the whole window (`since` inclusive, `until` exclusive, UTC;
                             kind of runner. None ("unknown") when the ci-analyzer is missing or fails.
 
 `measure(role, since, until, ci=...)` is what the learn duty calls; `ci` is a callable `() -> list of trimmed runs`
-(tests pass a fake). Stdlib only; imports no other module of the skill.
+(tests pass a fake). Stdlib only; imports no other module of the skill but metrics_fold.py beside it (the reading
+and the fold of the train lines, split off for the 300-line limit).
 """
 
 import argparse
 import datetime as dt
 import json
-import math
 import os
-import statistics
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import repo_root  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
-HERE = Path(__file__).resolve().parent
-CAUSES = ("car", "barn", "engine", "runner", "unknown")
-# Ordered: the first rule whose word is in the lower-cased text wins (data, so a learning can tune it).
-CAUSE_RULES = (
-    ("engine", ("not your code", "gate's own bug", "gate bug", "engine", "tollman", "non-fast-forward",
-                "plan.sh", "force-push", "train state")),
-    ("barn", ("barn is red", "main is red", "red on main", "red in the barn", "broken in main", "also red on main")),
-    ("runner", ("runner", "cancelled", "timed out", "timeout", "no space left", "disk full", "lost communication",
-                "offline", "out of memory")),
-)
-
-
-# ---- reading ----
-
-def parse_time(text: str, local: bool = False) -> dt.datetime:
-    """A time as aware UTC; a text without a zone is UTC, or this machine's local time when `local`."""
-    t = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
-    if t.tzinfo is None:
-        t = t.astimezone() if local else t.replace(tzinfo=dt.timezone.utc)
-    return t.astimezone(dt.timezone.utc)
-
-
-def read(path: Path, local: bool = False) -> list[dict]:
-    """The lines of a JSONL file with `at` as aware UTC; a line that does not parse, or has no time, is skipped."""
-    out = []
-    for text in path.read_text().splitlines() if path.is_file() else []:
-        try:
-            row = json.loads(text)
-            row["at"] = parse_time(row["at"], local)
-        except (ValueError, KeyError, TypeError):
-            continue
-        if isinstance(row, dict):
-            out.append(row)
-    return sorted(out, key=lambda r: r["at"])
-
-
-def day_of(t: dt.datetime) -> str:
-    return t.strftime("%Y-%m-%d")
-
-
-def in_window(t: dt.datetime, since, until) -> bool:
-    return (since is None or t >= since) and (until is None or t < until)
-
-
-# ---- the trains ----
-
-def cause_of(status: str | None, texts: list[str]) -> str:
-    """The cause class of a red train (see the module doc)."""
-    low = " ".join(texts).lower()
-    for cause in CAUSES[:4]:
-        if f"cause: {cause}" in low:
-            return cause
-    if status == "error":
-        return "engine"
-    for cause, words in CAUSE_RULES:
-        if any(w in low for w in words):
-            return cause
-    return "car" if any(t.strip() for t in texts[1:]) else "unknown"
-
-
-def fold_trains(rows: list[dict], board: list[dict]) -> dict:
-    """The train lines folded into events: landings, reds (with cause), train verdicts, hitch-to-barn minutes."""
-    reds, landed, tried, ever_red = [], [], {}, set()
-    texts: dict = {}  # a train's latest red -> [why, the reasons of its unhitched cars]
-    ready: dict = {}  # field -> when it first rode or was ready since it last left
-    hitch = []
-    for e in sorted(rows + [dict(b, board=True) for b in board if b.get("kind") == "ready"], key=lambda r: r["at"]):
-        kind, train, field = e["kind"], e.get("train"), e.get("slot")
-        if e.get("board"):
-            ready.setdefault(field, e["at"])
-        elif kind == "formed":
-            for car in e.get("cars", []):
-                ready.setdefault(car["field"] if isinstance(car, dict) else car, e["at"])
-        elif kind == "started":
-            tried.setdefault(train, e["at"])
-        elif kind == "red":
-            tried.setdefault(train, e["at"])
-            ever_red.add(train)
-            reds.append({"at": e["at"], "train": train, "status": e.get("status")})
-            texts[train] = [e.get("why", "")]
-            reds[-1]["texts"] = texts[train]
-        elif kind == "unhitched":
-            ready.pop(field, None)
-            if train in texts:
-                texts[train].append(e.get("why", ""))
-        elif kind == "landed":
-            tried.setdefault(train, e["at"])
-            landed.append({"at": e["at"], "train": train, "first_try": train not in ever_red})
-            for car in e.get("cars", []):
-                if car in ready:
-                    hitch.append((e["at"], (e["at"] - ready.pop(car)).total_seconds() / 60))
-    for r in reds:
-        r["cause"] = cause_of(r["status"], r["texts"])
-    return {"landed": landed, "reds": reds, "tried": tried, "hitch": hitch, "ever_red": ever_red}
-
-
-def spread(values: list[float]) -> dict:
-    """{n, median, p90} of minutes; the p90 is the nearest rank."""
-    if not values:
-        return {"n": 0, "median": None, "p90": None}
-    v = sorted(values)
-    return {"n": len(v), "median": round(statistics.median(v), 1), "p90": round(v[math.ceil(0.9 * len(v)) - 1], 1)}
+from metrics_fold import CAUSE_RULES, CAUSES, cause_of, day_of, fold_trains, in_window, parse_time, read, spread  # noqa: E402,F401
 
 
 def train_metrics(f: dict, log: list[dict], keep) -> dict:
@@ -161,6 +64,9 @@ def train_metrics(f: dict, log: list[dict], keep) -> dict:
         "first_try_green_rate": round(len(first) / len(verdict), 2) if verdict else None,
         "red_causes": {c: sum(1 for r in reds if r["cause"] == c) for c in CAUSES},
         "hitch_to_barn_min": spread([m for at, m in f["hitch"] if keep(at)]),
+        "local_phase_min": spread([m for at, m in f["phase"] if keep(at)]),
+        "local_load": spread([x["load"] for x in f["local"] if keep(x["at"]) and x["load"] is not None]),
+        "local_disk_ops": spread([x["ops"] for x in f["local"] if keep(x["at"]) and x["ops"] is not None]),
         "restarts": kinds.count("restart"), "breakups": kinds.count("breakup"), "hand_fixes": len(notes),
     }
 
@@ -273,12 +179,15 @@ def measure(role, since=None, until=None, ci=None) -> dict:
 def line(name: str, m: dict) -> str:
     def v(x):
         return "unknown" if x is None else x
-    h, w = m["hitch_to_barn_min"], m["queue_wait_min"]
+    h, w, lp = m["hitch_to_barn_min"], m["queue_wait_min"], m["local_phase_min"]
+    ll, lo = m["local_load"], m["local_disk_ops"]
     return (f"{name}: landings {m['landings']}, trains {m['trains']} ({v(m['trains_per_landing'])}/landing), "
             f"first-try green {v(m['first_try_green_rate'])}, red {m['red_causes']}, hitch-to-barn median "
-            f"{v(h['median'])} p90 {v(h['p90'])} min (n {h['n']}), runner min/landing "
+            f"{v(h['median'])} p90 {v(h['p90'])} min (n {h['n']}), local phase median "
+            f"{v(lp['median'])} p90 {v(lp['p90'])} min (n {lp['n']}), runner min/landing "
             f"{v(m['runner_minutes_per_landing'])}, queue wait {v(w and w['total'])} min "
-            f"(behind checks {v(w and w['behind_checks'])})")
+            f"(behind checks {v(w and w['behind_checks'])}), local phase load median {v(ll['median'])} p90 "
+            f"{v(ll['p90'])}, disk ops/s median {v(lo['median'])} (n {lo['n']})")
 
 
 def main(argv=None, ci=None) -> int:

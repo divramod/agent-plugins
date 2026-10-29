@@ -134,7 +134,7 @@ def servant_slot(slot, worktree: str | None = None) -> bool:
     worktrees (`farmer-<repo>`) are not, nor a worktree holding `plans/LEAD` (a servant's, `worktree` its folder)."""
     if not (isinstance(slot, str) and len(slot) == 2 and slot.isdigit() and FROM <= int(slot) <= TO):
         return False
-    return not (worktree and (Path(worktree) / "plans" / "LEAD").exists())
+    return not (worktree and mtm_scan.lead_of(worktree))
 
 
 def servant_values(settings: dict | None = None) -> dict:

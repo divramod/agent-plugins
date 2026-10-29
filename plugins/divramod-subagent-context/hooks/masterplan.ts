@@ -2,7 +2,7 @@ import type { RollUp, RollUpRow, SessionRow } from '../types'
 import { type Grid, ago } from './sessions'
 
 // The plans tab's two groups above the sessions: the masterplan this session's folder belongs to (the roll-up of
-// `hal2-cli-plans masterplan --json`, plan 0275 D3) and the servants of this field (sessions whose `plans/LEAD` names
+// `hal2-cli-plans masterplan --json`, plan 0275 D3) and the servants of this field (sessions whose `LEAD` names
 // this field, D26). Pure: register.tsx and load.ts do the IO.
 
 const text = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -44,7 +44,7 @@ export const fieldOf = (cwd: string) => {
   return at >= 0 && parts.length > at + 2 ? { repo: parts[at + 1]!, field: parts.slice(at + 2).join('/') } : { repo: parts.at(-1) ?? '', field: '' }
 }
 
-// A `plans/LEAD` line: `<foreman's field> <plan> <step>`; undefined when it has no field and plan.
+// A `LEAD` line: `<foreman's field> <plan> <step>`; undefined when it has no field and plan.
 export const leadOf = (line: string) => {
   const [field, plan, ...step] = line.trim().split(/\s+/)
   return field && plan ? { field, plan, step: step.join(' ') } : undefined

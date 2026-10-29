@@ -103,6 +103,21 @@ class FoldTest(unittest.TestCase):
             h = metrics.measure(tmp, ci=fake_ci())["days"]["2026-10-15"]["hitch_to_barn_min"]
         self.assertEqual(h["median"], 40.0)  # formed 09:00, landed 09:40
 
+    def test_the_local_phase_per_train_from_the_first_run_line(self):
+        """Plan 0467 D23: `local_phase_seconds` of a train's first `run` line, in minutes; a line without it counts
+        for nothing."""
+        rows = [{"schema": 1, "at": "2026-10-15T09:20:00Z", "kind": "run", "slot": "t", "train": "a", "run": "u",
+                 "local_phase_seconds": 300.0},
+                {"schema": 1, "at": "2026-10-15T10:20:00Z", "kind": "run", "slot": "t", "train": "b", "run": "u",
+                 "local_phase_seconds": 900.0},
+                {"schema": 1, "at": "2026-10-15T11:20:00Z", "kind": "run", "slot": "t", "train": "b", "run": "v"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            m = metrics.measure(tmp, ci=fake_ci())
+        self.assertEqual(m["total"]["local_phase_min"], {"n": 2, "median": 10.0, "p90": 15.0})
+        self.assertEqual(self.m["total"]["local_phase_min"], {"n": 0, "median": None, "p90": None})
+        self.assertIn("local phase median 10.0 p90 15.0 min (n 2)", metrics.line("total", m["total"]))
+
     def test_log_counts(self):
         t = self.m["total"]
         self.assertEqual((t["restarts"], t["breakups"], t["hand_fixes"]), (1, 4, 2))
@@ -110,6 +125,33 @@ class FoldTest(unittest.TestCase):
     def test_spread(self):
         self.assertEqual(metrics.spread([]), {"n": 0, "median": None, "p90": None})
         self.assertEqual(metrics.spread(list(map(float, range(1, 11)))), {"n": 10, "median": 5.5, "p90": 9.0})
+
+
+class LocalPhaseTest(unittest.TestCase):
+    """Plan 0472 step 4: the `local` key of a pretest line becomes local_load and local_disk_ops per day."""
+
+    def pretest(self, train, at, local):
+        return {"schema": 1, "at": at, "kind": "pretest", "slot": "tollman-train-x", "train": train, "result": "green",
+                **({"local": local} if local else {})}
+
+    def test_load_and_disk_ops_are_reported_per_train_and_older_trains_are_left_out(self):
+        rows = [self.pretest("a", "2026-10-14T09:00:00Z", {"load_peak": 12.5, "disk_ops_s": 300.0, "marks": []}),
+                self.pretest("b", "2026-10-14T10:00:00Z", {"load_peak": 30.0, "disk_ops_s": None, "marks": []}),
+                self.pretest("c", "2026-10-14T11:00:00Z", None),
+                self.pretest("d", "2026-10-15T09:00:00Z", {"load_peak": 8.0, "disk_ops_s": 100.0, "marks": []})]
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            m = metrics.measure(tmp, ci=fake_ci([]))
+        d14, d15 = m["days"]["2026-10-14"], m["days"]["2026-10-15"]
+        self.assertEqual(d14["local_load"], {"n": 2, "median": 21.2, "p90": 30.0})
+        self.assertEqual(d14["local_disk_ops"], {"n": 1, "median": 300.0, "p90": 300.0})
+        self.assertEqual(d15["local_load"]["median"], 8.0)
+        self.assertEqual(m["total"]["local_load"]["n"], 3)
+        self.assertIn("local phase load median", metrics.line("total", m["total"]))
+
+    def test_no_pretest_lines_is_n_zero(self):
+        m = metrics.measure(FIX, SINCE, ci=fake_ci())
+        self.assertEqual(m["total"]["local_load"], {"n": 0, "median": None, "p90": None})
 
 
 class CiTest(unittest.TestCase):

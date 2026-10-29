@@ -27,7 +27,8 @@ sys.path.insert(0, str(HERE))
 import fieldgit  # noqa: E402
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
-from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+from skillpath import load, pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+planread = load("plan", "planread", __file__)  # a plan's files in either home (hal2 plan 0409 step 9)
 STOP = sibling("delete-field") / "scripts/stop.py"
 CREATE = sibling("create-worktree-session") / "scripts/create.py"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -162,10 +163,9 @@ def cmd_free(a) -> int:
 
 
 def plan_run(target: Path) -> tuple[str | None, str | None]:
-    """The model and effort of the plan `plans/CURRENT_PLAN` names in `target` (its `run: <model> <effort> <window>`)."""
-    pointer = target / "plans" / "CURRENT_PLAN"
-    slug = pointer.read_text().strip() if pointer.is_file() else ""
-    plan = target / "plans" / slug / "plan.md"
+    """The model and effort of the plan CURRENT_PLAN names in `target` (its `run: <model> <effort> <window>`)."""
+    slug = pointers(__file__).read(target, "CURRENT_PLAN")  # the git dir's, else plans/ (step 12)
+    plan = planread.plan_dir(target, slug) / "plan.md"
     if not slug or "/" in slug or not plan.is_file():
         return None, None
     found = re.search(r"^[Rr]un:[ \t]*(.+)$", plan.read_text(), re.M)

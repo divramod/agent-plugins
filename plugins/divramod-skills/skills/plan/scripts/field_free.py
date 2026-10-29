@@ -9,14 +9,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import occupied
+import pointers
 
 
 def free(root: Path, args) -> None:
-    """Delete plans/CURRENT_PLAN when `args` is a `new` or `use` that would meet an occupied field."""
+    """Delete the CURRENT_PLAN pointer when `args` is a `new` or `use` that would meet an occupied field."""
     args = list(args)
     if args[:1] not in (["new"], ["use"]) or "--no-current" in args or "--here" in args:
         return
-    if (Path(root) / "plans" / "LEAD").is_file():
+    if pointers.exists(root, pointers.LEAD):
         return  # a servant's field: the refusal is what the test looks at
     if occupied.of(Path(root)) is not None:
-        (Path(root) / occupied.POINTER).unlink()
+        pointers.remove(root, occupied.POINTER)

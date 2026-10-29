@@ -69,7 +69,7 @@ that is part of step 2, done once before the command is run again:
 | exit 2, `unknown ...` | the installed hal2-cli-git is older than the hitch: land as SKILL.md says |
 
 **Afterwards the session goes on working**, or ends its turn; a finished `Landing: auto` plan ends its turn here
-and its end waits for "in the barn". `plans/CURRENT_PLAN` and the plan's handoff stay.
+and its end waits for "in the barn". The `CURRENT_PLAN` pointer and the plan's handoff stay.
 
 - Work committed after the hitch rides only when it is pushed and the same command has run again (it moves the
   mark to the new head, the place stays).
@@ -113,7 +113,7 @@ session, without a question (the tollman changes no other worktree).
    question for the tollman's session, never a forced removal.
 
 `/mtm milestone`: only item 1, then the milestone row is marked done; steps 5 and 7 are skipped and
-`plans/CURRENT_PLAN` stays, as milestone mode says.
+the `CURRENT_PLAN` pointer stays, as milestone mode says.
 
 ## Unhitched
 

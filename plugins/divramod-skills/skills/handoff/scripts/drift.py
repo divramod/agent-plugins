@@ -7,7 +7,7 @@ step 5; plan 0015's D10: before a clear the session wins, after it the plan wins
   drift.py --clear [--root <checkout>]
                         the clear-and-continue command, `--effort` from `run` (plan 0016's D8): {action: clear, ...}
 
-The plan is the current one (`plans/CURRENT_PLAN`, where.py); `run: <model> <effort> <window>` is its coordinator's,
+The plan is the current one (the `CURRENT_PLAN` pointer, where.py); `run: <model> <effort> <window>` is its coordinator's,
 the live values are session.py's (the plan skill's; --transcript and --session go to it). `action` is:
 
 - `ok`: nothing to do. No plan, a legacy plan or a servant's worktree (where.py's form `legacy`), no `run`, no

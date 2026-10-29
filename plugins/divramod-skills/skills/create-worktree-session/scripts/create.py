@@ -5,7 +5,8 @@
             [--role foreman|servant] [--from NN] [--to NN] [--min-free-gb 50] [--lead "<field> <plan> <step|NN-slug>"]
 
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
-of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing: plans/CURRENT_PLAN
+of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing and not paused (`hal2-cli-git worktree paused`, plan 0458: a paused field is
+skipped, and refused when `--from` and `--to` name only it): the CURRENT_PLAN pointer
 names nothing, no uncommitted changes, no commits not on main, no landing in the merge queue (behind main is
 fine: the first prompt runs /merge-from-main). The agent starts detached through `hal2-cli-git worktree run <NN> --detach`, in
 a hal2 terminal host (`--tmux`: a window of hal-<repo>), with a new session whose first prompt runs /merge-from-main, then the
@@ -24,7 +25,7 @@ not the number, D16). A field holding `plans/LEAD` is a servant's and is skipped
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 
 `--lead "<foreman's field> <plan> <step|NN-slug>"` (plan 0376 D6; only with `--from 30` or more) makes the session a
-servant: `plans/LEAD` and `plans/CURRENT_PLAN` (the plan) are written into its worktree (before the start when the
+servant: `plans/LEAD` and the `CURRENT_PLAN` pointer (the plan) are written into its worktree (before the start when the
 worktree exists, else right after hal2 created it) and the first prompt merges the foreman's pushed branch
 (`git merge origin/<field>`) and runs `/servant`. The third word is a legacy step or row (digits) or a sub-plan
 `NN-slug`, as `plan.py ready` prints the line. It is a servant start (`--role servant` implied: it may take a field
@@ -39,6 +40,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import pointers  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 
 GONE = {"ended", "failed"}
 # What hal2-agents' spawn drops, so the agent is no child of this tmux pane, terminal host or Claude session.
@@ -93,10 +97,24 @@ def taken(repo: Path) -> set[str]:
     return {s for s in slots if s and slot_of(s)}
 
 
+def paused_fields(repo: Path) -> dict[str, str]:
+    """{field: "paused by <by>: <why>"} from `hal2-cli-git worktree paused --json` (hal2 plan 0458, D2: never the file).
+    An older CLI without the command, or an answer that cannot be read, is nothing paused."""
+    if not shutil.which("hal2-cli-git"):
+        return {}
+    r = subprocess.run(["hal2-cli-git", "worktree", "paused", "--json"], cwd=repo, capture_output=True, text=True)
+    try:
+        rows = json.loads(r.stdout).get("fields", []) if r.returncode == 0 else []
+    except (ValueError, AttributeError):
+        return {}
+    return {str(p["field"]): f"paused by {p.get('by') or '?'}: {p.get('why') or 'no reason given'}"
+            for p in rows if isinstance(p, dict) and p.get("field")}
+
+
 def work(entry: dict, landing: str | None, servant: bool = False) -> str | None:
     """Why a worktree holds work, or None when it is clean. A field holding `plans/LEAD` is a servant's (hal2 plan 0383,
     D16: the marker says it, not the field's number): only a servant start (`--role servant`) takes it."""
-    if not servant and entry.get("path") and (Path(entry["path"]) / "plans" / "LEAD").exists():
+    if not servant and entry.get("path") and pointers(__file__).exists(entry["path"], "LEAD"):
         return "a servant's field (plans/LEAD)"
     if entry.get("plan"):
         return f"works on {entry['plan']}"
@@ -112,12 +130,14 @@ def choose(repo: Path, first: int = 1, last: int = 99, servant: bool = False) ->
     worktrees = {w["name"]: w for w in listed if not w.get("main")}
     queue = json.loads(run("hal2-cli-git", "worktree", "queue", "--json", cwd=repo)).get("queue", [])
     landings = {t.get("slot"): t.get("state") or "queued" for t in queue if t.get("repo") == repo.name}
-    busy, skipped = taken(repo), []
+    busy, skipped, paused = taken(repo), [], paused_fields(repo)
+    if first == last and f"{first:02d}" in paused:
+        die(f"field {first:02d} is {paused[f'{first:02d}']} (`hal2-cli-git worktree resume {first:02d}` first)")
     for n in range(first, last + 1):
         slot = f"{n:02d}"
         if slot in busy:
             continue
-        why = work(worktrees[slot], landings.get(slot), servant) if slot in worktrees else None
+        why = paused.get(slot) or (work(worktrees[slot], landings.get(slot), servant) if slot in worktrees else None)
         if why is None:
             return slot, skipped, worktrees.get(slot)
         skipped.append({"slot": slot, "why": why})
@@ -202,16 +222,16 @@ def lead_of(argv: list[str], first: int) -> str | None:
 
 
 def write_lead(folder: Path, line: str) -> None:
-    """The servant's marker and current plan (both gitignored, plans/LEAD and plans/CURRENT_PLAN)."""
-    (folder / "plans").mkdir(parents=True, exist_ok=True)
-    (folder / "plans" / "LEAD").write_text(line + "\n")
-    (folder / "plans" / "CURRENT_PLAN").write_text(line.split()[1] + "\n")
+    """The servant's marker and current plan (neither committed): in the git dir's hal/ in a store-home farm, else
+    plans/LEAD and the CURRENT_PLAN pointer (hal2 plan 0409 step 12)."""
+    pointers(__file__).write(folder, "LEAD", line)
+    pointers(__file__).write(folder, "CURRENT_PLAN", line.split()[1])
 
 
 def lead_prompt(line: str, prompt: str | None) -> str:
     field, plan, part = line.split()
     task = (f"You are the servant of field {field} for sub-plan or step {part} of plan {plan} (plans/LEAD and "
-            f"plans/CURRENT_PLAN are written). Merge the foreman's pushed branch first (`git fetch origin && git "
+            f"the CURRENT_PLAN pointer are written). Merge the foreman's pushed branch first (`git fetch origin && git "
             f"merge origin/{field}`), then run /servant.")
     return f"{task}\n\n{prompt}" if prompt else task
 

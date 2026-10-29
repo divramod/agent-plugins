@@ -61,6 +61,11 @@ class Questions(unittest.TestCase):
         (self.root / "plans" / "CURRENT_PLAN").write_text("0003-x\n")
         self.assertEqual(self.run_script("--path").stdout.strip(), "plans/0003-x/questions.md")
 
+    def test_the_pointer_may_sit_in_the_git_dir_only(self):
+        (self.root / ".git" / "hal").mkdir()
+        (self.root / ".git" / "hal" / "CURRENT_PLAN").write_text("0003-x\n")
+        self.assertEqual(self.run_script("--path").stdout.strip(), "plans/0003-x/questions.md")
+
     def test_the_file_is_the_plan_the_handoff_links_when_current_plan_names_a_task(self):
         (self.root / "plans" / "CURRENT_PLAN").write_text("fix-login-timeout\n")
         (self.root / "HANDOFF.md").write_text("## Plan\n[x](plans/0003-x/plan.md): 1/2 done\n")

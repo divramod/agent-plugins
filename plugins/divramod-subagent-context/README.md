@@ -31,7 +31,7 @@ Install it (more in that repository's README):
     (`done`, `running`, `next`, `draft`, `blocked`) and its Needs. It needs hal2: the mod runs `hal2-cli-plans
     masterplan --repo <folder> --json` (3 s timeout) once per reload of the sessions, only while the pane is open and
     shows the plans tab; without the binary, an older one or a folder with no masterplan the group is absent.
-  - **Servants of this field**: the sessions of this repository whose `plans/LEAD` (`<foreman's field> <plan> <step>`)
+  - **Servants of this field**: the sessions of this repository whose `LEAD` (`<foreman's field> <plan> <step>`)
     names this session's field, with the plan they do, the step, that step's status, the plan's `done/total`, their
     state and age. For a servant of a masterplan (the marker names the masterplan's slug and the row) the step and the
     numbers come from the same JSON, no second process, and the masterplan group shows its field in the row; any other
@@ -58,7 +58,7 @@ Install it (more in that repository's README):
   - [sessions.ts](hooks/sessions.ts), [jobs.ts](hooks/jobs.ts): the plans, agents and jobs tabs' rows.
   - [live.ts](hooks/live.ts) (its test [live.test.ts](hooks/live.test.ts)): the session check behind the plans and
     agents tabs: one `kill -0` per pid, one refresh at a time, every 30 s and only while the pane shows one of the two;
-    each session's row with its `plans/CURRENT_PLAN` and `plans/LEAD`.
+    each session's row with its `CURRENT_PLAN` and `LEAD` (the git dir's `hal/`, else `plans/`).
   - [load.ts](hooks/load.ts) (its test [load.test.ts](hooks/load.test.ts)): what follows each refresh inside its turn,
     through closures over `$` that register.tsx hands it: this session's folder and, only on an open plans tab, the
     masterplan's one process; [masterplan.ts](hooks/masterplan.ts): the roll-up's parse and the two groups' rows, pure.

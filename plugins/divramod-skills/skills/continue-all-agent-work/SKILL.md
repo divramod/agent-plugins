@@ -28,7 +28,10 @@ undo. Report a step that failed (a process that is gone is fine).
 
 ## 3. Tell the sessions (SendMessage, all in one reply, in parallel)
 
-`ListAgents` first: send only to recorded names still listed (a session that ended: say so). To each:
+`ListAgents` first: send only to recorded names still listed (a session that ended: say so). **Skip a paused field**
+(`hal2-cli-git worktree paused --json`, hal2 plan 0458): a stop does not unpause it, so the session of a field that
+was paused before or during the stop is not told to continue, nor is any session started there; list it in the report
+as paused (by, why). Only the farmer resumes a field (`worktree resume <NN>`, on the user's go). To each:
 
 > All agents may continue: the system-wide stop is over. Run /continue now. If your pause record says a merge to
 > main (/mtm landing) was running, it was paused in place, not aborted: run /mtm again, it adopts the landing.

@@ -1,6 +1,6 @@
 ---
 name: user-acceptance-tests
-description: Walk a plan's user acceptance tests (UATs) with the user, one check per message, and record each verdict — a thin layer on `hal2-cli-plans uat list|set`, whose queued verdicts already track which checks are confirmed (no second tracker). `/uat` walks the open checks of the plan in `plans/CURRENT_PLAN`, `/uat <plan>` those of a plan (number or slug), `/uat <plan> <uat>` shows one check and takes its verdict, `/uat do [<plan>] <uat>` also runs the check's command for the user first, `/uat list [<plan>]` lists confirmed against open checks. Plain text, one check per message with its steps, the `Open:` link or `Run:` command and the expected result; the user answers pass, fail, skip or blocked with an optional note; a fail offers the shot. Use when the user says /uat, "walk the UATs", "the acceptance tests of plan 0364", "which UATs are open" or "run UAT U3". `/uat h` shows help.
+description: Walk a plan's user acceptance tests (UATs) with the user, one check per message, and record each verdict — a thin layer on `hal2-cli-plans uat list|set`, whose queued verdicts already track which checks are confirmed (no second tracker). `/uat` walks the open checks of the plan in the `CURRENT_PLAN` pointer, `/uat <plan>` those of a plan (number or slug), `/uat <plan> <uat>` shows one check and takes its verdict, `/uat do [<plan>] <uat>` also runs the check's command for the user first, `/uat list [<plan>]` lists confirmed against open checks. Plain text, one check per message with its steps, the `Open:` link or `Run:` command and the expected result; the user answers pass, fail, skip or blocked with an optional note; a fail offers the shot. Use when the user says /uat, "walk the UATs", "the acceptance tests of plan 0364", "which UATs are open" or "run UAT U3". `/uat h` shows help.
 ---
 
 # user-acceptance-tests (alias uat)
@@ -11,7 +11,7 @@ JSON and prints the checks; you only walk them with the user. Never write a verd
 
 | Call | Does |
 |---|---|
-| `/user-acceptance-tests` (`/uat`) | walk the open checks of the plan named in `plans/CURRENT_PLAN` |
+| `/user-acceptance-tests` (`/uat`) | walk the open checks of the plan named in the `CURRENT_PLAN` pointer |
 | `/user-acceptance-tests <plan>` | the same for a plan (`364`, `0364`, a slug part) |
 | `/user-acceptance-tests <plan> <uat>` | show one check (`U2`, `2`, `0041/U1`) and take its verdict |
 | `/user-acceptance-tests do [<plan>] <uat>` | the same, but first run the check's `Run:` command and show its output |
@@ -51,7 +51,9 @@ verdict. A check with only `Open:` has no command: `do` then equals the plain ca
 
 ## Rules
 
-- The plan is the argument, else `plans/CURRENT_PLAN`; when that names no plan folder (a shot, a task), ask which plan.
+- The plan is the argument, else the `CURRENT_PLAN` pointer; when that names no plan folder (a shot, a task), ask which plan.
+- In the store home (hal2 plan 0409: no plan folder in the tree) the plan is the CLI's (`hal2-cli-plans show`);
+  the verdicts go through `uat set` as everywhere.
 - Never decide a verdict for the user; a command's success is evidence to show, not the verdict.
 - A check carried from an earlier plan is `<NNNN>/U<n>`; set it with that id.
 - `uat.py ... --json` gives the raw rows; `--repo <dir>` another checkout; `$HAL2_CLI_PLANS` names the CLI binary.

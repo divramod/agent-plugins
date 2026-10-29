@@ -28,6 +28,12 @@ class CellsTest(unittest.TestCase):
         self.assertEqual(t.cells(row(plan="shots/3/fix-x"), "main")[1:3], ["shots/3/fix-x", ""])
         self.assertEqual(t.cells(row(), "main")[1:3], ["free", ""])
 
+    def test_a_paused_field_says_so_first(self):
+        paused = {"by": "farmer", "why": "waits for the plan", "since": "t"}
+        self.assertEqual(t.state_cell(row(agent="none", paused=paused), "main"), "paused (farmer: waits for the plan); no session")
+        self.assertEqual(t.state_cell(row(agent="none", paused=None), "main"), "no session")
+        self.assertEqual(t.paused_phrase({"by": "user", "why": ""}), "paused (user)")
+
     def test_state_phrases_in_fixed_order(self):
         r = row(agent="busy", queue={"holds": True, "position": 1, "state": "x"}, uncommitted=2, ahead=3, last_commit_age=7200,
                 ci=[{"workflow": "merge-to-main", "status": "in_progress", "branch": "land/00"},

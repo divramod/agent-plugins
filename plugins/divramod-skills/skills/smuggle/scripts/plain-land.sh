@@ -27,10 +27,21 @@ fi
 git -C "$top" merge-base --is-ancestor "$target" HEAD \
   || die 3 "$target is not merged into $branch: merge it in (smuggle step 4) and rerun"
 
-sha=$(git -C "$top" commit-tree "HEAD^{tree}" -p "$target" -p HEAD \
-  -m "Merge branch '$branch' (smuggle: CI skipped)" \
-  -m "Worktree: ${top##*/}
+# A farm with neutral commits (hal2 plan 0409 D15) gets a head without the branch and no trailers; the smuggle's
+# mark goes into the notes ref refs/notes/land, pushed before the commit (design A13), as hal2's landing writes it.
+planread="${SMUGGLE_PLANREAD:-$SMUGGLE_HERE/../../plan/scripts/planread.py}"
+neutral=off
+[ ! -f "$planread" ] || neutral="$(python3 "$planread" neutral --root "$top" 2>/dev/null || echo off)"
+if [ "$neutral" = on ]; then
+  sha=$(git -C "$top" commit-tree "HEAD^{tree}" -p "$target" -p HEAD -m "chore: land (CI skipped)")
+  git -C "$top" notes --ref=land add -f -m "Smuggle: ${top##*/}" "$sha"
+  git -C "$top" push -q origin refs/notes/land || die 3 "the push of refs/notes/land was refused: rerun"
+else
+  sha=$(git -C "$top" commit-tree "HEAD^{tree}" -p "$target" -p HEAD \
+    -m "Merge branch '$branch' (smuggle: CI skipped)" \
+    -m "Worktree: ${top##*/}
 Smuggle: ${top##*/}")
+fi
 git -C "$top" push -q origin "$sha:refs/heads/$default" \
   || die 3 "the push to $default was refused ($default moved): merge $target in again and rerun"
 git -C "$top" fetch -q origin "$default"

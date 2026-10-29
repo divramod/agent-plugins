@@ -7,6 +7,8 @@ into 99-uat (convert_uat.py), the plan folder's other Markdown re-pointed at the
 derived statuses written (shape.write_overview), `finished` and the ledgers' `closed` set when the plan is `uat` or
 `done`; then `plan.py check`'s schema 2 rules (shape_check.py) and, when the installed hal2-cli-records is 0.7.0 or
 newer, its findings on the folder. The result is staged (`git add -A -- <folder>`, so the moves show as renames).
+In the store home (hal2 plan 0409) plan.py runs it on a view of the store (storerun.py): nothing is staged, and the
+store's `apply` of the view refuses a records problem the convert adds.
 `--dry-run` converts a copy in a temp folder and reports what would happen. `plan.py -g convert --all` first writes
 a tar backup of the global plans folder into hal2's state root (`$HAL2_STATE_DIR`, `$XDG_STATE_HOME/hal2`,
 `~/.local/state/hal2`).
@@ -35,6 +37,7 @@ import shape_check
 import shape_new
 from shape_names import ShapeError
 
+STORE_CHECKED = "records checked by the plan store when the view is applied"
 ERRORS = (ShapeError, envelope.FormatError, ValueError, KeyError, OSError)
 
 
@@ -101,6 +104,8 @@ def records_problems(root: Path, folder: Path, where: str) -> tuple[list[str], s
         return [], checker.NOT_INSTALLED
     if skip or where != "repo":
         return [], skip or f"records unchecked: {'a dry run' if where == 'dry' else 'the global folder'}"
+    if not folder.resolve().is_relative_to(root.resolve()):
+        return [], STORE_CHECKED  # the store home's view: the store's apply refuses a problem the convert adds
     result = checker.check(repo=root.resolve())
     prefix = f"{folder.resolve().relative_to(root.resolve()).as_posix()}/"
     return [checker.line(p) for p in (result or {}).get("problems", []) if p["path"].startswith(prefix)], None
@@ -136,7 +141,7 @@ def one(root: Path, plan_md: Path, use_git: bool) -> dict:
             shutil.rmtree(folder)
             shutil.copytree(backup, folder, symlinks=True)
             return {"result": "failed", "problems": problems, "put_back": True}
-    if use_git:
+    if use_git and folder.resolve().is_relative_to(root.resolve()):  # a store-home view is no part of the tree
         subprocess.run(["git", "add", "-A", "--", str(folder)], cwd=root, capture_output=True)
     return {"result": "converted", **result, "records": note}
 

@@ -19,7 +19,8 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              `train-<number>-<start>`, the mark's `--train/--attempt`, plan 0398; `train-<plan>-...` before it); written again by every restart; after a `retry` also
              `commit`, the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
   run        the landing's land run, found by watch.py while it lands (plan 0360 step 5): `run` (its address); the
-             latest after the last `started` is this start's (`land_run`)
+             latest after the last `started` is this start's (`land_run`); the train's first one also has
+             `local_phase_seconds` (formed → the run's creation, plan 0467 D21, D23)
   red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`
   order      a fix order (orders.py, plan 0360 step 6, D6, D29): `field` (a car's, or `main`: the tollman's own),
              `branch` (`<NN>-train-fix`, `tollman-train-fix`), `base` (the carrier's head it branches from), `why`,

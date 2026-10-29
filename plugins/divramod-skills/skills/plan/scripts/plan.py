@@ -2,7 +2,7 @@
 """Deterministic bookkeeping for plans under plans/ at the repository root.
 
 A plan is a folder plans/<NNNN>-<slug>/ holding plan.md and the plan's helper files; plan.md has a markdown table whose header has the columns `#`, `Step` and `Status`
-(optionally `Done when`). plans/CURRENT_PLAN holds the slug of the active plan (the Claude statusline shows it).
+(optionally `Done when`). The CURRENT_PLAN pointer holds the slug of the active plan (the Claude statusline shows it).
 A flat plans/<NNNN>-<slug>.md from before the folder layout is still read and updated.
 
 `new` writes the plan folder in the record format (folder.py; hal2's decision record `record-formats`): plan.md with
@@ -159,7 +159,7 @@ A plan of a masterplan that turns done ticks its row there (`status`, also with 
 tick is taken back when a step reopens (masterplan_keep.py); `tick_skipped` says why a row was not held (the
 masterplan's folder is not in this checkout, no row links the plan, a row's cells are not its header's).
   plan.py leave [--release]                                after a bring in (status uat/done = finished; PREVIOUS_PLAN
-                                                           restored when unfinished): plans/CURRENT_PLAN names the finished
+                                                           restored when unfinished): the CURRENT_PLAN pointer names the finished
                                                            plan's unfinished masterplan, else it is deleted (also
                                                            when it named a shot or a task); a plan with open steps
                                                            keeps it; --release: the field does not carry on with
@@ -197,8 +197,11 @@ import masterplan
 import masterplan_keep
 import masterplan_view
 import names
+import neutral_commit
 import parallel
 import plan_number
+import planhome
+import pointers
 import prompt as step_prompt
 import qcheck
 import seed
@@ -213,6 +216,7 @@ import shape_new
 import sizing
 import stays
 import spec_link
+import storerun
 import table
 import trailers
 from table import join_row, split_row
@@ -236,6 +240,11 @@ GLOBAL = False
 
 class PlanError(Exception):
     pass
+
+
+ERRORS = (PlanError, changelog.ChangelogError, seed.SeedError, names.NameTooLong, parallel.ParallelError,
+          step_prompt.PromptError, stays.Refused, masterplan.MasterplanError, trailers.TrailerError,
+          spec_link.SpecLinkError, shape_names.ShapeError, planhome.HomeError)
 
 
 def use_global(folder: Path) -> Path:
@@ -275,6 +284,25 @@ def new_global_plan(folder: Path, title: str, goal: str, research: bool) -> Path
     return path
 
 
+def plans_dir(root: Path) -> Path:
+    """The folder of the plan folders: the global folder, a store-home checkout's view (planhome.py), else
+    `<root>/plans`."""
+    return root / PLANS if GLOBAL else planhome.plans_dir(root)
+
+
+def rel(path: Path, root: Path) -> str:
+    """`path` below `root` as the checkout names it (`plans/<...>` also for a file of the store home's view)."""
+    return str(path.relative_to(root)) if GLOBAL else planhome.rel(path, root)
+
+
+def in_root(path: Path, root: Path) -> str:
+    """`path` relative to `root` by its real location (`os.path.relpath`), a file of the store home's view as
+    `plans/<...>`."""
+    if planhome.view_of(root) is not None and not GLOBAL:
+        return planhome.rel(path, root)
+    return os.path.relpath(path.resolve(), root.resolve())
+
+
 def find_root(start: Path) -> Path:
     for folder in [start, *start.parents]:
         if (folder / ".git").exists():
@@ -309,7 +337,7 @@ def slug_of(path: Path) -> str:
 
 def plan_files(root: Path) -> list[Path]:
     """Every plan's markdown file: plans/<slug>/plan.md, or a flat plans/<slug>.md."""
-    folder = root / PLANS
+    folder = plans_dir(root)
     if not folder.is_dir():
         return []
     found = [p / MAIN for p in folder.iterdir() if p.is_dir() and PLAN_RE.match(p.name) and (p / MAIN).is_file()]
@@ -327,11 +355,15 @@ def resolve(root: Path, ref: str) -> Path:
     raise PlanError(f"no plan matches '{ref}' in {PLANS}")
 
 
+def current_name(root: Path) -> str:
+    """What the checkout's CURRENT_PLAN names (the git dir's, else plans/), "" for none; a global folder has none."""
+    return "" if GLOBAL else pointers.read(root, POINTER)
+
+
 def current_path(root: Path) -> Path:
-    pointer = root / PLANS / POINTER
-    if not pointer.is_file() or not pointer.read_text().strip():
+    ref = current_name(root)
+    if not ref:
         raise PlanError(f"no current plan: {PLANS / POINTER} is missing or empty")
-    ref = pointer.read_text().strip()
     try:
         return resolve(root, ref)
     except PlanError:
@@ -340,7 +372,7 @@ def current_path(root: Path) -> Path:
 
 
 def set_current(root: Path, path: Path) -> None:
-    (root / PLANS / POINTER).write_text(slug_of(path) + "\n")
+    pointers.write(root, POINTER, slug_of(path))  # the git dir in the store home, else plans/
 
 
 def steps_table(lines: list[str]) -> tuple[int, dict[str, int]]:
@@ -478,7 +510,6 @@ def describe(root: Path, path: Path) -> dict:
     before_landing = [s for s in open_steps if not s["after_landing"]]
     landing = landing_of(text)
     land = landing if landing != "auto" else ("wait" if before_landing else "ready")
-    pointer = root / PLANS / POINTER
     extra = {}
     if steps and "needs" in steps[0]:
         ready, _ = parallel.schedule(steps, parallel.capacity(text))
@@ -488,22 +519,22 @@ def describe(root: Path, path: Path) -> dict:
         extra["lead"] = marker
     return {
         "slug": slug_of(path),
-        "path": str(path.relative_to(root)),
+        "path": rel(path, root),
         "title": title,
         "research": is_research(slug_of(path)),
         **masterplan.fields(path, text),
-        "current": pointer.is_file() and pointer.read_text().strip() == slug_of(path),
+        "current": current_name(root) == slug_of(path),
         "grilled": grilled,
         "finished": header_value(text, "Finished"),
-        "uat": str((path.parent / UAT).relative_to(root)) if (path.parent / UAT).exists() and path.name == MAIN else "",
+        "uat": rel(path.parent / UAT, root) if (path.parent / UAT).exists() and path.name == MAIN else "",
         "uat_checks": uat_checks(path),
-        "changelog": str((path.parent / changelog.FILE).relative_to(root))
+        "changelog": rel(path.parent / changelog.FILE, root)
                      if path.name == MAIN and (path.parent / changelog.FILE).exists() else "",
         "brief": brief.filled(text),
         "autogrill_rounds": grill_rounds(grilled)[0],
         "autogenerated": header_value(text, "Autogenerated"),
         "format": "record" if folder.is_record(text) else "legacy",
-        **{name[:-3]: str((path.parent / name).relative_to(root)) if path.name == MAIN and (path.parent / name).is_file()
+        **{name[:-3]: rel(path.parent / name, root) if path.name == MAIN and (path.parent / name).is_file()
            else "" for name in folder.SIBLINGS},
         "done": len(steps) - len(open_steps),
         "total": len(steps),
@@ -511,7 +542,7 @@ def describe(root: Path, path: Path) -> dict:
         "landing": landing,
         "land": land,
         "problems": problems_of(steps) + (parallel.problems(steps) if extra.get("parallel") else [])
-                    + steps_problems(text, os.path.relpath(path, root)),
+                    + steps_problems(text, rel(path, root)),
         "steps": steps,
         **extra,
     }
@@ -527,7 +558,7 @@ def describe_safe(root: Path, path: Path) -> dict:
     try:
         return describe(root, path)
     except PlanError as error:
-        return {"slug": slug_of(path), "path": str(path.relative_to(root)), "problems": [str(error)], "steps": []}
+        return {"slug": slug_of(path), "path": rel(path, root), "problems": [str(error)], "steps": []}
 
 
 def parallel_table(text: str) -> str:
@@ -561,6 +592,8 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
     names.refuse(title)
     slug = research_slug(slugify(title)) if research else slugify(title)
     slug = masterplan.marked(slug) if master else slug
+    if into is None and planhome.view_of(root) is not None and not GLOBAL:
+        into = storerun.claim(root, slug)  # the store numbers the plan; plan.py's own template fills it
     if into is not None:
         number = int(into.name[:4])
     else:
@@ -570,7 +603,7 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
             number = plan_number.next_number(root, slug)
         except plan_number.NumberError as error:
             raise PlanError(str(error)) from error
-    path = (into or root / PLANS / f"{number:04d}-{slug}") / MAIN
+    path = (into or plans_dir(root) / f"{number:04d}-{slug}") / MAIN
     path.parent.mkdir(parents=True, exist_ok=True)
     values = folder.fields(root, number, title, goal, landing)
     subplans = schema == 2 and not master and not parallel_plan
@@ -807,10 +840,12 @@ def main(argv: list[str]) -> int:
     p_status.add_argument("status")
     p_status.add_argument("--plan")
     p_status.add_argument("--why", help="a schema 2 step's `why`: the blocked or dropped reason, a done note")
-    p_trailers = sub.add_parser("trailers", help="the origin trailers of a step's commit (Worktree, Plan, Step)")
+    p_trailers = sub.add_parser("trailers", help="the origin trailers of a step's commit (Worktree, Plan, Step); "
+                                                 "neutral commits: prints nothing, links the next commit in the store")
     p_trailers.add_argument("step", nargs="?", help="the step (schema 2: a ref, default the running one)")
     p_trailers.add_argument("--plan")
-    p_scope = sub.add_parser("scope", help="the commit subject's scope: <NNNN>|<step>, <master>|<NNNN>|<step>")
+    p_scope = sub.add_parser("scope", help="the commit subject's scope: <NNNN>|<step>, <master>|<NNNN>|<step>; "
+                                           "neutral commits: prints nothing (a unit scope or none)")
     p_scope.add_argument("step", nargs="?", default="")
     p_scope.add_argument("--plan")
     p_uat = sub.add_parser("uat")
@@ -873,6 +908,7 @@ def main(argv: list[str]) -> int:
     convert.add_parser(sub)
     p_new.add_argument("--parallel", action="store_true",
                        help="the step table gets the columns Needs, Touches and Who (a parallel plan)")
+    storerun.add_parsers(sub)
     args = parser.parse_args(argv)
 
     try:
@@ -880,6 +916,19 @@ def main(argv: list[str]) -> int:
             return run_global(args)
         root = args.root.resolve() if args.root else find_root(Path.cwd())
         refuse_subservant(root, args)
+        if args.command in storerun.EDIT_COMMANDS:
+            return storerun.edit(root, args)
+        if info := planhome.home(root):
+            return storerun.run(root, info, args, dispatch)
+        return dispatch(root, args)
+    except ERRORS as error:
+        print(f"plan.py: {error}", file=sys.stderr)
+        return 1
+
+
+def dispatch(root: Path, args) -> int:
+    """A repository's command on `root`'s plans (the files, or the store home's view: storerun.py)."""
+    try:
         if args.command == "check":
             return run_check(root, args.folders, args.json)
         if args.command == "convert":
@@ -900,14 +949,17 @@ def main(argv: list[str]) -> int:
             path = resolve(root, args.plan) if args.plan else current_path(root)
             if not args.step:
                 raise PlanError("trailers needs the step's number")
-            print("\n".join(trailers.lines(root, slug_of(path), [s["number"] for s in read_steps(path.read_text())],
-                                           args.step)))
+            found = trailers.lines(root, slug_of(path), [s["number"] for s in read_steps(path.read_text())], args.step)
+            if not neutral_commit.trailers(root, found):
+                print("\n".join(found))
             return 0
         if args.command == "scope":
             path = resolve(root, args.plan) if args.plan else current_path(root)
             text = path.read_text()
-            print(trailers.scope(slug_of(path), masterplan.parent_of(text), [s["number"] for s in read_steps(text)],
-                                 args.step))
+            head = trailers.scope(slug_of(path), masterplan.parent_of(text), [s["number"] for s in read_steps(text)],
+                                  args.step)
+            if not neutral_commit.scope(root):
+                print(head)
             return 0
         if args.command == "new":
             spec_info, into, designs = spec_link_args(root, args)
@@ -939,7 +991,7 @@ def main(argv: list[str]) -> int:
         elif args.command == "list":
             result = [describe_safe(root, p) for p in plan_files(root)]
         elif args.command == "leave":
-            result = masterplan_keep.leave(root / PLANS / POINTER, lambda p: read_steps(p.read_text()), args.release)
+            result = masterplan_keep.leave(root, lambda p: read_steps(p.read_text()), args.release)
         elif args.command == "use":
             path = resolve(root, args.plan)
             stays.guard_use(root, slug_of(path), args.here)
@@ -982,11 +1034,9 @@ def main(argv: list[str]) -> int:
             if note:
                 result["changelog_next"] = note
             if written:
-                result["step_file"] = str(written.relative_to(root))
+                result["step_file"] = rel(written, root)
             result.update(masterplan_keep.report(ticked))
-    except (PlanError, changelog.ChangelogError, seed.SeedError, names.NameTooLong, parallel.ParallelError,
-            step_prompt.PromptError, stays.Refused, masterplan.MasterplanError, trailers.TrailerError, spec_link.SpecLinkError,
-            shape_names.ShapeError) as error:
+    except ERRORS as error:
         print(f"plan.py: {error}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -1093,7 +1143,7 @@ def run_check(root: Path, folders: list[Path], as_json: bool = False) -> int:
         missing = [str(f) for f in folders if not (f / MAIN).is_file() and not (f / "spec.md").is_file()]
         if missing:
             raise PlanError(f"no plan folder (a folder holding {MAIN} or spec.md): {', '.join(missing)}")
-    else:
+    elif planhome.view_of(root) is None:  # the store numbers its plans: no clash to find
         with contextlib.redirect_stdout(sys.stderr if as_json else sys.stdout):
             code = plan_number.main(["--root", str(root), "check"])
     plans = [f.resolve() / MAIN for f in folders if (f / MAIN).is_file()] if folders else plan_files(root)
@@ -1116,12 +1166,11 @@ def run_check(root: Path, folders: list[Path], as_json: bool = False) -> int:
 def local_problems(root: Path, plans: list[Path]) -> tuple[list[str], str | None]:
     """The skill's own problems of `plans`: sizing (schema 1 by the step table, schema 2 by shape_check), Brief,
     names, the questions' Q form; and the questions' advisory line."""
-    rel = lambda p: os.path.relpath(p.resolve(), root.resolve())  # noqa: E731
+    rel = lambda p: in_root(p, root)  # noqa: E731
     shaped = {p for p in plans if p.name == MAIN and shape.is_shape(p.parent)}
-    pointer = root / PLANS / POINTER
     out = [line for p in plans if p not in shaped for line in steps_problems(p.read_text(), rel(p))]
     out += [line for p in plans for line in brief_problems(p.read_text(), rel(p))]
-    out += names.problems(root, plans, pointer.read_text().strip() if pointer.is_file() else "", slug_of)
+    out += names.problems(root, plans, current_name(root), slug_of)
     marker = parallel.subservant_marker(root, Path.cwd())
     lead = marker["plan"] if marker and shape_lead.subplan_of(marker) else None
     out += [line for p in sorted(shaped) for line in shape_check.problems(root, p.parent, p.parent.name == lead)]
@@ -1137,13 +1186,14 @@ def records_found(root: Path, folders: list[Path], plans: list[Path]):
     if skipped and folders and {f.resolve() for f in folders} <= {s.resolve() for s in shaped}:
         return (0, []), skipped
     try:
-        found = check_records(root, [f.resolve() for f in folders])
+        found = storerun.records(root, folders) if planhome.view_of(root) else \
+            check_records(root, [f.resolve() for f in folders])
     except checker.CheckerError as error:
         if not skipped:
             raise
         return (0, []), f"{skipped}; the other plans unchecked too ({error})"
     if found and skipped:
-        prefixes = tuple(f"{os.path.relpath(s, root.resolve())}/" for s in shaped)
+        prefixes = tuple(f"{in_root(s, root)}/" for s in shaped)
         found = (found[0], [line for line in found[1] if not line.startswith(prefixes)])
     return found, skipped
 
@@ -1152,7 +1202,7 @@ def question_problems(root: Path, plans: list[Path]) -> tuple[list[str], str | N
     """The Q-form problems of the questions.md of every record plan checked (qcheck.py, rule `questions-q-form`):
     an open question of the agent needs exactly three option lines; the advisory line when hal2-cli-plans is not
     there. A legacy plan (no front matter) and a plan without a questions.md pass."""
-    stores = [(os.path.relpath(p.resolve().parent / "questions.md", root.resolve()), p.parent / "questions.md")
+    stores = [(in_root(p.parent / "questions.md", root), p.parent / "questions.md")
               for p in plans if p.name == MAIN and (p.parent / "questions.md").is_file()
               and folder.is_record(p.read_text())]
     return qcheck.check(stores) if stores else ([], None)

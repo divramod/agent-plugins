@@ -5,9 +5,11 @@
       the facts and the planned actions per job, nothing changed; sizes come from the cache when HEAD and mtime match;
       `--cached-sizes`: cache hits only, a miss is unknown, no walk (a quick answer).
       Exit 0, 1 an unreadable tool answer or config, 2 a tool missing.
-  prune.py run [--dry-run] [--field NN]... [--repo DIR]
+  prune.py run [--dry-run] [--responses] [--field NN]... [--repo DIR]
       the plan carried out one field at a time (executor.py), printed as workflow commands for
       `hal2-cli-runs exec --workflow prune -- prune.py run`; `--dry-run` changes nothing ("would ...").
+      `--responses`: only the disk watermark's responses (plan 0472 D2: `tart prune --entries caches`, the caches of
+      `.hal/prune.toml`'s `[caches] paths`), when the disk is still above the goal and no train builds.
       Exit 0 done or another run holds the farm lock ("already running: ..."), 1 an action failed, 2 a tool missing.
 """
 
@@ -28,7 +30,7 @@ def cmd_plan(args) -> int:
     found = facts.collect(main, only=only, cached_sizes=args.cached_sizes)
     p = planner.plan(found, only)
     if args.json:
-        print(json.dumps({"plan": p, "facts": {k: found[k] for k in ("main", "disk", "config", "cars", "fields")}},
+        print(json.dumps({"plan": p, "facts": {k: found[k] for k in ("main", "busy", "disk", "config", "cars", "fields")}},
                          indent=2))
     else:
         print("\n".join(["facts:", *(f"  {planner.field_line(f)}" for f in found["fields"]), *planner.lines(p)]))
@@ -36,7 +38,8 @@ def cmd_plan(args) -> int:
 
 
 def cmd_run(args) -> int:
-    return executor.run(mtm_scan.main_checkout(args.repo), set(args.field) or None, args.dry_run)
+    only = set() if args.responses else set(args.field) or None  # an empty set: no field, just the responses
+    return executor.run(mtm_scan.main_checkout(args.repo), only, args.dry_run, responses_only=args.responses)
 
 
 def main(argv: list[str]) -> int:
@@ -47,6 +50,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--cached-sizes", action="store_true", help="sizes from the cache only (a miss is unknown), no walk")
     r = sub.add_parser("run", help="carry the plan out, as workflow commands")
     r.add_argument("--dry-run", action="store_true", help="change nothing, say what would be done")
+    r.add_argument("--responses", action="store_true", help="only the disk watermark's responses (tart cache, caches)")
     for x in (p, r):
         x.add_argument("--field", action="append", default=[], metavar="NN", help="only this field (repeatable)")
         x.add_argument("--repo", default=".")

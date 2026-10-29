@@ -19,6 +19,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import commit_origin  # the origin paragraph: none where the farm's commits are neutral (plan 0409 D15)
 import deliver
 import roles
 import timer
@@ -99,7 +100,7 @@ class Migration:
             self.must(self.old, "add", "--", str(rel))
         if git(self.old, "diff", "--cached", "--quiet")[0]:
             self.must(self.old, "commit", "-q", "-m", f"chore(roles): move the {self.role}'s role file into {rel}/",
-                      "-m", "Written by farmer.py migrate.", "-m", f"Worktree: {self.old.name}")
+                      "-m", "Written by farmer.py migrate.", *commit_origin.paragraph(str(self.old)))
             self.steps.append(f"committed {rel}/ in {self.old}")
 
     def default_ref(self) -> str:

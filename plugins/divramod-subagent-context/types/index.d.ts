@@ -17,8 +17,8 @@ export type SubagentRow = {
   large?: boolean
 }
 
-// One Claude Code session of this machine, from `~/.claude/sessions/<pid>.json`; `plan` is its folder's `plans/CURRENT_PLAN`,
-// `lead` the first line of its `plans/LEAD` (`<foreman's field> <plan> <step>`, empty when the file is not there).
+// One Claude Code session of this machine, from `~/.claude/sessions/<pid>.json`; `plan` is its folder's `CURRENT_PLAN`,
+// `lead` the first line of its `LEAD` (`<foreman's field> <plan> <step>`, empty when the file is not there).
 export type SessionRow = { id: string; pid: number; name: string; cwd: string; kind: string; status: string; startedAt: number; plan: string; lead: string; here: boolean }
 
 // The step a row of the roll-up works on next; `status` is the step table's word, empty while the step is open.

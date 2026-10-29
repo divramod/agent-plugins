@@ -4,8 +4,9 @@
   free.py [--repo DIR] [--all]
 
 A worktree is free when an agent session runs in it, none of its agents is busy (working, starting,
-blocked) and it holds no work: plans/CURRENT_PLAN names nothing, no uncommitted changes, no commits not merged
-into main, no landing of it running, waiting or holding the merge queue. Being behind main is fine (/mfm).
+blocked) and it holds no work: the CURRENT_PLAN pointer names nothing, no uncommitted changes, no commits not merged
+into main, no landing of it running, waiting or holding the merge queue, and it is not paused (`hal2-cli-git worktree
+paused`, plan 0458: a paused field is never offered; `--all` says "paused by <by>: <why>"). Being behind main is fine (/mfm).
 --all lists every worktree with the reason it is not free. Prints JSON. Exit 2 when a hal2 CLI is missing.
 """
 import json
@@ -54,7 +55,23 @@ def queued(repo: Path) -> dict[str, str]:
     return {t["slot"]: t.get("state") or "queued" for t in queue if t.get("repo") == repo.name and t.get("slot")}
 
 
-def why_not_free(agents: list[dict], w: dict, landing: str | None) -> str | None:
+def paused_fields(repo: Path) -> dict[str, str]:
+    """{field: "paused by <by>: <why>"} from `hal2-cli-git worktree paused --json` (hal2 plan 0458, D2: never the file).
+    An older CLI without the command, or an answer that cannot be read, is nothing paused."""
+    if not shutil.which("hal2-cli-git"):
+        return {}
+    r = subprocess.run(["hal2-cli-git", "worktree", "paused", "--json"], cwd=repo, capture_output=True, text=True)
+    try:
+        rows = json.loads(r.stdout).get("fields", []) if r.returncode == 0 else []
+    except (ValueError, AttributeError):
+        return {}
+    return {str(p["field"]): f"paused by {p.get('by') or '?'}: {p.get('why') or 'no reason given'}"
+            for p in rows if isinstance(p, dict) and p.get("field")}
+
+
+def why_not_free(agents: list[dict], w: dict, landing: str | None, paused: str | None = None) -> str | None:
+    if paused:
+        return paused
     if not agents:
         return "no session running"
     busy = [a["state"] for a in agents if a.get("state") in BUSY]
@@ -73,13 +90,13 @@ def why_not_free(agents: list[dict], w: dict, landing: str | None) -> str | None
 
 def rows(repo: Path) -> list[dict]:
     listed = json.loads(run("hal2-cli-git", "worktree", "list", "--json", cwd=repo)).get("worktrees", [])
-    slots, queue = agents_by_slot(repo), queued(repo)
+    slots, queue, paused = agents_by_slot(repo), queued(repo), paused_fields(repo)
     out = []
     for w in listed:
         if w.get("main"):
             continue
         slot, agents = w["name"], slots.get(w["name"], [])
-        why = why_not_free(agents, w, queue.get(w["name"]))
+        why = why_not_free(agents, w, queue.get(w["name"]), paused.get(w["name"]))
         out.append({
             "slot": slot,
             "free": why is None,

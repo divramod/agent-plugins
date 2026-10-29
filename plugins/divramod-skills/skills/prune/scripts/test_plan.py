@@ -70,7 +70,7 @@ class Free(unittest.TestCase):
 class StalePointer(unittest.TestCase):
     def ptr(self, state, unsaved=(), **more):
         return field("13", pointer={"plan": "0149-x", "state": state}, unsaved=list(unsaved),
-                     proof="plans/CURRENT_PLAN names 0149-x", **more)
+                     proof="the CURRENT_PLAN pointer names 0149-x", **more)
 
     def test_pr4_a_finished_plan_with_nothing_off_main_is_cleared_and_rechecked(self):
         p = planner.plan(farm(self.ptr("finished")))
@@ -139,6 +139,28 @@ class Servants(unittest.TestCase):
         p = planner.plan(farm(field("40", lead=self.lead(miss)), free_gb=100))
         self.assertEqual(acts(p, "phase-1"), [("40", "ask")])
         self.assertEqual(acts(p, "phase-2"), [("40", "trim")])
+
+
+class TrainBuilding(unittest.TestCase):
+    """Plan 0472 D1: no trim and no muck out while a workqueue hold stands; a removal goes on; trims return after it."""
+    WAIT = "deferred: train building (hold h1 of field 31, holding)"
+
+    def facts(self, busy=None):
+        fs = [field("04", sizes=None), field("05", sessions=[sess(120)]), field("03", free=True), field("23", free=True)]
+        return {**farm(*fs, free_gb=100), "busy": busy}
+
+    def test_no_trim_and_no_muck_out_while_a_hold_is_active(self):
+        p = planner.plan(self.facts(self.WAIT))
+        for job in ("phase-2", "phase-3"):
+            self.assertEqual((acts(p, job), p["jobs"][job]["skipped"]), ([], self.WAIT), job)
+        self.assertEqual(acts(p, "phase-1"), [("23", "remove")], "the removal needs no walk")
+        self.assertEqual(p["busy"], self.WAIT)
+        self.assertIn(("03", self.WAIT), [(x["field"], x["why"]) for x in p["left"]])
+
+    def test_trims_and_the_muck_out_return_when_the_hold_ends(self):
+        p = planner.plan(self.facts(None))
+        self.assertEqual(acts(p, "phase-1"), [("03", "muck-out"), ("23", "remove")])
+        self.assertTrue(acts(p, "phase-2") or acts(p, "phase-3"))
 
 
 class Busy(unittest.TestCase):
@@ -230,7 +252,7 @@ class IdleLive(unittest.TestCase):
 class Order(unittest.TestCase):
     def test_pr16_the_jobs_come_in_the_briefs_order(self):
         p = planner.plan(farm(field("13", size=GB), free_gb=100))
-        self.assertEqual(list(p["jobs"]), ["stale-pointers", "phase-1", "phase-2", "phase-3"])
+        self.assertEqual(list(p["jobs"]), ["stale-pointers", "phase-1", "phase-2", "phase-3", "responses"])
         self.assertEqual(list(p["jobs"]), list(planner.JOBS))
 
     def test_pr16_the_last_trains_cars_first_then_the_biggest_then_by_slot(self):

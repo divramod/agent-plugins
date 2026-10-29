@@ -13,6 +13,7 @@ import folder as plan_folder
 import names
 import shape
 import shape_names as sn
+import planhome
 from shape_docs import PlanStep, Subplan
 from shape_names import ShapeError
 
@@ -128,7 +129,7 @@ def add_subplan(root: Path, folder: Path, title: str, goal: str = "", wave: int 
                   wave=wave, body=subplan_body(number, title, goal))
     path = write_subplan(folder, number, slug_of(title), doc)
     return {"added": "subplan", "plan": folder.name, "subplan": path.parent.name, "wave": wave,
-            "file": path.relative_to(root).as_posix(), "overview": shape.write_overview(root, folder)}
+            "file": planhome.rel(path, root, posix=True), "overview": shape.write_overview(root, folder)}
 
 
 def find_subplan(work: list, ref: str):
@@ -159,4 +160,4 @@ def add_step(root: Path, folder: Path, subplan: str, title: str, wave: int | Non
     wide = number > 99 or any(len(Path(s.file).stem) > len("step-NN") for s in sub.steps)
     path = write_step(folder / Path(sub.file).parent, number, doc, wide)
     return {"added": "step", "plan": folder.name, "ref": str(sn.StepRef(sub.id.number, number)), "wave": wave,
-            "file": path.relative_to(root).as_posix(), "overview": shape.write_overview(root, folder)}
+            "file": planhome.rel(path, root, posix=True), "overview": shape.write_overview(root, folder)}

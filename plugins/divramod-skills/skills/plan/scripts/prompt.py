@@ -10,6 +10,7 @@ from pathlib import Path
 
 import session
 import sizing
+import planhome
 
 TITLE_WORDS = 6
 TASK = re.compile(r"^## Task[ \t]*\n(.*?)(?=^## |\Z)", re.M | re.S)
@@ -66,7 +67,7 @@ def repo_name(root: Path) -> str:
 def text(root: Path, plan: Path, row: dict, others: list[dict], part: int | None) -> str:
     """The subagent's prompt (D9): where it works, what it reads first, the rules, the final reply."""
     n, number = row["number"], plan.parent.name[:4]
-    rel = lambda p: str(p.relative_to(root))  # noqa: E731
+    rel = lambda p: planhome.rel(p, root)  # noqa: E731
     step_file = plan.parent / "steps" / f"{n}.md"
     reads = [f"the plan {rel(plan)} (its row {n} and its Context)", f"your task {rel(step_file)}"]
     if (plan.parent / "decisions.md").is_file():
@@ -79,7 +80,8 @@ def text(root: Path, plan: Path, row: dict, others: list[dict], part: int | None
     return "\n\n".join([
         f"You are the subagent for step {n} of plan {number} in the {repo_name(root)} repository. Work only in the "
         f"git worktree {root}.{retry}",
-        "Read first: " + "; ".join(reads) + (f". The repo's rules: {rules}." if rules else "."),
+        "Read first: " + "; ".join(reads) + (f". The repo's rules: {rules}." if rules else ".")
+        + planhome.store_note(root, number),
         "Rules: edit files, but never commit, push, land or change git state, and never edit plan.md (the "
         "coordinator reviews and commits). First write your step file's `## Approach`; at the end its `## Notes` "
         "(what changed, the checks and results, what you decided). Stay inside your step (the other open steps: "
@@ -98,7 +100,7 @@ def call(root: Path, plan: Path, row: dict, others: list[dict], columns: dict | 
     n = row["number"]
     step_file = plan.parent / "steps" / f"{n}.md"
     if not task_written(step_file):
-        raise PromptError(f"{step_file.relative_to(root)} has no written `## Task`: write the step's task first "
+        raise PromptError(f"{planhome.rel(step_file, root)} has no written `## Task`: write the step's task first "
                           f"(`plan.py status {n} next` scaffolds the file)")
     if columns is not None:
         missing = [sizing.TITLES[k] for k in sizing.SIZED if k not in columns]

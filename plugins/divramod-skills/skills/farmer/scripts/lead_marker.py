@@ -9,7 +9,14 @@ without session and unmerged work); a running servant's is in use. Used by mtm_s
 
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import load, pointers as _pointers  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+planread = load("plan", "planread", __file__)  # a plan's files in either home (hal2 plan 0409 step 9)
+pointers = _pointers(__file__)  # a checkout's LEAD in the git dir, else plans/ (hal2 plan 0409 step 12)
 
 IN_USE, STALE, UNKNOWN = "in-use", "stale", "unknown"
 GONE = {"ended", "failed"}  # an agent state that is no session any more
@@ -17,6 +24,11 @@ GONE = {"ended", "failed"}  # an agent state that is no session any more
 LEAD = Path("plans/LEAD")
 NUMBERED = re.compile(r"\d\d")
 IGNORED = (":!plans/LEAD", ":!plans/CURRENT_PLAN")  # a marked worktree's runtime files, ignored or not
+
+
+def current_plan(path: str | Path) -> str:
+    """The checkout's CURRENT_PLAN text (the git dir's, else plans/), "" without one."""
+    return pointers.read(path, "CURRENT_PLAN")
 
 
 def git(path: str | Path, *args: str) -> str:
@@ -36,8 +48,9 @@ def ok(path: str | Path, *args: str) -> bool:
 
 
 def marker(path: str | Path) -> dict | None:
-    """plans/LEAD as {slot, plan, step}; a malformed one as {bad: True, error, text}; None without the file."""
-    f = Path(path) / LEAD
+    """plans/LEAD (the git dir's, else plans/) as {slot, plan, step}; a malformed one as {bad: True, error, text}; None
+    without the file."""
+    f = pointers.path(path, "LEAD")
     if not f.is_file():
         return None
     try:
@@ -63,7 +76,7 @@ def ref_exists(path: str | Path, ref: str) -> bool:
 
 def unsaved_for_lead(path: str | Path, slot: str, lead: str) -> list[str]:
     """What a servant's worktree holds that `lead` (origin/<foreman-worktree>) lacks: commits on HEAD, origin/NN or a side
-    branch, changes (plans/LEAD and plans/CURRENT_PLAN aside: they mark the worktree, they are not work)."""
+    branch, changes (plans/LEAD and the CURRENT_PLAN pointer aside: they mark the worktree, they are not work)."""
     out = []
     for ref in ["HEAD", *([f"origin/{slot}"] if ref_exists(path, f"origin/{slot}") else []),
                 *git(path, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}-*").split()]:
@@ -146,7 +159,7 @@ def foreman_over(foreman: Path, lead: dict) -> tuple[bool | None, str]:
     slot, plan = lead["slot"], lead["plan"]
     if not (foreman / ".git").exists():
         return None, f"field {slot} is not readable"
-    folder, flat = foreman / "plans" / plan / "plan.md", foreman / "plans" / f"{plan}.md"
+    folder, flat = planread.plan_dir(foreman, plan) / "plan.md", foreman / "plans" / f"{plan}.md"
     f = folder if folder.is_file() else flat
     if not f.is_file():
         return True, f"plan {plan} is gone from field {slot}"
@@ -163,7 +176,7 @@ def foreman_over(foreman: Path, lead: dict) -> tuple[bool | None, str]:
 
 def unmerged(path: str | Path, slot: str, default: str) -> tuple[bool | None, list[str]]:
     """What the field holds that the default branch lacks (commits on HEAD or a side branch NN-*, uncommitted changes;
-    plans/LEAD and plans/CURRENT_PLAN aside): (True, what), (False, []), or (None, []) when it cannot be read."""
+    plans/LEAD and the CURRENT_PLAN pointer aside): (True, what), (False, []), or (None, []) when it cannot be read."""
     if read(path, "rev-parse", "--verify", "--quiet", f"{default}^{{commit}}") in (None, ""):
         return None, []
     out, unread = [], False

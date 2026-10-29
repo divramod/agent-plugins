@@ -9,7 +9,7 @@ its `run` actions; none waits for CI.
       (train_wt.py, plan 0375 D5; every later verb runs there, its branch the carrier; a breakup, the asleep round's
       drop and the landed train drop it through the never-delete proof): the yard's uncommitted work as the first car (yard.py:
       what it can place, one commit; it never fails a train; engine_yard.py), then each car's head merged in
-      order (a merge commit per car, frozen.merge_car), plans/CURRENT_PLAN written (`yard` and the cars' plan names
+      order (a merge commit per car, frozen.merge_car), the CURRENT_PLAN pointer written (`yard` and the cars' plan names
       joined by ` + `: the land run's title; its bracket shows the cars' worktrees, `[02|03]`, the yard as `main`, never this field, plan 0352), then
       `restart`. Before the cars the field's remote branch goes back on its head when an earlier train's end left that
       train there (carrier.py, plan 0313 step 14). A car that does not merge, or a mark the queue refuses, undoes this
@@ -30,8 +30,9 @@ its `run` actions; none waits for CI.
       `restart` names it). It stays that landing's parent until it ends, because a merge-to-main whose starter is
       gone ends `interrupted`
   engine.py landed [--run <url>] [--commit <sha>] [--repo <field>]
-      the train is in the barn: the field fast-forwarded to it, plans/CURRENT_PLAN gone; the files the yard's
-      car carried leave the yard where they are still the same, and the yard is fast-forwarded (yard.settle)
+      the train is in the barn: the field fast-forwarded to it, the CURRENT_PLAN pointer gone; the files the yard's
+      car carried leave the yard where they are still the same, and the yard is fast-forwarded (yard.settle); in a
+      farm whose plans live in its store, its sync trigger (`sync --if-due landing`, the plan skill's planread.py)
   engine.py red --status <status> [--run <url>] [--why <text>] [--repo <field>]
       the landing did not land; the train waits, frozen, for its fix or the session's `retry` (no wait limit, D7)
   engine.py breakup --why <text> [--by-user] [--repo <field>]
@@ -54,6 +55,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import frozen
 import generated
+import mirror
 import mtm_scan
 import next_train
 import origin
@@ -61,9 +63,13 @@ import pretest_train
 import train_branch
 import train_state
 import train_wt
+import workqueue_hold
 from carrier import Done, git, push_base
 from engine_yard import load_yard, settle_yard
 from tick import default_ref
+from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
+
+planread = load("plan", "planread", __file__)  # the plan store's sync trigger (hal2 plan 0409 step 9)
 
 HAL = "hal2-cli-git"
 LAND = [HAL, "worktree", "merge-to-main", "--json"]
@@ -178,7 +184,7 @@ def fresh(top: str, train: dict) -> Done:
     if git(top, "log", "-1", "--format=%s")[1] != subject:
         why = train.get("retried") or "a flaky gate"
         code, out = git(top, "commit", "-q", "--allow-empty", "-m", subject, "-m", f"Landed again on a fresh run: {why}",
-                        "-m", origin.trailers([c["field"] for c in train.get("cars") or []]))
+                        *origin.paragraph(top, [c["field"] for c in train.get("cars") or []]))
         if code:
             return code, out
     return git(top, "rev-parse", "HEAD")
@@ -191,10 +197,11 @@ def land(top: str, ref: str | None = None) -> int:
     code, out = cli(["worktree", "queue", "train", Path(top).name, "--pid", str(os.getpid()), "--json"], top)
     print(*["tollman: the train's pid is not on its mark:", out[-200:]] * bool(code), flush=True)
     argv = LAND + ["--land-ref", ref] * bool(ref)
-    if pretest_train.before_landing(top):
-        return 1
-    next_train.before_push(top)
-    return subprocess.run(argv, cwd=top).returncode
+    with workqueue_hold.landing_hold(top):
+        if pretest_train.before_landing(top):
+            return 1
+        next_train.before_push(top)
+        return subprocess.run(argv, cwd=top).returncode
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
@@ -203,7 +210,7 @@ def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.
         return 0, "no train stands"
     default = fetch(top)
     code, out = git(top, "merge", "-q", "--ff-only", default)  # the landing reset the field: this makes sure
-    (Path(top) / CURRENT).unlink(missing_ok=True)
+    frozen.POINTERS.remove(top, CURRENT)
     home = settle_yard(main, train, default)
     train_state.append(main, "landed", field, now, train=train["train"], cars=[c["field"] for c in train["cars"]],
                        run=run, commit=commit, yard=home)
@@ -212,6 +219,9 @@ def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.
     if home:
         behind += (f"; the yard: {len(home['dropped'])} carried files dropped, {len(home['kept'])} kept, "
                    + ("fast-forwarded" if home["pulled"] else f"not fast-forwarded ({home['why']})"))
+    if planread.sync(main, "landing") is not None:
+        behind += "; the plan store synced"  # the cars' plans reach the state ref (nothing in the files home)
+    behind += mirror.publish(main)  # a public farm's snapshot mirror, from this machine (plan 0409 step 15)
     return 0, f"train {train['train']} is in the barn{behind}"
 
 
@@ -251,7 +261,7 @@ def clear(top: str, why: str, now: dt.datetime | None = None) -> Done:
     if train and not gone:
         git(top, "merge", "--abort")
         code, out = git(top, "reset", "-q", "--keep", train["base"]) if train.get("base") else (0, "")
-        (Path(top) / CURRENT).unlink(missing_ok=True)
+        frozen.POINTERS.remove(top, CURRENT)
         if code:
             return 1, f"{field} did not go back to {train['base']}: {out[-300:]}"
         pushed = push_base(top, field, train["base"]) if train.get("base") else ""

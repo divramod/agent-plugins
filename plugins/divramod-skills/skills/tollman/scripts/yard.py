@@ -42,6 +42,7 @@ import yard_rules as rules
 MAX = 5 * 1024 * 1024
 SUBJECT = "chore(yard): {n} file{s} from the yard"
 BODY = "Brought in by the tollman from the main checkout, as the train's first car (hal2 plan 0294, D15).\n\n"
+BODY_NEUTRAL = "Brought in from the main checkout, as the train's first car.\n\n"
 CONFLICT = frozenset(("DD", "AU", "UD", "UA", "DU", "AA", "UU"))
 UNDER_WAY = {"MERGE_HEAD": "a merge", "rebase-merge": "a rebase", "rebase-apply": "a rebase",
              "CHERRY_PICK_HEAD": "a cherry-pick", "REVERT_HEAD": "a revert", "BISECT_LOG": "a bisect"}
@@ -250,8 +251,10 @@ def carry(yard: str, field: str, placed: list[dict], cars: list[dict] | tuple = 
         if carried:
             n = len(carried)
             body = BODY + "\n".join(f"- {c['path']}" for c in carried[:100]) + ("\n- ..." if n > 100 else "")
+            if origin.neutral(field):  # neutral commits (plan 0409 D15): no plan mark in the body, no trailers
+                body = body.replace(BODY, BODY_NEUTRAL, 1)
             done = run(field, "commit", "-q", "-m", SUBJECT.format(n=n, s="" if n == 1 else "s"), "-m", body,
-                       "-m", origin.trailers([origin.YARD]), *FROM,
+                       *origin.paragraph(field, [origin.YARD]), *FROM,
                        data="\0".join(c["path"] for c in carried))
         why = done.stderr.strip()[-300:] or "git failed" if done.returncode else ""
     except (OSError, subprocess.SubprocessError) as e:

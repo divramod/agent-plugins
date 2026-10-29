@@ -386,5 +386,24 @@ class SessionEffort(Field):
             self.assertIn("never ask", text.lower().replace("never asked", "never ask"), name)
 
 
+class QuietSkipsTheTick(unittest.TestCase):
+    """hal2 plan 0442 D11: while the machine is quiet a tick does nothing, not even the minute's watch."""
+
+    def test_a_tick_while_quiet_is_skipped(self):
+        import argparse
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "quiet.json").write_text(json.dumps({"schema": 1, "active": True, "holds": {}}))
+            args = argparse.Namespace(repo=tmp, dry_run=False, json=False, all_due=False)
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"HAL2_STATE_DIR": tmp}), \
+                    mock.patch.object(tollman.minute, "light", side_effect=AssertionError("minute")), \
+                    mock.patch.object(tollman.board, "safely", side_effect=AssertionError("board")), \
+                    mock.patch.object(role_cli, "run_tick", side_effect=AssertionError("round")), \
+                    contextlib.redirect_stdout(out):
+                self.assertEqual(tollman.tick(args), 0)
+            self.assertIn("the machine is quiet", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Write a feature's spec before its plan — `/spec <title>` asks the user one round of questions (problem, users and goals, scope, requirements and constraints, acceptance), takes the next plan number and writes `plans/<NNNN>-<slug>/spec.md` (Problem, Users and goals, Scope, Requirements, Acceptance criteria in Given-When-Then, Open questions, Design), names the folder in `plans/CURRENT_PLAN` and runs `/design create` when anything needs designing. The folder has no `plan.md`, so it can be committed and landed for later; `/plan new --spec <n>` plans it then. `/spec <n>` continues a spec, `/spec approve [<n>]` approves it, `/spec list` lists the specs. Use when the user says /spec, "write a spec", "spec this feature", "I want a spec first" or "describe the feature before planning". `/spec h` shows help.
+description: Write a feature's spec before its plan — `/spec <title>` asks the user one round of questions (problem, users and goals, scope, requirements and constraints, acceptance), takes the next plan number and writes `plans/<NNNN>-<slug>/spec.md` (Problem, Users and goals, Scope, Requirements, Acceptance criteria in Given-When-Then, Open questions, Design), names the folder in the `CURRENT_PLAN` pointer and runs `/design create` when anything needs designing. The folder has no `plan.md`, so it can be committed and landed for later; `/plan new --spec <n>` plans it then. `/spec <n>` continues a spec, `/spec approve [<n>]` approves it, `/spec list` lists the specs. Use when the user says /spec, "write a spec", "spec this feature", "I want a spec first" or "describe the feature before planning". `/spec h` shows help.
 ---
 
 # spec
@@ -8,12 +8,15 @@ description: Write a feature's spec before its plan — `/spec <title>` asks the
 `S=<skill-dir>/scripts`. A spec is a plan folder before its plan: `plans/<NNNN>-<slug>/spec.md`, beside it the design
 skill's `design/` and `design.html`, no `plan.md` (decisions D8 and D9 of hal2 plan 0364). It is the long description,
 what and why, never how; the plan written from it later summarises it in its Brief. `spec.py` is the deterministic
-part (number, slug, file, `plans/CURRENT_PLAN`, the approval); you ask, write the text and judge what needs designing.
+part (number, slug, file, the `CURRENT_PLAN` pointer, the approval); you ask, write the text and judge what needs designing.
+In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`, hal2 plan 0409) the spec is the
+store's: every `spec.py` answer adds `dir`, its copy outside the tree; write spec.md there, never under `plans/`, and
+`spec.py show` (or `approve`) takes the copy in.
 
 | Call | Does |
 |---|---|
 | `/spec <title>` | ask one round of questions, write a new spec folder, design what needs it |
-| `/spec [<n>]` | continue the spec `<n>` (number, folder name, slug part), else the one in `plans/CURRENT_PLAN` |
+| `/spec [<n>]` | continue the spec `<n>` (number, folder name, slug part), else the one in the `CURRENT_PLAN` pointer |
 | `/spec approve [<n>]` | approve a spec whose every section is written (`spec.py approve`) |
 | `/spec list` | every spec folder: status, design page, whether a plan.md exists |
 | `/spec h` | print this table and stop |
@@ -42,7 +45,7 @@ An unanswered question never stops the spec: it goes into the spec's `## Open qu
 
 1. `python3 $S/spec.py new "<title>"` (at most four words: plan-names-are-short; `--fetch` first when other clones
    may have taken numbers). It takes the next number with the plan skill's `plan_number.py` (never a hand number),
-   writes `spec.md` from `templates/spec.md` and names the folder in `plans/CURRENT_PLAN`. It refuses in a field whose `plans/CURRENT_PLAN` names a started plan (`--here` only on the user's words: the plan goes to `plans/PREVIOUS_PLAN`). It refuses a long title
+   writes `spec.md` from `templates/spec.md` and names the folder in the `CURRENT_PLAN` pointer. It refuses in a field whose `CURRENT_PLAN` pointer names a started plan (`--here` only on the user's words: the plan goes to `plans/PREVIOUS_PLAN`). It refuses a long title
    and a slug a folder of `plans/` already has: then continue that one or pick another title.
 2. Fill every section of `spec.md` from the answers; replace every `<...>` placeholder. Ids: goals `G<n>`,
    requirements `R<n>`, acceptance criteria `A<n>` (one table row each: ID, Given, When, Then; happy, edge and failure
@@ -77,7 +80,7 @@ change it only on the user's word and tell the plan's foreman. An approved spec 
 - Never write `plan.md` here: that is the plan skill's `new --spec`. Never number a folder by hand.
 - A spec folder passes the checkers as it is: `python3 <plan skill>/scripts/plan.py check plans/<folder>` (its records
   only) and `hal2-cli-records check`; its number counts as taken for every plan and spec (`plan_number.py list`).
-- While `plans/CURRENT_PLAN` names a spec folder, the plan skill's `current` says it names no plan: expected until
+- While the `CURRENT_PLAN` pointer names a spec folder, the plan skill's `current` says it names no plan: expected until
   `plan.md` exists.
 
 Prerequisites: `scripts/check-prerequisites.sh` (python3, git); the plan skill beside this one (`plan_number.py`,

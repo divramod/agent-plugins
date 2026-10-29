@@ -6,14 +6,17 @@ A spec is a plan folder before its plan: `plans/<NNNN>-<slug>/spec.md` (and the 
 worktree or branch gets it twice) and its slug by the plan skill's naming rule (`names.py`: at most four words).
 
   spec.py new "<title>" [--description <d>] [--fetch] [--json]   write plans/<NNNN>-<slug>/spec.md from
-                                                                  templates/spec.md and name it in plans/CURRENT_PLAN
+                                                                  templates/spec.md and name it in the CURRENT_PLAN pointer
   spec.py show [<spec>] [--json]                                  a spec: its front matter, sections, placeholders
                                                                   left, its design.html and whether it has a plan.md
   spec.py list [--json]                                           every spec folder of plans/
   spec.py approve [<spec>]                                        status draft -> approved (refused while a
                                                                   placeholder of the template is left)
 
-<spec> is a number (`365`, `0365`), a folder name or a part of its slug; without it, plans/CURRENT_PLAN. `new` refuses
+In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`) the spec is the store's and its
+copy lives outside the tree: every answer adds `dir`, the folder to edit spec.md in (store_home.py).
+
+<spec> is a number (`365`, `0365`), a folder name or a part of its slug; without it, the CURRENT_PLAN pointer. `new` refuses
 a title of more than four words and a slug a folder of plans/ already has. `--repo <dir>` names the checkout (default:
 git's top level of the working directory). Exit 0 ok, 1 refused or not found, 2 bad arguments or git missing.
 """
@@ -36,6 +39,8 @@ import envelope  # noqa: E402  (the plan skill's front matter reader)
 import occupied  # noqa: E402  (a started plan keeps the field, plan 0376 D2)
 import names  # noqa: E402  (plan-names-are-short)
 import plan_number  # noqa: E402  (unique numbers across worktrees and branches)
+import planhome  # noqa: E402  (files or store, hal2 plan 0409)
+import pointers  # noqa: E402  (CURRENT_PLAN: the git dir's in the store home, else plans/)
 
 PLANS = "plans"
 POINTER = "CURRENT_PLAN"
@@ -45,6 +50,9 @@ DESIGN = "design.html"
 FOLDER = re.compile(r"^(\d{4})-([a-z0-9-]+)$")
 PLACEHOLDER = re.compile(r"<[a-z][^<>\n]*>")
 STATUSES = ("draft", "approved")
+
+
+CLAIM = None  # the store home's numbering (store_home.py sets it for `new`), None in the files home
 
 
 class SpecError(Exception):
@@ -73,18 +81,17 @@ def slugify(title: str) -> str:
 
 
 def spec_folders(root: Path) -> list[Path]:
-    """Every `plans/<NNNN>-<slug>/` holding a spec.md, by number."""
-    folder = root / PLANS
+    """Every `plans/<NNNN>-<slug>/` holding a spec.md, by number (in the store home: of the view, planhome.py)."""
+    folder = planhome.plans_dir(root)
     if not folder.is_dir():
         return []
     return sorted(p for p in folder.iterdir() if p.is_dir() and FOLDER.match(p.name) and (p / SPEC).is_file())
 
 
 def resolve(root: Path, ref: str | None) -> Path:
-    """The spec folder `ref` names (number, folder name, slug part), else the one plans/CURRENT_PLAN names."""
+    """The spec folder `ref` names (number, folder name, slug part), else the one CURRENT_PLAN pointer names."""
     if not ref:
-        pointer = root / PLANS / POINTER
-        ref = pointer.read_text().strip() if pointer.is_file() else ""
+        ref = pointers.read(root, POINTER)
         if not ref:
             raise SpecError(f"no spec named and {PLANS}/{POINTER} is missing or empty: name one (spec.py list)")
     ref = ref.strip().rstrip("/").removeprefix(f"{PLANS}/").removesuffix(f"/{SPEC}")
@@ -120,7 +127,7 @@ def describe(root: Path, folder: Path) -> dict:
     text = (folder / SPEC).read_text()
     front, _ = envelope.split(text)
     meta = envelope.parse(front) if front is not None else {}
-    rel = folder.relative_to(root).as_posix()
+    rel = planhome.rel(folder, root, posix=True)
     return {
         "number": folder.name[:4], "slug": folder.name, "folder": rel, "spec": f"{rel}/{SPEC}",
         "title": meta.get("title", ""), "description": meta.get("description", ""),
@@ -133,7 +140,7 @@ def describe(root: Path, folder: Path) -> dict:
 
 
 def new(root: Path, title: str, description: str = "", fetch: bool = False, here: bool = False) -> dict:
-    """Write the spec folder and name it in plans/CURRENT_PLAN; refused before any number is taken, and in an
+    """Write the spec folder and name it in the CURRENT_PLAN pointer; refused before any number is taken, and in an
     occupied field (a started plan is current) unless `here`: the user's switch, the plan goes to PREVIOUS_PLAN."""
     if (found := occupied.of(root)) is not None and not here:
         raise SpecError(occupied.refuse_text(found, "spec new"))
@@ -142,30 +149,41 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
     except names.NameTooLong as error:
         raise SpecError(str(error)) from None
     slug = slugify(title)
-    plans = root / PLANS
+    plans = planhome.plans_dir(root)
     taken = sorted(p.name for p in plans.glob(f"[0-9][0-9][0-9][0-9]-{slug}") if p.is_dir()) if plans.is_dir() else []
     if taken:
         spec_there = (plans / taken[0] / SPEC).is_file()
         hint = f"continue it with `/spec {taken[0][:4]}`" if spec_there else "a folder without spec.md"
         raise SpecError(f"{PLANS}/{taken[0]} already exists: {hint}; pick another title")
-    try:
-        if fetch:
-            plan_number.git(root, "fetch", "--all", "--quiet")
-        number = plan_number.next_number(root, slug)
-    except plan_number.NumberError as error:
-        raise SpecError(str(error)) from None
-    folder = plans / f"{number:04d}-{slug}"
-    if folder.exists():
-        what = PLAN if (folder / PLAN).exists() else "the folder"
-        raise SpecError(f"{folder.relative_to(root)}: {what} already exists; continue it with `/spec {number}`")
     description = " ".join((description or f"The spec of {title}: problem, scope, requirements and acceptance "
                             "criteria before its plan.").split())
     if len(description) > 200:
         raise SpecError(f"the description has {len(description)} characters; at most 200", 2)
+    if here:
+        try:
+            occupied.check_here(root)
+        except ValueError as error:
+            raise SpecError(str(error)) from None
+    if CLAIM is not None:
+        # the store home: numbered and titled by the store, its plan.md gone (a spec folder has none); every check
+        # above runs first, so a refusal claims no plan
+        folder = CLAIM(slug, " ".join(title.split()))
+        number = int(folder.name[:4])
+    else:
+        try:
+            if fetch:
+                plan_number.git(root, "fetch", "--all", "--quiet")
+            number = plan_number.next_number(root, slug)
+        except plan_number.NumberError as error:
+            raise SpecError(str(error)) from None
+        folder = plans / f"{number:04d}-{slug}"
+        if folder.exists():
+            what = PLAN if (folder / PLAN).exists() else "the folder"
+            raise SpecError(f"{folder.relative_to(root)}: {what} already exists; continue it with `/spec {number}`")
     text = TEMPLATE.read_text().format(
         id=number, number=f"{number:04d}", title=" ".join(title.split()), quoted_title=envelope.quote(title),
         description=envelope.quote(description), date=dt.date.today().isoformat())
-    folder.mkdir(parents=True)
+    folder.mkdir(parents=True, exist_ok=CLAIM is not None)
     (folder / SPEC).write_text(text)
     if here:
         try:
@@ -173,7 +191,7 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
         except ValueError as error:
             shutil.rmtree(folder)
             raise SpecError(str(error)) from None
-    (plans / POINTER).write_text(folder.name + "\n")
+    pointers.write(root, POINTER, folder.name)
     return describe(root, folder)
 
 
@@ -218,6 +236,14 @@ def main(argv: list[str]) -> int:
     args = parser().parse_args(argv)
     try:
         root = repo_root(args.repo)
+        if (home := planhome.home(root)) is not None:
+            import store_home  # noqa: PLC0415  (the store home only)
+            info = store_home.run(sys.modules[__name__], root, home, args)
+            if args.command == "list":
+                print(json.dumps(info, indent=2) if args.json else "\n".join(map(line, info)) or "no spec in plans/")
+            else:
+                print(json.dumps(info, indent=2) if args.json else f"{line(info)}; edit it in {info['dir']}")
+            return 0
         if args.command == "list":
             rows = [describe(root, f) for f in spec_folders(root)]
             print(json.dumps(rows, indent=2) if args.json else "\n".join(map(line, rows)) or "no spec in plans/")

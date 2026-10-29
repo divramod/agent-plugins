@@ -1,4 +1,4 @@
-"""occupied.py: a field whose plans/CURRENT_PLAN names a started plan is occupied (hal2 plan 0376, D2, D4, D5, D13).
+"""occupied.py: a field whose CURRENT_PLAN pointer names a started plan is occupied (hal2 plan 0376, D2, D4, D5, D13).
 
 Occupied = the plan is `open`: schema 2 by shape's derived status, schema 1 and legacy plans have a step not done, a
 masterplan a row not done (`uat`, `done` and `abandoned` are not occupied, D15). A fresh plan counts: it is `open` from
@@ -13,24 +13,26 @@ from __future__ import annotations
 from pathlib import Path
 
 import masterplan
+import planhome
+import pointers
 import shape
 import table
 
-POINTER = Path("plans") / "CURRENT_PLAN"
-PREVIOUS = Path("plans") / "PREVIOUS_PLAN"
+POINTER = pointers.CURRENT_PLAN  # the pointers' names: their files are the git dir's, else plans/ (pointers.py)
+PREVIOUS = pointers.PREVIOUS_PLAN
 HINT = ("`--here` only on the user's words (it keeps {plan} in plans/PREVIOUS_PLAN); work for another field: "
         "`create.py --lead \"<field> <plan> <NN-slug>\"` in a servant field, or `--no-current` for a separate plan")
 
 
-def name_in(root: Path, file: Path) -> str:
-    return (root / file).read_text(encoding="utf-8").strip() if (root / file).is_file() else ""
+def name_in(root: Path, name: str) -> str:
+    return pointers.read(root, name)
 
 
 def plan_file(root: Path, ref: str) -> Path | None:
     """plans/<ref>/plan.md for a slug `ref`, else None (a shot, a task, a spec folder, a missing plan)."""
     if not masterplan.SLUG.match(ref):
         return None
-    path = root / "plans" / ref / masterplan.MAIN
+    path = planhome.plans_dir(root) / ref / masterplan.MAIN  # the store home's view (planhome.py), else plans/
     return path if path.is_file() else None
 
 
@@ -66,27 +68,36 @@ def refuse_text(found: dict, what: str) -> str:
     return f"{what}: this field is occupied by {found['plan']}; " + HINT.format(plan=found["plan"])
 
 
-def switch_here(root: Path, target: str) -> None:
-    """`--here` (D4): keep the occupied current plan in plans/PREVIOUS_PLAN before the pointer names `target`."""
+def check_here(root: Path, target: str = "") -> dict | None:
+    """`--here`'s refusal, before anything is written (a new plan claimed): PREVIOUS_PLAN keeps another unfinished
+    plan already. The occupied current plan `switch_here` would keep, None when there is none to keep."""
     found = of(root)
     if found is None or found["plan"] == target:
-        return
+        return None
     kept = name_in(root, PREVIOUS)
     if kept and (path := plan_file(root, kept)) is not None and status_of(path) == "open" and kept != found["plan"]:
-        raise ValueError(f"plans/PREVIOUS_PLAN already keeps {kept}, still unfinished: finish it or `plan.py leave` "
-                         "first; a second --here would lose it")
-    (root / PREVIOUS).write_text(found["plan"] + "\n", encoding="utf-8")
+        raise ValueError(f"the PREVIOUS_PLAN pointer already keeps {kept}, still unfinished: finish it or `plan.py "
+                         "leave` first; a second --here would lose it")
+    return found
+
+
+def switch_here(root: Path, target: str) -> None:
+    """`--here` (D4): keep the occupied current plan in the PREVIOUS_PLAN pointer before CURRENT_PLAN names
+    `target`."""
+    found = check_here(root, target)
+    if found is not None:
+        pointers.write(root, PREVIOUS, found["plan"])
 
 
 def restore_previous(root: Path) -> str | None:
     """What `leave` does before deleting (D5): the unfinished plan in plans/PREVIOUS_PLAN becomes current again and
     the file goes; a finished or missing one is just deleted. Returns the restored slug."""
     kept = name_in(root, PREVIOUS)
-    if not (root / PREVIOUS).is_file():
+    if not pointers.exists(root, PREVIOUS):
         return None
-    (root / PREVIOUS).unlink()
+    pointers.remove(root, PREVIOUS)
     path = plan_file(root, kept)
     if path is None or status_of(path) != "open":
         return None
-    (root / POINTER).write_text(kept + "\n", encoding="utf-8")
+    pointers.write(root, POINTER, kept)
     return kept

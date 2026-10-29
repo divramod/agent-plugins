@@ -1,6 +1,6 @@
 """The per-field facts prune's plan decides on besides the proof (hal2 plan 0377 step 4; facts.collect gathers them).
 
-`pointer` (plans/CURRENT_PLAN and its plan's state, D5), `unsaved` (work off main behind a stale pointer), `lead` (a
+`pointer` (the CURRENT_PLAN pointer and its plan's state, D5), `unsaved` (work off main behind a stale pointer), `lead` (a
 servant's foreman and what the foreman's branch lacks, D6), `hold` (queue ticket, landing, boss pause, open question),
 `building` (cleanup's `busy`) and the last landed train's cars. Reading only; every outside call is injectable.
 """
@@ -8,7 +8,6 @@ servant's foreman and what the foreman's branch lacks, D6), `hold` (queue ticket
 import json
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import lead_marker
@@ -16,17 +15,14 @@ import mtm_scan
 import prune_proof
 import sizes
 
-POINTER = Path("plans/CURRENT_PLAN")
+POINTER = "CURRENT_PLAN"  # the pointer's name: the git dir's, else plans/ (hal2 plan 0409 step 12)
 TOLLMAN, TRAINS = "tollman", "train.jsonl"
 FINISHED, MISSING, OPEN, UNKNOWN = "finished", "missing", "open", "unknown"
 
 
 def pointer_name(path: str) -> str | None:
-    """The plan `plans/CURRENT_PLAN` names (its first line), None when the file is missing or empty."""
-    try:
-        text = (Path(path) / POINTER).read_text().strip()
-    except OSError:
-        return None
+    """The plan the CURRENT_PLAN (the git dir's, else plans/) names (its first line), None when it is missing or empty."""
+    text = lead_marker.pointers.read(path, POINTER)
     return text.splitlines()[0].strip() if text else None
 
 
@@ -76,7 +72,7 @@ def unsaved(field: dict) -> list[str]:
     The pointer file itself is no change (a farm that does not ignore it would never have a stale one)."""
     path = field["path"]
     why = [w for w in prune_proof.unsaved(path, field["slot"], prune_proof.tick.default_ref(path))
-           if not w.startswith("plans/CURRENT_PLAN")]
+           if not w.startswith(prune_proof.POINTER_WHY)]
     if "uncommitted changes" in why and not prune_proof.git(path, "status", "--porcelain", "--", ".", ":!plans/CURRENT_PLAN"):
         why.remove("uncommitted changes")
     return why

@@ -20,7 +20,29 @@ export const parse = (text: string): Omit<SessionRow, 'plan' | 'lead' | 'here'> 
   }
 }
 
-// A plan file's first line: the plan the worktree works on (`plans/CURRENT_PLAN`); empty when there is none.
+// The git dir a checkout's `.git` names: the text of a worktree's `.git` file (`gitdir: <path>`, relative to the checkout),
+// else the folder `<cwd>/.git` itself (what the same read of a folder could not give).
+export const gitDirOf = (cwd: string, dotGit: string) => {
+  const named = /^gitdir:\s*(.+)$/m.exec(dotGit)?.[1]?.trim()
+  if (!named) return `${cwd}/.git`
+  const parts = (named.startsWith('/') ? named : `${cwd}/${named}`).split('/')
+  const out: string[] = []
+  for (const p of parts) p === '..' ? out.pop() : p && p !== '.' && out.push(p)
+  return `/${out.join('/')}`
+}
+
+// A plan pointer of the checkout `cwd` (`CURRENT_PLAN`, `LEAD`), read through the file API `read`: the git dir's
+// `hal/<name>`, else the old `plans/<name>` (plan 0409); empty when neither has it.
+export const pointerOf = async (read: (path: string) => Promise<unknown>, cwd: string, name: string) => {
+  const dot = String(await read(`${cwd}/.git`).catch(() => ''))
+  for (const file of [`${gitDirOf(cwd, dot)}/hal/${name}`, `${cwd}/plans/${name}`]) {
+    const text = await read(file).then(String, () => undefined)
+    if (text !== undefined) return text
+  }
+  return ''
+}
+
+// A plan file's first line: the plan the worktree works on (its `CURRENT_PLAN`); empty when there is none.
 export const planOf = (text: string | undefined) => (text ?? '').split('\n')[0]!.trim()
 
 // `/…/worktree/<repo>/<NN>` reads `<repo> <NN>`; any other folder its last two parts.

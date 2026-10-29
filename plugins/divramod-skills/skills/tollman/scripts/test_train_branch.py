@@ -5,6 +5,7 @@ cars' plans: `restart` writes the name into its `started` line and starts the la
 to `hal2-cli-git worktree merge-to-main --land-ref`, and the watch looks for the run on that branch only. gh is
 gh_fake.py's: no real call."""
 
+import os
 import json
 import sys
 import tempfile
@@ -18,6 +19,8 @@ import train_branch
 import train_state
 import watch
 from gh_fake import FakeGh, run
+
+os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
 
 AT = "2026-10-18T10:00:00Z"
 NAME = "02+07@" + AT

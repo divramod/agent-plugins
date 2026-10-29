@@ -14,6 +14,7 @@ from unittest import mock
 import farmer_link as fl
 import ledger_sources
 import page
+import plan_cli
 import serve_launch
 import state
 import state_sources as src
@@ -32,10 +33,10 @@ PLAN = """# Plan 0042: the answer
 | 2 | two | x | next |
 | 3 | three | x | |
 """
-REAL = {name: getattr(src, name) for name in ("agents", "queue", "open_runs", "git_numbers")}  # before setUp mocks them
+REAL = {name: getattr(src, name) for name in ("agents", "queue", "open_runs", "git_numbers", "paused_fields")}  # before setUp mocks them
 REAL_STATE = src.queue_state
 KEYS = {"wt", "is_main", "path", "branch", "plan", "plan_number", "plan_name", "steps_done", "steps_total", "agent",
-        "agent_state", "description", "own", "foreman", "git", "done_pct", "last_commit_age", "uncommitted", "ahead", "queue", "ci", "waits", "cells"}
+        "agent_state", "description", "own", "foreman", "git", "done_pct", "last_commit_age", "uncommitted", "ahead", "queue", "ci", "waits", "cells", "paused"}
 
 
 def now_iso(minutes_ago: int = 0) -> str:
@@ -118,13 +119,15 @@ class Fixture(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
 
-    def set_tools(self, agents=None, queue=None, runs=None, mode=None):
+    def set_tools(self, agents=None, queue=None, runs=None, mode=None, paused=None):
+        self.mock(src, "paused_fields", lambda *a, _p=paused: _p)
         for name, value in (("agents", agents), ("queue", queue), ("open_runs", runs)):
             self.mock(src, name, lambda *a, _v=value: _v)
         self.mock(src, "queue_state", lambda *a, _q=queue, _m=mode: {"queue": _q, "mode": _m})
         self.mock(src, "workqueue_jobs", lambda: [{"field": "hal2/16", "class": "test", "head": "cargo nextest"}])
         self.mock(src, "git_numbers", lambda *a: None)  # no real `hal2-cli-git status` of the fixture's worktrees
         self.mock(ledger_sources, "cli_questions", lambda *a: None)  # no real `hal2-cli-plans`: the parser reads
+        self.mock(plan_cli, "run", lambda *a, **k: None)  # the foreman page's plan, likewise (test_plan_cli runs it)
         self.mock(steward_sources, "chores", lambda *a, **k: None)  # the steward and tollman pages call no real tool
         self.mock(steward_sources, "open_uats", lambda *a, **k: None)
         self.mock(tollman_sources, "raw_queue", lambda *a, **k: None)
@@ -321,6 +324,23 @@ class Tools(Fixture):
         self.assertEqual(state.collect(str(self.main))["mode"]["by"], "user")
         self.mock(src, "tool_json", lambda args, cwd=None: {"queue": []})  # an older hal2-cli-git: no mode
         self.assertEqual(REAL_STATE(str(self.main)), {"queue": [], "mode": None})
+
+    def test_a_paused_field_shows_in_its_row_and_state_cell(self):
+        """Plan 0458 step 4: `hal2-cli-git worktree paused --json` marks the field; the state cell says so first."""
+        paused = {"02": {"by": "farmer", "why": "waits for the plan", "since": "2026-10-28T10:00:00Z"}}
+        self.set_tools(paused=paused)
+        rows = self.rows()
+        self.assertEqual(rows["02"]["paused"], paused["02"])
+        self.assertIsNone(rows["10"]["paused"])
+        self.assertTrue(rows["02"]["cells"][3].startswith("paused (farmer: waits for the plan)"), rows["02"]["cells"])
+        self.assertNotIn("paused", rows["10"]["cells"][3])
+
+    def test_the_paused_source_reads_the_cli_and_survives_an_older_one(self):
+        raw = {"schema": 1, "repo": "x", "fields": [{"field": "07", "by": "user", "why": "w", "since": "t"}]}
+        self.mock(src, "tool_json", lambda args, cwd=None: raw if args[:3] == ["hal2-cli-git", "worktree", "paused"] else None)
+        self.assertEqual(REAL["paused_fields"](str(self.main)), {"07": {"by": "user", "why": "w", "since": "t"}})
+        self.mock(src, "tool_json", lambda args, cwd=None: None)  # an older hal2-cli-git: no such command
+        self.assertIsNone(REAL["paused_fields"](str(self.main)))
 
     def test_every_tool_missing_failing_or_slow_leaves_facts_unknown(self):
         self.assertIsNone(src.tool(["definitely-not-a-tool-xyz"]))

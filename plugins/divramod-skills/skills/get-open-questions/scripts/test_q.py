@@ -89,6 +89,11 @@ class Q(Base):
         self.plan_store()
         self.assertEqual(self.q("--path").stdout.strip(), "plans/0003-x/questions.md")
 
+    def test_current_plan_may_sit_in_the_git_dir_only(self):
+        (self.root / ".git" / "hal").mkdir()
+        (self.root / ".git" / "hal" / "CURRENT_PLAN").write_text("0003-x\n")
+        self.assertEqual(self.q("--path").stdout.strip(), "plans/0003-x/questions.md")
+
     def test_current_plan_may_hold_a_path(self):
         (self.root / "plans" / "CURRENT_PLAN").write_text("plans/0003-x/\n")
         self.assertEqual(self.q("--path").stdout.strip(), "plans/0003-x/questions.md")

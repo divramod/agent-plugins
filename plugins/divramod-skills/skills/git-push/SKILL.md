@@ -31,15 +31,16 @@ class, the staging, the trailers, the push); you only word the subjects and ask 
    No candidate and no secret: no question. A secret is always only reported, never committed.
 3. **Subjects**: read each group's diff (`git diff -- <files>`; new files by reading them) and write one subject per group:
    `<type>(<scope>): <what changed>`, type one of `feat fix docs test ci perf style refactor build chore`, the group's
-   `scope` as the scope: with a plan in `plans/CURRENT_PLAN` the scan gives its number, `<NNNN>`, and a step's work
+   `scope` as the scope: with a plan in the `CURRENT_PLAN` pointer the scan gives its number, `<NNNN>`, and a step's work
    adds `|<step>` (`feat(0391|15): ...`, hal2 plan 0391 D22); without a plan the unit (a docs group: `docs(docs): ...`), lower-case, imperative, no period, at most 72
    characters, never `update` or `misc edits`; a `!` before the colon marks a breaking change. A body (`--body`) only
    when the why is not obvious. A `docs/` group is always its own commit; a mixed unit that holds clearly unrelated
    changes may be split by asking for it: files of one unit stay in one commit.
 4. **Commit** each group: `python3 $S/gp.py commit --group <unit> --subject "<subject>" [--body "<why>"]
    [--step <n>/<total>] [--trailer "<attribution line>"]...`. The script validates the subject, stages and commits exactly
-   that group's files and adds `Worktree:` (in a field), `Plan:` (when `plans/CURRENT_PLAN` names a plan folder) and the
-   `--step` you pass; add the session's attribution lines (the `Co-Authored-By:` and `Claude-Session:` lines of the
+   that group's files and adds `Worktree:` (in a field), `Plan:` (when the `CURRENT_PLAN` pointer names a plan folder) and the
+   `--step` you pass (in a farm whose commits are neutral, hal2 plan 0409 D15, none of them: a plan scope in the subject
+   is dropped and the plan link goes to the plan store); add the session's attribution lines (the `Co-Authored-By:` and `Claude-Session:` lines of the
    system reminder) as `--trailer`s. A refusal on stderr (form, hook) is fixed and the same group committed again, never
    `--no-verify`.
 5. **Push**: `python3 $S/gp.py push`. It pushes `HEAD` to the branch of the same name (with `-u` the first time), never forces, and refuses

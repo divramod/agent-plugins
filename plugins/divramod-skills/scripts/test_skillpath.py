@@ -85,6 +85,20 @@ class Base(unittest.TestCase):
         real = skillpath.sibling("plan", HERE / "check-plugins.py")
         self.assertTrue((real / "SKILL.md").is_file())
 
+    def test_pointers_load_the_plan_skills_module_or_the_files_home_stand_in(self):
+        """hal2 plan 0409 step 12: the real plan skill's pointers.py; without a plan skill the bare plans/ stand-in."""
+        real = skillpath.pointers(HERE / "check-plugins.py")
+        self.assertTrue(hasattr(real, "git_path"))
+        stand_in = skillpath._TreePointers  # what a copied script outside a skills unit gets
+        root = self.unit.parent / "checkout"
+        (root / "plans").mkdir(parents=True)
+        self.assertEqual(stand_in.read(root, "LEAD"), "")
+        stand_in.write(root, "LEAD", "07 0001-x 2")
+        self.assertEqual((root / "plans/LEAD").read_text(), "07 0001-x 2\n")
+        self.assertEqual(stand_in.read(root, "LEAD"), "07 0001-x 2")
+        stand_in.remove(root, "LEAD")
+        self.assertFalse(stand_in.exists(root, "LEAD"))
+
 
 class TestCategories(Base):
     CATEGORIES = True

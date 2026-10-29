@@ -33,7 +33,7 @@ class Scan(Slots):
         self.assertEqual(sorted(why), ["03", "04", "05", "06", "07", "13", "14"])
         self.assertEqual([s for s, w in why.items() if w is None], ["03", "13", "14"])
         self.assertIn("uncommitted", why["04"])
-        self.assertIn("CURRENT_PLAN names 0001-x", why["05"])
+        self.assertIn("CURRENT_PLAN pointer names 0001-x", why["05"])
         self.assertIn("1 commit(s) not on origin/main", why["06"])
         self.assertIn("side branch 07-ui", why["07"])
 

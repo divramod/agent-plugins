@@ -110,7 +110,7 @@ def unsafe(main: str, h: dict) -> str | None:
             return "it holds changes besides deleted files"
         why = (prune_proof.unsaved_for_lead(path, slot, base) if e.get("foreman")
                else [w for w in prune_proof.unsaved(path, slot, base) if w != "uncommitted changes"
-                     and not w.startswith("plans/CURRENT_PLAN")])
+                     and not w.startswith(prune_proof.POINTER_WHY)])
         return "; ".join(why) or None
     refs = prune_proof.git(main, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}",
                            f"refs/heads/{slot}-*").split()

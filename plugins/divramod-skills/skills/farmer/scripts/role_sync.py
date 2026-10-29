@@ -22,7 +22,7 @@ LAND = "{boss}: land now. "  # the prompt's first words: the go every /merge-to-
 PROMPT = ("You are a foreman started by the farmer (the user's stand-in for {repo}): run /foreman first (it prints your "
           "duties, the skill's and the repository's roles/foreman/ROLE.md; work by them), then read your task file at "
           "{role}; the user will not answer questions, so never ask any. The farmer branch holds "
-          "roles/farmer/ROLE.md changes that main lacks (brief: {brief}). Write `farmer-sync` into plans/CURRENT_PLAN, then: "
+          "roles/farmer/ROLE.md changes that main lacks (brief: {brief}). Write `farmer-sync` into the CURRENT_PLAN pointer, then: "
           "1. /merge-from-main (the latest main into your worktree, also when your session just ran it: main may have moved); "
           "2. `git merge --no-edit {farmer_slot}` (the latest farmer branch; it may change roles/farmer/ only: when its merge "
           "brings anything else, abort it and message the farmer session in one line); 3. /merge-to-main. This land-now counts "

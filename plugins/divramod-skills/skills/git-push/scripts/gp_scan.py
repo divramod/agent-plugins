@@ -10,6 +10,8 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
+import gp_neutral
+
 LARGE_BYTES = 10 * 1024 * 1024
 KINDS = ("apps", "libs", "scripts")
 CONFLICTS = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
@@ -71,9 +73,9 @@ PLAN = re.compile(r"^\d{4}-[a-z0-9][a-z0-9-]*$")
 
 
 def current_plan(root: str) -> str:
-    """`plans/CURRENT_PLAN` when it names a plan folder (`<NNNN>-<slug>` with plans/<it>/), else an empty string."""
-    marker = Path(root, "plans", "CURRENT_PLAN")
-    text = marker.read_text().strip() if marker.is_file() else ""
+    """CURRENT_PLAN (the git dir's, else the old one in `plans/`) when it names a plan folder (`<NNNN>-<slug>` with
+    plans/<it>/), else an empty string."""
+    text = gp_neutral.pointer(root, "CURRENT_PLAN")
     name = text.splitlines()[0].strip() if text else ""
     return name if PLAN.match(name) and Path(root, "plans", name).is_dir() else ""
 
@@ -139,7 +141,9 @@ def parse_status(raw: str) -> list[dict]:
 def scan(repo: str) -> dict:
     """The uncommitted files with unit, scope and class, grouped; `groups` hold only the `commit` files."""
     root = toplevel(repo)
-    plan = current_plan(root)[:4]  # a plan's work is scoped by its number (hal2 plan 0391, D22), a step's `|<step>`
+    # a plan's work is scoped by its number (hal2 plan 0391, D22), a step's `|<step>`; neutral commits (plan 0409 D15)
+    # use the unit's scope
+    plan = "" if gp_neutral.neutral(root) else current_plan(root)[:4]
     raw = run(["git", "status", "--porcelain=v1", "-z", "-uall"], root).stdout
     files, conflicts = [], []
     for entry in parse_status(raw):

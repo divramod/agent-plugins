@@ -1,5 +1,6 @@
 """The farmer page's ledgers (hal2 plan 0369, D11, D12): the questions and the decisions of every numbered field's
-current plan, read from the plan folder `<row path>/plans/<plan>/` (`questions.md`, `decisions.md`). Read-only, no model
+current plan, read from the plan folder `<row path>/plans/<plan>/` (`questions.md`, `decisions.md`; in a farm whose
+plans live in its store, the plan rendered outside the tree: the plan skill's planread.py). Read-only, no model
 call; a missing file, a missing CLI or a garbled entry gives fewer rows, never an error.
 
 - `questions(rows)`: one dict per question entry: `wt`, `plan`, `n` (`Q3`), `state` (`open`, `answered`, `dropped`),
@@ -14,10 +15,17 @@ Each plan's ledgers are read once, from the field `sources(rows)` picks (D14); `
 """
 
 import json
+import os
 import re
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PureWindowsPath
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import load  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+planread = load("plan", "planread", __file__)  # the ledgers in either home (hal2 plan 0409 step 9)
 
 CLI = "hal2-cli-plans"
 TIMEOUT = 15
@@ -38,7 +46,7 @@ def plan_folder(row: dict) -> tuple[Path, str] | None:
     parts = slug.replace("\\", "/").split("/")
     if not slug or slug.startswith((".", "/", "\\", "-")) or ".." in parts or PureWindowsPath(slug).anchor:
         return None  # a CURRENT_PLAN naming a folder outside the field's plans/ (absolute, `..`, a drive) is no plan
-    folder = Path(path) / "plans" / slug
+    folder = planread.plan_dir(path, slug)
     return (folder, slug) if folder.is_dir() else None
 
 
@@ -89,7 +97,7 @@ def parse_questions(text: str) -> list[dict]:
 def cli_questions(path: str, slug: str) -> list[dict] | None:
     """`hal2-cli-plans questions list --all --json` for one plan; None when the CLI is missing, fails or answers garbage."""
     try:
-        done = subprocess.run([CLI, "questions", "list", "--all", "--json", "--repo", path, "--plan", slug],
+        done = subprocess.run([os.environ.get("HAL2_CLI_PLANS") or CLI, "questions", "list", "--all", "--json", "--repo", path, "--plan", slug],
                               capture_output=True, text=True, timeout=TIMEOUT, check=False)
         found = json.loads(done.stdout)["entries"] if done.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):

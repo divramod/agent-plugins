@@ -23,9 +23,9 @@ and remote-tracking branch and a reservation file in the git common dir, under a
 the plan skill's `plan_number.py` with research's folder). Never number a doc by hand.
 
 **Every research runs under a plan** (the user, 2026-10-07: a landing titled `research-<topic>` had no number).
-When no plan runs it (`plans/CURRENT_PLAN` is missing or names something else than a plan this research belongs to),
+When no plan runs it (the `CURRENT_PLAN` pointer is missing or names something else than a plan this research belongs to),
 create a research plan first with the plan skill (`/plan new --research <topic>`, slug `<NNNN>-research-<topic>`,
-`Landing: manual`): it writes `plans/CURRENT_PLAN`, its deliverable is this doc (`research.py new --plan <plan.md>`),
+`Landing: manual`): it writes the `CURRENT_PLAN` pointer, its deliverable is this doc (`research.py new --plan <plan.md>`),
 and its steps are this skill's steps. The user's `/research` call is the go for that plan: no autogrill offer, run
 it. A research plan's rows carry the plan skill's columns Model, Effort, Window and Size (checked by
 `plan.py check`); each row runs in one subagent at those values, the deep Workflow being one row's runner. A plan step that needs research runs this skill under that plan and links the doc under its **Context**.

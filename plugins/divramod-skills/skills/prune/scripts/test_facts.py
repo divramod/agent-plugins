@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import busy
+import responses
 import facts
 import mtm_scan
 import worktree_farm
@@ -94,7 +96,15 @@ class Farm(worktree_farm.MarkedSlots):
 
     def setUp(self):
         super().setUp()
-        self.agents, self.queue = [], {}
+        self.agents, self.queue, self.busy = [], {}, None
+        self.tart = None  # responses.tool: no real tart, no real ~/.tart in any test (plan 0472 D2)
+        for p in (mock.patch.object(responses, "tool", side_effect=lambda: self.tart),
+                  mock.patch.object(responses, "tart_home", side_effect=lambda: self.tmp / "tart-home")):
+            p.start()
+            self.addCleanup(p.stop)
+        busy_patch = mock.patch.object(busy, "reason", side_effect=lambda main: self.busy)
+        busy_patch.start()
+        self.addCleanup(busy_patch.stop)
         patcher = mock.patch.object(facts, "call", side_effect=self.cli)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -201,6 +211,18 @@ class Collect(Farm):
         f = facts.collect(str(self.main), NOW, build=lambda path: False, measure=measure, only={"03"}, cached_sizes=True)
         facts.collect(str(self.main), NOW, build=lambda path: False, measure=measure, only={"03"})
         self.assertEqual((seen, f["fields"][0]["size"]), ([{"cached_only": True}, {}], None))
+
+    def test_a_hold_means_no_size_walk_only_the_cache_and_the_facts_carry_why(self):
+        seen = []
+        def measure(main, fs, **kw):
+            seen.append(kw)
+            return {f["slot"]: None for f in fs}
+        self.busy = "deferred: train building (hold h1 of field 31, holding)"
+        f = facts.collect(str(self.main), NOW, build=lambda path: False, measure=measure, only={"03"})
+        self.assertEqual((seen, f["busy"]), ([{"cached_only": True}], self.busy))
+        self.busy = None
+        f = facts.collect(str(self.main), NOW, build=lambda path: False, measure=measure, only={"03"})
+        self.assertEqual((seen[1:], f["busy"]), ([{}], None), "the hold ended: the walk is back")
 
 
 if __name__ == "__main__":

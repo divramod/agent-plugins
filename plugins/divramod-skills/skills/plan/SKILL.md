@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with plans/CURRENT_PLAN naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /handoff c on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). A plan of schema 2 (`new --schema 2`, `convert`) is sub-plans with steps (refs `01.03`) and a generated overview. Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
+description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with the CURRENT_PLAN pointer naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /handoff c on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). A plan of schema 2 (`new --schema 2`, `convert`) is sub-plans with steps (refs `01.03`) and a generated overview. Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
 ---
 
 # plan
@@ -16,10 +16,10 @@ into a linked `design.md`), written from the plan's seed before any step; the Co
 Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first. A question is listed to the user only on `/q` or when the plan cannot continue without the answer; otherwise it is
 recorded in `questions.md` and the run goes on (the user, 2026-10-13: "they should only list questions, when they cannot continue"), by `hal2-cli-plans questions add "<q>" --option <a> --option <b> --option <c>` and `questions answer <n> "<answer>"`; `plan.py check` reports an open agent question not in the Q form (`questions-q-form`; advisory without the CLI).
 
-**`plans/CURRENT_PLAN` names what the worktree works on**, so the statusline shows it: `new` and `use` write the
+**the `CURRENT_PLAN` pointer names what the worktree works on**, so the statusline shows it: `new` and `use` write the
 plan's slug into it. Other work writes it too (a shot `<shotfile>/<n>/<title-slug>`, a task name); then `current`
-fails with "not a plan": list the plans and ask, as in Status. Gitignored per-worktree state: never stage or commit
-it. After a landing `/mtm` runs `plan.py leave`: it then names the plan's unfinished masterplan or is deleted.
+fails with "not a plan": list the plans and ask, as in Status. Per-worktree state, never staged or committed: in
+a store-home farm it lives in the checkout's git dir (`hal/`), in the files home in `plans/` (gitignored). After a landing `/mtm` runs `plan.py leave`: it then names the plan's unfinished masterplan or is deleted.
 
 **Research plans start with `research`.** When the user asks for research rather than an implementation
 (investigate, compare, evaluate, analyse, "find out", "look into": the result is findings or a decision, not code),
@@ -146,7 +146,7 @@ hal2 plan 0376: a plan of schema 2 has no step table; `plan.md` holds the goal, 
 `01.03`) and `subplans/99-uat/`. Both shapes are read; `new` writes schema 1 until plan 0409 moves the farm's readers,
 so `new --schema 2` is the opt-in and `convert` the way for an old plan. Layout, `subplan`, `step add`, `uat add`,
 `overview`, refs, `ready` on two levels and D19's who, side branches, `new` mid-plan, `convert`: [references/one-plan-shape.md](references/one-plan-shape.md),
-read it before working on a plan of schema 2.
+read it before working on a plan of schema 2; a farm whose plans live in its store: [references/store-home.md](references/store-home.md).
 
 ## Pick the action
 
@@ -461,8 +461,8 @@ The coordinator finishes each step its subagent reported:
    masterplan's `<master>|<plan>|<step>`, the plan's own files without a step `docs(0355): ...`; hal2 plan 0391
    D22); below it everything stays: the origin is the last paragraph's trailers, which `python3 $S/plan.py
    trailers <step>` prints (`Worktree: 05`, `Plan: 0355-commit-standards`, `Step: 1/6`; hal2 plan 0355), before the
-   `Co-Authored-By:` and `Claude-Session:` lines. Stage only the files this step changed (other uncommitted work
-   stays as it was). Never push without the user's consent.
+   `Co-Authored-By:` and `Claude-Session:` lines; a neutral farm's (references/store-home.md) print nothing. Stage
+   only the files this step changed (other uncommitted work stays as it was). Never push without the user's consent.
 5. **Keep `run` current**: `python3 $S/plan.py run --sync` writes the session's live model, effort and window
    into `run` (commit plan.md with the next step's commit or the handoff).
 6. **Check the context window** before starting the next step. It measures the coordinator's own context only (a

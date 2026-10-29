@@ -156,7 +156,7 @@ cleanup); the command released the queue itself, so no `smuggle.sh release`. The
    same candidate as a CI landing (version bumps, generated code maps) pushed fast-forward, the worktree reset, the
    main checkout pulled, the merged side branches deleted, the queue kept reserved. Plain git: one merge commit of
    HEAD's tree on `origin/<default>` + HEAD, pushed fast-forward, the same reset, pull and sweep. Exit 3 (the default
-   branch moved): back to step 4.
+   branch moved): back to step 4. A farm whose plans live in its plan store then syncs it (`plan store sync ...`).
 7. **The main checks**: `bash $S/smuggle.sh main` runs `.hal/smuggle-main.sh` with `SMUGGLE_BASE` and
    `SMUGGLE_HEAD` (recorded by `land`) in the main checkout when it is clean on the default branch at the landed
    commit, else in the detached worktree `<worktrees>/.smuggle`. Red does not undo the landing: report it and fix

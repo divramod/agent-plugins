@@ -1,6 +1,6 @@
 ---
 name: prune
-description: Clean a farm's fields (worktrees) deterministically, as a run of hal2's run engine shown on the run page — idle fields first (a field free by the proof is removed or mucked out, a stale `plans/CURRENT_PLAN` pointer cleared), then, only while the disk is short, the build folders (`.hal/prune.toml`'s `trim`, hal2's `code/rust/target`) of session-less fields and last of idle live ones; never a field with unsaved work, never 00-09 removed, a servant's field only once its commits are in its foreman's branch. A script does all of it (`prune.py`) under a farm lock, one action at a time, the proof again before each; the model only reads the report and messages the foremen it names ("ask the foreman of field FF about field NN"). Use when the user says /prune, "prune the fields", "clean up the worktrees", "free disk space on the farm", "delete unused worktrees" or the disk is short. `/prune h` shows help.
+description: Clean a farm's fields (worktrees) deterministically, as a run of hal2's run engine shown on the run page — idle fields first (a field free by the proof is removed or mucked out, a stale the `CURRENT_PLAN` pointer pointer cleared), then, only while the disk is short, the build folders (`.hal/prune.toml`'s `trim`, hal2's `code/rust/target`) of session-less fields and last of idle live ones; never a field with unsaved work, never 00-09 removed, a servant's field only once its commits are in its foreman's branch. A script does all of it (`prune.py`) under a farm lock, one action at a time, the proof again before each; the model only reads the report and messages the foremen it names ("ask the foreman of field FF about field NN"). Use when the user says /prune, "prune the fields", "clean up the worktrees", "free disk space on the farm", "delete unused worktrees" or the disk is short. `/prune h` shows help.
 ---
 
 # prune
@@ -31,6 +31,12 @@ Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../
 3. `phase-2` (session-less fields not free, free 00-09 included) and `phase-3` (idle live fields) trim the `trim`
    paths, only while the disk is under the threshold (default under 150 GB free or over 90% used) and then until the
    goal (250 GB free, at most 85% used).
+   `responses` follows (plan 0472): while the disk is still above the goal, `tart prune --entries caches
+   --older-than=<days>` (Tart's OCI and IPSW caches, never a VM; `[caches] tart_older_than_days`, default 7) and the
+   contents of the folders `[caches] paths` lists (none by default; never a pattern, a field or a parent of one). Each
+   is planned with its measured size, asked again for a train (`busy`) and the goal before it runs; no tart is said and
+   skipped. `run --responses` does only these (the tollman's start). None of trims, muck outs, responses and size
+   walks run while a train builds or a workqueue hold stands.
 4. A servant 30-99 goes only once its commits are in its foreman's `origin` branch; else the report asks.
 5. Every action through the proof again just before; a removal has no timeout; a half-removed field is resumed only
    when prune's own journal shows it began the removal.

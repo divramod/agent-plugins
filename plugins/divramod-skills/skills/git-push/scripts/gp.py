@@ -19,6 +19,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gp_neutral  # noqa: E402
 import gp_scan  # noqa: E402
 
 sys.path.insert(0, next(str(p / "scripts") for p in Path(__file__).resolve().parents if (p / ".claude-plugin").is_dir()))
@@ -108,8 +109,12 @@ def cmd_commit(args) -> int:
         if item["class"] != "ignore-candidate":
             raise Refused(f"--also {also}: only an ignore-candidate needs --also; it is in a group already")
         paths.append(also)
-    lines = trailers(root, args.step, args.trailer, not args.no_origin)
-    text = message(args.subject, args.body, lines)
+    subject, origin = args.subject, not args.no_origin
+    if gp_neutral.neutral(root):  # neutral commits (plan 0409 D15): no plan scope, no origin trailers, the link in the store
+        subject, origin = gp_neutral.head(subject), False
+        gp_neutral.link(root, current_plan(root), args.step)
+    lines = trailers(root, args.step, args.trailer, origin)
+    text = message(subject, args.body, lines)
     # literal: a path like app/[id]/page.tsx is a file name here, never a glob
     gp_scan.run(["git", "--literal-pathspecs", "add", "-A", "--"] + paths, root)
     with tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False) as handle:
@@ -121,8 +126,8 @@ def cmd_commit(args) -> int:
     if done.returncode != 0:
         raise Refused("git commit failed (a hook?): " + (done.stderr or done.stdout).strip())
     short = gp_scan.run(["git", "rev-parse", "--short", "HEAD"], root).stdout.strip()
-    out = {"commit": short, "subject": args.subject, "files": paths, "trailers": lines}
-    print(json.dumps(out) if args.json else f"committed {short} {args.subject} ({len(paths)} files)")
+    out = {"commit": short, "subject": subject, "files": paths, "trailers": lines}
+    print(json.dumps(out) if args.json else f"committed {short} {subject} ({len(paths)} files)")
     return 0
 
 

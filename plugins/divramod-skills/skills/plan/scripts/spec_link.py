@@ -19,6 +19,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import planhome
+import pointers
+
 HERE = Path(__file__).resolve().parent
 PLANS = "plans"
 POINTER = "CURRENT_PLAN"
@@ -159,14 +162,13 @@ def fields(root: Path, path: Path) -> dict:
         designs = accepted(root, folder)
     except (SpecLinkError, json.JSONDecodeError):
         designs = []
-    return {"spec": str((folder / SPEC).relative_to(root)), "designs": designs}
+    return {"spec": planhome.rel(folder / SPEC, root), "designs": designs}
 
 
 def hint(root: Path) -> str:
     """The error for `plan.py new` (without --spec) while CURRENT_PLAN names a spec folder that has no plan yet."""
-    pointer = root / PLANS / POINTER
-    ref = pointer.read_text().strip() if pointer.is_file() else ""
-    folder = root / PLANS / ref
+    ref = pointers.read(root, POINTER)
+    folder = planhome.plans_dir(root) / ref  # the store home's view (planhome.py), else plans/
     if not FOLDER.match(ref) or not (folder / SPEC).is_file() or (folder / PLAN).exists():
         return ""
     return (f"{PLANS}/{POINTER} names the spec {ref}, which has no plan yet: plan it with "

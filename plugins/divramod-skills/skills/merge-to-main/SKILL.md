@@ -135,7 +135,7 @@ lands what the coordinator's branch holds like any landing, with four difference
 - step 5 is skipped: nothing of the plan is finished here; the coordinator marks the milestone row done afterwards in its
   own branch (`plan.py status <n> done`, one commit, not landed again: the next milestone or the plan's own landing
   carries it), so the worktree may end with commits that are not on the default branch;
-- step 6 keeps `plans/CURRENT_PLAN` (and the root `HANDOFF.md`): the plan goes on;
+- step 6 keeps the `CURRENT_PLAN` pointer (and the root `HANDOFF.md`): the plan goes on;
 - step 7 is skipped: no cleanup, the build cache stays warm for the next merges.
 
 In a repository with a tollman the milestone is hitched like any work ([Hitch](#hitch-a-repository-with-a-tollman));
@@ -152,7 +152,7 @@ nothing in and watches no run; the detail, the refusals and the messages:
    marks the worktree's ticket with the pushed head. Its refusal (unpushed commits, uncommitted tracked changes,
    nothing the default branch lacks, a ticket of this worktree already at the head of the queue) is reported as it is.
 3. Report `hitched: field <NN> rides the next train` with its place in the queue (`hal2-cli-git worktree queue
-   --json`) and the head it is ready with, then go on working or end the turn: no process waits, `plans/CURRENT_PLAN`
+   --json`) and the head it is ready with, then go on working or end the turn: no process waits, the `CURRENT_PLAN` pointer
    stays. Work pushed later rides only after the same command again.
 
 ### After "in the barn"
@@ -221,7 +221,7 @@ with the queue reserved and nobody landing (after a landing too: step 5 ends wit
 
 The queue is reserved now: work through this without pausing, every other landing waits.
 
-1. `git status --porcelain` lists what is uncommitted. Nothing, and `plans/CURRENT_PLAN` not tracked? Only push (item 6).
+1. `git status --porcelain` lists what is uncommitted. Nothing, and the `CURRENT_PLAN` pointer not tracked? Only push (item 6).
 2. Sort every untracked file (open it when the name is not enough):
    - **junk** (build output, dependency and cache folders, coverage, logs, OS and editor files): add a pattern
      to the repo's `.gitignore` (the nearest one for a subproject); prefer folder or extension patterns over
@@ -232,9 +232,10 @@ The queue is reserved now: work through this without pausing, every other landin
    - **unclear**: ask, one question per file or per batch of similar files: commit it, gitignore it, or leave it
      untracked. In a plan's landing, leave it untracked without asking and name it in the report (the plan skill
      sorted the worktree before step 1, so this is rare).
-3. `plans/CURRENT_PLAN` is per-worktree runtime state (what the worktree works on, shown by the statusline) and is
-   never committed: when the repo still tracks it or does not ignore it, `git rm --cached` it (if tracked), add
-   `plans/CURRENT_PLAN` to the root `.gitignore` and commit that as its own change.
+3. The `CURRENT_PLAN` pointer is per-worktree runtime state (what the worktree works on, shown by the statusline) and
+   is never committed. In a store-home farm it lives in the git dir (`<git-dir>/hal/CURRENT_PLAN`): nothing to do.
+   In the files home it is `plans/CURRENT_PLAN`: when the repo still tracks it or does not ignore it, `git rm
+   --cached` it (if tracked), add it to the root `.gitignore` and commit that as its own change.
 4. **The plan folders are valid**: `python3 <plan-skill-dir>/scripts/plan.py check` (the `plan` skill next to
    this one) prints one line per problem of a plan folder's records (plan.md, decisions.md, questions.md,
    handoff.md in the record format; a plan without front matter is legacy and passes) and exits 1. It runs hal2's
@@ -315,7 +316,7 @@ release for you: it is the net, the steps below are the way. What only the landi
 default branch, its install or deploy: "after the landing ...", a check of the installed binary) is finished now
 and lands before anything else, so no commit is left behind on the worktree branch.
 
-1. `plans/CURRENT_PLAN` names a plan (`<NNNN>-<slug>`, `python3 <plan-skill-dir>/scripts/plan.py current`): take its
+1. The `CURRENT_PLAN` pointer names a plan (`<NNNN>-<slug>`, `python3 <plan-skill-dir>/scripts/plan.py current`): take its
    open steps whose done-when needed the landing (`after_landing` in its JSON: "after the landing: ...") and can be
    run now. Run each check; when it passes, finish the step
    as the [plan](../plan/SKILL.md) skill's **Finish a step** says (step table, notes, one commit with a
@@ -347,7 +348,7 @@ and lands before anything else, so no commit is left behind on the worktree bran
 
 ## 6. Clear the current task
 
-After the landing and the plan's finish, read `plans/CURRENT_PLAN` in the worktree (the landing's reset keeps it, it is
+After the landing and the plan's finish, read the `CURRENT_PLAN` pointer in the worktree (the landing's reset keeps it, it is
 gitignored). First keep **What landed** for the report's last lines (step 8), since the file may go now:
 
 - a plan (`<NNNN>-<slug>`): its `title` and `steps` from `python3 <plan-skill-dir>/scripts/plan.py current`
@@ -377,9 +378,10 @@ record of the plan folder and stays: `plan.py status` closed it with the plan's 
 
 ## 7. Clean up
 
-Run `bash <skill-dir>/scripts/after-landing.sh` in the worktree (no question). It acts only when the worktree is fully
+Run `bash <skill-dir>/scripts/after-landing.sh` in the worktree (no question). A fully landed worktree of a farm whose
+plans live in its plan store first syncs the store (`plan store sync (landing): ...`, hal2 plan 0409). It acts only when the worktree is fully
 landed (`git log <default>..HEAD` empty, no change) and its plan is finished (step 6's `leave` deleted
-`plans/CURRENT_PLAN`; a file that names a masterplan skips it too and says so: the field keeps its builds for its
+the `CURRENT_PLAN` pointer; a file that names a masterplan skips it too and says so: the field keeps its builds for its
 next plan), in a numbered worktree 00-99, and runs the [cleanup](../cleanup/SKILL.md) skill's `busy` then `delete` there: the build
 artifacts the repo's `.hal/cleanup` lists go (generic build folders without the file), what it marks `!` stays (e.g.
 fetched dependencies). It prints `status: cleaned`, `skipped` (with why: after a stop, a cancel, a held queue,
@@ -394,7 +396,7 @@ successful merge and a finished plan"). Note the space freed and any `unknown` r
 One short block: the queue released (or, after a cancel or release, that it no longer holds it; after a stop, that its place stays held), commits landed (`commits`, of every landing of this `/mtm`) and the merge commit(s) (`git -C <main checkout> log --oneline -2`), the plan steps finished after the landing (and any left open, with why),
 `git log --oneline <default>..HEAD` empty and the worktree clean (say so; if not, what is left and why),
 `pushed`, the `tasks` that ran (row and verb; skip `unchanged` and `cached` ones, say how many were cached) and the `hooks`, `warnings` (a failed install, deploy or
-`main-post-commit` hook does not undo the landing: show its output; an allowed failure is a warning, not a fix), what `plan.py leave` did with `plans/CURRENT_PLAN` (what it named, what it names now; `HANDOFF.md` deleted with it), a masterplan's row a finished plan ticked, the cleanup (space freed, or why it was skipped; `unknown` rows to add to `.hal/cleanup`; the farmer told, from 10-99), what was gitignored (secrets named), unclear files and what was decided, conflicts resolved, fixes
+`main-post-commit` hook does not undo the landing: show its output; an allowed failure is a warning, not a fix), what `plan.py leave` did with the `CURRENT_PLAN` pointer (what it named, what it names now; `HANDOFF.md` deleted with it), a masterplan's row a finished plan ticked, the cleanup (space freed, or why it was skipped; `unknown` rows to add to `.hal/cleanup`; the farmer told, from 10-99), what was gitignored (secrets named), unclear files and what was decided, conflicts resolved, fixes
 committed. the side branches the landing deleted (`branches_deleted`) and those it kept because they are not merged
 (`branches_kept`: say so, they are left for the user). The worktree now equals the new default branch, without build artifacts, and is ready for the next task. End the report with
 the durations table from the result's `steps` (after a failure or stop too, when it has them): a markdown table
@@ -402,7 +404,7 @@ of step, outcome and duration, under each step its slowest tasks (cached and unc
 and the total `duration_ms`; the Landings part of the Hooks tab shows the same live.
 
 When the work landed (step 4 exited 0), the very last lines of the message, after the durations table, are
-**What landed** kept at step 6, so the user still sees what the work was after `plans/CURRENT_PLAN` is gone:
+**What landed** kept at step 6, so the user still sees what the work was after the `CURRENT_PLAN` pointer is gone:
 
 ```
 **Plan 0059: topic-selfimprovement 3 show as last message after mtm was successful**

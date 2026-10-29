@@ -4,7 +4,9 @@
   scan.py scan [--project <dir>] [--hours 24] [--all] [--json]
       the incidents since the last scan (--all: also the handled ones): stopped sessions
       classified F1-F14 (research 0015 in hal2; F13: plan 0139; F14: skills plan 0016) with
-      evidence and an action (resume|restore|judge|wait|escalate|handover|count); writes the heartbeat
+      evidence and an action (resume|restore|judge|wait|escalate|handover|count|paused); writes the heartbeat.
+      A paused field (`hal2-cli-git worktree paused --json`, hal2 plan 0458) is still scanned, but every incident
+      in it gets the action `paused`: never resumed, restored or judged, it is only listed
   scan.py record <incident-id> <action> [--session <id>] [--note <text>]
       mark an incident handled: appended to log.jsonl; a `resume` counts against the
       session's resume budget (2 per 6 h)
@@ -17,7 +19,8 @@ day chronicle, the hook records, terminal orphans), Claude Code's transcripts (a
 under ~/skills/sanity-watch/. A session that rests while a background task of its own lives (a
 shell, a monitor, a subagent whose transcript moved in the last 20 min) waits, it has not
 stopped (a plan's coordinator waiting on its step's subagent); one whose subagents are all dead
-is F14. Exit 0 on success, 2 when a tool is missing.
+is F14. While the machine is quiet (hal2's marker, plan 0442 D11) a scan finds nothing: Quiet now stopped the
+sessions on purpose. Exit 0 on success, 2 when a tool is missing.
 """
 
 import argparse
@@ -39,6 +42,7 @@ PROJECTS = Path(os.environ.get("CLAUDE_PROJECTS_DIR", HOME / ".claude/projects")
 DATA = Path(os.environ.get("SANITY_WATCH_DIR", HOME / "skills/sanity-watch"))
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+import quiet_marker  # noqa: E402  (hal2's quiet marker, plan 0442 D11)
 PLAN_PY = sibling("plan") / "scripts" / "plan.py"
 
 MINUTE = 60_000
@@ -191,9 +195,9 @@ def rows(listed, key: str) -> list:
     return listed if isinstance(listed, list) else []
 
 
-def run_json(*argv, default=None):
+def run_json(*argv, default=None, cwd=None):
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=60, cwd=cwd)
     except (OSError, subprocess.TimeoutExpired):
         return default
     if out.returncode != 0:
@@ -214,6 +218,25 @@ def project_of(cwd: str) -> str:
                                 capture_output=True, text=True).stdout.strip() if Path(cwd).is_dir() else ""
         _projects[cwd] = str(Path(common).parent) if common else ""
     return _projects[cwd]
+
+
+def paused_fields(project: str) -> dict[str, dict]:
+    """The project's paused fields by number from `hal2-cli-git worktree paused --json` (hal2 plan 0458, D2);
+    nothing when the CLI is older and has no such command or fails."""
+    report = run_json("hal2-cli-git", "worktree", "paused", "--json", cwd=project if Path(project).is_dir() else None)
+    fields = report.get("fields") if isinstance(report, dict) else None
+    return {f["field"]: f for f in fields if isinstance(f, dict) and f.get("field")} if isinstance(fields, list) else {}
+
+
+def hold_paused(found: list[dict], paused: dict[str, dict]) -> None:
+    """Gives every incident in a paused field (but a plain count) the action `paused`, in place: a paused field is
+    never started, continued or woken (plan 0458), so no resume, restore, judge or handover is left for it."""
+    for i in found:
+        pause = paused.get(str(i.get("slot") or ""))
+        if pause and i["action"] != "count":
+            who = ", ".join(x for x in (pause.get("by"), pause.get("why")) if x)
+            i["evidence"] = {**i["evidence"], "would_be": i["action"], "paused": pause}
+            i["action"], i["reason"] = "paused", f"field {i['slot']} is paused" + (f" ({who})" if who else "")
 
 
 def chronicle_events(since_ms: int) -> list[dict]:
@@ -271,8 +294,9 @@ def incident(cls: str, session: str, at: int, agent: dict | None, evidence: dict
 
 
 def find_incidents(project: str, agents: list[dict], events: list[dict], orphans: list[dict], state: dict,
-                   at: int, tails=read_tail, plan_of=None, moved=subagent_moved) -> list[dict]:
-    """Every incident of `project`. Pure apart from `tails`, `plan_of` and `moved` (injected for tests)."""
+                   at: int, tails=read_tail, plan_of=None, moved=subagent_moved, paused=None) -> list[dict]:
+    """Every incident of `project`. Pure apart from `tails`, `plan_of` and `moved` (injected for tests). `paused`
+    (fields by number) turns the action of every incident in a paused field into `paused` (`hold_paused`)."""
     plan_of = plan_of or current_plan
     mine = [a for a in agents if a.get("project") == project]
     by_session = {a.get("session_id"): a for a in agents if a.get("session_id")}
@@ -358,8 +382,9 @@ def find_incidents(project: str, agents: list[dict], events: list[dict], orphans
     for orphan in orphans:
         where = orphan.get("worktree") or orphan.get("cwd") or ""
         if where and project_of(where) == project and not orphan.get("gone"):
-            found.append(incident("F8", orphan.get("id", "?"), orphan.get("created") or at, None,
-                                  {"orphan": orphan}))
+            found.append(incident("F8", orphan.get("id", "?"), orphan.get("created") or at,
+                                  {"slot": Path(where).name, "checkout": where}, {"orphan": orphan}))
+    hold_paused(found, paused or {})
     return found
 
 
@@ -374,6 +399,10 @@ def default_project() -> str:
 
 
 def cmd_scan(args) -> int:
+    quiet = quiet_marker.refusal()
+    if quiet:  # Quiet now stopped the sessions on purpose: none is an incident, none is resumed (plan 0442 D11)
+        print(json.dumps({"quiet": quiet, "incidents": []}, indent=1) if args.json else f"no scan: {quiet}")
+        return 0
     if not shutil.which("hal2-cli-agents"):
         print("hal2-cli-agents is missing: install hal2 (cargo install --path apps/hal2-cli-agents)",
               file=sys.stderr)
@@ -386,7 +415,7 @@ def cmd_scan(args) -> int:
     me = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     agents = [a for a in agents if not me or a.get("session_id") != me]  # never the watcher itself
     events = [e for e in chronicle_events(since) if not me or e.get("session") != me]
-    found = find_incidents(project, agents, events, orphans, state, at)
+    found = find_incidents(project, agents, events, orphans, state, at, paused=paused_fields(project))
     if not args.all:
         found = [i for i in found if i["id"] not in state.get("handled", {})]
     state["last_scan"] = at

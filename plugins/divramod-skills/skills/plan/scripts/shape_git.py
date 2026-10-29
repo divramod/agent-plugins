@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import planread
 import shape
 import shape_names as names
 import shape_new
@@ -61,7 +62,11 @@ def start(root: Path, folder: Path, number: str) -> dict:
     return {**out, "switched": True, "created": True}
 
 
-def message(folder: Path, field: str, sub) -> str:
+def message(root: Path, folder: Path, field: str, sub) -> str:
+    """The merge's message: the subject and the origin trailers; where the farm's commits are neutral (hal2 plan 0409
+    D15) the subject alone, naming no plan or field."""
+    if planread.neutral(root):
+        return f"chore(plans): merge sub-plan {sub.id}\n"
     found = shape.load(folder)
     steps = [s for w in found.work() for s in w.steps]
     done = sum(1 for s in steps if names.finished(s.doc.status))
@@ -81,7 +86,7 @@ def finish(root: Path, folder: Path, number: str) -> dict:
     if left:
         raise ShapeError(f"sub-plan {sub.id} is not done: its steps {', '.join(left)} are open (its done-when "
                          "passes only with every step done or dropped)")
-    text = message(folder, field, sub)
+    text = message(root, folder, field, sub)
     must(root, "switch", field)
     merged = git(root, "merge", "--no-ff", side, "-m", text)
     if merged.returncode != 0:

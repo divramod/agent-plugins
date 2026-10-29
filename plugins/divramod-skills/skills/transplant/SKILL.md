@@ -40,7 +40,7 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    - `refused`: `reason`, the `files` and `advice` (also `$T advice <reason> <from> <to>`).
    - `call` (name the source), `error` (the message). Exit 2: a tool is missing: `bash $S/install-prerequisites.sh`.
 2. **Prepare.** `$H worktree transplant <from> <to> --prepare --json`: `status` ok means the checks held, the record
-   exists (`prepared`) and the target is kept (its `plans/CURRENT_PLAN` holds `transplant-from-<from>`). Anything
+   exists (`prepared`) and the target is kept (its `CURRENT_PLAN` pointer holds `transplant-from-<from>`). Anything
    else: say the reason with its advice, end.
 3. **Free the target.** `$T free <from> <to>`: an idle session in the target is stopped by signal through
    [delete-field](../delete-field/SKILL.md)'s `stop.py`. Exit 3: it refused (a draft,

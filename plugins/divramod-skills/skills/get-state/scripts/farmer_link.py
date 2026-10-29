@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
-from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+from skillpath import pointers as _pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 try:
     FARMER = sibling("farmer") / "scripts"
 except FileNotFoundError:  # the farmer skill is optional here
@@ -75,12 +75,10 @@ agents_by_checkout = mtm_scan.agents_by_checkout if mtm_scan else _no_sessions
 
 
 def foreman_of(path: str | Path) -> str | None:
-    """The worktree named by the worktree's `plans/LEAD` (`<foreman-slot> <plan> <step>`), None without a usable marker."""
+    """The worktree named by the worktree's LEAD marker (`<foreman-slot> <plan> <step>`; the git dir's, else plans/),
+    None without a usable marker."""
     if lead_marker:
         m = lead_marker.marker(path)
         return m.get("slot") if m and not m.get("bad") else None
-    try:
-        parts = (Path(path) / "plans" / "LEAD").read_text().split()
-    except OSError:
-        return None
+    parts = _pointers(__file__).read(path, "LEAD").split()
     return parts[0] if len(parts) >= 3 and len(parts[0]) == 2 and parts[0].isdigit() else None

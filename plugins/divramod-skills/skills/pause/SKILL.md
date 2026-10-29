@@ -57,7 +57,7 @@ will time out anyway, or a pure poller whose next run is as good as this one. Sa
 
 `$P path` names the file (`~/skills/pause/<checkout slug>.md`; `$PAUSE_ROOT` overrides the root). Gather facts,
 don't recall them: `git rev-parse --show-toplevel`, `git branch --show-current`, `git rev-parse --short HEAD`,
-`git status --short`, and the content of `plans/CURRENT_PLAN` when there is one. Write:
+`git status --short`, and the content of the `CURRENT_PLAN` pointer when there is one. Write:
 
 ```markdown
 # Paused <YYYY-MM-DD HH:MM>

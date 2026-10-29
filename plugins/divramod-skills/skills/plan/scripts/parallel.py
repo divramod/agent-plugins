@@ -20,7 +20,9 @@ import re
 import subprocess
 from pathlib import Path
 
-LEAD = Path("plans") / "LEAD"
+import pointers
+
+LEAD = Path("plans") / "LEAD"  # the words of the messages; the file is the git dir's or plans/ (pointers.py)
 DEFAULT_CAPACITY = {"@vm": 2}
 MILESTONE = re.compile(r"^\W*milestone\s+\d+", re.I)
 WHO = re.compile(r"^(lead|subagent|user)$")
@@ -185,13 +187,13 @@ def check_who(who: str) -> str:
 
 
 def read_marker(root: Path) -> dict | None:
-    """The servant marker `plans/LEAD`: {slot, plan, step}, None when there is none."""
-    f = root / LEAD
-    if not f.is_file():
+    """The servant marker LEAD (the git dir's, else plans/LEAD): {slot, plan, step}, None when there is none."""
+    if not pointers.exists(root, pointers.LEAD):
         return None
-    parts = f.read_text().split()
+    text = pointers.read(root, pointers.LEAD)
+    parts = text.split()
     if len(parts) < 3:
-        raise ParallelError(f"{LEAD} must hold `<lead-slot> <plan> <step>`, not '{f.read_text().strip()}'")
+        raise ParallelError(f"{LEAD} must hold `<lead-slot> <plan> <step>`, not '{text}'")
     return {"slot": parts[0], "plan": parts[1], "step": parts[2]}
 
 
@@ -209,7 +211,7 @@ def subservant_marker(root: Path, cwd: Path) -> dict | None:
     if marker := read_marker(root):
         return marker
     here = cwd.resolve()
-    if not any((d / LEAD).is_file() for d in (here, *here.parents)) and \
+    if not any(pointers.exists(d, pointers.LEAD) for d in (here, *here.parents)) and \
             not (os.environ.get("GIT_WORK_TREE") or os.environ.get("GIT_DIR")):
         return None
     top = worktree_of(cwd)

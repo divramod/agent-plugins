@@ -45,7 +45,7 @@ FALLBACK_TEMPLATE = """<!-- IMPORTANT: First, output the file content starting f
 4. You should explicitly not implement the old shots.
 5. You should explicitly not change the file {{file_path}}.
 6. Your current task is the shot {{shot_num}}.
-7. Make this shot a plan before you start: create it with the plan skill (`/plan new`), titled `{{plan_title}}`, so `plans/CURRENT_PLAN` names it (a shot that asks for research rather than implementation: `/plan new --research`, so the slug starts with `research-`); then run it as its coordinator. {{coordinator}}{{theme_context_line}}
+7. Make this shot a plan before you start: create it with the plan skill (`/plan new`), titled `{{plan_title}}`, so the `CURRENT_PLAN` pointer names it (a shot that asks for research rather than implementation: `/plan new --research`, so the slug starts with `research-`); then run it as its coordinator. {{coordinator}}{{theme_context_line}}
 """
 # The plan skill's coordinator sentence (skills plan 0016's D7), in every prompt that starts a plan-running session.
 COORDINATOR = ("You are the plan's coordinator: you never do a step yourself; each step runs in one subagent at its "
@@ -111,9 +111,17 @@ def render(tmpl: str, values: dict[str, str]) -> str:
     return text if COORDINATOR in text else f"{text}\n\n{COORDINATOR}"
 
 
+def shotfile_text(shotfile: Path, main: Path, name: str, is_global: bool) -> str:
+    """The text of the shotfile: its file, or, in a farm whose home is the plan store (a virtual `store:...` path,
+    plan 0409), `hal2-cli-shooter shots show`."""
+    if str(shotfile).startswith("store:"):
+        return json.loads(run("hal2-cli-shooter", "shots", "show", name, *where(main, is_global), "--json"))["text"]
+    return shotfile.read_text()
+
+
 def prompt_values(shotfile: Path, number: str, title: str, body: str, repo: str,
-                  is_global: bool = False) -> dict[str, str]:
-    text = shotfile.read_text()
+                  is_global: bool = False, text: str | None = None) -> dict[str, str]:
+    text = shotfile.read_text() if text is None else text
     heading = next((line[2:].strip() for line in text.splitlines() if line.startswith("# ")), shotfile.stem)
     return {
         "shot_num": number,
@@ -201,8 +209,9 @@ def cmd_send(main: Path, shotfile_name: str, number: str, pane: str | None, is_g
              model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT) -> dict:
     shot = find_shot(main, shotfile_name, number, is_global)
     shotfile = Path(shot["path"])
+    contents = shotfile_text(shotfile, main, shotfile_name, is_global)
     text = render(template(main), prompt_values(shotfile, str(shot["number"]), shot.get("title") or "",
-                                                 shot.get("body") or "", repo_name(main), is_global))
+                                                 shot.get("body") or "", repo_name(main), is_global, contents))
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     bullet = BULLETS / main.name / f"{shotfile.stem}_{stamp}_shot-{number}.md"
     bullet.parent.mkdir(parents=True, exist_ok=True)

@@ -33,6 +33,17 @@ COORDINATOR = ("You are the plan's coordinator: you never do a step yourself; ea
 BIG = "code/typescript/apps/big"
 
 
+class CurrentPlan(unittest.TestCase):
+    def test_the_pointer_in_the_git_dir_is_read_before_plans(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+            self.assertIsNone(loop.current_plan(tmp))
+            (Path(tmp) / ".git" / "hal").mkdir()
+            (Path(tmp) / ".git" / "hal" / "CURRENT_PLAN").write_text("0090-fix-loc-a\n")
+            self.assertEqual(loop.current_plan(tmp), "0090-fix-loc-a")
+            self.assertIsNone(loop.current_plan(None))
+
+
 @unittest.skipIf(shutil.which("scc") is None, "scc is not installed")
 class Loop(unittest.TestCase):
     def setUp(self):

@@ -5,7 +5,7 @@
   decisions.py --check
 
 Lists the decisions a session continuing with `/handoff c` has: HANDOFF.md's Decisions (the index of every user
-decision in force), then the current plan's Decisions and Pre-authorized (the plan `plans/CURRENT_PLAN` names, else
+decision in force), then the current plan's Decisions and Pre-authorized (the plan the `CURRENT_PLAN` pointer names, else
 the one HANDOFF.md links; an item holding one of the index's quotes is left out) and HANDOFF.md's Open. Prints the farmer
 HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a foreman), the worktree id the farmer knows
 (`<slot>`, or `<repo>/<slot>` when the farmer belongs to another repository) and the message to send it:
@@ -108,13 +108,20 @@ def home_file(root: Path, home: str, plan: Path | None) -> Path | None:
     if re.match(r"plan\b(?!s/)", home, re.I):
         return plan
     m = MD_PATH.search(home)
-    return root / (m.group(1) or m.group(2)) if m else None
+    if not m:
+        return None
+    named = m.group(1) or m.group(2)
+    view = where.planhome.view_of(root)  # the store home: plans/<...> is the edit folder's copy
+    return view / named.removeprefix("plans/") if view is not None and named.startswith("plans/") else root / named
 
 
 def check_record(root: Path, at: dict) -> list[str]:
     """The problems of the plan folder whose ledger is the decisions index: hal2's records checker over it (the plan
     skill's checker.py, as `plan.py check <folder>`); without the checker one advisory line, no problem."""
     folder = str(Path(at["plan"]).parent) + "/"
+    if where.planhome.view_of(root) is not None:
+        # The store home: the copy is checked by the store when it is applied (`where.py --apply` refuses a problem).
+        return [] if Path(at["file"]).is_file() else [f"{at['file']}: missing (where.py --stamp writes it)"]
     try:
         found = where.checker.check(repo=root)
     except where.checker.CheckerError as error:
@@ -179,8 +186,7 @@ def check(root: Path) -> list[str]:
 
 
 def plan_file(root: Path, handoff: str) -> Path | None:
-    cur = root / "plans" / "CURRENT_PLAN"
-    slug = cur.read_text().strip() if cur.exists() else ""
+    slug = where.pointers.read(root, "CURRENT_PLAN")
     if slug and (root / "plans" / slug / "plan.md").exists():
         return root / "plans" / slug / "plan.md"
     m = PLAN_LINK.search(handoff)
@@ -190,7 +196,7 @@ def plan_file(root: Path, handoff: str) -> Path | None:
 def lead_of(root: Path) -> dict | None:
     """The servant marker plans/LEAD: {slot, plan, step}; a malformed one {bad: True, error, text}: the worktree is
     still a servant's (bad but marked, as the farmer reads it); None without the file."""
-    f = root / "plans" / "LEAD"
+    f = where.pointers.path(root, "LEAD")  # the git dir's, else plans/LEAD
     if not f.is_file():
         return None
     try:

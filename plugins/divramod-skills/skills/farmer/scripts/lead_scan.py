@@ -6,7 +6,7 @@
       session excluded) that waits for someone: a question to the user, a dialog or
       permission prompt, a failed turn, a session idle inside an unfinished plan (not while
       its background tasks run: a coordinator waits on its subagents), a
-      context near its limit, a worktree working without plans/CURRENT_PLAN; with the last thing it said. Stops already handled are
+      context near its limit, a worktree working without a CURRENT_PLAN pointer; with the last thing it said. Stops already handled are
       left out (--all: shown too)
   lead_scan.py record <session-id> <since> <what> [--note <text>] [--repo <dir>]
       mark that stop handled (the next scans skip it until the session moves on)
@@ -107,7 +107,7 @@ def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
     """(kind, why) for a session that needs help, else None."""
     state, since = agent.get("state"), (agent.get("since") or 0) / 1000
     if state == "working" and agent.get("slot") not in (None, "main") and not agent.get("current_plan"):
-        return "no-plan", "works without plans/CURRENT_PLAN naming its task"
+        return "no-plan", "works without a CURRENT_PLAN pointer naming its task"
     age = int(now - since) if since else 0
     if state == "blocked" and age >= BLOCKED_AFTER:
         return "blocked", f"a dialog or permission prompt waits for {age // 60} min"
@@ -151,9 +151,8 @@ def with_marker(agent: dict, checkout: Path, agents: list[dict] | None = None, d
     servant has finished its step (`step_done`: its report on origin/NN, or merged into origin/<foreman>): an idle
     servant done with its step waits for its foreman and wakes nobody. `lead_state` says whether the marker is in use
     or stale (lead_marker.state, from the session list `agents`): a running servant's marker is never stale."""
-    plan_file = checkout / "plans/CURRENT_PLAN"
     lead = mtm_scan.lead_of(checkout)
-    return {**agent, "current_plan": plan_file.read_text().strip() if plan_file.exists() else "", "lead": lead,
+    return {**agent, "current_plan": lead_marker.current_plan(checkout), "lead": lead,
             "step_done": bool(lead) and lead_marker.step_done(checkout, checkout.name, lead),
             "lead_state": lead_marker.state(checkout, lead, agents, default) if lead else None}
 

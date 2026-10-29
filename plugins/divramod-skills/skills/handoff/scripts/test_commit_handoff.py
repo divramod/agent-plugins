@@ -50,6 +50,15 @@ class CommitHandoffTest(unittest.TestCase):
         self.assertEqual(self.message(), "docs(plans): record the decisions of plan 0355\n\n"
                          f"Worktree: {self.repo.name}\nPlan: 0355-commit-standards\n{attribution}")
 
+    def test_the_plan_trailer_reads_a_pointer_that_sits_in_the_git_dir(self):
+        (self.repo / ".git" / "hal").mkdir()
+        (self.repo / ".git" / "hal" / "CURRENT_PLAN").write_text("0355-commit-standards\n")
+        (self.repo / "INTENT.md").write_text("# Intent\n")
+
+        self.assertEqual(self.commit("docs: note", "INTENT.md").returncode, 0)
+
+        self.assertEqual(self.message(), f"docs: note\n\nWorktree: {self.repo.name}\nPlan: 0355-commit-standards")
+
     def test_without_a_plan_only_the_worktree_trailer_and_a_given_one_is_kept(self):
         (self.repo / "INTENT.md").write_text("# Intent\n")
         self.assertEqual(self.commit("docs: note\n\nWorktree: 07", "INTENT.md").returncode, 0)

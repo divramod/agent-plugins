@@ -8,7 +8,7 @@ description: Turn a photo (or a path) of a handwritten to-do list into shots —
 A handwritten list becomes shots, and nothing goes into a shotfile that the user has not seen and confirmed in its
 final form. `S=<skill-dir>/scripts`. A shot is `## shot <n> <title>` with its body below it, in a shotfile
 (`shotfiles/<name>.md`); `shots.py` writes it exactly as hal2-nvim's shooter does, so never edit shotfiles by hand. The skill captures
-work, it does not start it: it never writes `plans/CURRENT_PLAN`, `.gitignore` or anything but the confirmed shots.
+work, it does not start it: it never writes the `CURRENT_PLAN` pointer, `.gitignore` or anything but the confirmed shots.
 
 | Call | Does |
 |---|---|
@@ -46,7 +46,9 @@ python3 $S/shots.py repos              # the user's git repositories (~/a; --roo
 python3 $S/shots.py targets            # the current repo's and the global shotfiles; --repo <dir> for another repository
 ```
 
-`targets` JSON: `repo` (its shotfiles, each with `name`, `next` number and `open` shots `{number, title}`), `global`
+In a farm whose home is the plan store there is no `shotfiles/` folder: `repo.shotfiles` reads `store:farm`, every
+`path` `store:<scope>/<name>.md`, and the shots are listed, previewed and written through `hal2-cli-shooter` (the
+script does it). `targets` JSON: `repo` (its shotfiles, each with `name`, `next` number and `open` shots `{number, title}`), `global`
 (the global shotfiles, `null` when there are none here) and `cli` (whether `hal2-cli-shooter` is installed). Exit 2
 names a missing tool: run `bash $S/install-prerequisites.sh` once and retry. Run `targets --repo <dir>` for every
 other repository an item may belong to (step 3), so its shotfiles and open shots are known too.

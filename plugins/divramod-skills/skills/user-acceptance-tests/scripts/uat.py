@@ -10,7 +10,7 @@ A thin layer on `hal2-cli-plans uat list|set` (its verdicts already track which 
   uat.py set   [<plan>] <check> pass|fail|skip|blocked [--note <t>] [--shot] [--step <n>] [--duration <s>] [--evidence <f>]
   uat.py plan  [<plan>]                     the plan the call resolves to
 
-The plan is the argument (a number or a slug of `plans/`), else the name in `plans/CURRENT_PLAN`. A check is `U<n>`, a bare
+The plan is the argument (a number or a slug of `plans/`), else the name in the `CURRENT_PLAN` pointer. A check is `U<n>`, a bare
 `<n>` after the plan, or `<NNNN>/U<n>` (a regression check carried from an earlier plan). `--repo <dir>` names the checkout;
 the default is git's top level of the current directory. The CLI is `$HAL2_CLI_PLANS`, else `hal2-cli-plans`.
 Confirmed means `pass`; open means `untested`, `retest` or an outdated pass: only those are walked, so a walk ends.
@@ -22,6 +22,14 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+for _p in Path(__file__).resolve().parents:  # the skills unit's scripts/ (skillpath.py), when this runs inside one
+    if (_p / ".claude-plugin").is_dir():
+        sys.path.insert(0, str(_p / "scripts"))
+        break
+import skillpath  # noqa: E402
+
+POINTERS = skillpath.pointers(__file__)  # CURRENT_PLAN: the git dir's, else plans/ (the plan skill's pointers.py)
 
 VERDICTS = ("pass", "fail", "skip", "blocked")
 CHECK = re.compile(r"^(?:\d{1,4}/)?[uU]\d+$")
@@ -84,16 +92,40 @@ def norm_check(check: str) -> str:
     return f"{head.zfill(4)}/{tail.upper()}" if head else tail.upper()
 
 
+def in_store(ref: str, root: Path) -> str | None:
+    """The plan's folder name as the CLI knows it, in a farm whose plans live in its plan store (hal2 plan 0409: no
+    plan folder on the disk); None in the files home or when the store has no such plan."""
+    home = subprocess.run(["git", "-C", str(root), "config", "--get", "hal.farm"], capture_output=True, text=True)
+    if home.returncode != 0 or not home.stdout.strip():
+        return None
+    try:
+        found = json.loads(run_cli(["show", ref, "--json"], root) or "{}")
+    except (UatError, ValueError):
+        return None
+    return found.get("slug") if isinstance(found, dict) else None
+
+
 def resolve_plan(arg: str | None, root: Path) -> str:
-    """The folder name of the plan: from the argument, else plans/CURRENT_PLAN."""
+    """The folder name of the plan: from the argument, else the CURRENT_PLAN pointer; in the store home the CLI's."""
+    try:
+        return on_disk(arg, root)
+    except UatError:
+        ref = arg if arg is not None else POINTERS.read(root, "CURRENT_PLAN")
+        found = in_store(ref, root) if ref else None
+        if found:
+            return found
+        raise
+
+
+def on_disk(arg: str | None, root: Path) -> str:
+    """The plan's folder below the checkout's plans/."""
     plans = root / "plans"
     if arg is None:
-        current = plans / "CURRENT_PLAN"
-        arg = current.read_text().strip() if current.is_file() else ""
+        arg = POINTERS.read(root, "CURRENT_PLAN")
         if not arg:
-            raise UatError("no plan given and plans/CURRENT_PLAN is empty")
+            raise UatError("no plan given and the CURRENT_PLAN pointer is empty")
         if not (plans / arg).is_dir():
-            raise UatError(f"plans/CURRENT_PLAN names '{arg}', which is no plan folder: name the plan")
+            raise UatError(f"the CURRENT_PLAN pointer names '{arg}', which is no plan folder: name the plan")
         return arg
     if (plans / arg).is_dir():
         return arg

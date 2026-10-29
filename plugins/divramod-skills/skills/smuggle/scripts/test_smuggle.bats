@@ -117,6 +117,30 @@ work() { echo "$1" > "$1.txt" && git add "$1.txt" && git commit -q -m "$1"; }
   [ "$(cat "$(git rev-parse --git-common-dir)/smuggle/last")" = "$(printf 'base=%s\nhead=%s' "$before" "$landed")" ]
 }
 
+@test "land: a farm with neutral commits gets no trailers, its mark in refs/notes/land (plan 0409 D15)" {
+  fake="$tmp/planread.py"
+  printf 'import sys\nprint("on" if sys.argv[1] == "neutral" else "")\n' >"$fake"
+  work a
+  bash "$here/smuggle.sh" reserve
+  SMUGGLE_PLANREAD="$fake" run bash "$here/smuggle.sh" land
+  [ "$status" -eq 0 ]
+  landed=$(git --git-dir "$tmp/origin.git" rev-parse main)
+  [ "$(git log -1 --format=%B "$landed")" = "chore: land (CI skipped)" ]
+  [ "$(git --git-dir "$tmp/origin.git" notes --ref=land show "$landed")" = "Smuggle: $(basename "$PWD")" ]
+}
+
+@test "land: a public farm's mirror is published on this machine after the landing (plan 0409 step 15)" {
+  # A hal2-cli-git without --local (the landing stays plain git) that has `publish`.
+  printf '#!/usr/bin/env bash\n[ "$1" = publish ] || exit 0\n[ "$2" = --help ] && exit 0\necho "$*" > "%s/published"\necho "publish: published (source abc, branch main)"\n' "$tmp" > "$tmp/gitcli"
+  chmod +x "$tmp/gitcli"
+  work a
+  bash "$here/smuggle.sh" reserve
+  HAL2_CLI_GIT="$tmp/gitcli" run bash "$here/smuggle.sh" land
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"publish: published"* ]]
+  [ "$(cat "$tmp/published")" = "publish --repo $PWD" ]
+}
+
 @test "land: without the lock it refuses, after main moved it is a conflict (exit 3)" {
   work a
   run bash "$here/smuggle.sh" land

@@ -131,6 +131,11 @@ land() {
   mkdir -p "$state"
   printf 'base=%s\nhead=%s\n' "$before" "$(git -C "$top" rev-parse "origin/$default")" > "$state/last"
   echo "landed: $(sed -n 's/^base=//p' "$state/last" | cut -c1-9)..$(sed -n 's/^head=//p' "$state/last" | cut -c1-9)"
+  # The plan store's sync trigger (hal2 plan 0409 step 9): a farm whose plans live in its store; nothing else
+  # (the plan skill beside this one, flat or in its category).
+  local planread="$SMUGGLE_HERE/../../plan/scripts/planread.py"
+  [ ! -f "$planread" ] || python3 "$planread" sync landing --root "$top" || true
+  publish_mirror "$top"
 }
 
 # Where the main script runs: the main checkout when it is clean on the default

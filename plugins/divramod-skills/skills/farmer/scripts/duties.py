@@ -35,7 +35,7 @@ def user_decided(ack_id: str, words: str) -> str:
     """The first line of a relayed go."""
     return USER_DECIDED.replace("<id>", ack_id).replace("<the user's words>", words.replace('"', "'"))
 TEXT = {
-    "no-plan": LEAD + ": write your task into plans/CURRENT_PLAN now: the plan's <NNNN>-<slug>, the shot's "
+    "no-plan": LEAD + ": write your task into the CURRENT_PLAN pointer now: the plan's <NNNN>-<slug>, the shot's "
                       "<shotfile>/<n>/<title-slug>, or a short kebab-case task name (global CLAUDE.md).",
     "context-high": LEAD + ": your context is at {percent}%. Run /handoff now; hal2's autoclear continues you.",
     "continue": LEAD + ": you stopped mid-plan ({plan}). Continue the plan to its end.",

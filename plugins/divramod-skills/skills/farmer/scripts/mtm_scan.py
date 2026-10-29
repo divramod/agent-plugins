@@ -363,12 +363,11 @@ def worktree_entry(w: dict, a: dict, default: str, now: float) -> dict:
     """One worktree of the snapshot: its work not on main, its plan, its agent; a marked worktree (plans/LEAD) also
     `missing`, what its foreman's branch lacks (lead_marker.missing), which alone decides whether it has work left."""
     path, slot = w["path"], Path(w["path"]).name
-    plan_file = Path(path) / "plans/CURRENT_PLAN"
     since = (a.get("since") or 0) / 1000
     lead = lead_of(path)
     return {
         "slot": slot, "path": path, "branch": w.get("branch"), "ahead": unmerged(path, default),
-        "plan": plan_file.read_text().strip() if plan_file.exists() else "", "lead": lead,
+        "plan": lead_marker.current_plan(path), "lead": lead,
         **({"missing": lead_marker.missing(path, slot, lead, f"origin/{default}")} if lead else {}),
         "agent_state": a.get("state"), "pane": a.get("pane_id"),
         "agent_idle_seconds": int(now - since) if since and a.get("state") not in BUSY else 0,

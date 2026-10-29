@@ -11,6 +11,7 @@ from pathlib import Path
 import shape
 import shape_new
 import shape_names as sn
+import planhome
 from shape_docs import UatStep
 from shape_names import ShapeError
 
@@ -58,5 +59,5 @@ def add(root: Path, folder: Path, title: str, fields: dict) -> dict:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(doc.render())
     return {"added": "uat", "plan": folder.name, "ref": str(sn.StepRef(sn.UAT_NUMBER, number)), "check": doc.check,
-            "file": path.relative_to(root).as_posix(), "overview": shape.write_overview(root, folder)}
+            "file": planhome.rel(path, root, posix=True), "overview": shape.write_overview(root, folder)}
 

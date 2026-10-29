@@ -26,6 +26,9 @@ question. A store with malformed open questions (inline options, not exactly thr
 `warning: Q31, Q32: ...` line after the list, part of the output like the rest. Exit 1: print the line it gave (the
 store is broken, fix the file named). Exit 2: neither the CLI nor the handoff skill next to this one is found; report it.
 
+`--plan <n>` lists another plan's questions. In the store home (hal2 plan 0409: no plan file in the tree) the CLI
+answers from the plan store; the script reads the same.
+
 ## Record a question
 
 The script only reads. The farmer records its own questions with `farmer.py question add` (farmer skill). Any other session records a new question where `/q` looks: the plan's `questions.md` in the entry form

@@ -7,7 +7,9 @@
   shots.py write   < items.json                 write the items as open shots, in order
 
 An item is {"shotfile": "<name>", "title": "...", "body": "...", "global": false, "repo": "<dir>"} ("repo" and
-"global" optional: the current repository by default; a missing shotfile is created). `write` uses
+"global" optional: the current repository by default; a missing shotfile is created). A farm whose home is the plan
+store (plan 0409: no shotfiles/ folder) is read and written only through `hal2-cli-shooter` (`home`, `shots files`,
+`shots show`, `shots create`); its paths read `store:farm/<name>.md`. `write` uses
 `hal2-cli-shooter shots create` when it is installed and otherwise writes the same format itself
 (hal2-shooter's insert_shot: `## shot <n> <title>` above the first shot, one above the highest number).
 """
@@ -117,6 +119,38 @@ def global_root() -> Path | None:
     return DEFAULT_GLOBAL_ROOT if DEFAULT_GLOBAL_ROOT.is_dir() else None
 
 
+def cli_json(*args: str) -> dict | None:
+    """`hal2-cli-shooter <args> --json` parsed; None when the CLI is missing, too old for the command, or fails."""
+    if not shutil.which(CLI):
+        return None
+    r = subprocess.run([CLI, *args, "--json"], capture_output=True, text=True)
+    try:
+        return json.loads(r.stdout) if r.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def store_scope(item: dict) -> list[str]:
+    """The scope arguments of the CLI for an item or a target: the global shotfiles or a repository's."""
+    if item.get("global"):
+        return ["--global"]
+    return ["--repo", str(item.get("repo") or Path.cwd())]
+
+
+def in_store(scope: list[str]) -> bool:
+    """Whether the shotfiles of `scope` live in the plan store (plan 0409: the farm's home is `store`, no
+    shotfiles/ folder); only the CLI knows."""
+    home = cli_json("home", *scope)
+    return bool(home) and home.get("home") == "store"
+
+
+def describe_store(scope: list[str]) -> list[dict]:
+    """The shotfiles of a store-home scope, in `describe`'s shape (from `shots files`)."""
+    listed = cli_json("shots", "files", *scope) or {"files": []}
+    return [{"name": f["name"], "path": f["path"], "next": int(f["next"]), "open": f["open"]}
+            for f in listed["files"]]
+
+
 def describe(folder: Path) -> list[dict]:
     files = []
     for path in sorted(folder.rglob("*.md")) if folder.is_dir() else []:
@@ -134,11 +168,26 @@ def cmd_targets(argv: list[str]) -> dict:
     repo = Path(argv[argv.index("--repo") + 1]).expanduser() if "--repo" in argv else Path.cwd()
     folder = repo_shotfiles(repo)
     groot = None if "--no-global" in argv else global_root()
+    repo_scope, global_scope = ["--repo", str(repo)], ["--global"]
+    repo_store = bool(folder) and not folder.is_dir() and in_store(repo_scope)
+    global_store = bool(groot) and not groot.is_dir() and in_store(global_scope)
     return {
         "cli": shutil.which(CLI) is not None,
-        "repo": {"dir": str(folder.parent), "shotfiles": str(folder), "files": describe(folder)} if folder else None,
-        "global": {"shotfiles": str(groot), "files": describe(groot)} if groot else None,
+        "repo": {"dir": str(folder.parent), "shotfiles": "store:farm" if repo_store else str(folder),
+                 "files": describe_store(repo_scope) if repo_store else describe(folder)} if folder else None,
+        "global": {"shotfiles": "store:global" if global_store else str(groot),
+                   "files": describe_store(global_scope) if global_store else describe(groot)} if groot else None,
     }
+
+
+def farm_marked(repo: Path) -> bool:
+    """Whether the repository has a farm id (`hal.farm` in its git config), read as a file: only such a repository
+    can keep its shotfiles in the plan store, so only it is asked."""
+    try:
+        config = (repo / ".git" / "config").read_text()
+    except OSError:
+        return False
+    return re.search(r"^\s*farm\s*=", config, re.M) is not None and "[hal]" in config
 
 
 def cmd_repos(argv: list[str]) -> dict:
@@ -150,7 +199,8 @@ def cmd_repos(argv: list[str]) -> dict:
     for d in sorted(root.iterdir()) if root.is_dir() else []:
         if d.is_dir() and (d / ".git").exists():
             folder = d / "shotfiles"
-            repos.append({"name": d.name, "dir": str(d), "shotfiles": folder.is_dir(),
+            has = folder.is_dir() or (farm_marked(d) and in_store(["--repo", str(d)]))
+            repos.append({"name": d.name, "dir": str(d), "shotfiles": has,
                           "current": current_main is not None and current_main.parent.resolve() == d.resolve()})
     return {"root": str(root), "current": str(current_main.parent) if current_main else None, "repos": repos}
 
@@ -168,22 +218,42 @@ def item_path(item: dict) -> Path:
     return root / f"{name}.md"
 
 
+def stored_text(item: dict) -> tuple[str, str | None] | None:
+    """(virtual path, text or None when the shotfile is new) of an item whose shotfiles live in the plan store;
+    None for the files home."""
+    scope = store_scope(item)
+    if not in_store(scope):
+        return None
+    name = item["shotfile"].removesuffix(".md")
+    shown = cli_json("shots", "show", name, *scope)
+    where = "global" if item.get("global") else "farm"
+    return (shown["path"] if shown else f"store:{where}/{name}.md"), (shown["text"] if shown else None)
+
+
 def cmd_preview(items: list[dict]) -> list[dict]:
-    texts: dict[Path, str] = {}
+    texts: dict[str, str] = {}
     out = []
     for item in items:
-        path = item_path(item)
-        new_file = not path.exists() and path not in texts
-        text = texts.get(path, path.read_text() if path.exists() else f"# {item['shotfile'].removesuffix('.md')}\n")
-        texts[path], number, _ = insert_shot(text, item.get("title", ""), item.get("body", ""))
-        out.append({**item, "path": str(path), "number": number, "new_file": new_file,
+        stored = stored_text(item)
+        if stored:
+            path_s, current = stored
+        else:
+            path = item_path(item)
+            path_s, current = str(path), (path.read_text() if path.exists() else None)
+        new_file = current is None and path_s not in texts
+        text = texts.get(path_s, current if current is not None else f"# {item['shotfile'].removesuffix('.md')}\n")
+        texts[path_s], number, _ = insert_shot(text, item.get("title", ""), item.get("body", ""))
+        out.append({**item, "path": path_s, "number": number, "new_file": new_file,
                     "header": f"## shot {number} {' '.join(item.get('title', '').split())}".rstrip()})
     return out
 
 
 def write_one(item: dict) -> dict:
-    path = item_path(item)
     title, body = item.get("title", ""), item.get("body", "")
+    if shutil.which(CLI) and in_store(store_scope(item)):
+        path = Path(f"store:{'global' if item.get('global') else 'farm'}/{item['shotfile'].removesuffix('.md')}.md")
+    else:
+        path = item_path(item)
     if shutil.which(CLI):
         args = [CLI, "shots", "create", item["shotfile"].removesuffix(".md"), "--body", "-", "--create-file", "--json"]
         if title:

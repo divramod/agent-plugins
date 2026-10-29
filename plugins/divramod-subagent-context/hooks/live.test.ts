@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { type Engine, expect, mock, test } from 'claude-code/testing'
 
-import { PACE, alive, argvOf } from './live'
+import { PACE, alive, argvOf, loadSessions } from './live'
 import { PANE } from './testkit'
 
 const entry = (name: string) => ({ name, kind: 'file' as const, size: 10, mtimeMs: 0, isLink: false })
@@ -151,4 +151,31 @@ test('one pid is checked by one cheap command; a failing run, another exit code 
   const runs: (readonly string[])[] = []
   for (const pid of [0, -1, 1.5, Number.NaN]) expect(await alive({ run: async argv => { runs.push(argv); return { exitCode: 0 } } }, pid)).toBe(false)
   expect(runs).toEqual([])
+})
+
+test('a plan pointer in the git dir is found: a .git folder, a worktree .git file, else the old plans/ place', async () => {
+  const files: Record<string, string> = {
+    '/c/sessions/1.json': file(1, 'a', '/w/a'),
+    '/c/sessions/2.json': file(2, 'b', '/w/wt/b'),
+    '/c/sessions/3.json': file(3, 'c', '/w/c'),
+    '/w/a/.git/hal/CURRENT_PLAN': '0409-plan-store\n',
+    '/w/wt/b/.git': 'gitdir: ../../main/.git/worktrees/b\n',
+    '/w/main/.git/worktrees/b/hal/CURRENT_PLAN': '0010-view\n',
+    '/w/main/.git/worktrees/b/hal/LEAD': '09 0010-masterplan-farm 2\n',
+    '/w/c/plans/CURRENT_PLAN': '0222-publish\n',
+  }
+  const w = {
+    list: async () => ['1', '2', '3'].map(n => entry(`${n}.json`)),
+    read: async (path: string) => {
+      if (path in files) return files[path]
+      throw new Error(`ENOENT ${path}`)
+    },
+    run: async () => ({ exitCode: 0 }),
+  } as never
+  const rows = await loadSessions(w, '/c', 'S1')
+  expect(rows.map(r => [r.plan, r.lead])).toEqual([
+    ['0409-plan-store', ''],
+    ['0010-view', '09 0010-masterplan-farm 2'],
+    ['0222-publish', ''],
+  ])
 })

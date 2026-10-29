@@ -24,6 +24,13 @@ elif args[:2] == ["worktree", "list"]:
     print(json.dumps({"worktrees": [{"name": "main", "main": True}, w("01", main_behind=5),
         w("02"), w("03", plan="0007-x"), w("04", dirty=True, main_ahead=2), w("05"), w("06"),
         w("07", main_ahead=1)]}))
+elif args[:2] == ["worktree", "paused"]:
+    if os.environ.get("FAKE_PAUSED"):
+        print(json.dumps({"schema": 1, "repo": name, "fields": [
+            {"field": f, "by": "farmer", "why": "benchmark", "since": "2026-10-28T10:00:00Z"}
+            for f in os.environ["FAKE_PAUSED"].split(",")]}))
+    else:
+        sys.exit(2)  # an older CLI without the command
 elif args[:2] == ["worktree", "queue"]:
     print(json.dumps({"queue": [{"repo": name, "slot": "05", "state": "waiting"}]}))
 '''
@@ -45,8 +52,8 @@ class TestFree(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_free(self, *args):
-        env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", FAKE_REPO=str(self.repo.resolve()))
+    def run_free(self, *args, paused=""):
+        env = dict(os.environ, FAKE_PAUSED=paused, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", FAKE_REPO=str(self.repo.resolve()))
         r = subprocess.run([sys.executable, str(HERE / "free.py"), "--repo", str(self.repo), *args],
                            capture_output=True, text=True, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -66,6 +73,16 @@ class TestFree(unittest.TestCase):
         self.assertEqual(why["06"], "no session running")
         self.assertEqual(why["07"], "1 commit not on main")
         self.assertNotIn("main", why)
+
+    def test_a_paused_field_is_never_free_and_all_says_by_whom(self):
+        self.assertEqual(sorted(self.run_free(paused="01")), [])
+        why = self.run_free("--all", paused="01,03")
+        self.assertEqual(why["01"]["free"], False)
+        self.assertEqual(why["01"]["why"], "paused by farmer: benchmark")
+        self.assertEqual(why["03"]["why"], "paused by farmer: benchmark")  # paused is named before its plan
+
+    def test_an_older_cli_without_the_command_pauses_nothing(self):
+        self.assertEqual(sorted(self.run_free()), ["01"])
 
 
 if __name__ == "__main__":

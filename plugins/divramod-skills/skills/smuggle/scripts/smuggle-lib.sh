@@ -59,6 +59,18 @@ hal2_bin() {
   echo "$bin"
 }
 
+# A public farm's snapshot mirror after the landing (hal2 plan 0409 step 15), on this machine that landed:
+# `hal2-cli-git publish` (public off: it does nothing and nothing is said); a refusal or failure is said, never fatal.
+publish_mirror() {
+  local bin=${HAL2_CLI_GIT:-hal2-cli-git} out
+  command -v "$bin" >/dev/null 2>&1 && "$bin" publish --help >/dev/null 2>&1 || return 0
+  if out=$("$bin" publish --repo "$1" 2>&1); then
+    case "$out" in "publish: skipped"*) ;; *) printf '%s\n' "$out" | sed -n '1p;/^note: /p' ;; esac
+  else
+    printf 'publish: refused or failed, the mirror is not updated:\n%s\n' "$out"
+  fi
+}
+
 # Whether the hal2-cli-git of hal2_bin has the one-call `merge-to-main --smuggle`; prints the binary.
 hal2_smuggle_bin() {
   local bin

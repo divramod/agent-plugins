@@ -29,6 +29,13 @@ elif args[:2] == ["worktree", "list"]:
     print(json.dumps({"worktrees": [{"name": "main", "main": True}, w("01"), w("02"),
         w("03", plan="0085-old"), w("04", main_ahead=3), w("05", dirty=True), w("06", main_behind=400),
         w("07")] + extra}))
+elif args[:2] == ["worktree", "paused"]:
+    if os.environ.get("FAKE_PAUSED"):
+        print(json.dumps({"schema": 1, "repo": name, "fields": [
+            {"field": f, "by": "farmer", "why": "benchmark", "since": "2026-10-28T10:00:00Z"}
+            for f in os.environ["FAKE_PAUSED"].split(",")]}))
+    else:
+        sys.exit(2)  # an older CLI without the command
 elif args[:2] == ["worktree", "queue"]:
     print(json.dumps({"queue": [{"repo": name, "slot": "07", "state": "held"}]}))
 elif args[:2] == ["worktree", "run"]:
@@ -80,10 +87,10 @@ class TestCreate(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         return r.stderr
 
-    def run_raw(self, *args, extra="") -> subprocess.CompletedProcess:
+    def run_raw(self, *args, extra="", paused="") -> subprocess.CompletedProcess:
         env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", FAKE_LOG=str(self.log),
                    FAKE_REPO=str(self.repo.resolve()), SHELL=str(self.bin / "fakeshell"), TMUX="/tmp/x,1,0",
-                   FAKE_WT=str(self.wt), FAKE_EXTRA=extra, HOME=str(self.home), PYTHONPATH=str(self.bin))
+                   FAKE_WT=str(self.wt), FAKE_EXTRA=extra, FAKE_PAUSED=paused, HOME=str(self.home), PYTHONPATH=str(self.bin))
         return subprocess.run([sys.executable, str(HERE / "create.py"), "--repo", str(self.repo), *args],
                               capture_output=True, text=True, env=env)
 
@@ -187,6 +194,23 @@ class TestCreate(unittest.TestCase):
         out = self.run_create("--from", "31", "--lead", self.LEAD)
         self.assertEqual(out["slot"], "31")
         self.assertEqual((self.wt / "31" / "plans" / "LEAD").read_text(), self.LEAD + "\n")
+
+    def test_a_paused_field_is_skipped_and_named_in_the_skipped_list(self):
+        r = self.run_raw(paused="06")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertNotEqual(out["slot"], "06")
+        self.assertIn(("06", "paused by farmer: benchmark"), [(s["slot"], s["why"]) for s in out["skipped"]])
+
+    def test_a_field_named_alone_that_is_paused_is_refused_with_the_reason(self):
+        r = self.run_raw("--from", "06", "--to", "06", paused="06")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("field 06 is paused by farmer: benchmark", r.stderr)
+        self.assertIn("worktree resume 06", r.stderr)
+        self.assertFalse(self.log.exists() and "run" in self.log.read_text().replace("paused", ""))
+
+    def test_an_older_cli_without_the_command_pauses_nothing(self):
+        self.assertEqual(self.run_create()["slot"], "06")
 
 if __name__ == "__main__":
     unittest.main()

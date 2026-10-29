@@ -245,6 +245,16 @@ class CommitTests(Base):
         last = git(self.root, "log", "-1", "--format=%B").strip().split("\n\n")[-1].split("\n")
         self.assertEqual(last, ["Plan: 0364-skills", "Step: 7/8", "Co-Authored-By: C <c@example.com>"])
 
+    def test_the_plan_trailer_reads_a_pointer_that_sits_only_in_the_git_dir(self):
+        write(self.root, "plans/0364-skills/plan.md")
+        write(self.root, ".git/hal/CURRENT_PLAN", "0364-skills\n")
+        git(self.root, "add", "plans/0364-skills")
+        git(self.root, "commit", "-q", "-m", "docs(plans): plan")
+        write(self.root, "code/py/apps/tool/main.py")
+        code, out, _ = self.commit("--step", "7/8", "--json")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["trailers"], ["Plan: 0364-skills", "Step: 7/8"])
+
     def test_current_plan_that_is_no_plan_adds_nothing(self):
         write(self.root, "plans/CURRENT_PLAN", "some-task\n")
         write(self.root, "code/py/apps/tool/main.py")

@@ -9,7 +9,7 @@ never a go beyond the quoted words.
 
 Before reporting a decision missing, the check looks for it in the asking checkout (skills plan 0012): its quote
 (else its `what`) in the checkout's `HANDOFF.md` (whose Decisions section indexes every user decision in force), the
-plan its `plans/CURRENT_PLAN` names (else the one HANDOFF.md links), that plan's ledger `decisions.md` and its
+plan its `CURRENT_PLAN` pointer names (else the one HANDOFF.md links), that plan's ledger `decisions.md` and its
 `handoff.md` (a plan in the record format, hal2 plan 0206) and `INTENT.md`; found = not missing. Text matches
 when normalized (case, whitespace, punctuation): a quote of 4-8 words with a key word whole, a longer one by a run of 8
 consecutive words holding 2 key words.
@@ -20,7 +20,14 @@ another repository, e.g. `skills/04`).
 
 import os
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+from skillpath import load, pointers as _pointers  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+planread = load("plan", "planread", __file__)  # a plan's files in either home (hal2 plan 0409 step 9)
+pointers = _pointers(__file__)  # CURRENT_PLAN in the git dir, else plans/ (step 12)
 
 import decision_log
 from decision_log import ACKS, IDS, concerns, flat, quotes, shares_wording, words
@@ -120,8 +127,8 @@ def checkout_texts(root: Path | None) -> list[str]:
     if not root or not root.is_dir():
         return []
     read = lambda f: f.read_text(errors="replace") if f.is_file() else ""  # noqa: E731
-    handoff, slug = read(root / "HANDOFF.md"), read(root / "plans" / "CURRENT_PLAN").strip()
-    plan = root / "plans" / slug / "plan.md" if slug else None
+    handoff, slug = read(root / "HANDOFF.md"), pointers.read(root, "CURRENT_PLAN")
+    plan = planread.plan_dir(root, slug) / "plan.md" if slug else None
     if not (plan and plan.is_file()):
         m = PLAN_LINK.search(handoff)
         plan = root / m.group(1) if m else None

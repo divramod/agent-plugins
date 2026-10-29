@@ -8,7 +8,7 @@ description: create-shot — write a new open shot (`## shot <n> <title>` with i
 The user's words become a shot in a shotfile, exactly as hal2-nvim writes one, so the shot shows up in `/shoot`,
 `<space>fp` and every worktree. `S=<skill-dir>/../digest-todolist/scripts` (its `shots.py` finds the
 shotfiles, numbers and writes shots; never edit a shotfile by hand). The skill captures work, it does not start it:
-it writes nothing but the shot (no `plans/CURRENT_PLAN`, no commit; shotfiles are working notes, hal2-nvim does not
+it writes nothing but the shot (no `CURRENT_PLAN` pointer, no commit; shotfiles are working notes, hal2-nvim does not
 commit them either); implementing it happens in another session, after the [offer](#6-offer-to-implement). Ask any question by the global question
 rule, recommended option first.
 
@@ -34,7 +34,9 @@ python3 $S/shots.py repos                    # the user's repositories (~/a), fo
 `targets` JSON: `repo` (its `shotfiles` folder and `files`, each with `name`, `next` and `open` shots
 `{number, title}`; `null` outside a git repository), `global` (`null` where there is no hal2) and `cli` (whether
 `hal2-cli-shooter` is installed). It reads the main checkout's `shotfiles/`, also from a worktree, like
-`hal2-cli-shooter`. A `<repo>:` prefix names a repository from `repos` by its folder name: run `targets --repo <dir>`
+`hal2-cli-shooter`; in a farm whose home is the plan store (no `shotfiles/` folder) `shotfiles` reads `store:farm` and
+a file's `path` `store:farm/<name>.md`, and the shot is written through `hal2-cli-shooter` only (never by hand: there is
+no file). A `<repo>:` prefix names a repository from `repos` by its folder name: run `targets --repo <dir>`
 for it. Outside a repository only `global:` targets work; without one either, say so and stop.
 
 ## 2. Draft the shot
@@ -123,7 +125,7 @@ After the report (not for `--dry-run` or `--no-implement`), offer to start the s
 1. Find idle sessions of the shot's repository (for a global shot: the current repository, where it will be
    carried out; outside a repository there is nowhere to run it, so skip the offer and point to `/shoot g`):
    `python3 <skill-dir>/../list-free-worktrees/scripts/free.py --repo <repo>`. Its `worktrees` (`slot`, `panes`) are the free
-   worktrees, lowest first: a running agent session, none of its agents busy, no plan in `plans/CURRENT_PLAN`, no
+   worktrees, lowest first: a running agent session, none of its agents busy, no plan in the `CURRENT_PLAN` pointer, no
    uncommitted changes, nothing unmerged into main, no landing queued. Exit 2 (no hal2: a cloud session) or no
    `hal2-cli-agents`: skip the offer and say `/shoot <id>` runs it later.
 2. End the message (the report is the background, so a plain-text question, never the question tool):

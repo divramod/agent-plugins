@@ -31,10 +31,15 @@
     },
     "pushed": {"type": "string", "description": "A cleared or formed line: what became of the carrier's remote branch, which a dead train's landing had pushed (put back on the base with a leased push, or why not; plan 0313 steps 1 and 14); none when there was nothing to push."},
     "seconds": {"type": "number", "minimum": 0, "description": "A pretest line: how long the pretest took."},
+    "local_phase_seconds": {"type": "number", "minimum": 0, "description": "The first run line of a train: its local phase, from the formed line to the land run's creation (hal2 plan 0467 D21, D23; watch.py). Later run lines (a retry, a resume) carry none."},
     "result": {"enum": ["green", "red", "skipped", "none"], "description": "A pretest line: its result (pretest.py)."},
     "jobs": {
       "type": "array",
       "description": "A pretest line: one object per configured job, with job, key, state (cached, run, skipped, not needed), seconds, result and why."
+    },
+    "local": {
+      "type": "object",
+      "description": "A pretest line: what the pretest, the train's local phase, cost the machine (local_load.py, plan 0472 step 4): seconds, load_peak (the highest 1-minute load average at its marks), disk_ops_s (mean whole-disk operations per second, none where the OS gives none without root) and marks, one object per start, mid (if the pretest lasted a probe interval) and end with t, at, load1 and ops_s (the rate since the mark before)."
     },
     "why": {"type": "string"},
     "field": {"type": "string", "minLength": 1, "description": "An order or fixed line: the car's field the fix order is for, `main` (the barn's red, the tollman's own hand; plan 0360 step 6) or a smuggling field (step 18). A pause line: the smuggle's slot that paused the landing; a resumed line: the smuggles since the last resume (plan 0360 step 18)."},

@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -17,10 +18,13 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
 import tick
 import train_state
+import workqueue_hold
 import trains
 import tollman
 from engine_farm import OWN, Farm, out
 from test_farmer import git
+
+os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
 
 SKILL = Path(__file__).resolve().parents[1]
 
@@ -435,6 +439,47 @@ class Files(Farm):
         with mock.patch.object(engine, "LAND", [sys.executable, "-c", "import sys; sys.exit(4)"]):
             self.assertEqual(engine.land(str(self.wm)), 4)
         self.assertEqual(engine.LAND, ["hal2-cli-git", "worktree", "merge-to-main", "--json"])
+
+    def hold_run(self, land_code, pretest_red=False):
+        """engine.land with a fake hal2-cli-workqueue: the calls in order, and the hold env each step saw."""
+        calls = []
+        real = subprocess.run
+
+        def run(argv, **kw):
+            if argv[0] == "fake-wq":
+                calls.append(" ".join(argv[1:]))
+                return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+            calls.append("land:" + os.environ.get("HAL2_WORKQUEUE_HOLD", "-"))
+            return types.SimpleNamespace(returncode=land_code)
+
+        def pretest(top):
+            calls.append("pretest:" + os.environ.get("HAL2_WORKQUEUE_HOLD", "-"))
+            return pretest_red
+
+        with (mock.patch.object(workqueue_hold, "WQ", "fake-wq"), mock.patch.object(workqueue_hold.shutil, "which", lambda n: n),
+              mock.patch.object(engine.subprocess, "run", run), mock.patch.object(engine, "cli", return_value=(0, "")),
+              mock.patch.object(engine.pretest_train, "before_landing", pretest),
+              mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
+              mock.patch("sys.stdout"), mock.patch.dict(os.environ)):
+            os.environ.pop("HAL2_WORKQUEUE_HOLD", None)
+            os.environ.pop("HAL2_WORKQUEUE_FREEZE", None)
+            code = engine.land("/farm/tollman-x")
+            after = os.environ.get("HAL2_WORKQUEUE_HOLD")
+        return code, calls, after, real
+
+    def test_the_landing_takes_one_hold_over_pretest_and_merge_and_releases_it(self):
+        code, calls, after, _ = self.hold_run(0)
+        hold = calls[0].split("--id ")[1].split()[0]
+        self.assertEqual((code, after), (0, None))
+        self.assertEqual(calls, [f"hold take --class landing --id {hold} --field tollman-x --owner-pid {os.getpid()}", f"pretest:{hold}", "wait",
+                                 f"land:{hold}", f"hold release --id {hold}"])
+
+    def test_the_hold_is_released_when_the_landing_or_the_pretest_fails(self):
+        for land_code, red in ((5, False), (0, True)):
+            code, calls, after, _ = self.hold_run(land_code, red)
+            self.assertEqual(sum(c.startswith("hold take") for c in calls), 1)
+            self.assertTrue(calls[-1].startswith("hold release"), calls)
+            self.assertIsNone(after)
 
 
 class Spawn(unittest.TestCase):

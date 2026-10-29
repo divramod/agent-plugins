@@ -1,5 +1,5 @@
 import type { SessionRow, Tab } from '../types'
-import { parse, planOf } from './sessions'
+import { parse, planOf, pointerOf } from './sessions'
 
 // How often the timer asks for a refresh, in milliseconds (plan 0297 D3).
 export const PACE = 30_000
@@ -38,8 +38,8 @@ export async function alive(w: Pick<World, 'run'>, pid: number) {
 }
 
 // The live sessions of this machine: each `<config>/sessions/<pid>.json` whose process still runs, one check per pid
-// and one at a time, with the plan its folder names and the foreman its `plans/LEAD` names. A file or a plan that
-// cannot be read is left out, never an error.
+// and one at a time, with the plan its folder names and the foreman its `LEAD` names (each read from the git dir's
+// `hal/`, else `plans/`). A file or a plan that cannot be read is left out, never an error.
 export async function loadSessions(w: World, config: string, session: string) {
   const dir = `${config}/sessions`
   const out: SessionRow[] = []
@@ -47,8 +47,8 @@ export async function loadSessions(w: World, config: string, session: string) {
     if (f.kind !== 'file' || !/^\d+\.json$/.test(f.name)) continue
     const s = parse(String(await w.read(`${dir}/${f.name}`).catch(() => '')))
     if (!s || !(await alive(w, s.pid))) continue
-    const plan = planOf(String(await w.read(`${s.cwd}/plans/CURRENT_PLAN`).catch(() => '')))
-    out.push({ ...s, plan, lead: planOf(String(await w.read(`${s.cwd}/plans/LEAD`).catch(() => ''))), here: s.id === session })
+    const plan = planOf(await pointerOf(p => w.read(p), s.cwd, 'CURRENT_PLAN'))
+    out.push({ ...s, plan, lead: planOf(await pointerOf(p => w.read(p), s.cwd, 'LEAD')), here: s.id === session })
   }
   return out
 }

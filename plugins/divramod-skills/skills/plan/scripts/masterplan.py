@@ -22,6 +22,7 @@ from pathlib import Path
 import envelope
 import parallel
 import plan_number
+import planhome
 import table
 
 MARKER = "masterplan"
@@ -168,25 +169,35 @@ def master_of(path: Path) -> Path:
     return master
 
 
+def masterplan_files(root: Path) -> list[Path]:
+    """Every masterplan's plan.md the farm knows: in the store home the view's (the store is the farm's one copy, so
+    `new --masterplan` renders all of it: storerun.py), else the plans folder of every checkout of the repository."""
+    pattern = f"[0-9][0-9][0-9][0-9]-{MARKER}*/{MAIN}"
+    view = planhome.view_of(root)
+    if view is not None:
+        return sorted(view.glob(pattern))
+    return [path for tree in plan_number.worktree_paths(root) for path in (tree / "plans").glob(pattern)]
+
+
 def used_crops(root: Path) -> dict[str, set[str]]:
-    """crop -> the unfinished masterplans that use it, over the plans folder of every checkout of the repository.
+    """crop -> the unfinished masterplans that use it, over the plans folder of every checkout of the repository
+    (the store home: the store's, `masterplan_files`).
     A masterplan's copies count once, and it is finished as soon as one copy says so: a checkout that was not
     restocked still holds the open one. A copy that cannot be read (another field's half-written or broken file)
     is skipped: it never stops `new --masterplan`."""
     crops: dict[str, str] = {}
     finished: set[str] = set()
-    for tree in plan_number.worktree_paths(root):
-        for path in (tree / "plans").glob(f"[0-9][0-9][0-9][0-9]-{MARKER}*/{MAIN}"):
-            try:
-                text, slug = read(path), slug_of(path)
-            except (OSError, UnicodeDecodeError):
-                continue
-            if not of_text(slug, text):
-                continue
-            if key(text, "status") in FINISHED:
-                finished.add(slug)
-            elif crop := key(text, "crop"):
-                crops[slug] = str(crop)
+    for path in masterplan_files(root):
+        try:
+            text, slug = read(path), slug_of(path)
+        except (OSError, UnicodeDecodeError):
+            continue
+        if not of_text(slug, text):
+            continue
+        if key(text, "status") in FINISHED:
+            finished.add(slug)
+        elif crop := key(text, "crop"):
+            crops[slug] = str(crop)
     used: dict[str, set[str]] = {}
     for slug, crop in crops.items():
         if slug not in finished:

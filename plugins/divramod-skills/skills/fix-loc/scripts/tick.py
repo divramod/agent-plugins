@@ -40,7 +40,7 @@ def decide(state, now_ms, *, project, agents, queue, landed, current_plan):
     """{action, reason} for a running foreman: wait | landed | blocked | paused (| plan to record).
 
     `landed`: the default branch has the foreman's plan with `Finished:`; `current_plan`: the foreman's
-    checkout's `plans/CURRENT_PLAN`.
+    checkout's `CURRENT_PLAN` pointer.
     """
     servant = state["servant"]
     result = {"action": "wait", "reason": "", "plan": servant.get("plan")}

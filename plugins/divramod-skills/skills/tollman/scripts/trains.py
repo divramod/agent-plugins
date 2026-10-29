@@ -16,7 +16,7 @@ Between trains (`draft`, steps 1 to 4; `tollman.py train --dry-run` prints it):
    tests it. Such a car behind the first waits for the next train, its why naming the change
 4. the trial merge in queue order (trial.py): a wagon that conflicts is unhitched and its foreman told why (a
    template), unless every file of the conflict is generated (generated.py: the train writes them again); the
-   rest rides, at most MAX_CARS (the user: "4-6 fields brought in at once"): a clean car past them waits
+   rest rides, every clean car (no car limit, plan 0463 D1)
 5. `engine.py form`: the yard's work as the first car (yard.py, step 8), merge, mark, start the landing detached;
    what the yard keeps is told to the farmer (yard_report.py)
 
@@ -75,7 +75,6 @@ QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]
 ROLE = "tollman"
 TRAIN = ROLE + " (wagon train)"
 ENGINE = Path(__file__).with_name("engine.py")
-MAX_CARS = 6  # a train aims at 4-6 cars (plan 0333 D12); fewer only when fewer are ready and clean
 PROVE = proof.verdict  # (main, field, head, barn) -> {state: green | red | wait, lines}; a test fakes it
 MAX_STARTS = 5  # an interrupted landing is started again this often, then the train is red (it stands, D7)
 HOUR = 3600
@@ -117,10 +116,9 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mod
         if held:
             out["waiting"].append({"field": field, "why": (HELD_LEFT if left else HELD).format(field=held)})
             continue
-        if out["alone"] or len(out["cars"]) >= MAX_CARS:
+        if out["alone"]:
             first = out["cars"][0]["field"]
-            why = f"after {first}, which rides alone" if out["alone"] else f"this one is full ({MAX_CARS} cars)"
-            out["waiting"].append({"field": field, "why": "rides in the next train, " + why})
+            out["waiting"].append({"field": field, "why": f"rides in the next train, after {first}, which rides alone"})
             continue
         if (alone := gate_car.alone_why(main, default, head)) and out["cars"]:
             out["waiting"].append({"field": field, "why": f"rides alone in the next train: {alone}"})

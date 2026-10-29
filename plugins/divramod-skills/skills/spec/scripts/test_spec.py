@@ -125,6 +125,14 @@ class SpecTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("no spec matches", err)
 
+    def test_show_reads_a_pointer_that_sits_only_in_the_git_dir(self):
+        info = self.new()
+        (self.root / "plans" / "CURRENT_PLAN").unlink()
+        (self.root / ".git" / "hal").mkdir()
+        (self.root / ".git" / "hal" / "CURRENT_PLAN").write_text(info["slug"] + "\n")
+        code, out, _ = self.run_spec("show", "--json")
+        self.assertEqual((code, json.loads(out)["slug"]), (0, info["slug"]))
+
     def test_show_reports_sections_placeholders_design_and_plan(self):
         info = self.new()
         self.assertEqual(len(info["placeholders"]), 12)

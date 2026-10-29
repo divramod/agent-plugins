@@ -5,7 +5,7 @@ shape_prompt, shape_uat); every other plan keeps plan.py's own code. `subplan st
 
   plan.py status <ref> <status> [--why <text>]     the step file's status, then the overview (a ref `01.03`)
   plan.py current                                  derived status, work steps done/total, next ref and sub-plan
-  plan.py trailers [<ref>]                          Worktree, Plan, Step: <ordinal>/<work steps>
+  plan.py trailers [<ref>]                          Worktree, Plan, Step: <ordinal>/<work steps> (neutral commits: nothing)
   plan.py prompt <ref> [--part k] [--model m] [--effort e]   the hand's Agent call
   plan.py ready [--json] [--limit n]               both levels by `schedule`, D19's who
   plan.py assign <NN> <who>                        the sub-plan's `who`: foreman, field NN, - (none)
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import neutral_commit
 import shape
 import shape_lead
 import shape_prompt
@@ -55,7 +56,8 @@ def run(root: Path, path: Path, args, describe) -> tuple[dict | str, int]:
     folder, command = path.parent, args.command
     lead = shape_lead.lead(root, folder.name)
     if command == "trailers":
-        return "\n".join(shape_status.trailer_lines(root, folder, args.step)) + "\n", 0
+        found = shape_status.trailer_lines(root, folder, args.step)
+        return ("" if neutral_commit.trailers(root, found) else "\n".join(found) + "\n"), 0
     if command == "prompt":
         at = shape_status.ref(shape.load(folder), args.step)
         return shape_prompt.call(root, folder, at, args.part, args.model, args.effort), 0

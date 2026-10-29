@@ -1,6 +1,6 @@
 """Which plans `plan.py convert` leaves alone (hal2 plan 0376, design §7 A14, §8): a masterplan (A11), a plan already
 in schema 2, a folder an unmerged field branch changes (`git diff --name-only <main>...<branch> -- plans/`, every
-local and remote `NN`, `farmer-*` and `tollman-*` branch), and a plan a field's `plans/CURRENT_PLAN` or `plans/LEAD`
+local and remote `NN`, `farmer-*` and `tollman-*` branch), and a plan a field's `CURRENT_PLAN` pointer or `plans/LEAD`
 names while it is unfinished. The field the command runs in is no other field when the plan is named explicitly:
 its own branch, its remote twin and its own CURRENT_PLAN do not skip it, so a foreman converts its own plan.
 """
@@ -14,6 +14,7 @@ from pathlib import Path
 import masterplan
 import names
 import occupied
+import pointers
 import shape
 
 FIELD_BRANCH = re.compile(r"^(?:[0-9]{2}|farmer-.+|tollman-.+)$")
@@ -75,8 +76,7 @@ class SkipSet:
                     found.branches.setdefault(parts[1], set()).add(branch)
         for tree in worktrees(root):
             for marker in ("CURRENT_PLAN", "LEAD"):
-                file = tree / "plans" / marker
-                words = file.read_text(errors="replace").split() if file.is_file() else []
+                words = pointers.read(tree, marker).split()
                 slug = (words[1] if marker == "LEAD" and len(words) > 1 else words[0]) if words else ""
                 if slug:
                     found.held.setdefault(slug, set()).add(f"{tree.resolve()}:{marker}")

@@ -362,6 +362,15 @@ class Plans(Base):
         plans = self.day("2026-10-12").split("## Plans\n\n")[1].split("##")[0]
         self.assertTrue(plans.startswith(dayfile.MARKER + "\n- wt 07: 0004-delta (1/3)"))
 
+    def test_a_worktree_whose_pointer_sits_in_its_git_dir_is_listed(self):
+        tree = self.tmp / "07"
+        admin = Path(subprocess.run(["git", "rev-parse", "--absolute-git-dir"], cwd=tree, check=True,
+                                    capture_output=True, text=True).stdout.strip())
+        (tree / "plans" / "CURRENT_PLAN").unlink()
+        (admin / "hal").mkdir()
+        (admin / "hal" / "CURRENT_PLAN").write_text("0004-delta\n")
+        self.assertEqual(self.run_cli("plans").splitlines()[0], "- wt 07: 0004-delta (1/3), next 2: Test it")
+
     def test_plan_tool_missing(self):
         os.environ["DAYBOOK_PLAN_PY"] = str(self.tmp / "missing.py")
         self.assertIn("plan.py not found", self.run_cli("plans"))

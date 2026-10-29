@@ -47,7 +47,8 @@ def group_of(row: dict) -> str:
 
 
 def state_cell(row: dict, smuggle: bool) -> str:
-    out = {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
+    out = [state_table.paused_phrase(row["paused"])] if row.get("paused") else []
+    out += {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"queue {q['position']}")

@@ -8,9 +8,9 @@ the page, page.py writes it to the state dir), opens it from the loopback server
 D1) and prints one line, its URL; without a server it opens the file and prints its path. --no-open only writes the
 file and prints its path, starting nothing. --text prints the table (the own row's WT bold, a foreman's servants under its row as `↳ <WT>`) `WT | Plan | Steps | State | Waits for` and a line under it (state_table.py), or with --json
 {repo, default, head, head_age, head_subject, queue, mode, runs, rows}: the raw facts per worktree (`wt`, `path`, `branch`, `plan` = the text of
-plans/CURRENT_PLAN, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `description` (the plan.md front matter's, or null), `own` the checkout the script runs in, `foreman` the worktree named by plans/LEAD (or null), `agent` busy|idle|none, `agent_state`,
+the CURRENT_PLAN pointer, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `description` (the plan.md front matter's, or null), `own` the checkout the script runs in, `foreman` the worktree named by plans/LEAD (or null), `agent` busy|idle|none, `agent_state`,
 `last_commit_age` seconds, `uncommitted`, `ahead` commits not on origin/<default> (the main checkout: not pushed),
-`git` the statusline's numbers {behind, ahead, stash, untracked, added, modified, deleted} (or null), `done_pct` (or null), `queue`, `ci` the worktree's open runs, `waits` fact dicts, `cells` the five table cells). A fact that cannot be known is None (a missing, failing or
+`paused` {by, why, since} when the field is paused (`hal2-cli-git worktree paused`, plan 0458), else null, `git` the statusline's numbers {behind, ahead, stash, untracked, added, modified, deleted} (or null), `done_pct` (or null), `queue`, `ci` the worktree's open runs, `waits` fact dicts, `cells` the five table cells). A fact that cannot be known is None (a missing, failing or
 slow tool never raises). Rows: numbered worktrees by number, named worktrees by name, the main checkout last as `main`; dot
 checkouts and prunable worktrees are no rows. Only reads: no fetch, no write.
 """
@@ -81,10 +81,7 @@ def git_facts(path: str, base: str) -> dict:
 
 
 def current_plan(path: str) -> str:
-    try:
-        return (Path(path) / "plans" / "CURRENT_PLAN").read_text().strip()
-    except OSError:
-        return ""
+    return src.pointers.read(path, "CURRENT_PLAN")
 
 
 def agent_facts(by_path: dict | None, path: str) -> dict:
@@ -155,7 +152,7 @@ def build_row(w: dict, ctx: dict, facts: dict | None = None) -> dict:
         "foreman": f["foreman"], "path": path, "branch": w.get("branch"), "plan": f["plan"],
         **{k: v for k, v in f["plan_facts"].items() if k != "plan_slug"},
         **agent_facts(ctx["agents"], path), **f["git_facts"], "git": f["git"],
-        "queue": queue_fact(ctx["queue"], path, wt),
+        "queue": queue_fact(ctx["queue"], path, wt), "paused": ctx["paused"].get(wt),
         "ci": [{k: r[k] for k in ("workflow", "status", "branch", "url")} for r in runs if r["branch"] in ci_branches] if runs else [],
     }
     row["done_pct"] = done_pct(row["steps_done"], row["steps_total"])
@@ -174,6 +171,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     One pool runs the slow tools (gh about 4 s, the agents about 2 s) beside every worktree's reads (plan 0369 D14);
     `table_facts=False` (a page without the five-cell table, `page_facts`) leaves `TABLE_FACTS` None; `ledgers` adds
     `questions` (`ledger_sources`, the CLI once per plan in the same pool, so it overlaps gh, D15)."""
+    ledger_sources.planread.fresh()  # the store home's plans as they are now (the page server lives long)
     main = fl.main_checkout(repo)
     default = default_branch(main)
     slots = [w for w in fl.worktrees(main) if not Path(w["path"]).name.startswith(".")]
@@ -181,6 +179,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     with ThreadPoolExecutor(POOL) as pool:
         f_agents, f_queue, f_runs = pool.submit(src.agents), pool.submit(src.queue_state, main), pool.submit(src.open_runs, main)
         f_jobs = pool.submit(src.workqueue_jobs)
+        f_paused = pool.submit(src.paused_fields, main)
         f_questions = ledger_sources.submit_questions(ledger_rows(slots), pool) if ledgers else None
         f_facts = [pool.submit(worktree_facts, w, default, table_facts) for w in slots]
         log = src.farmer_log(main)
@@ -188,7 +187,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
         head = (src.git(main, "log", "-1", "--format=%H%x09%ct%x09%s", f"origin/{default}") or "").split("\t", 2)
         runs = f_runs.result()
         ctx = {"own": os.path.realpath(top) if top else None, "default": default, "agents": f_agents.result(), **f_queue.result(),
-               "runs": runs, "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
+               "runs": runs, "paused": f_paused.result() or {}, "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
         rows = [build_row(w, ctx, f.result()) for w, f in zip(slots, f_facts)]
         questions = f_questions() if f_questions else None
     rows.sort(key=slot_key)

@@ -19,9 +19,15 @@ returns each round for a live landing, which it left alone before.
    car's fix order rides the next train.
 
   watch.py run <url> [--repo <dir>]   note the standing train's land run (the action of step 1)
+
+The first `run` line of a train also carries `local_phase_seconds` (plan 0467 D21, D23): the train's local phase,
+from its `formed` line to the land run's creation (the run's `createdAt`, else the moment of the note), so
+metrics.py and the budget of that phase have a measured value per train. Later runs of the same train (a retry, a
+resume) are not a local phase and carry none.
 """
 
 import argparse
+import datetime as dt
 import sys
 from pathlib import Path
 
@@ -72,6 +78,21 @@ def actions(top: str, main: str, train: dict, rows: list[dict], tickets=()) -> l
     return out + post_merge.red(top, main, train, url, rid, jobs, tickets)  # a red job: order or wake
 
 
+def local_phase_seconds(home: str, train: dict, rows: list[dict], url: str, now: dt.datetime | None = None) -> float | None:
+    """The seconds from the train's `formed` line to its land run's creation, on its first `run` line only."""
+    if any(e.get("kind") == "run" and e.get("train") == train["train"] for e in rows):
+        return None
+    rid = stack_red.run_id(url)
+    hit = next((r for r in mtm_ci.runs_of(mtm_scan.run_json, home) if str(r.get("databaseId")) == rid), None)
+    end = mtm_ci.started(hit) if hit else 0.0
+    end = end or (now or dt.datetime.now(dt.timezone.utc)).timestamp()
+    try:
+        begin = dt.datetime.fromisoformat(str(train.get("at")).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+    return round(max(end - begin, 0.0), 1)
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="verb", required=True)
@@ -80,11 +101,13 @@ def main(argv: list[str]) -> int:
     noted.add_argument("--repo", default=".")
     a = p.parse_args(argv)
     home = mtm_scan.main_checkout(a.repo)
-    train = train_state.standing(train_state.lines(home))
+    rows = train_state.lines(home)
+    train = train_state.standing(rows)
     if not train or train["state"] != "landing":
         print("no landing train stands: nothing noted")
         return 0
-    train_state.append(home, "run", train["carrier"], train=train["train"], run=a.url)
+    train_state.append(home, "run", train["carrier"], train=train["train"], run=a.url,
+                       local_phase_seconds=local_phase_seconds(home, train, rows, a.url))
     print(f"train {train['train']} lands in {a.url}")
     return 0
 

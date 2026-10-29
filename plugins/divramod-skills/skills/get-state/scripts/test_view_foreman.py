@@ -133,7 +133,7 @@ class Foreman(Fixture):
 
     def test_a_shot_in_current_plan_is_named(self):
         sections = self.page("10", "foreman")[1]
-        self.assertEqual(sections[0]["empty"], "No plan in this field. plans/CURRENT_PLAN says: my-shots/3/fix-the-thing")
+        self.assertEqual(sections[0]["empty"], "No plan in this field. Its CURRENT_PLAN pointer says: my-shots/3/fix-the-thing")
 
     def test_a_checkout_that_is_no_worktree_row(self):
         data = state.collect(str(self.main))

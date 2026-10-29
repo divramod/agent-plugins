@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import occupied
+import planhome
 import shape_new
 from shape_names import ShapeError
 
@@ -43,7 +44,7 @@ def guard_new(root: Path, args) -> dict | None:
                f"--{flags[0]} makes a plan of its own, not a sub-plan")
         raise Refused(occupied.refuse_text(found, f"new: {why}"))
     try:
-        added = shape_new.add_subplan(root, root / "plans" / found["plan"], args.title, args.goal)
+        added = shape_new.add_subplan(root, planhome.plans_dir(root) / found["plan"], args.title, args.goal)
     except ShapeError as error:
         raise Refused(str(error)) from None
     return {"added": "subplan", "plan": found["plan"], "subplan": added["subplan"]}

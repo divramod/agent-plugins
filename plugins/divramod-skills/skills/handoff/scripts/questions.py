@@ -5,7 +5,7 @@
   questions.py --path        the questions file of this checkout
   questions.py --check       validate the file's entries
 
-The file is the plan's `plans/<NNNN>-<slug>/questions.md` (the plan `plans/CURRENT_PLAN` names, else the one
+The file is the plan's `plans/<NNNN>-<slug>/questions.md` (the plan the `CURRENT_PLAN` pointer names, else the one
 HANDOFF.md links), committed with the plan, so the user reads every question and its answer afterwards. Work without
 a plan keeps it at `plans/questions.md`. One entry per question, both directions: what the agent asked the user and
 what the user asked (or told) the agent that was not yet answered in words:
@@ -46,9 +46,20 @@ def root_of() -> Path:
 
 
 def questions_file(root: Path) -> Path:
-    """The current plan's questions.md; `plans/questions.md` for work without a plan."""
-    current = root / "plans" / "CURRENT_PLAN"
-    name = current.read_text().strip() if current.is_file() else ""
+    """The current plan's questions.md; `plans/questions.md` for work without a plan. In the store home (hal2 plan
+    0409) the copy in the edit folder that where.py renders."""
+    try:
+        import where  # the plan skill's planhome, through where.py's path to it
+    except ImportError:
+        where = None
+    if where is not None and where.planhome.home(root) is not None:
+        found = where.locate(root)["questions"]
+        return Path(found) if Path(found).is_absolute() else root / found
+    if where is not None:
+        name = where.pointers.read(root, "CURRENT_PLAN")  # the git dir's, else the old one in `plans/`
+    else:
+        current = root / "plans" / "CURRENT_PLAN"
+        name = current.read_text().strip() if current.is_file() else ""
     if name and (root / "plans" / name / "plan.md").is_file():
         return root / "plans" / name / "questions.md"
     handoff = root / "HANDOFF.md"
@@ -56,6 +67,11 @@ def questions_file(root: Path) -> Path:
     if m and (root / m.group(1) / "plan.md").is_file():
         return root / m.group(1) / "questions.md"
     return root / "plans" / "questions.md"
+
+
+def shown(path: Path, root: Path) -> Path:
+    """`path` below `root`, or as it is (the store home's copy lies outside the tree)."""
+    return path.relative_to(root) if path.is_relative_to(root) else path
 
 
 def field(body: str, name: str) -> str:
@@ -118,7 +134,7 @@ def main(argv: list[str]) -> int:
     root = root_of()
     path = questions_file(root)
     if args.path:
-        print(path.relative_to(root))
+        print(shown(path, root))
         return 0
     entries, problems = parse(path.read_text()) if path.is_file() else ([], [])
     if args.check:
@@ -132,12 +148,12 @@ def main(argv: list[str]) -> int:
         return 1 if problems else 0
     open_ = [e for e in entries if e["state"] == "open"]
     if args.json:
-        print(json.dumps({"file": str(path.relative_to(root)), "open": open_,
+        print(json.dumps({"file": str(shown(path, root)), "open": open_,
                           "answered": len(entries) - len(open_), "next": max([e["n"] for e in entries], default=0) + 1}))
         return 0
     for e in open_:
         print(f"Q{e['n']} ({e['by']}, {e['asked']}): {e['q']}")
-    print(f"{len(open_)} open, {len(entries) - len(open_)} answered or dropped ({path.relative_to(root)})")
+    print(f"{len(open_)} open, {len(entries) - len(open_)} answered or dropped ({shown(path, root)})")
     return 0
 
 

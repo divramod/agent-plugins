@@ -18,7 +18,9 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import field_facts
 import live_sessions
 import logstate
+import busy
 import prune_proof
+import responses
 import roles
 import sizes
 
@@ -30,6 +32,7 @@ DEFAULTS = {
     "threshold": {"free_gb": 150, "used_pct": 90},
     "goal": {"free_gb": 250, "used_pct": 85},
     "phases": {"trim_session_less": True, "trim_idle_live": True, "trim": None},  # trim None: cleanup's own set
+    "caches": {"paths": [], "tart_older_than_days": 7},  # the disk watermark may clear these (plan 0472 D2); no pattern
 }
 
 
@@ -163,6 +166,10 @@ def config(main: str) -> dict:
 
 def bad_value(section: str, key: str, value) -> str | None:
     """Why `value` is not valid for the key, None when it is."""
+    if key == "paths":
+        if not isinstance(value, list) or not all(isinstance(p, str) and p for p in value):
+            return "a list of folders"
+        return next((f"{p!r} must be one folder, no pattern" for p in value if any(c in p for c in "*?[]")), None)
     if key == "trim":
         if not isinstance(value, list) or not all(isinstance(p, str) and p for p in value):
             return "a list of paths"
@@ -183,6 +190,11 @@ def short_of_space(d: dict, cfg: dict) -> bool:
     return d["free_gb"] < cfg["threshold"]["free_gb"] or d["used_pct"] > cfg["threshold"]["used_pct"]
 
 
+def above_goal(d: dict, cfg: dict) -> bool:
+    """The watermark's warning level (plan 0472 D2): over the goal's used percent or under its free GB."""
+    return not goal_met(d, cfg)
+
+
 def goal_met(d: dict, cfg: dict) -> bool:
     return d["free_gb"] >= cfg["goal"]["free_gb"] and d["used_pct"] <= cfg["goal"]["used_pct"]
 
@@ -194,13 +206,18 @@ def collect(main: str, now: dt.datetime | None = None, build=prune_proof.build_r
     field_facts adds (`only`: those fields;
     `cached_sizes`: sizes from the cache only, a miss is unknown). `now_ms` is the clock the proof used."""
     cfg = config(main)
-    fs = [f for f in fields(main) if only is None or f["slot"] in only]
+    every = fields(main)
+    fs = [f for f in every if only is None or f["slot"] in only]
     rows = agents(main)
     ctx = context(main, now)
     now_ms = time.time() * 1000
     why = proofs(fs, ctx, rows, now_ms, build)
-    size = measure(main, fs, cached_only=True) if cached_sizes else measure(main, fs)
+    wait = busy.reason(main)  # a train builds: no size walk (plan 0472 D1), the cache only
+    size = measure(main, fs, cached_only=True) if cached_sizes or wait else measure(main, fs)
+    now_disk = disk(main)
+    answers = responses.candidates(main, cfg, [main] + [f["path"] for f in every],
+                                   measured=not (cached_sizes or wait) and short_of_space(now_disk, cfg))
     more = field_facts.extra(fs, ctx, main, {s: w is None for s, w in why.items()}, lookup, build)
-    return {"main": main, "now_ms": now_ms, "disk": disk(main), "config": cfg, "cars": field_facts.last_cars(main),
+    return {"main": main, "now_ms": now_ms, "busy": wait, "responses": answers, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
             "fields": [{**f, "sessions": session(f, rows), "free": why[f["slot"]] is None, "proof": why[f["slot"]],
                         "size": size.get(f["slot"]), **more[f["slot"]]} for f in fs]}

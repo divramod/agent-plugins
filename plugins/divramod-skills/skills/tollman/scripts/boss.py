@@ -18,9 +18,12 @@ import sys
 from pathlib import Path
 
 import farmer_frame
+from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
 import mtm_scan
 import transplant_mark
 from tick import act
+
+planread = load("plan", "planread", __file__)  # a plan's handoff in either home (hal2 plan 0409 step 9)
 
 ROLE = "tollman"  # whose state folder and name, when the round's ctx names no wiring
 BOSS = ROLE + " (merge-to-main boss)"
@@ -68,7 +71,7 @@ def guarded_start(slot: str, w: dict, ctx: dict) -> list[str]:
 
 def has_handoff(checkout: Path, plan: str) -> bool:
     """Is there a handoff `/handoff c` can continue from: the current plan's own, or the checkout's root file?"""
-    own = checkout / "plans" / plan / "handoff.md" if plan and "/" not in plan else None
+    own = planread.plan_dir(checkout, plan) / "handoff.md" if plan and "/" not in plan else None
     return bool(own and own.is_file()) or (checkout / "HANDOFF.md").is_file()
 
 

@@ -50,6 +50,17 @@ class Resolve(unittest.TestCase):
         got = self.resolve()
         self.assertEqual(got, f"main|abc|{self.d.resolve()}")
 
+    def test_the_hook_is_told_to_build_nothing(self):
+        hook(self.d, 'printf "%s\\t/p/%s|%s\\tx\\n" "$1" "$1" "$HAL2_OWN_CLI_NO_BUILD"\n')
+        self.assertEqual(self.resolve(), "/p/hal2-cli-records|1")
+
+    def test_a_cli_the_candidate_changes_is_not_built_here_the_check_is_skipped(self):
+        """The hook's exit 3 (a build was needed and not allowed, own-cli/main.sh) cannot run the check: never a
+        second build next to the landing's one, never a red car (plan 0467 D21)."""
+        hook(self.d, 'echo "own-cli: $1: would build (the range changes its crates), not built" >&2\n'
+                     '[ -z "$HAL2_OWN_CLI_NO_BUILD" ] || exit 3\nprintf "%s\\t/built\\tx\\n" "$1"\n')
+        self.assertIsNone(self.resolve())
+
     def test_a_failing_hook_cannot_run_the_check(self):
         hook(self.d, "echo 'build failed' >&2\nexit 1\n")
         self.assertIsNone(self.resolve())

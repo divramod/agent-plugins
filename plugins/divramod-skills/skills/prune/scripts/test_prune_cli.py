@@ -39,7 +39,7 @@ class PlanCli(test_facts.Farm):
         self.assertEqual(code, 0)
         data = json.loads(out)
         self.assertEqual([f["slot"] for f in data["facts"]["fields"]], ["03", "05"])
-        self.assertEqual(list(data["plan"]["jobs"]), ["stale-pointers", "phase-1", "phase-2", "phase-3"])
+        self.assertEqual(list(data["plan"]["jobs"]), ["stale-pointers", "phase-1", "phase-2", "phase-3", "responses"])
         self.assertEqual([(a["field"], a["action"]) for a in data["plan"]["jobs"]["stale-pointers"]["actions"]],
                          [("05", "clear-pointer")])
         self.assertTrue(data["plan"]["short"])

@@ -16,6 +16,16 @@ def git(cwd, *args):
     subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True, env=ENV)
 
 
+def hide(checkout, name, text):
+    """The pointer `name` only in the checkout's own git dir (a worktree's admin dir), plans/ without it."""
+    out = subprocess.run(["git", "-C", str(checkout), "rev-parse", "--absolute-git-dir"], check=True, text=True,
+                         capture_output=True)
+    file = Path(out.stdout.strip()) / "hal" / name
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text)
+    return file
+
+
 class SessionRoleTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -51,6 +61,15 @@ class SessionRoleTest(unittest.TestCase):
 
     def test_a_field_holding_lead_loads_servant(self):
         self.assertEqual(self.run_role(self.field("31", plan=True, lead=True)), "/servant duties")
+
+    def test_pointers_that_sit_only_in_the_git_dir_decide_the_role(self):
+        servant = self.field("31")
+        hide(servant, "CURRENT_PLAN", "0001-x\n")
+        (servant / "plans" / "0001-x").mkdir()
+        (servant / "plans" / "0001-x" / "plan.md").write_text("# Plan 1: x\n")
+        self.assertEqual(self.run_role(servant), "/foreman duties")
+        hide(servant, "LEAD", "05 0001-x 2\n")
+        self.assertEqual(self.run_role(servant), "/servant duties")
 
     def test_the_field_number_decides_nothing(self):
         """D16: a foreman in field 42 is a foreman, a servant marked in field 03 is a servant."""

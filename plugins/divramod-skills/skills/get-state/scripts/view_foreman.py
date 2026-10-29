@@ -1,15 +1,19 @@
-"""The foreman's and the servant's page (hal2 plan 0366, step 3): their plan's progress, pure code, plan.md fields only.
+"""The foreman's and the servant's page (hal2 plan 0366, step 3): their plan's progress, pure code, plan fields only.
 
-`view(data, ctx)` shows the plan of the field's `plans/CURRENT_PLAN`: title, description, done of total with a bar, the
+`view(data, ctx)` shows the plan of the field's `CURRENT_PLAN` pointer: title, description, done of total with a bar, the
 landing and the field's place in the merge queue, the step table (the next step marked), the next step with its
-done-when and the open questions. A servant (its `plans/LEAD` names a foreman's field) shows its foreman's plan from
-that field's checkout, with the line "servant of <field>". A field without a plan gets an empty state.
+done-when and the open questions, and, for a farm with a plan store, its home and state ref (plan 0409 step 6: sync on
+or off and why, a locked gpg agent, conflicts). The plan is read through `hal2-cli-plans --json` (`plan_cli`: either
+home, the plans folder or the store); only without the CLI the files are read. A servant (its `plans/LEAD` names a
+foreman's field) shows its foreman's plan from that field's checkout, with the line "servant of <field>". A field
+without a plan gets an empty state.
 """
 
 import re
 import sys
 from pathlib import Path
 
+import plan_cli
 import state_sources as src
 from skillpath import sibling  # on sys.path since state_sources (plan 0360 D20)
 
@@ -67,8 +71,11 @@ def is_done(step: dict) -> bool:
 
 
 def read_plan(root: Path, slug: str) -> dict | None:
-    """The plan `slug` of the checkout `root`: title, description, landing, land, steps, done, total, next; None when
-    plan.md is missing."""
+    """The plan `slug` of the checkout `root`: title, description, landing, land, steps, done, total, next; from
+    `hal2-cli-plans` (either home), else from its plan.md; None when neither has it."""
+    told = plan_cli.plan(root, slug)
+    if told is not None:
+        return told
     path = Path(root) / "plans" / slug / "plan.md"
     try:
         text = path.read_text(encoding="utf-8")
@@ -92,7 +99,10 @@ def read_plan(root: Path, slug: str) -> dict | None:
 
 
 def open_questions(root: Path, slug: str) -> list[str]:
-    """`Q31: <the question's first line>` for each open entry of the plan's questions.md."""
+    """`Q31: <the question's first line>` for each open entry of the plan's questions (the CLI's, else questions.md)."""
+    told = plan_cli.open_questions(root, slug)
+    if told is not None:
+        return told
     try:
         text = (Path(root) / "plans" / slug / "questions.md").read_text(encoding="utf-8")
     except OSError:
@@ -105,12 +115,16 @@ def open_questions(root: Path, slug: str) -> list[str]:
     return out
 
 
+def slug_of(root: str, current: str) -> str | None:
+    """The plan a CURRENT_PLAN text names: `<NNNN>-<slug>` also when its folder is not on the disk (a store home)."""
+    found = src.plan_of(root, current)["plan_slug"]
+    name = current.strip().removesuffix("/plan.md").rstrip("/").removeprefix("plans/")
+    return found or (name if src.PLAN_NAME.match(name) and "/" not in name else None)
+
+
 def lead(root: str) -> tuple[str, str, str] | None:
     """(foreman field, plan, step) of the checkout's `plans/LEAD`, None without a usable marker."""
-    try:
-        parts = (Path(root) / "plans" / "LEAD").read_text(encoding="utf-8").split()
-    except OSError:
-        return None
+    parts = src.pointers.read(root, "LEAD").split()
     return (parts[0], parts[1], parts[2]) if len(parts) >= 3 else None
 
 
@@ -120,7 +134,7 @@ def owner_of(own: dict, rows: list[dict]) -> tuple[dict, str, str]:
     by_wt = {r["wt"]: r for r in rows}
     if marker and marker[0] in by_wt and marker[0] != own["wt"]:
         boss = by_wt[marker[0]]
-        plan = marker[1] if (Path(boss["path"]) / "plans" / marker[1] / "plan.md").is_file() else boss.get("plan") or ""
+        plan = marker[1] if src.PLAN_NAME.match(marker[1]) else boss.get("plan") or ""
         return boss, plan, f"servant of {marker[0]}, working step {marker[2]}"
     return own, own.get("plan") or "", ""
 
@@ -138,11 +152,12 @@ def queue_line(row: dict, mode: dict | None) -> str:
 def empty_view(title: str, own: dict | None, current: str) -> tuple[str, list[dict]]:
     if own is None:
         return title, [{"heading": "Plan", "empty": "This checkout is not one of the repository's worktrees."}]
-    note = f" plans/CURRENT_PLAN says: {current}" if current else ""
+    note = f" Its CURRENT_PLAN pointer says: {current}" if current else ""
     return title, [{"heading": "Plan", "empty": f"No plan in this field.{note}"}]
 
 
-def plan_sections(p: dict, row: dict, servant: str, mode: dict | None, questions: list[str]) -> list[dict]:
+def plan_sections(p: dict, row: dict, servant: str, mode: dict | None, questions: list[str],
+                  store: list[str] | None = None) -> list[dict]:
     nxt, steps = p["next"], p["steps"]
     items = [i for i in (p["description"], servant, f"Landing: {p['landing']}" + (f" ({p['land']})" if p["land"] else "")
                          if p["landing"] else "", queue_line(row, mode)) if i]
@@ -155,7 +170,7 @@ def plan_sections(p: dict, row: dict, servant: str, mode: dict | None, questions
         {"heading": "Next step", "empty": "Every step is done.",
          **({"text": f"{nxt.get('number')}: {nxt.get('step')} Done when: {nxt.get('done_when')}"} if nxt else {})},
         {"heading": "Open questions", "items": questions, "empty": "No open questions."},
-    ]
+    ] + ([{"heading": "Plan store", "items": store}] if store else [])
 
 
 def view(data: dict, ctx: dict) -> tuple[str, list[dict]]:
@@ -168,8 +183,9 @@ def view(data: dict, ctx: dict) -> tuple[str, list[dict]]:
     if not own.get("path"):  # a row without its checkout cannot name a plan
         return empty_view(title, own, own.get("plan") or "")
     boss, current, servant = owner_of(own, rows)
-    slug = src.plan_of(boss["path"], current)["plan_slug"] if current else None
+    slug = slug_of(boss["path"], current) if current else None
     p = read_plan(Path(boss["path"]), slug) if slug else None
     if p is None:
         return empty_view(title, own, current)
-    return title, plan_sections(p, boss, servant, data.get("mode"), open_questions(Path(boss["path"]), slug))
+    questions = open_questions(Path(boss["path"]), slug)
+    return title, plan_sections(p, boss, servant, data.get("mode"), questions, plan_cli.store(boss["path"]))

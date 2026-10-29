@@ -23,9 +23,11 @@ the repository's `roles/foreman/ROLE.md` ([role_duties.py](../farmer/scripts/rol
 ## Duties
 
 ### plan
-Restock first (`/merge-from-main`), write the task into `plans/CURRENT_PLAN`
+Restock first (`/merge-from-main`), write the task into the `CURRENT_PLAN` pointer
 (`~/.adr/current-plan-names-the-task.md`), then run the plan as its coordinator: the [plan](../plan/SKILL.md) skill's
-"Run the plan", step after step, asking the user nothing once it runs.
+"Run the plan", step after step, asking the user nothing once it runs. In a farm whose plans live in its plan store
+the plan's files are a copy outside the tree (the plan skill's [store home](../plan/references/store-home.md)):
+edit them through `plan.py edit`/`apply`, never under `plans/`.
 
 ### steps-as-hands
 Every step runs in one hand (a subagent) at its row's model, effort and window, at most five at once; the foreman

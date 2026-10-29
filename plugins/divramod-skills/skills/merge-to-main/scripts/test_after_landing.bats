@@ -48,6 +48,14 @@ teardown() { fixture_drop; }
   grep -q "/12$" "$tmp/deleted"
 }
 
+@test "a plan pointer in the worktree's git dir skips it as plans/CURRENT_PLAN does (plan 0409 step 12)" {
+  gitdir="$(git -C "$tmp/12" rev-parse --absolute-git-dir)"
+  mkdir -p "$gitdir/hal" && echo 0409-plan-store > "$gitdir/hal/CURRENT_PLAN"
+  run bash "$here/after-landing.sh" "$tmp/12"
+  [[ "$output" == *"status: skipped"*"0409-plan-store"* ]]
+  [ ! -e "$tmp/deleted" ]
+}
+
 @test "a landed 00-09 worktree is cleaned without the farmer line" {
   run bash "$here/after-landing.sh" "$tmp/03"
   [[ "$output" == *"status: cleaned"* ]]
@@ -119,4 +127,41 @@ plan_in_12() { # <slug> <extra front matter line>
   run bash "$here/after-landing.sh" "$tmp/main"
   [[ "$output" == *"not a numbered worktree"* ]]
   [ ! -e "$tmp/deleted" ]
+}
+
+@test "a fully landed worktree calls the plan store's sync trigger; an unlanded one does not" {
+  printf 'import sys\nopen("%s/synced", "a").write(" ".join(sys.argv[1:]) + "\\n")\nprint("plan store sync (landing): {}")\n' \
+    "$tmp" > "$tmp/planread.py"
+  export HAL_MTM_PLANREAD="$tmp/planread.py"
+  run bash "$here/after-landing.sh" "$tmp/12"
+  [[ "$output" == *"plan store sync (landing)"*"status: cleaned"* ]]
+  [ "$(cat "$tmp/synced")" = "sync landing --root $(cd "$tmp/12" && pwd -P)" ] || [ "$(cat "$tmp/synced")" = "sync landing --root $tmp/12" ]
+  echo change > "$tmp/03/x"
+  run bash "$here/after-landing.sh" "$tmp/03"
+  [[ "$output" == *"status: skipped"* ]]
+  [ "$(wc -l < "$tmp/synced" | tr -d ' ')" = 1 ]
+}
+
+@test "in the files home the real trigger prints nothing" {
+  run bash "$here/after-landing.sh" "$tmp/12"
+  [[ "$output" != *"plan store sync"* ]]
+}
+
+@test "a public farm's mirror is published first; public off says nothing; a refusal never stops the cleanup (plan 0409 step 15)" {
+  printf '#!/usr/bin/env bash\n[ "$1 $2" = "publish --help" ] && exit 0\necho "$*" >> "%s/published"\ncat "%s/says"\nexit "$(cat "%s/code")"\n' "$tmp" "$tmp" "$tmp" > "$tmp/gitcli"
+  chmod +x "$tmp/gitcli"
+  export HAL_MTM_GIT="$tmp/gitcli"
+  printf 'publish: skipped (source abc, branch main)\nnote: public is off\n' > "$tmp/says"; echo 0 > "$tmp/code"
+  run bash "$here/after-landing.sh" "$tmp/12"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *publish* ]]
+  grep -qx "publish --repo $tmp/12" "$tmp/published"
+  printf 'publish: published (source abc, branch main)\ngoes: 3 files\nmirror: def\n' > "$tmp/says"
+  run bash "$here/after-landing.sh" "$tmp/03"
+  [[ "$output" == "publish: published (source abc, branch main)"* ]]
+  [[ "$output" != *"goes: 3"* ]]
+  printf 'publish: refused\n' > "$tmp/says"; echo 17 > "$tmp/code"
+  run bash "$here/after-landing.sh" "$tmp/12"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"publish: refused or failed"*"status: "* ]]
 }

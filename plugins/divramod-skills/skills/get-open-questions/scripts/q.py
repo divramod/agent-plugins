@@ -11,13 +11,15 @@ with malformed open questions gets one warning line after the list.
   q.py ... --json   the same entries as data
   q.py --path       only the store's path, relative to the checkout
   q.py ... --repo <path>   another checkout
+  q.py ... --plan <n>      the questions of plan <n> (a number or a slug) instead of the current plan's
 
 In the farmer's own worktree (`farmer-<repo>`) it prints the farmer's joined list instead (`farmer.py questions`): the
 farmer's own questions, the log's open asks and every worktree's store; `--path` still names the own store.
 
-The store is the current plan's `plans/<plan>/questions.md` (`plans/CURRENT_PLAN`, a slug or a path; else the plan the
+The store is the current plan's `plans/<plan>/questions.md` (the `CURRENT_PLAN` pointer, a slug or a path; else the plan the
 root HANDOFF.md links), else the checkout's gitignored root `QUESTIONS.md`, the same entry format (the handoff
-skill's `questions.py` parses it); in the tollman's field `tollman-<repo>` always the root file. Exit 0, 1 a store
+skill's `questions.py` parses it). In the store home (hal2 plan 0409: no plan file in the tree) the plan's store is
+named all the same (`plans/<plan>/questions.md`) and the CLI answers from the plan store; in the tollman's field `tollman-<repo>` always the root file. Exit 0, 1 a store
 that cannot be read or parsed (one line), 2 the handoff skill's parser is not found.
 """
 
@@ -36,6 +38,9 @@ sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().p
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 HANDOFF_SCRIPTS = sibling("handoff") / "scripts"
 FARMER_SCRIPTS = sibling("farmer") / "scripts"
+sys.path.insert(0, str(sibling("plan") / "scripts"))
+import planhome  # noqa: E402  (the plan skill's: files or store)
+import pointers  # noqa: E402  (CURRENT_PLAN: the git dir's, else plans/)
 
 
 def load_by_path(name: str, path: Path):
@@ -75,18 +80,32 @@ def checkout_of(start: Path) -> Path:
 
 def plan_folder(root: Path) -> Path | None:
     """The folder of the current plan: what CURRENT_PLAN names, else the plan the root HANDOFF.md links."""
-    current = root / "plans" / "CURRENT_PLAN"
-    name = current.read_text().strip().rstrip("/") if current.is_file() else ""
+    name = pointers.read(root, "CURRENT_PLAN").rstrip("/")
     name = name.removesuffix("/plan.md").rstrip("/")
     if name:
         for candidate in (root / name, root / "plans" / name, root / "plans" / Path(name).name):
             if (candidate / "plan.md").is_file():
                 return candidate
+        if (slug := planhome.pointer_slug(root)) and planhome.home(root) is not None:
+            return root / "plans" / slug  # the store home: the plan's files are the store's
     handoff = root / "HANDOFF.md"
     m = PLAN_LINK.search(handoff.read_text()) if handoff.is_file() else None
     if m and (root / m.group(1) / "plan.md").is_file():
         return root / m.group(1)
     return None
+
+
+def named_plan(root: Path, ref: str) -> Path:
+    """`--plan <ref>`: the plan's folder as the CLI names it (either home), else the folder on the disk."""
+    try:
+        slug = planhome.run(root, "show", ref, "--repo", str(root)).get("slug") if planhome.cli() else None
+    except planhome.HomeError:
+        slug = None
+    if not slug:
+        found = [f for f in sorted((root / "plans").glob("[0-9][0-9][0-9][0-9]-*"))
+                 if f.name == ref or (ref.isdigit() and int(f.name[:4]) == int(ref))]
+        slug = found[0].name if found else ref
+    return root / "plans" / str(slug)
 
 
 def store_of(root: Path) -> Path:
@@ -214,9 +233,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--path", action="store_true")
     ap.add_argument("--repo", default=".")
+    ap.add_argument("--plan", default="")
     args = ap.parse_args(argv)
     root = checkout_of(Path(args.repo).expanduser())
-    path = store_of(root)
+    path = named_plan(root, args.plan) / "questions.md" if args.plan else store_of(root)
     rel = str(path.relative_to(root))
     if args.path:
         print(rel)

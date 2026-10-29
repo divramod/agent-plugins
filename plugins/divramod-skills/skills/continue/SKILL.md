@@ -52,7 +52,7 @@ this conversation (you started them, `$P thaw` finds the pids alive).
 
 1. `$P finish` moves the record (and its procs file) to `~/skills/pause/<slug>/history/`, so the next `/pause`
    starts fresh and `/continue` does not resume twice.
-2. When `plans/CURRENT_PLAN` is missing or names something else, write the record's task name into it.
+2. When the `CURRENT_PLAN` pointer is missing or names something else, write the record's task name into it.
 3. Tell the user in two or three lines what was resumed (thawed, rerun, resumed agents, re-armed) and what you
    start with, then do the first **Next** action. When the task is a started plan, keep running it as the `plan`
    skill's "Run the plan" says instead of stopping after one step.

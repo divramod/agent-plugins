@@ -23,6 +23,11 @@ messages and wakes about the farmer's own worktree (its session is the one woken
 
 Every executed action except `ran` goes into the farmer's log with `"by": "tick"`.
 
+A paused field (hal2 plan 0458, `hal2-cli-git worktree pause`) is never started, continued or woken: the round asks
+hal2 once (field_pause.of) and `plan_round` turns every `send`, `relay`, `wake` and session-starting `run` for such a
+field into a keyed `record` (one log line a day); `execute` drops the ones that reach it unplanned. Landing and train
+runs stay (field_pause says which acts).
+
 The round times itself (plan 0011): `out["timing"]` holds the seconds of the frame (merge-from-main, the role edit),
 the planners' shared context, each due item (its planning plus its actions' execution), acks, delegations, wake and
 summary, in round order; farmer.py prints them as one `timing:` line (tick.log).
@@ -42,11 +47,14 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import acks
+import commit_origin
 from logstate import paused, paused_by_any_boss, read_log, waiting_for_user  # noqa: F401  (tick.<name> for callers)
 import delegation
 import deliver
 import due
+import field_pause
 import gh_runs
+import lead_marker
 import mtm_scan
 import roles
 import scan_cache
@@ -138,7 +146,7 @@ def role_edit(top: str, wiring: roles.Wiring = roles.FARMER) -> tuple[list[dict]
     return [act("frame", "role-add", "run", argv=["git", "add", "--", *files], text=f"staged the user's {name} edit"),
             act("frame", "role-commit", "run",
                 argv=["git", "commit", "-q", "-m", f"chore(roles): apply the user's change to the {role}'s role file",
-                      "-m", f"Worktree: {Path(top).name}", "--", *files],  # the subject says what, the trailer where
+                      *commit_origin.paragraph(top), "--", *files],  # the subject says what, the trailer where
                 text=f"committed the user's {name} edit")], True
 
 
@@ -203,9 +211,11 @@ def waiting_noise(actions: list[dict], waiting: set[str]) -> list[dict]:
     return [a for a in actions if not (a["do"] == "wake" and (a["duty"], a["kind"]) in WAITS and a["slot"] in waiting)]
 
 
-def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wiring: roles.Wiring = roles.FARMER) -> dict:
+def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wiring: roles.Wiring = roles.FARMER,
+            paused: dict | None = None) -> dict:
     """What every duty's planner reads: the log, the opted-in duties, the agents by pane, each worktree's pane and the
-    worktrees whose landing runs or holds the queue (never touched), and the role's wiring."""
+    worktrees whose landing runs or holds the queue (never touched), the paused fields (field_pause) and the role's
+    wiring."""
     agents = deliver.cli("list", "--json")[1]
     try:
         data = json.loads(agents)
@@ -218,6 +228,7 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
                or (t.get("hold") or {}).get("reason") == "reserved"}
     log = read_log(main, wiring.role)
     return {"top": top, "main": main, "now": now, "dry": dry, "log": log, "wiring": wiring,
+            "paused_fields": paused if paused is not None else field_pause.load(main),
             "duties": {n.split(":", 1)[1] for n in items if n.startswith("duty:")},
             "agents_by_pane": {a.get("pane_id"): a for a in rows},
             "panes": {a["slot"]: a.get("pane_id") for a in rows if a.get("slot") and a.get("checkout")
@@ -226,9 +237,10 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
 
 
 def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bool = True,
-               timing: dict | None = None, all_due: bool = False, wiring: roles.Wiring = roles.FARMER) -> dict:
+               timing: dict | None = None, all_due: bool = False, wiring: roles.Wiring = roles.FARMER,
+               paused: dict | None = None) -> dict:
     """Plan everything after the frame's git work: the due items and their actions, each tagged with its `item`
-    (whose time its execution adds to)."""
+    (whose time its execution adds to). A paused field's starter acts are records instead (field_pause.skip)."""
     timing = timing if timing is not None else {}
     items, settings, problems = due_items(top, now, all_due, wiring)
     if problems:
@@ -237,25 +249,27 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
     main = mtm_scan.main_checkout(top)
     with timed(timing, "context"):
         opted = due.schedule((Path(top) / wiring.role_file).read_text(), wiring.duties)[0]
-        ctx = context(top, main, opted, now or dt.datetime.now(), dry, wiring)
+        ctx = context(top, main, opted, now or dt.datetime.now(), dry, wiring, paused)
     actions, role = [], wiring.role
     for item in items:
         with timed(timing, item["name"]):
-            planned = waiting_noise(fresh(item_actions(item, handlers, ctx), ctx["log"], ctx["now"], role),
-                                    ctx["waiting"])
+            planned = waiting_noise(fresh(field_pause.skip(item_actions(item, handlers, ctx), ctx["paused_fields"]),
+                                          ctx["log"], ctx["now"], role), ctx["waiting"])
         ctx.setdefault("told", set()).update(a["slot"] for a in planned if a["do"] in ("send", "relay"))
         actions += [{**a, "item": item["name"]} for a in planned]
     with timed(timing, "acks"):
-        actions += [{**a, "item": "acks"} for a in fresh(acks.plan(ctx["log"], ctx["now"], ctx["panes"]),
-                                                          ctx["log"], ctx["now"], role)]
+        ack_acts = field_pause.skip(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["paused_fields"])
+        actions += [{**a, "item": "acks"} for a in fresh(ack_acts, ctx["log"], ctx["now"], role)]
     return {"due": items, "settings": settings, "actions": actions, "stop": False}
 
 
 def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
-    """Carry out one planned action; wake and notify items are collected in `out`."""
+    """Carry out one planned action; wake and notify items are collected in `out`. An act that would start, continue or
+    wake the session of a paused field (field_pause) is not carried out: it becomes a logged record."""
     if a["do"] == "ran":
         due.record_run(top, a["name"], out.get("now"), wiring.role)
         return
+    field_pause.guard(a, out, main)
     if a["do"] == "run":
         code, text = sh(a["argv"], a.get("cwd") or top)
         a["exit"], a["output"] = code, text[-2000:]
@@ -300,8 +314,7 @@ def slot_state(main: str) -> dict[str, dict]:
     """Each worktree's CURRENT_PLAN and commits not on main (what the delegation follow-up reads)."""
     out = {}
     for w in mtm_scan.worktrees(main):
-        plan = Path(w["path"]) / "plans/CURRENT_PLAN"
-        out[Path(w["path"]).name] = {"plan": plan.read_text().strip() if plan.exists() else "",
+        out[Path(w["path"]).name] = {"plan": lead_marker.current_plan(w["path"]),
                                      "ahead": mtm_scan.unmerged(w["path"], "main")}
     return out
 
@@ -364,7 +377,8 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
     """The round after its frame: plan, execute, delegate, wake, summarize (inside one gh_runs round)."""
     timing = out["timing"]
     out["planned"] += edit
-    rnd = (plan_round(top, handlers, now, dry, timing, all_due, wiring) if go_on
+    paused = field_pause.of(out, main)  # asked once per round (D2), shared by the planners and `execute`
+    rnd = (plan_round(top, handlers, now, dry, timing, all_due, wiring, paused) if go_on
            else {"due": [], "settings": {}, "actions": [], "stop": True})
     out["planned"] += rnd["actions"]
     out.update(due=rnd["due"], settings=rnd["settings"], stop=rnd["stop"])

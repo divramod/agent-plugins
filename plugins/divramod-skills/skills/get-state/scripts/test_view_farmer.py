@@ -152,6 +152,11 @@ class FieldsTable(unittest.TestCase):
         qs = [{"kind": "questions", "open": ["Q5", "Q6", "Q7", "Q9"]}]
         self.assertEqual(state(row("01", 1, 9, waits=qs)), "idle; waits on Q5-Q7, Q9")
 
+    def test_a_paused_field_says_so_in_its_state(self):
+        paused = {"by": "user", "why": "hands off", "since": "t"}
+        self.assertEqual(tables(row("04", 1, 9, agent="none", paused=paused))["fields"]["rows"][0]["state"],
+                         "paused (user: hands off); no session")
+
     def test_a_red_holder_shows_its_failed_step(self):
         queue = {"holds": True, "position": 0, "red": {"step": "checks", "attempts": 3}}
         self.assertEqual(tables(row("09", 5, 5, queue=queue))["fields"]["rows"][0]["state"],

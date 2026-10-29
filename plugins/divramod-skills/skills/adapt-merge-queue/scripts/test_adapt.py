@@ -31,6 +31,19 @@ def ticket(slot, pid=7, reserved=False, state="waiting"):
     return t
 
 
+class Finished(unittest.TestCase):
+    def test_a_plan_pointer_in_the_git_dir_means_not_finished(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+            ahead = subprocess.CompletedProcess([], 0, stdout="3\n")
+            with mock.patch.object(adapt.subprocess, "run", return_value=ahead):
+                self.assertTrue(adapt.finished(tmp, "main"))
+                (Path(tmp) / ".git" / "hal").mkdir()
+                (Path(tmp) / ".git" / "hal" / "CURRENT_PLAN").write_text("0090-x\n")
+                self.assertFalse(adapt.finished(tmp, "main"))
+
+
 class Messages(unittest.TestCase):
     def test_each_listed_slot_hears_its_place_and_each_moved_slot_that_it_moved(self):
         before = {"queue": [ticket("16", state="active"), ticket("15"), ticket("12")]}

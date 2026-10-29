@@ -16,6 +16,8 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import busy
+import responses
 import executor
 import facts
 from test_farmer import Repo, git
@@ -111,8 +113,13 @@ class Farm(Repo):
         self.env = install(self.tmp)
         self.disk = {"free_gb": 400.0, "used_pct": 60.0, "total_gb": 1000.0}
         self.free = [10**12]
+        self.tart = None  # responses.tool: a fake program path, never the real tart (plan 0472 D2)
+        self.busy = None  # busy.reason: a workqueue hold is live when this is its text (plan 0472)
         for p in (mock.patch.dict(os.environ, self.env),
                   mock.patch.object(facts, "disk", side_effect=lambda main: dict(self.disk)),
+                  mock.patch.object(busy, "reason", side_effect=lambda main: self.busy),
+                  mock.patch.object(responses, "tool", side_effect=lambda: self.tart),
+                  mock.patch.object(responses, "tart_home", side_effect=lambda: self.tmp / "tart-home"),
                   mock.patch.object(executor, "free_bytes", side_effect=self.next_free)):
             p.start()
             self.addCleanup(p.stop)

@@ -1,8 +1,13 @@
+import contextlib
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
 import scan  # noqa: E402
@@ -203,6 +208,114 @@ class FindIncidents(unittest.TestCase):
         self.assertEqual(self.find([agent(state="done", autoclear={"state": "waiting"})]), [])
 
 
+PAUSE = {"field": "01", "by": "farmer", "why": "hands off", "since": "2026-10-28T10:00:00Z"}
+
+
+class PausedFields(unittest.TestCase):
+    """hal2 plan 0458: a paused field is scanned but never resumed, restored or judged."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        scan.RECORDS = Path(self.tmp.name)
+        self.state = {"handled": {}, "resumes": {}}
+
+    def find(self, agents, events=(), tails=None, plan=None, moved=None, orphans=(), paused=None):
+        return scan.find_incidents(PROJECT, agents, list(events), list(orphans), self.state, NOW,
+                                   tails=lambda s: (tails or {}).get(s, tail()), plan_of=lambda c: plan,
+                                   moved=lambda s, t: (moved or {}).get(t), paused=paused)
+
+    def test_a_resumable_incident_in_a_paused_field_is_only_listed(self):
+        err = {"s1": tail("server_error", "API Error: Connection lost mid-response.")}
+        [found] = self.find([agent()], [failed_event()], err, paused={"01": PAUSE})
+        self.assertEqual((found["class"], found["action"]), ("F1", "paused"))
+        self.assertIn("field 01 is paused (farmer, hands off)", found["reason"])
+        self.assertEqual(found["evidence"]["would_be"], "resume")
+        [other] = self.find([agent(slot="02", session="s2")], [failed_event("s2")], {"s2": err["s1"]},
+                            paused={"01": PAUSE})
+        self.assertEqual(other["action"], "resume")  # another field is not touched
+        [free] = self.find([agent()], [failed_event()], err)
+        self.assertEqual(free["action"], "resume")
+
+    def test_judged_and_restored_incidents_are_held_too(self):
+        plan = {"slug": "0073-x", "land": "wait", "next": {"number": "6", "step": "s"}}
+        [early] = self.find([agent(state="done", since=NOW - 15 * MIN)], plan=plan, paused={"01": PAUSE})
+        self.assertEqual((early["class"], early["action"]), ("F6", "paused"))
+        orphan = {"id": "t:abc", "worktree": "/w/01", "created": NOW - MIN}
+        with mock.patch.object(scan, "project_of", return_value=PROJECT):
+            [lost] = self.find([], orphans=[orphan], paused={"01": PAUSE})
+            [free] = self.find([], orphans=[orphan])
+        self.assertEqual((lost["class"], lost["slot"], lost["action"]), ("F8", "01", "paused"))
+        self.assertEqual(free["action"], "restore")
+
+    def test_a_plain_count_stays_a_count(self):
+        events = [failed_event(), {**failed_event(), "state": "working", "ts": NOW - 4 * MIN}]
+        [found] = self.find([agent(state="working")], events,
+                            {"s1": tail("server_error", "Connection lost", prompt_ms=NOW - 4 * MIN)},
+                            paused={"01": PAUSE})
+        self.assertEqual(found["action"], "count")
+
+    def test_the_paused_source_reads_the_cli_and_survives_an_older_one(self):
+        report = {"schema": 1, "repo": "r", "fields": [PAUSE]}
+        with mock.patch.object(scan, "run_json", return_value=report):
+            self.assertEqual(scan.paused_fields("/nowhere"), {"01": PAUSE})
+        with mock.patch.object(scan, "run_json", return_value=None):  # an older hal2-cli-git: no `paused`
+            self.assertEqual(scan.paused_fields("/nowhere"), {})
+
+
+class PausedFieldEndToEnd(unittest.TestCase):
+    """A paused field with a plan and a handoff and no session survives a scan with nothing started; a lost terminal
+    host in it is listed as `paused`, never restored. The CLIs are fakes on PATH that log every call."""
+
+    def sh(self, *argv, cwd):
+        subprocess.run(argv, cwd=cwd, check=True, capture_output=True)
+
+    def test_a_scan_starts_and_resumes_nothing_in_a_paused_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            main, field, bin_ = root / "proj", root / "wt" / "01", root / "bin"
+            main.mkdir()
+            for cmd in (("init", "-q", "-b", "main"), ("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                                                       "--allow-empty", "-m", "init"),
+                        ("worktree", "add", "-q", "-b", "01", str(field))):
+                self.sh("git", *cmd, cwd=main)
+            (field / "plans").mkdir()
+            (field / "plans/CURRENT_PLAN").write_text("0458-field-pause\n")
+            (field / "HANDOFF.md").write_text("continue with step 4\n")
+            bin_.mkdir()
+            calls = root / "calls.log"
+            orphans = json.dumps({"orphans": [{"id": "t:abc", "worktree": str(field), "created": 1}]})
+            paused = json.dumps({"schema": 1, "repo": "proj", "fields": [PAUSE]})
+            (bin_ / "hal2-cli-agents").write_text(f"""#!/bin/sh
+echo "agents $*" >> {calls}
+case "$*" in
+  *orphans*) echo '{orphans}' ;;
+  *) echo '{{"agents": []}}' ;;
+esac
+""")
+            (bin_ / "hal2-cli-git").write_text(f"""#!/bin/sh
+echo "git $*" >> {calls}
+case "$*" in
+  "worktree paused --json") echo '{paused}' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+""")
+            for f in bin_.iterdir():
+                f.chmod(0o755)
+            scan.DATA = root / "data"
+            scan.CHRONICLE = root / "chronicle"
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {"PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}"}), \
+                    contextlib.redirect_stdout(out):
+                self.assertEqual(scan.main(["scan", "--project", str(main), "--json"]), 0)
+            [found] = json.loads(out.getvalue())["incidents"]
+            self.assertEqual((found["class"], found["slot"], found["action"]), ("F8", "01", "paused"))
+            made = calls.read_text().splitlines()
+            self.assertTrue(all(c.split()[1] in ("list", "terminal", "worktree") and
+                                not any(w in c for w in (" run", " send", "restart", "clear-and-continue"))
+                                for c in made), made)
+
+
 class Record(unittest.TestCase):
     def test_record_counts_resumes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -213,6 +326,26 @@ class Record(unittest.TestCase):
             self.assertEqual(len(state["resumes"]["s9"]), 2)
             self.assertEqual(scan.resumes_left(state, "s9", scan.now_ms()), 0)
             self.assertEqual(len((Path(tmp) / "log.jsonl").read_text().splitlines()), 2)
+
+
+class Quiet(unittest.TestCase):
+    """hal2 plan 0442 D11: while the machine is quiet a scan finds nothing and asks hal2-cli-agents nothing."""
+
+    def test_a_scan_while_quiet_finds_nothing(self):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "quiet.json").write_text(json.dumps({"schema": 1, "active": True, "holds": {}}))
+            args = argparse.Namespace(project=None, hours=24, all=False, json=True)
+            out = io.StringIO()
+            with mock.patch.dict("os.environ", {"HAL2_STATE_DIR": tmp}), \
+                    mock.patch.object(scan, "run_json", side_effect=AssertionError("asked")), redirect_stdout(out):
+                self.assertEqual(scan.cmd_scan(args), 0)
+            said = json.loads(out.getvalue())
+            self.assertEqual(said["incidents"], [])
+            self.assertIn("the machine is quiet", said["quiet"])
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ the page.
 | Role | Sections and empty states |
 |---|---|
 | farmer | five grids (`grid` kind): **queue** (Place, mode line `Merge queue mode: production\|smuggle since <at> by <who>` above it, queue order), **fields** (filters All / done / one step left / nearly done / the rest, free ones apart; sorted by done % descending), **free**, **questions** (filters Open (default) / Answered / All; Q, Question, Options, Answer, State) and **decisions** (In force (default, in-force and promoted) / All; D, Date, Who, State, Decision, hidden Words and Why; sorted by date descending). Shared columns: Field, Plan (`0042 name`), Steps, Done % (hidden), What it brings in, State, then the statusline numbers ↓ behind, ↑ ahead, s stash, ? untracked, + added, ~ modified, - deleted; no numbered fields: each grid shows its own empty text |
-| foreman, servant | the plan's title and description, Progress (`bar` and `3 of 8 steps done`), the Steps table (own plan row marked), Next step with its done-when, Open questions; a servant shows its foreman's plan (`plans/LEAD`), "servant of <field>, working step <n>"; no plan: "No plan in this field." |
+| foreman, servant | the plan's title and description, Progress (`bar` and `3 of 8 steps done`), the Steps table (own plan row marked), Next step with its done-when, Open questions, and for a farm with a plan store a Plan store section (its home; sync on or off and why, a locked gpg agent, conflicts); the plan comes from `hal2-cli-plans show/questions list/home/state status --json` (either home, plan 0409 step 6), the files only without the CLI; a servant shows its foreman's plan (`plans/LEAD`), "servant of <field>, working step <n>"; no plan: "No plan in this field." |
 | steward | Daybook (today's day file, else the newest earlier: open chores of Today and Later), Unfinished plans (steps done < total), Open UAT checks (failures first, 15 plans at most); each source missing says so |
 | tollman | Mode, Merge queue: Holder, Trains, Ready wagons, Waiting in order, Open land runs; nothing queued and no run: "The toll gate is empty."; unknown tools say so |
 | mayor, lord, pope | the role's goals file under its place's `office/goals/` (`1-year.md`, `3-5-years.md`, `life.md`): the file's `- ` lines (nesting kept) and a Source section (path, mtime); no file: "No goals written yet. They would live in <path>"; nothing creates the file |
@@ -66,7 +66,7 @@ holder first, `wt` joins with `rows[].wt`) and `mode` (`mode`, `by`, `at`, `sinc
 ## Modules
 
 `state.py` (collect, CLI), `role.py`, `page.py` with `grid.py`, `table.js`, `table.css`, `serve.py` with `serve_launch.py`, `views.py` (registry, fallback table, titles), `view_farmer.py` with `ledger_sources.py` (questions, decisions),
-`view_foreman.py`, `view_goals.py`, `view_steward.py` with `steward_sources.py` (daybook, UATs), `view_tollman.py` with
+`view_foreman.py` with `plan_cli.py` (the plan through `hal2-cli-plans --json`), `view_goals.py`, `view_steward.py` with `steward_sources.py` (daybook, UATs), `view_tollman.py` with
 `tollman_sources.py` (raw queue), `state_sources.py`, `state_table.py`, `farmer_link.py`; tests `test_*.py` beside them.
 
 ## The table (`--text`)
@@ -80,9 +80,9 @@ unknown fact left out, a `|` escaped.
 | Column | Content |
 |---|---|
 | WT | the worktree's folder name; **bold** for the checkout the script runs in (`**01**`); `↳ 31` for a servant, directly under its foreman's row |
-| Plan | `<NNNN> <slug with spaces>` (also when the file holds a path `plans/<it>`, with or without `/` or `/plan.md`), a shot or task name as `plans/CURRENT_PLAN` has it, `free` when empty |
+| Plan | `<NNNN> <slug with spaces>` (also when the file holds a path `plans/<it>`, with or without `/` or `/plan.md`), a shot or task name as the `CURRENT_PLAN` pointer has it, `free` when empty |
 | Steps | `<done> of <total>` from the plan skill's `plan.py`, empty without a plan |
-| State | in order: `busy`/`idle`/`no session`; `holds the merge queue` or `waits in the queue at <n>`; `check run queued`/`check run running`/`land run running`; `<n> uncommitted`; `<n> not on <default>` (main: `not pushed`); `last commit <5m\|3h\|2d>` |
+| State | in order: `paused (<by>: <why>)` for a paused field (`hal2-cli-git worktree paused --json`, hal2 plan 0458; an older CLI shows none); `busy`/`idle`/`no session`; `holds the merge queue` or `waits in the queue at <n>`; `check run queued`/`check run running`/`land run running`; `<n> uncommitted`; `<n> not on <default>` (main: `not pushed`); `last commit <5m\|3h\|2d>` |
 | Waits for | in order: `the queue`, `the run`, `the farmer's answer` (an open ask), `ack <id>` (an instruction unacked for under 12 h), `Q<n>` per open question of the plan (three or more in a row collapse to a range, `Q5-Q15`; two stay `Q19; Q20`) |
 
 The marks: the own row is the checkout of the folder the script is started in; with `--repo <path>` of another

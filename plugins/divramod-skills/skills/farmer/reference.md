@@ -116,7 +116,7 @@ The tick does these steps as code (`delegation.py`), and `python3 $S/farmer.py d
 The farmer fixes nothing itself. When a duty finds something to change (a red workflow, a test to disable, a gate
 script, a recurring failure class, a rule patch in `pending/`), it delegates:
 
-1. **Already in hand?** Read the log's `delegate` entries and the worktrees' `plans/CURRENT_PLAN`. If a foreman already
+1. **Already in hand?** Read the log's `delegate` entries and the worktrees' `CURRENT_PLAN` pointer. If a foreman already
    has it, or the session whose work it concerns can do it in its own plan, send that session a message instead.
 2. **Limit.** At most `servant_limit` farmer-started foremen at a time (`auto`: while the load allows). These are the log's `delegate` entries whose worktree still has
    their plan in `CURRENT_PLAN`. When the limit is reached, the brief waits in `briefs/` for the next round.
@@ -189,4 +189,4 @@ From the grill with the user on 2026-10-03. They are recorded for the repositori
 - **Landed worktrees go** (the user, 2026-10-06, hal2 plan 0143): the tollman's duty `prune` since hal2 plan 0360
   step 7 ([its instructions](../tollman/instructions/prune.md)), which asks `/prune` (plan 0377); a manual prune is `/prune`,
   the farmer prunes nothing itself.
-- A busy session without `plans/CURRENT_PLAN` is told to fill it in (the `lead` duty).
+- A busy session without a `CURRENT_PLAN` pointer is told to fill it in (the `lead` duty).

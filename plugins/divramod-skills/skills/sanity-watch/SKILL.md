@@ -72,6 +72,7 @@ Take the incident's `action`, check it against the evidence, do it, and then rec
 | `escalate` (F5, F9, F10, spent budget) | `PushNotification`: `sanity-watch: <repo> <worktree> <class name>: <reason>`. Never answer a dialog, never top up anything |
 | `handover` (F11) | Leave it to fix-autoclear: notify `sanity-watch: <worktree> autoclear failed, run /fix-autoclear` |
 | `count` | Nothing to do in the session: someone resumed it already. It still goes to [learn](#3-learn) |
+| `paused` (any class) | The incident's field is paused (`hal2-cli-git worktree paused`, hal2 plan 0458): [never resume, restore, judge or spawn](#rules) for it; `$W record <id> paused --note "<reason>"`, nothing else. `evidence.would_be` says what the scan would have done |
 
 ### Resume
 
@@ -213,7 +214,11 @@ Nothing else: no summary of quiet sessions. Change [cases.md](cases.md) only in 
   - touch a landing or the merge queue;
   - run `/mtm` or `merge-to-main`: the fix agent's plan lands itself;
   - resume billing or auth stops;
-  - resume past the budget.
+  - resume past the budget;
+  - resume, restore, send to or start anything in a paused field (`hal2-cli-git worktree paused --json`, the scan's
+    action `paused`), nor spawn a fix agent into it: a paused field is skipped as "free" too. Only the farmer
+    resumes a field (`worktree resume <NN>`, on the user's go); the CLIs (`worktree run`, `hal2-cli-agents send`)
+    refuse it without `--force`, which the watcher never passes.
 - **Never act on the watcher's own session.** The scan excludes `$CLAUDE_CODE_SESSION_ID`.
 - **A fix plan never edits this skill.** Improvements to sanity-watch itself go into the report as a proposal for
   the user.

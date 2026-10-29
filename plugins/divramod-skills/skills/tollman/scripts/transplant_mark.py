@@ -4,7 +4,7 @@ A transplant moves a foreman with its branch, plan and handoff from a source fie
 the target itself. hal2-git keeps one JSON record per transplant (`hal2-cli-git worktree transplants --json`:
 `{"transplants": [{"id", "from", "to", "state", "prepared", "driven", ...}]}`, newest first); it is open while its
 `state` is `prepared` or `driven`. A prepared target also holds the marker `transplant-from-<source>` in its
-`plans/CURRENT_PLAN`. The orphan rule (boss.py) leaves the source and the target of an open transplant alone, or
+`CURRENT_PLAN` pointer. The orphan rule (boss.py) leaves the source and the target of an open transplant alone, or
 it would start a second `/handoff c` in a field the transplant is driving.
 
 Read tolerantly: an installed CLI without the command, a failure or output that is not the contract answers no
@@ -20,12 +20,13 @@ import datetime as dt
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (puts the farmer skill's scripts on the path)
+import lead_marker
 import mtm_scan
 
 STALE = dt.timedelta(minutes=60)
 OPEN = ("prepared", "driven")
 ROLE = "tollman (transplants)"
-MARKER = "transplant-from-"  # the prefix of a prepared target's plans/CURRENT_PLAN
+MARKER = "transplant-from-"  # the prefix of a prepared target's CURRENT_PLAN pointer
 
 
 @dataclasses.dataclass(frozen=True)
@@ -87,9 +88,9 @@ def from_record(records: list[dict], slot: str, now: dt.datetime) -> Mark | None
 
 
 def from_marker(path: str) -> Mark | None:
-    """A prepared target's `plans/CURRENT_PLAN` marker: it protects the field and has no age to report."""
+    """A prepared target's `CURRENT_PLAN` pointer marker: it protects the field and has no age to report."""
     try:
-        text = (Path(path) / "plans" / "CURRENT_PLAN").read_text().strip() if path else ""
+        text = lead_marker.current_plan(path) if path else ""
     except OSError:
         return None
     if not text.startswith(MARKER):

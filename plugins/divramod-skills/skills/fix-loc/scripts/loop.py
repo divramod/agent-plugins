@@ -36,6 +36,7 @@ EFFORTS = ("low", "medium", "high", "xhigh", "max")
 STEP_MODELS = ("haiku", "sonnet", "opus", "fable")  # the Agent tool's aliases (plan 0016's D6)
 PROMPT = Path(__file__).resolve().parent.parent / "servant-prompt.md"
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+import skillpath  # noqa: E402
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 CREATE = sibling("create-worktree-session") / "scripts" / "create.py"
 FINISHED = re.compile(r"^Finished:", re.MULTILINE)
@@ -94,8 +95,8 @@ def plan_landed(repo, ref, plan):
 
 
 def current_plan(worktree):
-    path = Path(worktree or "", "plans", "CURRENT_PLAN")
-    return path.read_text().strip() if worktree and path.exists() else None
+    """The worktree's CURRENT_PLAN (the git dir's, else the old one in `plans/`; the plan skill's pointers.py), else None."""
+    return (skillpath.pointers(__file__).read(worktree, "CURRENT_PLAN") or None) if worktree else None
 
 
 def observe(repo, project, servant):

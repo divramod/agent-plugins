@@ -19,13 +19,14 @@ import re
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import lead_marker
 import mtm_scan
 import train_state
 from carrier import Done, git
 from tick import default_ref
 
 PREFIX = "tollman-train-"
-CURRENT = "plans/CURRENT_PLAN"
+CURRENT = "CURRENT_PLAN"  # the pointer's name (hal2 plan 0409 step 12)
 OWN_FIX = PREFIX + "fix"
 OWN_COMMITS = ("chore(wagon-train)", "chore(generated)", "chore(yard)")  # what only a train commits
 
@@ -109,7 +110,7 @@ def drop(wt: str) -> Done:
         return 1, f"{path.name} is no train's worktree: never dropped"
     if not path.is_dir():
         return 0, f"worktree {path.name} is gone already"
-    (path / CURRENT).unlink(missing_ok=True)  # the train's title (frozen.write_current), none of a car's work
+    lead_marker.pointers.remove(path, CURRENT)  # the train's title (frozen.write_current), none of a car's work
     if why := unsaved(wt):
         return 1, f"worktree {path.name} kept (never delete unsaved work): {'; '.join(why)}"
     main, branch = mtm_scan.main_checkout(wt), git(wt, "branch", "--show-current")[1]

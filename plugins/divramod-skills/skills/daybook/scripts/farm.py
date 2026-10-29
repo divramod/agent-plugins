@@ -3,6 +3,7 @@
 The farm root is the main checkout (the first entry of `git worktree list`), outside git the folder itself (D2).
 The folder is `DAYBOOK_DIR`, else jobsearch's `daily/` when it holds `watches.yaml`, else `daybook/` (D3).
 """
+import importlib.util
 import json
 import os
 import re
@@ -15,6 +16,22 @@ LOCK_WAIT, LOCK_STALE = 5.0, 60.0
 HERE = os.path.dirname(os.path.realpath(__file__))
 PLAN_PY = [os.path.join(HERE, "..", "..", "plan", "scripts", "plan.py"),
            os.path.expanduser("~/.claude/skills/plan/scripts/plan.py")]
+
+
+def current_plan(tree):
+    """The checkout's CURRENT_PLAN: the git dir's, else the old one in `plans/` (the plan skill's pointers.py, loaded by its
+    path next to plan.py; the plans/ file alone where that skill is missing). Stripped, "" for none."""
+    for plan_py in PLAN_PY:
+        path = os.path.join(os.path.dirname(plan_py), "pointers.py")
+        if os.path.isfile(path):
+            spec = importlib.util.spec_from_file_location("pointers", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.read(tree, "CURRENT_PLAN")
+    try:
+        return read_text(os.path.join(tree, "plans", "CURRENT_PLAN")).strip()
+    except OSError:
+        return ""
 
 
 def read_text(path):
@@ -149,13 +166,10 @@ def plan_line(label, done, total, number, step, path=None):
 
 
 def worktree_plans(trees, main):
-    """Each worktree's plans/CURRENT_PLAN, counted from its own plan.md (no plan.py call per worktree)."""
+    """Each worktree's CURRENT_PLAN, counted from its own plan.md (no plan.py call per worktree)."""
     out = []
     for tree in trees:
-        try:
-            slug = read_text(os.path.join(tree, "plans", "CURRENT_PLAN")).strip()
-        except OSError:
-            continue
+        slug = current_plan(tree)
         if not slug:
             continue
         label = "main" if tree == main else os.path.basename(tree)

@@ -5,7 +5,7 @@
 
 A foreman and a servant lose their role in a clear, so `/handoff c` loads it again before anything else. The role comes from
 the checkout, never from the field's number (D16: a foreman may work in any field 00-99): a field holding `plans/LEAD`
-is a servant's, a field whose `plans/CURRENT_PLAN` names a plan (a `plan.md`) without it is a foreman's. Whether the
+is a servant's, a field whose `CURRENT_PLAN` pointer names a plan (a `plan.md`) without it is a foreman's. Whether the
 checkout is a field at all, and not the main checkout, a farmer's, a tollman's or an upper role's place, is get-state's
 detection (`role.detect`, which the pages of `/s` use): those roles load their own skill (`/farmer act`, `/tollman act`).
 """
@@ -36,7 +36,7 @@ def session_role(root: Path) -> str | None:
     main = str(Path(common).parent) if common else None
     if state_role.detect(top, main) not in ("foreman", "servant"):  # a field only (by its folder), not its role
         return None
-    if (Path(top) / "plans" / "LEAD").is_file():
+    if where.pointers.exists(Path(top), where.pointers.LEAD):
         return "servant"
     return "foreman" if where.current_plan(Path(top)) else None
 

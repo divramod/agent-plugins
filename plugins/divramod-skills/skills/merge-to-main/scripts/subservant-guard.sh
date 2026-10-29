@@ -37,7 +37,9 @@ for w in json.load(sys.stdin).get("worktrees", []):
   [ -n "$dir" ] || { echo "subservant-guard.sh: no directory and no worktree of this repo named '$arg'" >&2; exit 3; }
 fi
 root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")
-marker="$root/plans/LEAD"
+# the marker: the git dir's hal/LEAD (hal2 plan 0409 step 12), else the files home's plans/LEAD
+marker="$(git -C "$root" rev-parse --path-format=absolute --git-path hal/LEAD 2>/dev/null || true)"
+[ -n "$marker" ] && [ -f "$marker" ] || marker="$root/plans/LEAD"
 [ -f "$marker" ] || exit 0
 read -r lead plan step _ < "$marker" || true
 echo "mtm: this field is a servant of the foreman in field ${lead:-?} (plans/LEAD: plan ${plan:-?}, step or row ${step:-?}): it never lands." >&2

@@ -46,6 +46,13 @@ teardown() { fixture_drop; }
   [ -f "$tmp/wt/plans/LEAD" ]
 }
 
+@test "a marker in the git dir's hal/ refuses the landing as plans/LEAD does (plan 0409 step 12)" {
+  mkdir -p "$tmp/wt/.git/hal" && echo "02 0005-big-plan 3" > "$tmp/wt/.git/hal/LEAD"
+  run bash "$here/subservant-guard.sh" "$tmp/wt/sub"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"a servant of the foreman in field 02"* ]]
+}
+
 @test "a masterplan's servant is refused the same way: its marker names the masterplan and its row" {
   mkdir -p "$tmp/wt/plans" && echo "09 0274-masterplan-halverse-plugin 12" > "$tmp/wt/plans/LEAD"
   echo "0274-masterplan-halverse-plugin" > "$tmp/wt/plans/CURRENT_PLAN"

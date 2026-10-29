@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
 POINTER = "CURRENT_PLAN"
@@ -38,14 +39,27 @@ def repo_root(start: Path) -> Path:
     return start
 
 
+def current_pointer(root: Path) -> str:
+    """What the checkout's CURRENT_PLAN holds: the git dir's, else the old one in `plans/` (the plan skill's pointers.py,
+    found through skillpath; the plans/ file alone where this script runs outside a skills unit)."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".claude-plugin").is_dir():
+            if str(parent / "scripts") not in sys.path:
+                sys.path.insert(0, str(parent / "scripts"))
+            import skillpath
+            return skillpath.pointers(__file__).read(root, POINTER)
+    file = root / "plans" / POINTER
+    return file.read_text().strip() if file.is_file() else ""
+
+
 def plan_dir(root: Path, plan: str | None) -> Path:
-    """The plan folder: `--plan <n|slug>`, else the slug in `plans/CURRENT_PLAN`."""
+    """The plan folder: `--plan <n|slug>`, else the slug in the `CURRENT_PLAN` pointer."""
     plans = root / "plans"
     if not plan:
-        pointer = plans / POINTER
-        plan = pointer.read_text().strip().splitlines()[0].strip() if pointer.is_file() else ""
+        text = current_pointer(root)
+        plan = text.splitlines()[0].strip() if text else ""
         if not plan:
-            raise StoreError(f"no plan: pass --plan <n|slug> or name one in {pointer}")
+            raise StoreError(f"no plan: pass --plan <n|slug> or name one in {plans / POINTER}")
     if plan.isdigit():
         hits = sorted(plans.glob(f"{int(plan):04d}-*"))
         hits = [h for h in hits if h.is_dir()]

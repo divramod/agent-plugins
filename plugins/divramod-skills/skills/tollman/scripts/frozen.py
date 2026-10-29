@@ -11,11 +11,14 @@ its lines); `complete` merges the cars the carrier lacks, so `restart` lands the
 
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import generated
 import origin
+import lead_marker
 from carrier import Done, git
 
-CURRENT = "plans/CURRENT_PLAN"
+CURRENT = "CURRENT_PLAN"  # the pointer's name: the git dir's, else plans/ (hal2 plan 0409 step 12)
+POINTERS = lead_marker.pointers
 USER = "user"  # an `unhitched` line's `by`: the user's own command (`--by-user`)
 
 
@@ -35,17 +38,18 @@ def merge_car(top: str, branch: str, car: dict) -> tuple[int, str, list[str]]:
     """One car merged into the carrier (a merge commit); a conflict only in generated files takes the barn's side
     (generated.py): its exit, output and the generated files taken."""
     what = f"wagon train: field {car['field']} ({car.get('plan') or car['branch']}), head {car['head']}"
-    code, out = git(top, "merge", "-q", "--no-ff", "-m", f"Merge branch '{car['branch']}' into {branch}", "-m", what,
-                    "-m", origin.trailers([car["field"]], [car.get("plan") or ""]), car["head"])
+    # neutral commits (plan 0409 D15): the subject stays git's own, which hal2-git's title reads the cars from; no body
+    # naming the field and plan, no trailers
+    body = [] if origin.neutral(top) else ["-m", what]
+    code, out = git(top, "merge", "-q", "--no-ff", "-m", f"Merge branch '{car['branch']}' into {branch}", *body,
+                    *origin.paragraph(top, [car["field"]], [car.get("plan") or ""]), car["head"])
     got = generated.take(top, "--ours") if code else []
     return (0 if got else code), out, got
 
 
 def write_current(top: str, cars: list[dict], yard: bool) -> None:
-    """plans/CURRENT_PLAN: `yard` and the cars' plan names joined by ` + ` (the land run's title)."""
-    current = Path(top) / CURRENT
-    current.parent.mkdir(parents=True, exist_ok=True)
-    current.write_text(" + ".join(["yard"] * yard + [c.get("plan") or c["field"] for c in cars]) + "\n")
+    """The CURRENT_PLAN pointer: `yard` and the cars' plan names joined by ` + ` (the land run's title)."""
+    POINTERS.write(top, CURRENT, " + ".join(["yard"] * yard + [c.get("plan") or c["field"] for c in cars]))
 
 
 def complete(top: str, train: dict) -> Done:
@@ -65,6 +69,6 @@ def complete(top: str, train: dict) -> Done:
             if code:
                 return 1, f"{text}; the train stands (D3)"
         merged.append(car["field"])
-    if merged or not (Path(top) / CURRENT).exists():
+    if merged or not POINTERS.exists(top, CURRENT):
         write_current(top, train["cars"], bool(train.get("yard")))
     return 0, f"merged the missing cars {', '.join(merged)}" if merged else ""

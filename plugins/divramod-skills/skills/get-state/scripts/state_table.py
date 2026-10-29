@@ -44,8 +44,17 @@ def red_phrase(red: dict) -> str:
     return f"{step + ' ' if step else ''}failed" + (f", attempt {attempts}" if attempts > 1 else "")
 
 
+def paused_phrase(paused: dict | None) -> str:
+    """`paused (farmer: waiting for the plan)` for a paused field (plan 0458); empty when it is not."""
+    if not paused:
+        return ""
+    who, why = paused.get("by") or "", paused.get("why") or ""
+    return f"paused ({who}: {why})" if who and why else f"paused ({who or why})" if who or why else "paused"
+
+
 def state_cell(row: dict, default: str) -> str:
-    out = {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
+    out = [paused_phrase(row.get("paused"))] if row.get("paused") else []
+    out += {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"waits in the queue at {q['position']}")

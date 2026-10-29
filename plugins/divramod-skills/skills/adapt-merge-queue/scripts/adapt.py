@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import NoReturn
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+import skillpath  # noqa: E402
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 FARMER = sibling("farmer") / "scripts"
 ACKS = FARMER / "acks.py"
@@ -85,10 +86,10 @@ def queue(main: Path, order: list[str] | None = None, by: str = "") -> dict:
 
 
 def finished(worktree: str, default: str) -> bool:
-    """Work to land and no plan running: commits not on origin's default branch, plans/CURRENT_PLAN names nothing."""
+    """Work to land and no plan running: commits not on origin's default branch, CURRENT_PLAN (the git dir's, else
+    plans/) names nothing."""
     path = Path(worktree)
-    plan = path / "plans" / "CURRENT_PLAN"
-    if not path.is_dir() or (plan.exists() and plan.read_text().strip()):
+    if not path.is_dir() or skillpath.pointers(__file__).read(path, "CURRENT_PLAN"):
         return False
     r = subprocess.run(["git", "rev-list", "--count", f"origin/{default}..HEAD"], cwd=path, capture_output=True,
                        text=True)

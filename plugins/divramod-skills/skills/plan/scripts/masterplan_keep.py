@@ -6,7 +6,7 @@ D33 and D36).
   `stamp_finished` calls it for every changed cell and stamps the masterplan after it, so a row is `done` exactly
   when its plan's `status` is (hal2's rule `masterplan-rows`). It works with `--plan` too: a foreman marks a
   servant's plan from its own field. A tick that could not do so says why (`tick_skipped` of `plan.py status`).
-- `leave`: what `plans/CURRENT_PLAN` holds after a bring in (`plan.py leave`, the mtm skill's step 6): the slug of
+- `leave`: what the `CURRENT_PLAN` pointer holds after a bring in (`plan.py leave`, the mtm skill's step 6): the slug of
   the finished plan's unfinished masterplan, else nothing (the file is deleted); a plan with open steps keeps it.
   `--release`: the field does not carry on with the masterplan, the file is deleted.
 - `finishable`: the plans of a masterplan whose open steps are all checked after the landing (`after_landing` of
@@ -19,13 +19,15 @@ from pathlib import Path
 
 import masterplan
 import occupied
+import pointers
 import shape
 import table
 
 MAIN = masterplan.MAIN
 DONE = "done"
 REOPENED = "running"
-POINTER = "plans/CURRENT_PLAN"
+POINTER = "plans/CURRENT_PLAN"  # the words of the lines; the file is the git dir's or plans/ (pointers.py)
+NAME = pointers.CURRENT_PLAN
 ROW_DONE = re.compile(r"done(?: \(.*\))?")  # a finished row's two forms: `done`, `done (<note>)`
 
 
@@ -104,8 +106,9 @@ def unfinished_master(path: Path, steps_of) -> Path | None:
     return master if any(not is_done(s["status"]) for s in steps_of(master)) else None
 
 
-def leave(pointer: Path, steps_of, release: bool = False) -> dict:
-    """`plan.py leave`, after a bring in: what the checkout's `pointer` (plans/CURRENT_PLAN) holds from now on.
+def leave(root: Path, steps_of, release: bool = False) -> dict:
+    """`plan.py leave`, after a bring in: what the checkout `root`'s CURRENT_PLAN (the git dir's, else plans/) holds
+    from now on.
     `steps_of(plan.md)` gives a plan's step rows. Prints nothing; the result is {was, current, action, line}:
 
     - `none`: the file is missing or names nothing (an empty one, also of whitespace only, is deleted);
@@ -119,15 +122,14 @@ def leave(pointer: Path, steps_of, release: bool = False) -> dict:
     - `restored`: the work is in and plans/PREVIOUS_PLAN (a `--here` switch, D4) keeps a plan still unfinished: the
       file names it again and PREVIOUS_PLAN goes (D5); `release` drops PREVIOUS_PLAN without restoring it.
     A plan of schema 2 is finished when its derived status is `uat` or `done` (D15), kept while it is `open`."""
-    was = pointer.read_text(encoding="utf-8").strip() if pointer.is_file() else ""
+    was = pointers.read(root, NAME)
 
     def result(action: str, line: str, current: str = "") -> dict:
         return {"was": was, "current": current, "action": action, "line": line}
 
     def restored(why: str) -> dict | None:
-        root = pointer.parent.parent
         if release:
-            (root / occupied.PREVIOUS).unlink(missing_ok=True)
+            pointers.remove(root, pointers.PREVIOUS_PLAN)
             return None
         back = occupied.restore_previous(root)
         return result("restored", f"{POINTER} names {back} again, kept by a --here switch: {why}", back) if back else None
@@ -135,15 +137,15 @@ def leave(pointer: Path, steps_of, release: bool = False) -> dict:
     def deleted(why: str) -> dict:
         if (back := restored(why)) is not None:
             return back
-        pointer.unlink()
+        pointers.remove(root, NAME)
         return result("deleted", f"{POINTER} deleted: {why}")
 
-    if not was and pointer.is_file():
-        pointer.unlink()
+    if not was and pointers.exists(root, NAME):
+        pointers.remove(root, NAME)
         return result("none", f"{POINTER} named nothing: the empty file is deleted")
     if not was:
         return result("none", f"{POINTER} names nothing")
-    path = named(pointer.parent, was) if masterplan.SLUG.match(was) else None
+    path = named(Path(root) / "plans", was) if masterplan.SLUG.match(was) else None
     if path is None and masterplan.SLUG.match(was):
         return result("kept", f"{POINTER} keeps naming {was}: this checkout holds no such plan", was)
     if path is None:
@@ -169,7 +171,7 @@ def leave(pointer: Path, steps_of, release: bool = False) -> dict:
     its = f"{was}, its row {row}," if row else was
     if release:
         return deleted(f"{its} is finished and the field is released from the masterplan {home}: it is free again")
-    pointer.write_text(home + "\n", encoding="utf-8")
+    pointers.write(root, NAME, home)
     return result("masterplan", f"{POINTER} names the masterplan {home} now: {its} is finished and the field goes "
                                 "on with the masterplan's next plan", home)
 
