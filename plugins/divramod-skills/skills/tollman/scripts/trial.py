@@ -10,11 +10,12 @@ code, and nothing resolves a conflict for a foreman (D10), except one only in ge
 writes again (generated.py, hal2 plan 0313 step 8).
 """
 
-import subprocess
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
 
 
 def git(repo: str, *args: str) -> tuple[int, str]:
-    p = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, timeout=300)
+    p = bounded.run(["git", *args], cwd=repo, local=300)
     return p.returncode, p.stdout.strip()
 
 

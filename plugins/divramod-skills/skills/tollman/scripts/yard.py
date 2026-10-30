@@ -35,6 +35,9 @@ import stat
 import subprocess
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
+
 import origin
 import trial
 import yard_rules as rules
@@ -53,8 +56,8 @@ def run(repo: str, *args: str, data: str | None = None) -> subprocess.CompletedP
     """git in `repo`: every path literal (no pathspec magic; check-ignore knows none), no optional lock taken,
     names kept byte for byte."""
     literal = [] if args[0] == "check-ignore" else ["--literal-pathspecs"]
-    return subprocess.run(["git", "--no-optional-locks", *literal, *args], cwd=repo, input=data,
-                          capture_output=True, encoding="utf-8", errors="surrogateescape", timeout=600)
+    return bounded.run(["git", "--no-optional-locks", *literal, *args], cwd=repo, input=data, local=600,
+                       coding={"encoding": "utf-8", "errors": "surrogateescape"})
 
 
 def objects(repo: str, rev: str, paths: list[str]) -> dict[str, tuple[str, str]]:

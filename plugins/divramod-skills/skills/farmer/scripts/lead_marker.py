@@ -7,6 +7,7 @@ without the file is unmarked. A marker is "stale" only by `state` (its foreman's
 without session and unmerged work); a running servant's is in use. Used by mtm_scan, boss, lead_scan, trains, duties and prune.
 """
 
+import bounded
 import re
 import subprocess
 import sys
@@ -34,7 +35,7 @@ def current_plan(path: str | Path) -> str:
 def git(path: str | Path, *args: str) -> str:
     """git's stdout, "" on failure."""
     try:
-        p = subprocess.run(["git", *args], cwd=path, capture_output=True, text=True, timeout=60)
+        p = bounded.run(["git", *args], cwd=path)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return p.stdout.rstrip("\n") if p.returncode == 0 else ""
@@ -42,7 +43,7 @@ def git(path: str | Path, *args: str) -> str:
 
 def ok(path: str | Path, *args: str) -> bool:
     try:
-        return subprocess.run(["git", *args], cwd=path, capture_output=True, timeout=60).returncode == 0
+        return bounded.run(["git", *args], cwd=path).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 
@@ -124,7 +125,7 @@ def step_done(path: str | Path, slot: str, lead: dict) -> bool:
 def read(path: str | Path, *args: str) -> str | None:
     """git's stdout, None when git fails (unlike `git`, an empty answer and an unreadable one differ)."""
     try:
-        p = subprocess.run(["git", *args], cwd=path, capture_output=True, text=True, timeout=60)
+        p = bounded.run(["git", *args], cwd=path)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return p.stdout.rstrip("\n") if p.returncode == 0 else None

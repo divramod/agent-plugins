@@ -19,6 +19,9 @@ import tomllib
 from fnmatch import fnmatchcase
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
+
 import origin
 
 MAP = ".github/hal2-versions.toml"
@@ -27,7 +30,7 @@ DATA = ("plans/*/uat-results.jsonl",)  # generated, but append-only committed ve
 
 
 def git(top: str, *args: str) -> tuple[int, str]:
-    p = subprocess.run(["git", *args], cwd=top, capture_output=True, text=True, timeout=600)
+    p = bounded.run(["git", *args], cwd=top, local=600)
     return p.returncode, (p.stdout + p.stderr).strip()
 
 

@@ -6,13 +6,14 @@ not land leaves its head there, and the next train's push would be refused as no
 the remote branch back on a base with a leased push (D2, D6, D11): a breakup on the dead train's base, a new train's
 form on its own base."""
 
-import subprocess
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
 
 Done = tuple[int, str]  # the exit code and what happened, one line
 
 
 def git(top: str, *args: str) -> Done:
-    p = subprocess.run(["git", *args], cwd=top, capture_output=True, text=True, timeout=600)
+    p = bounded.run(["git", *args], cwd=top, local=600)
     return p.returncode, (p.stdout + p.stderr).strip()
 
 

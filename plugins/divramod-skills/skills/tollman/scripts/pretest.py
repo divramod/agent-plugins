@@ -43,6 +43,7 @@ import tomllib
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
 import mtm_scan
 import pretest_jobs
 import pretest_markers as markers
@@ -71,7 +72,7 @@ def read_config(path: Path) -> tuple[dict | None, str]:
 
 
 def git(top: str, *args: str) -> str:
-    p = subprocess.run(["git", *args], cwd=top, capture_output=True, text=True, timeout=60)
+    p = bounded.run(["git", *args], cwd=top)
     return p.stdout.strip() if p.returncode == 0 else ""
 
 

@@ -18,6 +18,7 @@ boss) and `trains` are the tollman's since step 5: its skill `tollman` builds it
 tollman, the old line on a farm without (the farmer's sync duty, the adapt-merge-queue skill).
 """
 
+import bounded
 import os
 import re
 import subprocess
@@ -87,7 +88,7 @@ FARMER = Wiring(
 
 def git(repo: str | Path, *args: str) -> str:
     try:
-        p = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, timeout=60)
+        p = bounded.run(["git", *args], cwd=repo)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return p.stdout.strip() if p.returncode == 0 else ""

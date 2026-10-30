@@ -53,6 +53,7 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import bounded
 import frozen
 import generated
 import mirror
@@ -80,7 +81,7 @@ RETRY = "chore(wagon-train): land the train again on a fresh run (retry {n})"
 def cli(args: list[str], cwd: str) -> Done:
     """hal2-cli-git, its exit code and output."""
     try:
-        p = subprocess.run([HAL, *args], cwd=cwd, capture_output=True, text=True, timeout=300)
+        p = bounded.run([HAL, *args], cwd=cwd)
     except (OSError, subprocess.TimeoutExpired) as e:
         return 127, str(e)
     return p.returncode, (p.stdout + p.stderr).strip()

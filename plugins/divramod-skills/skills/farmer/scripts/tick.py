@@ -47,6 +47,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+import bounded
 from logstate import paused, paused_by_any_boss, read_log, waiting_for_user  # noqa: F401  (tick.<name> for callers)
 import due
 import gh_runs
@@ -72,9 +73,10 @@ ROLE_FILES = (roles.ROLE_FILE, roles.ROLE_IGNORE)
 MFM = ["hal2-cli-git", "worktree", "merge-from-main", "--json"]
 
 
-def sh(argv: list[str], cwd: str, timeout: int = 900) -> tuple[int, str]:
+def sh(argv: list[str], cwd: str, timeout: int | None = None) -> tuple[int, str]:
+    """An action's command, its exit and output; git, gh and hal2-cli-git are bounded (bounded.py), any other 900 s."""
     try:
-        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        p = bounded.run(argv, cwd=cwd, timeout=timeout, other=900)
         return p.returncode, (p.stdout + p.stderr).strip()
     except (OSError, subprocess.TimeoutExpired) as e:
         return 127, str(e)
@@ -83,7 +85,7 @@ def sh(argv: list[str], cwd: str, timeout: int = 900) -> tuple[int, str]:
 def git(repo: str, *args: str) -> str:
     """git's stdout (leading whitespace kept: porcelain status columns), "" on failure."""
     try:
-        p = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, timeout=60)
+        p = bounded.run(["git", *args], cwd=repo)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return p.stdout.rstrip("\n") if p.returncode == 0 else ""
@@ -323,7 +325,7 @@ def origin_moved(top: str, main: str, wiring: roles.Wiring = roles.FARMER) -> st
     when there is nothing to merge: the round then makes no `hal2-cli-git worktree merge-from-main` (plan 0480 step
     02.02). A fetch that fails (offline) or a ref that cannot be read gives "" (merge as before)."""
     ref = default_ref(top)
-    if sh(["git", "fetch", "--quiet", "origin", ref.removeprefix("origin/")], top, 120)[0]:
+    if sh(["git", "fetch", "--quiet", "origin", ref.removeprefix("origin/")], top)[0]:
         return ""
     code, sha = sh(["git", "rev-parse", "--verify", "--quiet", ref], top, 30)
     sha = sha.strip()

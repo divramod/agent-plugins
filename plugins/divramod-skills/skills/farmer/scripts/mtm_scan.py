@@ -40,6 +40,7 @@ import sys
 import time
 from pathlib import Path
 
+import bounded
 import lead_marker
 import live_sessions
 import pass_timing
@@ -75,7 +76,7 @@ LOAD_HINTS = re.compile(r"busy machine|budget|watchdog|took \d|timed out|deadlin
 def run(args: list[str], cwd: str | None = None) -> str:
     pass_timing.count_gh(args)
     try:
-        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60).stdout
+        return bounded.run(args, cwd=cwd, other=60).stdout
     except (OSError, subprocess.TimeoutExpired):
         return ""
 
@@ -498,14 +499,14 @@ def priority(main: str, slots: list[str], note: str = "", clear: bool = False, d
         args = ["hal2-cli-git", "worktree", "queue", "order", *(["--clear"] if clear else slots),
                 "--by", by or setter(main, role), "--json"]
         try:
-            r = subprocess.run(args, cwd=main, capture_output=True, text=True, timeout=120)
+            r = bounded.run(args, cwd=main)
             if r.returncode != 0 and "unknown argument" in (r.stderr + r.stdout) and "--by" in args:
                 # The installed hal2-cli-git predates `--by` (skills and CLI are delivered separately): once without.
                 i = args.index("--by")
                 args = args[:i] + args[i + 2:]
                 print("scan.py: this hal2-cli-git does not know --by yet: ordered without it, hal2 stamps its own "
                       "setter", file=sys.stderr)
-                r = subprocess.run(args, cwd=main, capture_output=True, text=True, timeout=120)
+                r = bounded.run(args, cwd=main)
         except (OSError, subprocess.TimeoutExpired) as e:
             print(f"scan.py: {' '.join(args)}: {e}", file=sys.stderr)
             return 1

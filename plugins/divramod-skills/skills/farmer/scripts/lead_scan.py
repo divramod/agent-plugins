@@ -26,6 +26,7 @@ import sys
 import time
 from pathlib import Path
 
+import bounded
 import lead_marker
 import mtm_scan
 import roles
@@ -45,7 +46,7 @@ WAITS_FOR_USER = re.compile(
 
 def run_json(args: list[str]):
     try:
-        out = subprocess.run(args, capture_output=True, text=True, timeout=60).stdout
+        out = bounded.run(args, other=60).stdout
         return json.loads(out) if out.strip() else None
     except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
         return None
@@ -53,8 +54,7 @@ def run_json(args: list[str]):
 
 def main_checkout(repo: str) -> str:
     try:
-        common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=repo,
-                                capture_output=True, text=True, timeout=30).stdout.strip()
+        common = bounded.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=repo).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         common = ""
     return str(Path(common).parent) if common else repo

@@ -35,6 +35,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import bounded
 import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
@@ -213,7 +214,10 @@ def loop_cron(items: dict[str, str], min_tick: int = MIN_TICK) -> str:
 
 
 def git_out(args: list[str], repo: str) -> str:
-    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True).stdout.strip()
+    try:
+        return bounded.run(["git", *args], cwd=repo).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
 
 
 def repo_name(repo: str) -> str:

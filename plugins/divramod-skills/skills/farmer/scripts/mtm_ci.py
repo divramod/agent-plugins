@@ -32,6 +32,7 @@ import datetime as dt
 import re
 import subprocess
 
+import bounded
 import gh_runs
 
 # The landing workflow's file, the name to prefer first: the one place that names them all.
@@ -66,7 +67,7 @@ STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, wit
 
 def _git(args: list[str], cwd: str) -> str:
     try:
-        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60).stdout
+        return bounded.run(args, cwd=cwd, other=60).stdout
     except (OSError, subprocess.TimeoutExpired):
         return ""
 

@@ -333,14 +333,14 @@ class Priority(unittest.TestCase):
     def order(self, *args, stdout="", code=0, **kw):
         import subprocess
         from unittest import mock
-        real, hal2 = subprocess.run, []
+        real, hal2 = scan.bounded.run, []
 
         def run(argv, **opts):  # only hal2 is faked: roles' git calls stay real
             if argv[0] != "hal2-cli-git":
                 return real(argv, **opts)
             hal2.append(argv)
             return subprocess.CompletedProcess(argv, code, stdout=stdout, stderr="refused" if code else "")
-        with mock.patch.object(scan.subprocess, "run", side_effect=run), \
+        with mock.patch.object(scan.bounded, "run", side_effect=run), \
                 mock.patch("sys.stdout"), mock.patch("sys.stderr"):
             rc = scan.priority("/x/hal2", list(args), **kw)
         return rc, hal2[0] if hal2 else None
@@ -362,7 +362,7 @@ class Priority(unittest.TestCase):
         import json
         import subprocess
         from unittest import mock
-        real, hal2 = subprocess.run, []
+        real, hal2 = scan.bounded.run, []
         ok = json.dumps({"queue": [], "priority": {"slots": ["12"], "by": "the user (hal2-cli-git)", "at": "A"}})
 
         def run(argv, **opts):
@@ -373,7 +373,7 @@ class Priority(unittest.TestCase):
                 return subprocess.CompletedProcess(argv, 2, stdout="", stderr='unknown argument "--by" for worktree queue order')
             return subprocess.CompletedProcess(argv, 0, stdout=ok, stderr="")
         err = io.StringIO()
-        with mock.patch.object(scan.subprocess, "run", side_effect=run), mock.patch("sys.stdout"), \
+        with mock.patch.object(scan.bounded, "run", side_effect=run), mock.patch("sys.stdout"), \
                 mock.patch("sys.stderr", err):
             rc = scan.priority("/x/hal2", ["12"])
         self.assertEqual(rc, 0)

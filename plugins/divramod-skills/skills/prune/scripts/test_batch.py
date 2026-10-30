@@ -45,12 +45,16 @@ class Counting(fake_clis.Farm):
         (self.add("09") / "dirty.txt").write_text("x\n")
         self.feed(plans={"0001-x": {"state": "done"}}, agents=[])
         self.runs = []
-        real = subprocess.run
+        for owner in (subprocess, batch.tick.bounded):  # the tick's git goes through bounded.run (its own Popen)
+            self.spy(owner)
+
+    def spy(self, owner):
+        real = owner.run
 
         def spy(argv, *a, **kw):
             self.runs.append(list(argv))
             return real(argv, *a, **kw)
-        p = mock.patch.object(subprocess, "run", side_effect=spy)
+        p = mock.patch.object(owner, "run", side_effect=spy)
         p.start()
         self.addCleanup(p.stop)
 
