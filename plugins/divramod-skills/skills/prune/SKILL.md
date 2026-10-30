@@ -1,6 +1,6 @@
 ---
 name: prune
-description: Clean a farm's fields (worktrees) deterministically, as a run of hal2's run engine shown on the run page — idle fields first (a field free by the proof is removed or mucked out, a stale the `CURRENT_PLAN` pointer pointer cleared), then, only while the disk is short, the build folders (`.hal/prune.toml`'s `trim`, hal2's `code/rust/target`) of session-less fields and last of idle live ones; never a field with unsaved work, never 00-09 removed, a servant's field only once its commits are in its foreman's branch. A script does all of it (`prune.py`) under a farm lock, one action at a time, the proof again before each; the model only reads the report and messages the foremen it names ("ask the foreman of field FF about field NN"). Use when the user says /prune, "prune the fields", "clean up the worktrees", "free disk space on the farm", "delete unused worktrees" or the disk is short. `/prune h` shows help.
+description: Clean a farm's fields (worktrees) by script, shown as a run: idle fields removed or mucked out, stale CURRENT_PLAN pointers cleared, build folders trimmed only while the disk is short; never a field with unsaved work. Use for /prune, "prune the fields", "clean up the worktrees", "free disk space on the farm", "delete unused worktrees". `/prune h` shows help.
 ---
 
 # prune
@@ -25,7 +25,11 @@ Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../
 [docs/prune.md](../../../../../../../docs/prune.md)):
 
 1. `facts` (disk, config, per field kind, session, proof, size) and `stale-pointers` (a `CURRENT_PLAN` naming a
-   finished or missing plan on a field with nothing unsaved and no session is cleared) run on every run.
+   finished or missing plan on a field with nothing unsaved and no session is cleared) run on every run. A plan
+   reads the farm's facts in batches, each on first use: one `ps -A` (cleanup's `busy`), one `git for-each-ref` with
+   `%(ahead-behind:origin/<default>)` and one `hal2-cli-plans list --json` serve all fields; a case a batch cannot
+   answer (a HEAD that is no branch tip, a plan only the field knows) is asked per field as before, and every
+   action's proof re-reads its one field.
 2. `phase-1`: fields the proof calls free: 10-99 removed (an idle session stopped by signal first), 00-09 only mucked
    out, the last train's cars first, then the biggest.
 3. `phase-2` (session-less fields not free, free 00-09 included) and `phase-3` (idle live fields) trim the `trim`

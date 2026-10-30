@@ -9,20 +9,28 @@ role's field, a field holding other work, or not in timer mode.
 
 import datetime
 import fcntl
+import importlib
 import json
 import shutil
 import sys
 from pathlib import Path
 
 import due
-import handoff
 import roles
-import silence
 import tick
-import timer
-import wake
 
 import quiet_marker  # noqa: E402  (the skills unit's scripts/, on the path through roles)
+
+LAZY = ("handoff", "silence", "timer", "wake")  # imported where used: a minute pass needs none (plan 0480 D3)
+
+
+def __getattr__(name: str):
+    """`role_cli.timer` and the other LAZY modules, imported on the first ask (PEP 562)."""
+    if name in LAZY:
+        module = globals()[name] = importlib.import_module(name)
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 TOOLS = ("git", "gh", "hal2-cli-git", "hal2-cli-agents")
 MODES = ("claude", "timer")
@@ -110,6 +118,8 @@ def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.
              silent_lines=None) -> int:
     """One round behind the role's tick lock; outside a dry run only in timer mode. A silenced role (silence.py)
     prints table lines only: `silent_lines(r, wiring)` or the default one line."""
+    import silence
+    import timer
     cli, gone = wiring.cli.name, missing()
     if gone:
         print(f"{cli}: missing {', '.join(gone)}; run {wiring.cli.parent}/install-prerequisites.sh", file=sys.stderr)
@@ -141,6 +151,7 @@ def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.
 
 def follow_cron(repo: str, wiring: roles.Wiring) -> None:
     """Reinstall the timer when the role file changed the loop's cron."""
+    import timer
     code, check = start_check(repo, wiring)
     st = state(repo, wiring)
     if code == 0 and timer.installed(st).get("cron") not in (None, check["loop_cron"]):
@@ -150,6 +161,7 @@ def follow_cron(repo: str, wiring: roles.Wiring) -> None:
 
 
 def run_timer(args, wiring: roles.Wiring) -> int:
+    import timer
     st, name = state(args.repo, wiring), due.repo_name(args.repo)
     if args.action == "status":
         r = timer.status(name, st, wiring) | {"mode": mode(args.repo, wiring)}
@@ -175,6 +187,7 @@ def run_timer(args, wiring: roles.Wiring) -> int:
 
 def read_first(main: str, data: dict, wiring: roles.Wiring) -> dict:
     """The wake data with the handoff as item seq 0 whenever handoff.md exists, so the session reads it first."""
+    import handoff
     h = handoff.path(main, wiring)
     if not h.exists():
         return data
@@ -186,6 +199,8 @@ def read_first(main: str, data: dict, wiring: roles.Wiring) -> dict:
 def run_wake(args, wiring: roles.Wiring) -> int:
     """What the tick handed to the role's session (wake.json); `--done <seq>` drops the items up to it. The
     handoff, when there is one, is always item 0 (never dropped by `--done`)."""
+    import handoff
+    import wake
     main = tick.mtm_scan.main_checkout(args.repo)
     if args.done is not None:
         left = wake.done(main, args.done, wiring)
@@ -211,6 +226,7 @@ def run_wake(args, wiring: roles.Wiring) -> int:
 
 
 def run_handoff(args, wiring: roles.Wiring) -> int:
+    import handoff
     main = tick.mtm_scan.main_checkout(args.repo)
     if args.rewrite:
         print(handoff.rewrite(main, datetime.datetime.now(), wiring))

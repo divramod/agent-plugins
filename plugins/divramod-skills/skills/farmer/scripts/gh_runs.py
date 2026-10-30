@@ -28,7 +28,7 @@ def round(cache: Path | None):  # noqa: A001  (a farmer round, not the builtin)
     outer, stats = _round, {"list": 0, "view": 0, "cached": 0}
     if cache is not None:
         prune(cache)
-    _round = {"cache": cache, "lists": {}, "jobs": {}, "stats": stats}
+    _round = {"cache": cache, "lists": {}, "jobs": {}, "memo": {}, "stats": stats}
     try:
         yield stats
     finally:
@@ -51,7 +51,7 @@ def prune(cache: Path, now: float | None = None) -> None:
 
 
 def listed(run_json, args: list[str], cwd: str):
-    """`run_json(args, cwd)` for a `gh run list`, once per round."""
+    """`run_json(args, cwd)` for a list (`gh run list`, the runs read of mtm_ci.RUNS_ARGS), once per round."""
     if _round is None:
         return run_json(args, cwd)
     key = (tuple(args), cwd)
@@ -59,6 +59,15 @@ def listed(run_json, args: list[str], cwd: str):
         _round["stats"]["list"] += 1
         _round["lists"][key] = run_json(args, cwd)
     return _round["lists"][key]
+
+
+def memo(key, make):
+    """`make()` once per round for `key` (no gh call counted); outside a round every call makes it."""
+    if _round is None:
+        return make()
+    if key not in _round["memo"]:
+        _round["memo"][key] = make()
+    return _round["memo"][key]
 
 
 def _cache() -> Path | None:

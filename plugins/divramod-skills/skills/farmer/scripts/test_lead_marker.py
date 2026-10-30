@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
+import git_seed
 import lead_marker
 from test_farmer import git
 
@@ -15,17 +17,22 @@ DONE = "| # | Step | Status |\n|---|---|---|\n| 1 | a | done |\n| 2 | b | Done (
 class Fields(unittest.TestCase):
     """Fields 09 (the foreman) and 34 (its servant) of a repository, origin/main set by hand: no network, no session."""
 
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        base = Path(self.tmp.name)
-        self.main, self.foreman, self.servant = base / "hal2", base / "wt/09", base / "wt/34"
+    def grow(self):
+        """The repository and the fields 09 and 34, grown once and shared by every process (git_seed)."""
         self.main.mkdir()
         git(self.main, "init", "-q", "-b", "main")
         git(self.main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "root")
         git(self.main, "update-ref", "refs/remotes/origin/main", "HEAD")
         for name, path in (("09", self.foreman), ("34", self.servant)):
             git(self.main, "worktree", "add", "-q", "-b", name, str(path), "main")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = Path(self.tmp.name)
+        self.main, self.foreman, self.servant = base / "hal2", base / "wt/09", base / "wt/34"
+        git_seed.guard(self)
+        git_seed.grow(base, "test_lead_marker.Fields", self.grow)
         (self.servant / "plans").mkdir()
         (self.servant / "plans/LEAD").write_text("09 0275-masterplan 3\n")
         (self.servant / "plans/CURRENT_PLAN").write_text("0275-masterplan\n")

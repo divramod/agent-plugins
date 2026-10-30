@@ -207,15 +207,26 @@ def cmd_list(args):
     return 0
 
 
-def cmd_busy(_args):
-    top = str(toplevel())
-    out = subprocess.run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
+def process_listing() -> str:
+    """Every process as `pid command` lines: the one `ps -A` of `busy`."""
+    return subprocess.run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
+
+
+def busy_hits(top: str, listing: str) -> list[str]:
+    """The `pid<TAB>command` lines of `listing` whose command names the worktree `top` (not this process, its parent
+    or cleanup.py itself)."""
     me = {os.getpid(), os.getppid()}
     hits = []
-    for line in out.splitlines():
+    for line in listing.splitlines():
         pid, _, cmd = line.strip().partition(" ")
         if top + "/" in cmd + "/" and int(pid) not in me and "cleanup.py" not in cmd:
             hits.append(f"{pid}\t{cmd}")
+    return hits
+
+
+def cmd_busy(_args, listing: str | None = None):
+    """`listing`: a process listing taken already (a caller asking about many worktrees takes one `ps -A` for all)."""
+    hits = busy_hits(str(toplevel()), process_listing() if listing is None else listing)
     print("\n".join(hits) if hits else "idle")
     return 1 if hits else 0
 

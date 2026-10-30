@@ -35,7 +35,6 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import gh_runs
 import mtm_ci
 import mtm_scan
-import post_merge
 import stack_red
 import train_branch
 import train_state
@@ -75,6 +74,7 @@ def actions(top: str, main: str, train: dict, rows: list[dict], tickets=()) -> l
         return []
     out = [record(top, train["train"], url, rid)] if new else []
     jobs = gh_runs.jobs([rid], set(), gh_runs.view_jobs(mtm_scan.run_json, main)).get(rid) or []
+    import post_merge  # the round's landing watch only: a minute pass uses watch's helpers, not the orders behind post_merge
     return out + post_merge.red(top, main, train, url, rid, jobs, tickets)  # a red job: order or wake
 
 

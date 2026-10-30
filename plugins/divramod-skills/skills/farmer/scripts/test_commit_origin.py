@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 import commit_origin
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
+import git_seed
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import load  # noqa: E402
@@ -19,7 +21,9 @@ class CommitOriginTest(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.top = self.tmp / "farmer-x"
         self.top.mkdir()
-        subprocess.run(["git", "init", "-q", str(self.top)], check=True)
+        git_seed.guard(self)
+        git_seed.grow(self.tmp, "test_commit_origin.CommitOriginTest",
+                      lambda: subprocess.run(["git", "init", "-q", str(self.top)], check=True))
         commit_origin.planread.fresh()
 
     def test_off_names_the_field(self):

@@ -2,7 +2,9 @@
 
 The tick does the duty itself (`prune.py`, hal2 plan 0143; the farmer's until plan 0360 step 7, D8, D30; since plan 0377
 step 7, D12 it asks [/prune](../../prune/SKILL.md), which owns the proof, the order and the deleting): every round it
-runs `prune.py plan --json` of /prune (its facts and the planned actions per job) and starts, detached, one
+reads `prune.py plan --json` of /prune (its facts and the planned actions per job), asked detached by the round before
+(`prune.py ask`, its answer in `prune-plan.json`, its pid in `prune-ask.json`, its errors in `prune-ask.log`; a plan
+older than 20 minutes or than the last run is not used; plan 0480 D4), and starts, detached, one
 `hal2-cli-runs exec --workflow prune --slot tollman-<repo> -- prune.py run --field NN...` when anything is due (without
 `hal2-cli-runs`: `prune.py run` alone; one run at a time, its pid in `prune-run.json`, its output in `prune-run.log` of
 your state folder; the run shows on the run page as a run of the workflow `prune`). Nothing of it needs you unless it
@@ -31,7 +33,7 @@ the last 30 minutes (10-99), no build running in it and no open question to the 
 
 | Wake | What you do |
 |---|---|
-| `failed` | The duty could not ask /prune ("/prune could not be asked") or its run could not start (a `run` with an exit in the log): read `prune-run.log` and `python3 $S/prune.py plan`, and fix or tell the user; the next try is the round after the key's window. A leftover half-removed field is /prune's to resume; leave a field that holds anything alone. |
+| `failed` | The duty could not ask /prune ("/prune could not be asked") or its run could not start (a `run` with an exit in the log): read `prune-run.log`, `prune-ask.log` and `python3 $S/prune.py plan`, and fix or tell the user; the next try is the round after the key's window. A leftover half-removed field is /prune's to resume; leave a field that holds anything alone. |
 | `barn-stuck` | A car of the last landed train still holds work 24 hours after the landing (key `barn-stuck:<NN>:<HEAD>`, once). New work of its foreman is fine: nothing to do. Work left behind (an unpushed commit, a forgotten change, a `CURRENT_PLAN` of a finished plan): tell its foreman in one line; a field with no session: leave the farmer a board note (`board.py post --kind note --from tollman-<repo> --to farmer-<repo> --text ...`; it reads it when it asks). Never remove it. |
 
 Log what you did: `python3 $K/farmer/scripts/mtm_scan.py record prune <slot> "<what you did>" --note "<why>" --role

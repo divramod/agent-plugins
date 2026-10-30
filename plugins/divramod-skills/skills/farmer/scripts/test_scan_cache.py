@@ -42,6 +42,13 @@ class Cache(Repo):
         self.scan_file(raw="[1, 2]")
         self.assertEqual(self.take(), ("new", 1))
 
+    def test_the_cap_is_ten_minutes_with_or_without_a_round_start(self):
+        self.assertEqual(scan_cache.FRESH_S, 600)
+        self.scan_file(age=540)
+        self.assertEqual(self.take(since=time.time()), ("file", 0), "written before the round, still young")
+        self.scan_file(age=660)
+        self.assertEqual(self.take(since=time.time()), ("new", 1))
+
     def test_with_a_round_start_the_files_age_is_judged_against_it(self):
         start = time.time() - 900  # a long round: the scan from its start is still this round's
         self.scan_file(age=600)
@@ -84,12 +91,20 @@ class OneSnapshotPerRound(Repo):
         _, calls = self.round(writes_scan=False)
         self.assertEqual(calls, 2)
 
-    def test_last_rounds_scan_does_not_serve_this_round(self):
+    def test_a_scan_of_the_last_round_under_ten_minutes_old_serves_the_summary(self):
+        # plan 0480 step 02.02: a round whose mtm duty was not due (or left no scan) reuses last-scan.json
         f = mtm_scan.state_dir(str(self.main), "farmer") / "last-scan.json"
         f.write_text(json.dumps(SNAP))
-        os.utime(f, (time.time() - 100,) * 2)  # young enough for the cap, but written before this round
+        os.utime(f, (time.time() - 540,) * 2)  # written before this round began, still under FRESH_S (10 min)
         _, calls = self.round(writes_scan=False)
-        self.assertEqual(calls, 2)
+        self.assertEqual(calls, 1, "the duty's own snapshot only (it keeps none here); the summary took none")
+
+    def test_a_scan_older_than_ten_minutes_does_not(self):
+        f = mtm_scan.state_dir(str(self.main), "farmer") / "last-scan.json"
+        f.write_text(json.dumps(SNAP))
+        os.utime(f, (time.time() - scan_cache.FRESH_S - 60,) * 2)
+        _, calls = self.round(writes_scan=False)
+        self.assertEqual(calls, 2, "the duty's snapshot and the summary's own")
 
 
 if __name__ == "__main__":

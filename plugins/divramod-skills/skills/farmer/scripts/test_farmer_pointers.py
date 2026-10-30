@@ -6,9 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
 import decision_check
 import delegation
 import lead_marker
+import git_seed
 import mtm_scan
 from test_farmer import git
 
@@ -18,10 +20,15 @@ class GitDirPointers(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.main = Path(self.tmp.name) / "hal2"
+        self.field = Path(self.tmp.name) / "wt/34"
+        git_seed.guard(self)
+        git_seed.grow(self.tmp.name, "test_farmer_pointers.GitDirPointers", self.grow)
+
+    def grow(self):
+        """The repository and its field 34, grown once and shared by every process (git_seed)."""
         self.main.mkdir()
         git(self.main, "init", "-q", "-b", "main")
         git(self.main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "root")
-        self.field = Path(self.tmp.name) / "wt/34"
         git(self.main, "worktree", "add", "-q", "-b", "34", str(self.field), "main")
 
     def admin(self, path: Path) -> Path:

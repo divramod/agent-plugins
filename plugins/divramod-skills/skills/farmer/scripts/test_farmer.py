@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
 import due
 import git_seed
 import mtm_scan
@@ -49,6 +50,7 @@ class Repo(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.main = self.tmp / "hal2"
         self.slot = self.tmp / ".hal/git/worktree/hal2/farmer-hal2"  # roles.slot_dir with the home at tmp
+        git_seed.guard(self)
         git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
         self.data = self.tmp / "state"
         patches = [mock.patch.object(m, "DATA", self.data) for m in (due, mtm_scan)]

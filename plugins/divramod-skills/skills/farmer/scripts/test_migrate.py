@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
 import git_seed
 import migrate
 import roles
@@ -27,6 +28,7 @@ class Repo(unittest.TestCase):
         self.origin, self.main = self.tmp / "hal2.git", self.tmp / "a" / "hal2"
         self.old = self.tmp / ".hal/git/worktree/hal2/farmer"
         self.new = self.old.parent / "farmer-hal2"
+        git_seed.guard(self)
         git_seed.grow(self.tmp, type(self), self.grow)
         legacy = self.tmp / "skills/farmer"
         (legacy / "hal2/briefs").mkdir(parents=True)

@@ -3,6 +3,7 @@ through the never-delete-unsaved-work proof. A temporary repository (origin, the
 user's; the train's landing is never started."""
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
+import git_seed
 import pretest_train
 import train_wt
 
@@ -34,6 +36,15 @@ class Name(unittest.TestCase):
 class Drop(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        git_seed.guard(self)
+        git_seed.grow(self.tmp, "test_train_wt.Drop", self.grow)
+        self.main, fields = self.tmp / "hal2", self.tmp / "worktree"
+        self.field, self.car = fields / "tollman-hal2", fields / "07"
+        self.cars = [{"field": "07", "plan": "0375-tollman-switch"}]
+
+    def grow(self):
+        """The yard, its origin, the tollman's field and 07's, grown once and shared by every process (git_seed)."""
         origin, self.main = self.tmp / "origin.git", self.tmp / "hal2"
         git(self.tmp, "init", "-q", "--bare", "-b", "main", str(origin))
         git(self.tmp, "clone", "-q", str(origin), str(self.main))
@@ -48,7 +59,6 @@ class Drop(unittest.TestCase):
         git(self.main, "worktree", "add", "-q", "-b", "07", str(self.car))
         self.commit(self.car, "seven.txt")
         git(self.car, "push", "-q", "origin", "07")
-        self.cars = [{"field": "07", "plan": "0375-tollman-switch"}]
 
     def commit(self, cwd, name):
         (Path(cwd) / name).write_text(name)

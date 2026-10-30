@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
+import git_seed
 import field_facts
 import lead_marker
 import prune_proof
@@ -18,8 +20,9 @@ class GitDirPointers(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.field = Path(tmp.name).resolve() / "34"
-        self.field.mkdir()
-        subprocess.run(["git", "init", "-q", "-b", "34"], cwd=self.field, check=True)
+        git_seed.guard(self)
+        git_seed.grow(self.field.parent, "test_prune_pointers.GitDirPointers", lambda: (
+            self.field.mkdir(), subprocess.run(["git", "init", "-q", "-b", "34"], cwd=self.field, check=True)))
         self.hal = self.field / ".git" / "hal"
         self.hal.mkdir()
 

@@ -42,6 +42,7 @@ from pathlib import Path
 
 import lead_marker
 import live_sessions
+import pass_timing
 import roles
 
 import flaky_checks
@@ -50,6 +51,7 @@ import red_holder
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer worktree's roles/farmer/ (roles.state_dir)
 TOOLS = ("hal2-cli-git", "hal2-cli-agents", "git")
+QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]  # the merge queue as JSON (trains.QUEUE, the minute pass)
 
 MINUTE = 60
 HELD_IDLE_AFTER = 15 * MINUTE  # a failed landing nobody reruns
@@ -71,6 +73,7 @@ LOAD_HINTS = re.compile(r"busy machine|budget|watchdog|took \d|timed out|deadlin
 
 
 def run(args: list[str], cwd: str | None = None) -> str:
+    pass_timing.count_gh(args)
     try:
         return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60).stdout
     except (OSError, subprocess.TimeoutExpired):
@@ -376,7 +379,11 @@ def worktree_entry(w: dict, a: dict, default: str, now: float) -> dict:
     }
 
 
-def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE) -> dict:
+READ = object()  # snapshot's `agents` default: read the list here (the round passes the one it read instead)
+
+
+def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE, agents=READ) -> dict:
+    """`agents`: the round's one `live_sessions.read` (None: unreadable); not given, the list is read here."""
     now = time.time()
     main = main_checkout(repo)
     default = (run(["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], main).strip()
@@ -386,7 +393,7 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
     q_raw = run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
     q = q_raw.get("queue", [])
     # An unreadable list is no empty one (plan 0412): every field's agent is then `unknown`, never "no session".
-    agents = live_sessions.read(run_json)
+    agents = live_sessions.read(run_json) if agents is READ else agents
     by_checkout = agents_by_checkout(agents or [])
     unfinished = 0
     ci = mtm_ci.ci_mode(run, main, default)

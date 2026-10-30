@@ -11,10 +11,11 @@
       main rerun when transient, else one wake), the log, the summary;
       what needs judgment is collected as `wake`; the duty `watch` (minute.py, cron `* * * * *`): a tick on which only
       it is due is a minute pass, no round: leavers.check and one line per new event of the live land run, a quiet
-      minute prints nothing (plan 0383 step 4). --dry-run plans the round and touches nothing. Outside a dry run
-      a tick runs only in timer mode. While a train stands the field holds its cars and the round neither merges
-      from main nor commits a role file edit (D22). Outside a dry run the round's messages and acks (the frame's
-      log) are posted to the message board before and after it (board.py sync)
+      minute prints nothing (plan 0383 step 4); its cost (wall, process starts, gh calls) is one line in
+      pass-timing.jsonl of the state folder (pass_timing.py, plan 0480). --dry-run plans the round and touches
+      nothing. Outside a dry run a tick runs only in timer mode. While a train stands the field holds its cars and
+      the round neither merges from main nor commits a role file edit (D22). Outside a dry run the round's messages
+      and acks (the frame's log) are posted to the message board before and after it (board.py sync)
   tollman.py train --dry-run [--json] [--repo <dir>]
       the train that stands and the next one as the queue allows it now: the cars in order, the unhitched with
       their reasons, who waits, alone or not (trains.py's steps 1 to 4), and what the yard would give it: the
@@ -96,80 +97,51 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-import board
-import boss
-import chain
-import checks
-import checks_cli
-import due
-import engine_car
-import hold
-import learn
+from handlers import HANDLERS  # noqa: F401  (the duties' handlers, imported when asked for)
 import minute
 import mtm_scan
-import mainred
-import modes
-import orders_cli
-import own_fix
-import prune
+import pass_timing
 import role_cli
 import roles
-import silence
-import timer
-import train_state
-import trains
-import trains_dry
-import triage_cli
-import wake
 
 HERE = Path(__file__).resolve().parent
+
+
+def carries(top: str) -> bool:
+    """roles.Wiring.carries: the field holds the trains' cars and the barn's own fix by design (own_fix.py, D22);
+    own_fix loads when asked, a minute pass never asks."""
+    import own_fix
+    return own_fix.carries(top)
+
+
 WIRING = roles.Wiring(
     role="tollman", cli=HERE / "tollman.py", skill=HERE.parent,
     act="/tollman act", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred", "watch"),
-    subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=own_fix.carries,
+    subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=carries,
     session_effort=True, min_tick=1)  # min_tick: the duty `watch` ticks every minute (plan 0383 step 4, D4)
-# "duty:<name>" → (item, ctx) → actions
-HANDLERS: dict = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:checks": checks.handler,
-                  "duty:learn": learn.handler, "duty:prune": prune.handler,  # prune: plan 0360 step 7 (D30)
-                  "duty:mainred": mainred.handler,  # a red main: plan 0360 step 8 (D9, D29, D30)
-                  "duty:watch": minute.handler}  # the 1-minute watch of the land run: plan 0383 step 4 (D4)
-
-
-def last_tick(state: Path) -> dt.datetime | None:
-    """When the last round ran: the newest of the log's entries written by a tick and the run records."""
-    at = [e["at"] for e in mtm_scan.entries(state / "log.jsonl") if e.get("by") == "tick"]
-    runs = state / "runs.jsonl"
-    at += [json.loads(line)["at"] for line in runs.read_text().splitlines()] if runs.exists() else []
-    return max(map(dt.datetime.fromisoformat, at), default=None)
 
 
 def status(repo: str, now: dt.datetime | None = None) -> dict:
-    """The tollman of `repo`'s farm as data, from any checkout of it; a farm without the field has no state
-    (nothing is created for it): no timer file, no last tick."""
-    field, state = roles.slot_dir(repo, WIRING.role), role_cli.state(repo, WIRING)
-    last = last_tick(state)
-    age = int(((now or dt.datetime.now()) - last).total_seconds()) if last else None
-    return {"role": WIRING.role, "field": str(field), "field_exists": field.is_dir(),
-            "timer": timer.status(due.repo_name(repo), state, WIRING), "mode": role_cli.mode(repo, WIRING),
-            "last_tick": last.isoformat(timespec="seconds") if last else None, "last_tick_age_s": age,
-            "pending": len(wake.read(mtm_scan.main_checkout(repo), WIRING)["items"]),
-            "held": hold.text(h) if (h := hold.of(mtm_scan.main_checkout(repo))) else None}
+    """The tollman of `repo`'s farm as data (status_cmd.py)."""
+    import status_cmd
+    return status_cmd.status(repo, WIRING, now)
 
 
-def print_status(s: dict) -> None:
-    t = s["timer"]
-    print(f"{s['field']}: {'exists' if s['field_exists'] else 'no field'}")
-    print(f"timer {t.get('label', '-')}: {'loaded' if t.get('loaded') else 'not loaded'}, cron {t.get('cron', '-')}, "
-          f"mode {s['mode']}")
-    print(f"last tick: {s['last_tick'] or 'never'}"
-          + (f" ({s['last_tick_age_s']} s ago)" if s["last_tick"] else "") + f"; {s['pending']} wake items")
-    if s.get("held"):
-        print(s["held"])
-
-
-def parser() -> argparse.ArgumentParser:
+def parser(tick_only: bool = False) -> argparse.ArgumentParser:
+    """The commands' parser; `tick_only`: just `tick` (the timer's call), so a pass imports none of the others' modules."""
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
+    if tick_only:
+        t = sub.add_parser("tick")
+        for flag in ("--json", "--dry-run", "--all-due"):
+            t.add_argument(flag, action="store_true")
+        t.add_argument("--repo", default=os.getcwd())
+        return p
+    import checks_cli
+    import hold
+    import modes
+    import orders_cli
+    import triage_cli
     for name in ("start-check", "tick", "status", "act", "timer"):
         sub.add_parser(name).add_argument("--json", action="store_true")
     sub.choices["tick"].add_argument("--dry-run", action="store_true")
@@ -204,38 +176,56 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str]) -> int:
     rest = argv[argv.index("--") + 1:] if "--" in argv else []
-    args = parser().parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    args = parser(argv[:1] == ["tick"]).parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    if args.cmd == "tick":
+        return tick(args)  # the timer's call: a pass loads no command's module (plan 0480 D3)
+    return command(args, rest)
+
+
+def command(args, rest: list[str]) -> int:
+    """Every command but `tick`; each imports what it runs."""
     if args.cmd == "checks":
+        import checks_cli
         args.argv = rest
         return checks_cli.main(args, status, WIRING)
     if args.cmd == "start-check":
         return role_cli.print_start_check(*role_cli.start_check(args.repo, WIRING), args.json)
     if args.cmd == "status":
         s = status(args.repo)
-        print(json.dumps(s, indent=1)) if args.json else print_status(s)
+        import status_cmd
+        print(json.dumps(s, indent=1)) if args.json else status_cmd.show(s)
         return 0
+    import hold
+    import modes
     if args.cmd == "triage":
+        import triage_cli
         return triage_cli.main(args)
     if args.cmd in hold.VERBS:
         return hold.main(args)
     if args.cmd in modes.VERBS:
         return modes.main(args)
     if args.cmd in ("order", "fixed"):
+        import orders_cli
         return orders_cli.main(args, WIRING)
     if args.cmd == "train":
+        import trains_dry
         d = trains_dry.dry_run(args.repo)
         print(json.dumps(d, indent=1)) if args.json else trains_dry.print_dry_run(d)
         return 0
     if args.cmd in ("unhitch", "retry"):
+        import engine_car
         code, text = (engine_car.unhitch(args.repo, args.field, args.why, user=args.by_user) if args.cmd == "unhitch"
                       else engine_car.retry(args.repo, args.why, skip_pretest=args.skip_pretest))
         print(text, file=sys.stderr if code else sys.stdout)
         return code or (go_on(args.repo) if args.cmd == "unhitch" else 0)
     if args.cmd == "chain":
+        import chain
+        import trains
         code, text = chain.run(args.repo, WIRING, trains.handler, args.in_tick)
         print(text)
         return code
     if args.cmd in ("silence", "unsilence"):
+        import silence
         return silence.run(args, WIRING, args.cmd == "silence")
     if args.cmd == "act":
         return role_cli.run_wake(args, WIRING)
@@ -248,37 +238,22 @@ def main(argv: list[str]) -> int:
             role_cli.set_mode(args.repo, WIRING, args.set)
         print(role_cli.mode(args.repo, WIRING))
         return 0
-    return tick(args)
-
-
-STATE = {"formed": "formed", "started": "landing", "red": "red", "order": "fixing", "fixed": "fixing",
-         "pause": "paused by a smuggle", "resumed": "landing", "retry": "lands again", "landed": "in the barn", "cleared": "broken up"}
+    raise SystemExit(f"tollman.py: unknown command {args.cmd}")
 
 
 def silent_lines(main: str, r: dict, since: str, wiring: roles.Wiring = WIRING) -> list[str]:
-    """A silenced round (silence.py): one table line per train that changed since `since` (UTC, train_state.utc) or
-    stands now, `joined` the fields that rode it (the yard as `yard`); none: a line saying so."""
-    if r.get("problem"):
-        return silence.round_lines(r, wiring)
-    told = [a["text"] for a in r.get("done", []) if a["duty"] == minute.KIND and a["do"] == "record"]  # the watch's events
-    rows = train_state.lines(main)
-    names = list(dict.fromkeys(e["train"] for e in rows if e.get("train") and e.get("at", "") >= since))
-    stands = train_state.standing(rows)
-    if stands and stands["train"] not in names:
-        names.append(stands["train"])
-    out = []
-    for name in names:
-        mine = [e for e in rows if e.get("train") == name]
-        formed = next((e for e in mine if e["kind"] == "formed"), {})
-        state = next((STATE[e["kind"]] for e in reversed(mine) if e["kind"] in STATE), "formed")
-        joined = [c["field"] for c in formed.get("cars", [])] + (["yard"] if any(e["kind"] == "yard" for e in mine) else [])
-        out.append(silence.line(wiring.role, f"train {name}: {state}", joined))
-    return told + (out or [silence.line(wiring.role, "no train")])
+    """A silenced round's table lines (silent_lines.py)."""
+    import silent_lines as lines
+    return lines.of(main, r, since, wiring)
 
 
 def go_on(repo: str) -> int:
     """After the user's unhitch: a red train split by it is broken up and the rest formed again in this call (cause
     C); the session's unhitch of a car was refused before (plan 0360 D3)."""
+    import board
+    import chain
+    import train_state
+    import trains
     train = train_state.standing(train_state.lines(mtm_scan.main_checkout(repo)))
     if not train or train["state"] != "split":
         return 0
@@ -294,8 +269,13 @@ def tick(args) -> int:
     if role_cli.quiet(WIRING, args.dry_run):
         return 0
     main_dir = mtm_scan.main_checkout(args.repo)
-    if not (args.dry_run or args.json) and minute.light(args.repo, WIRING):
-        return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, a quiet minute prints nothing
+    if not (args.dry_run or args.json):
+        pass_timing.begin()  # a pass is timed from here (light included): wall, processes, gh calls (minute.run)
+        if minute.light(args.repo, WIRING):
+            return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, a quiet minute prints nothing
+        pass_timing.abandon()  # a round has its own timing line
+    import board
+    import train_state
     if not args.dry_run:
         board.safely(main_dir, "messages and acks", board.sync)
     since = train_state.utc()

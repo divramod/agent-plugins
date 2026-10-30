@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import git_seed
 import frozen
 import train_wt
 import trains_sort
@@ -21,10 +22,11 @@ class GitDirPointers(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
+        git_seed.guard(self)
         self.top = Path(tmp.name).resolve() / "tollman-hal2"
         self.top.mkdir()
-        git(self.top, "init", "-q", "-b", "main")
-        self.hal = Path(git(self.top, "rev-parse", "--absolute-git-dir")) / "hal"
+        git_seed.grow(self.top, "test_tollman_pointers.GitDirPointers", lambda: git(self.top, "init", "-q", "-b", "main"))
+        self.hal = self.top / ".git" / "hal"
         self.hal.mkdir()
 
     def test_current_plan_and_lead_are_read_from_the_git_dir(self):

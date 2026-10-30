@@ -49,6 +49,7 @@ class Yard(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.yard = self.tmp / "hal2"
         self.field, self.seven = self.tmp / "fields/tollman-hal2", self.tmp / "fields/07"
+        git_seed.guard(self)
         git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
 
     def grow(self):

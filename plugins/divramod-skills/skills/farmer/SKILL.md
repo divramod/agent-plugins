@@ -1,6 +1,6 @@
 ---
 name: farmer
-description: The user's helper that gets things running in a repository and keeps them running, autonomously wherever possible. Started only by the user. An external timer runs `farmer.py tick`, which does every rule-based step of the opted-in duties as code (development foreman, ci, a clean pull-request list, the farmer branch synced with main, sanity-watch, fix-autoclear, roles/farmer/ROLE.md tasks, delegations to foreman sessions that plan and land fixes) and wakes the farmer's Claude session in its worktree `farmer-<repo>` with `/farmer act` only for judgment, so a quiet round costs no model call. Use when the user says /farmer, "farmer", "development lead" (the duty `lead`), "watch CI", "keep the pull requests clean", "dependabot", "get everything merged", "help the sessions" or "watch over the worktrees". `/farmer start` installs the timer, `/farmer h` shows help.
+description: Keep a repository running by itself: a timer runs `farmer.py tick` (CI, pull requests, farmer branch, delegations to foremen) and wakes `/farmer act` only for judgment. Started only by the user. Use for /farmer, "farmer", "development lead", "watch CI", "keep the pull requests clean", "dependabot", "help the sessions". `/farmer start` installs the timer, `/farmer h` helps.
 ---
 
 # farmer

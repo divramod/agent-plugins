@@ -35,12 +35,9 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-import chain
-import engine
 import mtm_scan
 import queue_mode
 import roles
-import switch as switch_
 import train_state
 import trial
 from tick import act, default_ref
@@ -49,7 +46,7 @@ CLI = Path(__file__).with_name("tollman.py")
 FILE = "mode.json"
 SLEEP = "sleep.json"
 ASLEEP = "asleep"  # what `seen` notes while the flag stands (plan 0375): the way back finds the barn too
-VERBS = ("seen-mode", "barn", *switch_.VERBS)
+VERBS = ("seen-mode", "barn", "sleep", "wake", "drop")  # + switch.VERBS (test_light_start pins it); switch imports engine, so a minute pass does not
 QUEUE = queue_mode.QUEUE
 RUNNING = ("landing", "paused")  # a car of such a train is only recorded; of every other standing train it leaves
 KEEP = ("train-paused", "train-resumed", "train-run", "train-stuck", "landed", "in-the-barn", "stack-red",
@@ -128,6 +125,7 @@ def sleep(top: str, mode: dict, tickets: list[dict], train: dict | None, panes: 
     production plan); on the flag every other standing train dropped and the hitched told to land alone (switch.py)."""
     line = act("trains", "asleep", "record", text=f"asleep: {since(mode, sleep_flag)}")
     if sleep_flag is not None:
+        import switch as switch_
         return switch_.plan(top, line, sleep_flag, mode, tickets, train, panes, inner, KEEP, alive)
     going = [a for a in inner() if a["kind"] in KEEP] if train and train["state"] in RUNNING else []
     return [line] + going
@@ -184,12 +182,14 @@ def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict],
                        c["head"], "--how", c["how"], *(["--train", c["train"]] if c["train"] else []), slot=c["field"]))
         out.append(act("trains", "in-barn", "send", c["field"], pane=panes.get(c["field"]), key=f"told:{key}",
                        after=key, text=TEXT["in_barn"].format(field=c["field"], head=c["head"][:12], what=what)))
+    import chain
     return out + note + [chain.action(top, out[-2]["key"])], True
 
 
 def barn(repo: str, field: str, head: str, how: str, name: str | None) -> tuple[int, str]:
     """The verb: the `barn` line; a hitch or a formed train's car loses its ready mark; a formed train left without
     a car is cleared."""
+    import engine
     main = mtm_scan.main_checkout(repo)
     train_state.append(main, "barn", field, train=name, head=head, how=how)
     said = f"{field} is in the barn already ({how})"
@@ -204,6 +204,7 @@ def barn(repo: str, field: str, head: str, how: str, name: str | None) -> tuple[
 
 
 def add_parser(sub) -> None:
+    import switch as switch_
     sub.add_parser("seen-mode").add_argument("mode", choices=(queue_mode.PRODUCTION, queue_mode.SMUGGLE, ASLEEP))
     switch_.add_parser(sub)
     b = sub.add_parser("barn")
@@ -214,6 +215,7 @@ def add_parser(sub) -> None:
 
 
 def main(args) -> int:
+    import switch as switch_
     if args.cmd in switch_.VERBS:
         return switch_.main(args)
     if args.cmd == "seen-mode":

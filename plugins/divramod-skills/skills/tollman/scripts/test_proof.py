@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path: git_seed)
+import git_seed
 import proof
 
 
@@ -17,11 +19,16 @@ class Field(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.d, True)
         self.cache = Path(tempfile.mkdtemp()) / "cache" / "proof"
         self.addCleanup(shutil.rmtree, self.cache.parents[1], True)
+        git_seed.guard(self)
+        git_seed.grow(self.d, "test_proof.Field", self.grow)
+        self.calls = []
+        self.answers = {}  # the check's name -> (exit, output)
+
+    def grow(self):
+        """The barn and the crop `06`, grown once and shared by every process (git_seed)."""
         self.g("init", "-q", "-b", "main")
         self.commit({"a.rs": "a\n", "README.md": "barn\n"})
         self.g("checkout", "-q", "-b", "06")
-        self.calls = []
-        self.answers = {}  # the check's name -> (exit, output)
 
     def g(self, *a):
         return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=self.d, check=True,

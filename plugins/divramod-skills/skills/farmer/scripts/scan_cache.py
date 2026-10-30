@@ -3,8 +3,9 @@
 take a second one (63 of the tollman's 168 tick minutes on 2026-10-14). `scan` reads that file back when it is
 fresh and takes a new snapshot only when it is missing, unreadable or stale.
 
-Fresh: written during this round (its mtime at or after `since`, the round's start) or, without a round start,
-at most FRESH_S seconds old. The file is the carrier because the duty's planner and the summary share no object
+Fresh: at most FRESH_S seconds old (10 min, plan 0480 step 02.02: the summary needs no scan of its own when the
+last round's is that young) or written during this round (its mtime at or after `since`, the round's start; a long
+round's own scan stays fresh). The file is the carrier because the duty's planner and the summary share no object
 (`tick.context` is local to `plan_round`).
 """
 
@@ -13,7 +14,7 @@ import time
 
 import mtm_scan
 
-FRESH_S = 300  # without a round start: a scan this young is the round's
+FRESH_S = 600  # a scan this young serves the summary, this round's or an earlier one's
 
 
 def fresh(main: str, role: str, since: float | None = None, now: float | None = None) -> dict | None:
@@ -26,7 +27,7 @@ def fresh(main: str, role: str, since: float | None = None, now: float | None = 
         return None
     if not isinstance(snap, dict) or "findings" not in snap:
         return None
-    ok = written >= since if since is not None else (now or time.time()) - written <= FRESH_S
+    ok = (since is not None and written >= since) or (now or time.time()) - written <= FRESH_S
     return snap if ok else None
 
 

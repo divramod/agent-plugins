@@ -39,16 +39,24 @@ def git(path: str, *args: str) -> str:
     return tick.git(path, *args)
 
 
-def unsaved(path: str, slot: str, base: str) -> list[str]:
-    """What the worktree holds that `base` (origin's default branch) lacks: commits on HEAD or a side branch, changes."""
+def unsaved(path: str, slot: str, base: str, refs=None, head: str | None = None) -> list[str]:
+    """What the worktree holds that `base` (origin's default branch) lacks: commits on HEAD or a side branch, changes.
+    `refs` (batch.Refs): the branches' counts read once for the whole scan; what it cannot answer (a HEAD that is no
+    branch tip, a git without ahead-behind) is asked of git here as ever."""
     out = []
-    ahead = git(path, "rev-list", "--count", f"{base}..HEAD")
+    refs = refs if refs is not None and refs.base == base else None
+    batched = refs.ahead(head) if refs else None
+    ahead = str(batched) if batched is not None else git(path, "rev-list", "--count", f"{base}..HEAD")
     if ahead and ahead != "0":
         out.append(f"{ahead} commit(s) not on {base}")
-    for ref in git(path, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}-*").split():
-        n = git(path, "rev-list", "--count", f"{base}..{ref}")
-        if n and n != "0":
-            out.append(f"side branch {ref}: {n} commit(s) not on {base}")
+    side = refs.side(slot) if refs else None
+    if side is None:
+        side = []
+        for ref in git(path, "for-each-ref", "--format=%(refname:short)", f"refs/heads/{slot}-*").split():
+            n = git(path, "rev-list", "--count", f"{base}..{ref}")
+            if n and n != "0":
+                side.append((ref, n))
+    out += [f"side branch {ref}: {n} commit(s) not on {base}" for ref, n in side]
     if git(path, "status", "--porcelain"):
         out.append("uncommitted changes")
     if plan := lead_marker.current_plan(path):  # either place: the git dir's, else plans/
@@ -98,10 +106,11 @@ def held(slot: str, ctx: dict) -> str | None:
     return None
 
 
-def refusal(w: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build=None, base=None) -> str | None:
+def refusal(w: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build=None, base=None, refs=None) -> str | None:
     """Why the worktree `w` (path, `slot`) may not be pruned now, None when it may. `build` defaults to
     `build_running`, looked up at the call so a test can stub it; `base`, origin's default branch, to the worktree's
-    (`base()` asks it: every worktree of a repository shares it, so a scan asks once)."""
+    (`base()` asks it: every worktree of a repository shares it, so a scan asks once); `refs`, batch.Refs, the branches'
+    commit counts of the whole scan."""
     build = build or build_running
     slot, path = w["slot"], w["path"]
     if agents is None:
@@ -109,7 +118,7 @@ def refusal(w: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build=
     lead = marker(path)
     if lead is not None:
         return subservant_refusal(w, lead, ctx, agents, now_ms, build)
-    why = unsaved(path, slot, base() if base else tick.default_ref(path))
+    why = unsaved(path, slot, base() if base else refs.base if refs else tick.default_ref(path), refs, w.get("head"))
     if why:
         return "; ".join(why)
     why = held(slot, ctx)
@@ -164,12 +173,12 @@ def slots(main: str) -> list[dict]:
     return sorted(out, key=lambda w: w["slot"])
 
 
-def scan(main: str, ctx: dict, agents: list[dict] | None, now_ms: float | None = None, build=None) -> list[dict]:
+def scan(main: str, ctx: dict, agents: list[dict] | None, now_ms: float | None = None, build=None, refs=None) -> list[dict]:
     now_ms = now_ms if now_ms is not None else time.time() * 1000
     known = []
 
     def base():
         if not known:
-            known.append(tick.default_ref(main))
+            known.append(refs.base if refs else tick.default_ref(main))
         return known[0]
-    return [{**w, "why": refusal(w, ctx, agents, now_ms, build, base)} for w in slots(main)]
+    return [{**w, "why": refusal(w, ctx, agents, now_ms, build, base, refs)} for w in slots(main)]

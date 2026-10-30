@@ -58,6 +58,47 @@ def plan_state(plan: str, repos: list[str], run=show) -> str:
     return MISSING if unknown_plan == len(repos) else UNKNOWN
 
 
+def listed(repo: str) -> list[dict] | None:
+    """The plans of a checkout, `hal2-cli-plans list --repo <repo> --json` (its `plans`); None when it cannot run or read."""
+    try:
+        p = subprocess.run(["hal2-cli-plans", "list", "--repo", repo, "--json"], capture_output=True, text=True,
+                           timeout=120)
+        plans = json.loads(p.stdout)["plans"] if p.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
+    return plans if isinstance(plans, list) else None
+
+
+class PlanIndex:
+    """`plan_state` for a whole plan of prune: the main checkout's plans listed once (`hal2-cli-plans list --json`)
+    instead of one `show` per field (research 0118 #6, plan 0480 D5). A pointer naming a plan of that list (its slug or
+    number) is answered from it; any other name (a plan of the field's branch only, a shot, free text) and an
+    unreadable list go the old way, `show` in the field and in main."""
+
+    def __init__(self, main: str, list_plans=listed, run=show):
+        self.main, self._list, self._run, self._rows = main, list_plans, run, None
+
+    def rows(self) -> dict[str, dict] | None:
+        if self._rows is None:
+            plans = self._list(self.main)
+            self._rows = {} if plans is None else {k: p for p in plans if isinstance(p, dict) for k in keys(p)}
+            self._ok = plans is not None
+        return self._rows if self._ok else None
+
+    def __call__(self, plan: str, repos: list[str]) -> str:
+        rows = self.rows() if self.main in repos else None
+        row = rows.get(plan) if rows else None
+        if row is None:
+            return plan_state(plan, repos, self._run)
+        return FINISHED if row.get("state") == "done" or row.get("finished") else OPEN
+
+
+def keys(plan: dict) -> list[str]:
+    """The names a pointer may call a listed plan: its slug, its number, its four-digit number."""
+    number = plan.get("number")
+    return [str(k) for k in (plan.get("slug"), number, f"{number:04d}" if isinstance(number, int) else None) if k]
+
+
 def pointer(field: dict, main: str, lookup=plan_state) -> dict | None:
     """`{plan, state}` for a field with a CURRENT_PLAN, None without; a servant's pointer is its foreman's plan and
     not part of its proof, so it is not looked at."""
@@ -67,11 +108,12 @@ def pointer(field: dict, main: str, lookup=plan_state) -> dict | None:
     return {"plan": name, "state": lookup(name, [field["path"], main])}
 
 
-def unsaved(field: dict) -> list[str]:
+def unsaved(field: dict, refs=None) -> list[str]:
     """What the field holds that origin's default branch lacks, the pointer aside: commits (HEAD, side branches), changes.
-    The pointer file itself is no change (a farm that does not ignore it would never have a stale one)."""
+    The pointer file itself is no change (a farm that does not ignore it would never have a stale one). `refs`: batch.Refs."""
     path = field["path"]
-    why = [w for w in prune_proof.unsaved(path, field["slot"], prune_proof.tick.default_ref(path))
+    base = refs.base if refs else prune_proof.tick.default_ref(path)
+    why = [w for w in prune_proof.unsaved(path, field["slot"], base, refs, field.get("head"))
            if not w.startswith(prune_proof.POINTER_WHY)]
     if "uncommitted changes" in why and not prune_proof.git(path, "status", "--porcelain", "--", ".", ":!plans/CURRENT_PLAN"):
         why.remove("uncommitted changes")
@@ -119,14 +161,14 @@ def building(fields: list[dict], build=prune_proof.build_running) -> dict[str, b
 
 
 def extra(fields: list[dict], ctx: dict, main: str, free: dict[str, bool], lookup=plan_state,
-          build=prune_proof.build_running) -> dict[str, dict]:
+          build=prune_proof.build_running, refs=None) -> dict[str, dict]:
     """{slot: {pointer, unsaved, lead, hold, building}} for the fields given (`free`: the proof's verdict per field; names-ok: the keys
     a free field cannot be building, so it is not asked). `unsaved` only behind a finished or missing pointer."""
     out = {}
     for f in fields:
         ptr = pointer(f, main, lookup)
         stale = ptr is not None and ptr["state"] in (FINISHED, MISSING)
-        out[f["slot"]] = {"pointer": ptr, "unsaved": unsaved(f) if stale else None, "lead": lead(f),
+        out[f["slot"]] = {"pointer": ptr, "unsaved": unsaved(f, refs) if stale else None, "lead": lead(f),
                           "hold": prune_proof.held(f["slot"], ctx)}
     busy = building([f for f in fields if not free[f["slot"]]], build)
     for f in fields:

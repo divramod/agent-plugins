@@ -30,6 +30,7 @@ its time limit still asks from inside (stop step `success` in a job with a `canc
 
 import datetime as dt
 import re
+import subprocess
 
 import gh_runs
 
@@ -63,9 +64,29 @@ CANCEL_STEP = "fail fast: cancel the run"  # the stop job's step (plan 0319 D9),
 STEP = re.compile(r"^\s*(?:\[\d+\]\s*)?(?P<task>.*?)\s*$")  # a step's task, without its `[NN] ` number
 
 
+def _git(args: list[str], cwd: str) -> str:
+    try:
+        return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def live_land_names(run, main: str, default: str | None = None) -> list[str]:
+    """The LAND_NAMES whose file is on origin's default branch, in LAND_NAMES order: one `git ls-tree` per round
+    (gh_runs.memo; `default` None: origin's HEAD, `main` when unset). A name whose file is not there is never asked
+    for runs (plan 0480 step 01.04; research 0118 #1: the retired names stayed asked on every pass)."""
+    def read() -> list[str]:
+        branch = default or (run(["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], main).strip()
+                             .removeprefix("origin/") or "main")
+        out = run(["git", "ls-tree", "--name-only", f"origin/{branch}", ".github/workflows/"], main)
+        on_branch = {line.strip().rsplit("/", 1)[-1] for line in out.splitlines()}
+        return [n for n in LAND_NAMES if n in on_branch]
+    return gh_runs.memo(("live-land-names", main), read)
+
+
 def ci_mode(run, main: str, default: str) -> bool:
     """One of the landing workflow files (LAND_NAMES) is on origin's default branch."""
-    return any(run(["git", "cat-file", "-t", f"origin/{default}:{f}"], main).strip() for f in LAND_FILES)
+    return bool(live_land_names(run, main, default))
 
 
 def train_of(ref: str) -> str:
@@ -215,18 +236,42 @@ def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:
     return out
 
 
-def list_args(workflow: str) -> list[str]:
-    return ["gh", "run", "list", "--workflow", workflow, "--limit", "100", "--json", FIELDS]
+# One read of the repository's runs a round (plan 0480 D2, research 0118 #3): GitHub's runs list, newest first, every
+# workflow, projected by gh's jq to what the readers use, then filtered by the landing workflows' paths here.
+RUNS_PAGE = 50
+API_FIELDS = ("id", "path", "head_branch", "head_sha", "status", "conclusion", "created_at", "html_url", "event",
+              "display_title")
+RUNS_ARGS = ["gh", "api", f"repos/{{owner}}/{{repo}}/actions/runs?per_page={RUNS_PAGE}",
+             "--jq", "[.workflow_runs[] | {" + ", ".join(API_FIELDS) + "}]"]
+AS_ROW = {"id": "databaseId", "head_branch": "headBranch", "head_sha": "headSha", "status": "status",
+          "conclusion": "conclusion", "created_at": "createdAt", "html_url": "url", "event": "event",
+          "display_title": "displayTitle"}  # the API's names -> `gh run list`'s (FIELDS and more)
 
 
-def runs_of(run_json, main: str) -> list[dict]:
-    """The runs of every landing workflow file, newest first, each list read once per round (gh_runs). A file
-    GitHub does not know (not renamed yet, or renamed away) gives no list: no runs."""
-    runs = {}
-    for name in LAND_NAMES:
-        for r in gh_runs.listed(run_json, list_args(name), main) or []:
-            runs.setdefault(r.get("databaseId"), r)
-    return sorted(runs.values(), key=lambda r: r.get("createdAt") or "", reverse=True)
+def as_row(api: dict) -> dict:
+    """One run of GitHub's runs list as a `gh run list --json FIELDS` row, plus `path` (its workflow file, without a
+    `@<ref>`), `event` and `displayTitle`."""
+    row = {ours: api.get(theirs) for theirs, ours in AS_ROW.items()}
+    row["path"] = str(api.get("path") or "").split("@", 1)[0]
+    return row
+
+
+def all_runs(run_json, main: str) -> list[dict] | None:
+    """The newest RUNS_PAGE runs of every workflow (`as_row`), one `gh api .../actions/runs` a round (gh_runs);
+    None when GitHub did not answer."""
+    got = gh_runs.listed(run_json, RUNS_ARGS, main)
+    return [as_row(r) for r in got if isinstance(r, dict)] if isinstance(got, list) else None
+
+
+def runs_of(run_json, main: str, run=None) -> list[dict]:
+    """The runs of every landing workflow file on the default branch (`live_land_names`; `run` reads git), newest
+    first: `all_runs` filtered by the files' paths. No landing workflow on the branch: no gh call; GitHub not
+    answering: no runs. A run under a name no longer on the branch is left out (the runs list keeps its old path)."""
+    paths = {f".github/workflows/{name}" for name in live_land_names(run or _git, main)}
+    if not paths:
+        return []
+    runs = [r for r in all_runs(run_json, main) or [] if r["path"] in paths]
+    return sorted(runs, key=lambda r: r.get("createdAt") or "", reverse=True)
 
 
 def unfinished(run_json, main: str) -> int:

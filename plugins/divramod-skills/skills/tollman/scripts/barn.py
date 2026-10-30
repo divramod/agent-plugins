@@ -5,7 +5,10 @@ not clear itself. The prune duty (prune.py) then looks at each car of the newest
 /prune's facts (names-ok: slot, path, HEAD, the proof's refusal `why`, the field's live `sessions`; hal2 plan 0377 step 7, D12):
 - a field 00-09 that /prune's proof finds free and that is mucked out (prune's `clean` ran for this HEAD: its key in
   the log, no exit) has its resting session cleared once: `hal2-cli-agents clear-and-continue --pane <pane>
-  --without-plan --prompt /merge-from-main --detach`, key `barn-clear:<slot>:<HEAD>`;
+  --without-plan --prompt /merge-from-main --detach`, key `barn-clear:<slot>:<HEAD>`. The facts are up to a round old
+  (the plan is asked detached, plan 0480 D4), so the clear looks at the pane live first (`hal2-cli-agents list`): it
+  clears only the field's live session in a resting state (idle, done, sleeping), else it waits for the next round. A
+  draft in the box is not in the list; the clear job itself waits for it and never touches it;
 - a field 10-99 is removed by /prune's run (stopped by signal, removed through the proof): its plan orders the
   last train's cars first, so a car is removed right after the barn (prune.py starts the run for it);
 - a car whose field still holds work 24 hours after the landing: one wake, `barn-stuck:<slot>:<HEAD>`, never a forced
@@ -17,6 +20,7 @@ import re
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import live_sessions
 import train_state
 from tick import act
 
@@ -24,6 +28,7 @@ NUMBERED = re.compile(r"\d\d")  # a field 00-99 (a local copy: the tollman never
 
 STUCK_AFTER = 24 * 3600
 ONCE = 30 * 24 * 3600
+RESTING = {"idle", "done", "sleeping"}  # the states in which the session between two turns can be cleared
 CLEAR = ["hal2-cli-agents", "clear-and-continue", "--without-plan", "--prompt", "/merge-from-main", "--detach"]
 
 
@@ -47,11 +52,28 @@ def age(landed: dict, now: dt.datetime) -> float:
     return (now.astimezone(dt.timezone.utc) - at).total_seconds()
 
 
-def clear(w: dict) -> list[dict]:
-    """The field's resting session cleared once; no session: nothing to clear."""
-    if not w["sessions"]:
+def live_agents() -> list[dict] | None:
+    """`hal2-cli-agents list --json` now, None when it cannot be read (the farmer's one lookup, live_sessions.read)."""
+    return live_sessions.read()
+
+
+def resting_pane(w: dict, agents: list[dict] | None) -> str | None:
+    """The pane of the field's one live session when it rests now, else None: no list, no session, or any of them busy
+    or in a dialog (working, starting, blocked) is a reason to wait for the next round."""
+    if agents is None:
+        return None
+    here = live_sessions.key(w["path"])
+    mine = [a for a in agents if a.get("checkout") and live_sessions.key(a["checkout"]) == here and live_sessions.live(a)]
+    if not mine or any(a.get("state") not in RESTING for a in mine):
+        return None
+    return mine[0].get("pane_id")
+
+
+def clear(w: dict, agents: list[dict] | None) -> list[dict]:
+    """The field's resting session cleared once, on the pane the live list names; the prune facts only say there was one."""
+    pane = resting_pane(w, agents) if w["sessions"] else None
+    if not pane:
         return []
-    pane = w["sessions"][0]["pane_id"]
     return [act("prune", "barn-clear", "run", w["slot"], key=f"barn-clear:{w['slot']}:{w['head']}", window=ONCE,
                 argv=CLEAR[:2] + ["--pane", pane] + CLEAR[2:],
                 text=f"clear field {w['slot']}'s session {pane}: its crop is in the barn, its work is safe")]
@@ -69,11 +91,14 @@ def actions(ctx: dict, found: list[dict], landed: dict | None) -> list[dict]:
         return []
     fields, out = cars(landed), []
     late = age(landed, ctx["now"]) >= STUCK_AFTER
+    agents = []  # the live list, read when the first clear is due
     for w in found:
         if w["slot"] not in fields or not Path(w["path"]).is_dir():
             continue
         if w["why"]:
             out += [stuck(w, landed)] if late else []
         elif int(w["slot"]) < 10 and cleaned(ctx.get("log", []), w["slot"], w["head"]):
-            out += clear(w)
+            if not agents:
+                agents.append(live_agents())
+            out += clear(w, agents[0])
     return out

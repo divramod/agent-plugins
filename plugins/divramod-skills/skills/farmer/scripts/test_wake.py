@@ -252,3 +252,19 @@ class CloseOlder(Wake):
         self.assertEqual(wake.close_older(self.main, None), [], "no handoff.md: nothing closes")
         wake.close_older(self.main, (NOW + dt.timedelta(minutes=30)).timestamp())
         self.assertEqual([i["seq"] for i in wake.read(self.main)["items"]], [3])
+
+
+class RoundsList(unittest.TestCase):
+    """Plan 0480 step 02.02: the round's one agents list is passed in, not asked again."""
+
+    def test_the_pane_comes_from_the_rows_given_and_asks_nothing(self):
+        rows = [{"pane_id": "%3", "checkout": "/x/wt/farmer"}, {"pane_id": "%4", "checkout": "/x/wt/07"}]
+        with mock.patch.object(wake.deliver, "cli", side_effect=AssertionError("a second list")):
+            self.assertEqual(wake.farmer_pane("/x/wt/farmer", rows), "%3")
+            self.assertIsNone(wake.farmer_pane("/x/wt/other", rows))
+            self.assertIsNone(wake.farmer_pane("/x/wt/farmer", []), "an empty list is a list")
+
+    def test_without_rows_the_list_is_asked(self):
+        with mock.patch.object(wake.deliver, "cli", return_value=(0, AGENTS)) as cli:
+            self.assertIsNone(wake.farmer_pane("/x/wt/nope"))
+        cli.assert_called_once_with("list", "--json")

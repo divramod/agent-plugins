@@ -4,6 +4,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import gh_runs
 import mtm_ci
@@ -29,8 +30,9 @@ class Fake:
         time.sleep(self.delay)
         with self.lock:
             self.running -= 1
-        if args[:3] == ["gh", "run", "list"]:
-            return self.runs
+        if args == mtm_ci.RUNS_ARGS:  # the one runs read, in the API's shape
+            return [{**{theirs: r.get(ours) for theirs, ours in mtm_ci.AS_ROW.items()},
+                     "path": f".github/workflows/{mtm_ci.LAND_NAMES[0]}"} for r in self.runs]
         return {"jobs": [{"name": f"gate-{args[3]}", "conclusion": "failure"}]}
 
     def views(self):
@@ -42,6 +44,10 @@ class GhRunsTest(unittest.TestCase):
             run(4, "land/09", conclusion="success")]
 
     def setUp(self):
+        git = lambda argv, cwd: "".join(f".github/workflows/{n}\n" for n in mtm_ci.LAND_NAMES)  # all four on the branch
+        patch = mock.patch.object(mtm_ci, "_git", git)
+        patch.start()
+        self.addCleanup(patch.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.cache = Path(self.tmp.name) / "cache" / "run-jobs"
 
@@ -57,8 +63,8 @@ class GhRunsTest(unittest.TestCase):
         self.assertEqual([(r["slot"], r["outcome"], r["task"]) for r in first],
                          [("07", "failed", "gate-1"), ("03", "failed", "gate-2"), ("05", "running", ""),
                           ("09", "landed", "")])
-        # one list per landing workflow file (local, cloud, dev-merge-to-main.yml, merge-to-main.yml), each once per round
-        self.assertEqual((stats["list"], stats["view"], stats["cached"], gh.views()), (4, 3, 0, 3))
+        # one runs read for every landing workflow file (plan 0480 D2; before it a list per file), once per round
+        self.assertEqual((stats["list"], stats["view"], stats["cached"], gh.views()), (1, 3, 0, 3))
 
     def test_a_completed_runs_jobs_come_from_the_disk_next_round_a_running_one_is_fetched_again(self):
         with gh_runs.round(self.cache):

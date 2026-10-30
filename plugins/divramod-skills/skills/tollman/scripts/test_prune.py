@@ -1,6 +1,8 @@
 """The prune duty (prune.py; hal2 plan 0377 step 7, D12): the tollman asks /prune's CLI (a fake here: a stub script that
 prints a canned `plan --json`) and keeps its triggers, a muck out per landing, one removal per round, the 6-hourly disk
-report, and starts one detached run. No real /prune, hal2-cli-runs, session or removal."""
+report, and starts one detached run. The ask runs detached and the round after reads it (prune_ask.py, plan 0480 D4):
+`round` plays the ask (`prune.py ask` through the stub) before the round. No real /prune, busy.py, hal2-cli-runs,
+session or removal; nothing is spawned."""
 
 import contextlib
 import datetime as dt
@@ -18,6 +20,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import prune
+import prune_ask
 import tick
 
 NOW = dt.datetime(2026, 10, 18, 10, 0, tzinfo=dt.timezone.utc)
@@ -67,10 +70,15 @@ class Fake(unittest.TestCase):
             self.addCleanup(quiet.__exit__, None, None, None)
         self.main = str(self.tmp / "hal2")
         Path(self.main).mkdir()
+        self.real_begin = prune_ask.begin
+        self.begin = mock.Mock(return_value=4242)  # no ask is spawned unless a test says so
+        self.held = mock.Mock(return_value=None)  # no live hold unless a test says so (busy.py never runs)
         for patch in (mock.patch.object(prune, "script", return_value=self.stub),
                       mock.patch.object(prune, "state", return_value=self.tmp / "state"),
                       mock.patch.object(tick.mtm_scan, "DATA", self.tmp / "roles"),
-                      mock.patch.object(prune.barn, "last_landed", return_value=None)):
+                      mock.patch.object(prune.barn, "last_landed", return_value=None),
+                      mock.patch.object(prune_ask, "begin", self.begin),
+                      mock.patch.object(prune, "held", self.held)):
             patch.start()
             self.addCleanup(patch.stop)
 
@@ -81,7 +89,9 @@ class Fake(unittest.TestCase):
         return {"main": self.main, "top": "/x/tollman-hal2", "now": NOW, "log": list(log), **more}
 
     def round(self, d, log=(), **more):
+        """The ask a round before (what `prune.py ask` writes, detached in life), then the round reading it."""
         self.say(d)
+        prune.ask_and_save(self.main)
         return tick.fresh(prune.plan({}, self.ctx(log, **more)), list(log), NOW)
 
     def kinds(self, actions):
@@ -146,8 +156,9 @@ class Planning(Fake):
         return self.round(d)
 
     def test_no_trim_and_no_muck_out_while_a_hold_or_a_train_builds_trims_again_after_it(self):
-        held = self.planned_with_trim(busy="deferred: train building (hold h1 of field 31, holding)")
-        self.assertEqual(self.kinds(held), [], "a workqueue hold (/prune's own answer): nothing is started")
+        self.held.return_value = "deferred: train building (hold h1 of field 31, holding)"
+        self.assertEqual(self.kinds(self.planned_with_trim()), [], "a live workqueue hold (busy.py): nothing is started")
+        self.held.return_value = None
         train = {"train": "t1", "state": "landing", "land_run": None, "pid": 4242}
         with mock.patch.object(prune.train_state, "standing", return_value=train), \
                 mock.patch.object(prune.train_state, "lines", return_value=[]), \
@@ -158,9 +169,18 @@ class Planning(Fake):
         self.assertEqual(sorted(k for k, _, _ in self.kinds(self.planned_with_trim())), ["clean", "trim"],
                          "after the hold: trims run again")
 
+    def test_the_hold_is_asked_live_never_read_from_the_plan_a_round_old(self):
+        old = "deferred: train building (hold h0 of field 30, holding)"
+        self.assertEqual(sorted(k for k, _, _ in self.kinds(self.planned_with_trim(busy=old))), ["clean", "trim"],
+                         "the hold the ask saw is gone now: the trims go on")
+        self.held.assert_called_with(self.main)
+        self.held.reset_mock()
+        self.assertEqual(self.kinds(self.round(data([field("13")]))), [])
+        self.held.assert_not_called()  # nothing to hold back, the disk fine: busy.py is not asked
+
     def test_a_removal_goes_on_while_a_train_builds(self):
         d = data([field("14")], **{"phase-1": {"actions": [todo("14", "remove")]}})
-        d["facts"]["busy"] = "deferred: train building (hold h1 of field 31, holding)"
+        self.held.return_value = "deferred: train building (hold h1 of field 31, holding)"
         self.assertEqual(self.kinds(self.round(d)), [("remove", "run", "14")])
 
     def test_nothing_planned_nothing_started(self):
@@ -280,7 +300,8 @@ class Watermark(Fake):
 
     def test_no_response_while_a_train_builds_but_the_notice_says_why(self):
         wait = "deferred: train building (hold h1 of field 31, holding)"
-        d = data([field("13")], used_pct=93.0, busy=wait, responses={"skipped": None, "actions": [self.TART]})
+        d = data([field("13")], used_pct=93.0, responses={"skipped": None, "actions": [self.TART]})
+        self.held.return_value = wait
         self.assertEqual(self.kinds(self.round(d)), [])
         self.assertIn(wait, self.notices(d)["low-disk"]["text"])
 
@@ -289,6 +310,88 @@ class Watermark(Fake):
         with mock.patch.object(prune.shutil, "which", return_value=None), mock.patch.object(prune, "alive", return_value=False):
             prune.start(self.main, "tollman-hal2", [], popen, responses=True)
         self.assertEqual(popen.call_args.args[0], [sys.executable, str(self.stub), "run", "--repo", self.main, "--responses"])
+
+
+class Detached(Fake):
+    """Plan 0480 D4: the round never waits for /prune's plan; it asks detached and reads the answer the round after."""
+    D = data([field("13")], **{"phase-1": {"actions": [todo("13", "remove")]}})
+
+    def spawning(self):
+        """The real `begin` with a fake Popen: what would be spawned, nothing is."""
+        popen = mock.Mock(return_value=mock.Mock(pid=4242))
+        self.begin.side_effect = lambda folder, argv, cwd: self.real_begin(folder, argv, cwd, spawn=popen)
+        return popen
+
+    def saved(self, d, age=0.0):
+        prune_ask.save(self.tmp / "state", time.time() - age, d, "")
+
+    def test_a_due_round_asks_detached_and_the_next_round_reads_it(self):
+        popen = self.spawning()
+        self.assertEqual(prune.plan({}, self.ctx()), [], "no plan yet: nothing planned, the round does not wait")
+        argv, kw = popen.call_args.args[0], popen.call_args.kwargs
+        self.assertEqual(argv, [sys.executable, str(Path(prune.__file__).resolve()), "ask", "--repo", self.main])
+        self.assertEqual((kw["start_new_session"], kw["cwd"], kw["stdout"]), (True, self.main, subprocess.DEVNULL))
+        asked = json.loads((self.tmp / "state" / prune_ask.ASK_FILE).read_text())
+        self.assertEqual((asked["schema"], asked["pid"], asked["argv"]), (1, 4242, argv))
+        self.say(self.D)  # the detached ask: `prune.py ask` writes the plan for the next round
+        with mock.patch.object(prune.mtm_scan, "main_checkout", return_value=self.main):
+            self.assertEqual(prune.main(["ask", "--repo", self.main]), 0)
+        self.assertEqual(json.loads((self.stub.parent / "argv.json").read_text())[:3], ["plan", "--json", "--cached-sizes"])
+        popen.reset_mock()
+        with mock.patch.object(prune_ask, "alive", return_value=False):
+            got = prune.plan({}, self.ctx())
+        self.assertEqual(self.kinds(got), [("remove", "run", "13")], "the next round reads it")
+        popen.assert_not_called()  # a run starts: an ask now would be stale at once
+
+    def test_an_ask_that_still_lives_is_not_started_twice_a_dead_or_old_one_does_not_hold(self):
+        popen = self.spawning()
+        prune.plan({}, self.ctx())
+        with mock.patch.object(prune_ask, "alive", return_value=True):
+            prune.plan({}, self.ctx())
+            self.assertEqual(popen.call_count, 1)
+            self.assertFalse(prune_ask.asking(self.tmp / "state", time.time() + prune_ask.ASK_MAX_AGE + 1))
+        with mock.patch.object(prune_ask, "alive", return_value=False):
+            prune.plan({}, self.ctx())
+        self.assertEqual(popen.call_count, 2)
+
+    def test_a_plan_past_its_max_age_is_ignored_and_asked_again(self):
+        self.saved(self.D, age=prune_ask.PLAN_MAX_AGE + 60)
+        self.assertEqual(prune.plan({}, self.ctx()), [])
+        self.begin.assert_called_once()
+        self.saved(self.D, age=prune_ask.PLAN_MAX_AGE - 60)
+        self.assertEqual(self.kinds(prune.plan({}, self.ctx())), [("remove", "run", "13")], "within the age: used")
+
+    def test_a_plan_asked_before_the_last_run_started_is_stale(self):
+        self.saved(self.D, age=60)
+        (self.tmp / "state" / prune.RUN_FILE).write_text(json.dumps({"pid": 77, "at": time.time() - 30}))
+        with mock.patch.object(prune, "alive", return_value=False):
+            self.assertEqual(prune.plan({}, self.ctx()), [], "the run changed the farm after the ask")
+        self.begin.assert_called_once()
+
+    def test_a_dry_round_reads_the_plan_and_never_asks(self):
+        self.assertEqual(prune.plan({}, self.ctx(dry=True)), [])
+        self.saved(self.D)
+        self.assertEqual(self.kinds(prune.plan({}, self.ctx(dry=True))), [("remove", "run", "13")])
+        self.begin.assert_not_called()
+
+    def test_a_failed_ask_is_the_wake_and_an_ask_that_cannot_start_too(self):
+        self.say("exit 3")
+        self.assertEqual(prune.ask_and_save(self.main), 1)
+        self.assertEqual([(a["kind"], a["do"]) for a in prune.plan({}, self.ctx())], [("failed", "wake")])
+        (self.tmp / "state" / prune_ask.PLAN_FILE).unlink()
+        self.begin.side_effect = OSError("no fork")
+        (wake,) = prune.plan({}, self.ctx())
+        self.assertIn("prune.py ask could not start: no fork", wake["text"])
+
+    def test_held_runs_prunes_busy_py_as_a_program(self):
+        busy = self.tmp / "busy.py"
+        for text, want in (("print('deferred: train building (hold h1 of field 31, holding)')",
+                            "deferred: train building (hold h1 of field 31, holding)"),
+                           ("print('')", None), ("import sys; sys.exit(1)", None)):
+            busy.write_text("import sys, json; json.dump(sys.argv[1:], open(sys.argv[0] + '.argv', 'w'))\n" + text)
+            self.assertEqual(prune_ask.held(busy, self.main), want)
+        self.assertEqual(json.loads(Path(f"{busy}.argv").read_text()), ["--repo", self.main])
+        self.assertIsNone(prune_ask.held(self.tmp / "gone.py", self.main), "a busy.py that fails is not busy")
 
 
 if __name__ == "__main__":

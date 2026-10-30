@@ -299,7 +299,8 @@ def plan(snap: dict, ctx: dict) -> list[dict]:
 def handler(item: dict, ctx: dict) -> list[dict]:
     """duty:mtm: scan (no fetch in a dry run), keep the scan for the role's status, plan."""
     role = role_of(ctx)
-    snap = mtm_scan.snapshot(ctx["top"], 24, fetch=not ctx["dry"], role=role)
+    lists = {"agents": ctx["agents"]} if "agents" in ctx else {}  # the round's one agents list (plan 0480 02.02)
+    snap = mtm_scan.snapshot(ctx["top"], 24, fetch=not ctx["dry"], role=role, **lists)
     if any(f["kind"] == "work-without-agent" for f in snap["findings"]):  # the transplants matter to an orphan only
         ctx = {**ctx, "transplants": transplant_mark.history(ctx["main"])}
     if not ctx["dry"]:

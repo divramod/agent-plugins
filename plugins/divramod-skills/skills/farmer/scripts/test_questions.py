@@ -10,6 +10,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
+import git_seed
 import farmer
 import mtm_scan
 import questions
@@ -23,6 +25,12 @@ def git(cwd, *args):
 
 
 class Base(unittest.TestCase):
+    def grow(self):
+        """The repository, grown once and shared by every process (git_seed)."""
+        self.main.mkdir()
+        git(self.main, "init", "-q", "-b", "main")
+        git(self.main, "commit", "-q", "--allow-empty", "-m", "x")
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -30,9 +38,8 @@ class Base(unittest.TestCase):
         self.state = self.dir / "state"
         self.folder = self.state / "hal2"
         self.main = self.dir / "hal2"
-        self.main.mkdir()
-        git(self.main, "init", "-q", "-b", "main")
-        git(self.main, "commit", "-q", "--allow-empty", "-m", "x")
+        git_seed.guard(self)
+        git_seed.grow(self.dir, "test_questions.Base", self.grow)
         old, mtm_scan.DATA = mtm_scan.DATA, self.state
         self.addCleanup(setattr, mtm_scan, "DATA", old)
 

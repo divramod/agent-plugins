@@ -27,6 +27,7 @@ from pathlib import Path
 
 import gh_runs
 import mtm_ci
+import pass_timing
 import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
@@ -41,6 +42,7 @@ FIELDS = "databaseId,workflowName,status,conclusion,headBranch,headSha,createdAt
 
 
 def run(args: list[str], cwd: str | None = None) -> str:
+    pass_timing.count_gh(args)
     try:
         return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=60).stdout
     except (OSError, subprocess.TimeoutExpired):

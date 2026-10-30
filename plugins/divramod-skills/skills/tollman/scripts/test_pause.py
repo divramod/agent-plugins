@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import git_seed
 import pause
 import smuggled
 import train_state
@@ -115,20 +116,24 @@ def git(repo, *args):
 class Smuggles(unittest.TestCase):
     """A barn with two smuggles on it: 03 changed a.txt (from b0), then 05 changed b.txt (from 03's)."""
 
-    def setUp(self):
-        self.main = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.main, True)
+    def grow(self):
+        """The barn, grown once and shared by every process (git_seed)."""
         git(self.main, "init", "-q", "-b", "main")
         git(self.main, "config", "user.email", "t@t")
         git(self.main, "config", "user.name", "t")
         git(self.main, "commit", "-q", "--allow-empty", "-m", "base")
-        self.b0 = git(self.main, "rev-parse", "HEAD")
         for f in ("a.txt", "b.txt"):
             Path(self.main, f).write_text(f)
             git(self.main, "add", f)
             git(self.main, "commit", "-q", "-m", f)
-        self.s1 = git(self.main, "rev-parse", "HEAD~1")
         git(self.main, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def setUp(self):
+        self.main = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.main, True)
+        git_seed.guard(self)
+        git_seed.grow(self.main, "test_pause.Smuggles", self.grow)
+        self.b0, self.s1 = git(self.main, "rev-parse", "HEAD~2", "HEAD~1").split()
         self.tickets = [mine(covers=["03", "05"], gate_base=self.b0),
                         {"slot": "03", "seq": 41, "smuggle": {"phase": "unverified", "gate_base": self.b0}},
                         {"slot": "05", "seq": 44, "smuggle": {"phase": "unverified", "gate_base": self.s1}},

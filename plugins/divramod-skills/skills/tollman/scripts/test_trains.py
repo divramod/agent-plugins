@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import git_seed
 import chain
 import gate_car
 import proof
@@ -58,6 +59,11 @@ class Crops(unittest.TestCase):
         green = mock.patch.object(trains, "PROVE", lambda *a: {"state": "green", "lines": []})  # Proof: the real one
         green.start()
         self.addCleanup(green.stop)
+        git_seed.guard(self)
+        git_seed.grow(self.d, "test_trains.Crops", self.grow)
+
+    def grow(self):
+        """The barn, grown once and shared by every process (git_seed)."""
         self.g("init", "-q", "-b", "main")
         self.write("main", {"a.rs": "a\n", "INTENT.md": "log\n", ".github/workflows/merge-to-main.yml": "on: push\n"}, new=False)
 

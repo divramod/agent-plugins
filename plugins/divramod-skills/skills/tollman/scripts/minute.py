@@ -25,6 +25,9 @@ Wiring.min_tick); the other duties keep their own crons. A tick on which only `w
    for a new problem (a queued job nobody serves, a pipeline host runner offline); a parked cloud machine with a
    queued job gets the supervisor's wake request at once.
 
+A quiet pass imports only what it uses (plan 0480 D3): the orders, the chain, the wake and the trains module load when
+a pass has something to do for them (test_light_start bounds it).
+
 A tick on which other duties are due too is a round: `handler` plans the events as `record` actions and 3. and 4. as
 the pass does (the round's trains duty has the leavers' call already, and its own early order: one key, one
 action, early_order.once) and the round carries them out (silent_lines shows them).
@@ -34,21 +37,15 @@ import datetime as dt
 import fcntl
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-import chain
 import ci_health
-import early_order
 import gh_runs
-import hold
 import leavers
 import modes
-import mtm_ci
 import mtm_scan
-import post_merge
+import pass_timing
 import role_cli
 import tick
 import train_state
-import trains
-import wake
 import watch_events
 from logstate import read_log
 from tick import act, default_ref
@@ -69,7 +66,7 @@ def events(top: str, main: str, dry: bool, doc: dict | None = None, panes: dict 
 
 def awake(main: str, doc: dict | None) -> dict | None:
     """The queue's doc (read when None), or None in smuggle mode: the tollman orders and forms nothing then."""
-    doc = (mtm_scan.run_json(trains.QUEUE, main) or {}) if doc is None else doc
+    doc = (mtm_scan.run_json(mtm_scan.QUEUE, main) or {}) if doc is None else doc
     return None if modes.asleep(modes.of(doc)) else doc
 
 
@@ -78,6 +75,8 @@ def early(top: str, main: str, fresh: list[dict], doc: dict | None = None, panes
     one, or the one that landed with it: post_merge.past); before the merge job is green only the landing train's."""
     if not any(e["kind"] == "job-failed" for e in fresh):
         return []
+    import mtm_ci
+    import post_merge
     s, rows = watch_events.state(main), train_state.lines(main)
     rid, url, standing = str(s.get("run") or ""), s.get("url"), train_state.standing(rows)
     hit = next((e for e in fresh if e["kind"] == "job-failed" and e["key"].startswith(f"job:{rid}:")), None)
@@ -97,6 +96,8 @@ def next_train(top: str, main: str, doc: dict | None = None) -> list[dict]:
     train = train_state.standing(train_state.lines(main))
     if not train or train["state"] != "landing" or not watch_events.merged(main, train):
         return []
+    import chain
+    import hold
     if train_state.alive(train["pid"]) or awake(main, doc) is None or hold.of(main):
         return []  # a running landing is never stopped: the next minute looks again
     return [{**chain.action(top, f"merge-green:{train['train']}"),
@@ -105,6 +106,7 @@ def next_train(top: str, main: str, doc: dict | None = None) -> list[dict]:
 
 def handler(item: dict, ctx: dict) -> list[dict]:
     """duty:watch in a full round (an early order the round's trains duty planned is not planned twice)."""
+    import early_order
     return early_order.once(ctx, events(ctx.get("top") or ctx["main"], ctx["main"], bool(ctx.get("dry")), None,
                                         ctx.get("panes")))
 
@@ -132,9 +134,10 @@ def leaver_actions(top: str, main: str, doc: dict, now: dt.datetime, wiring, pan
 
 
 def light(repo: str, wiring, now: dt.datetime | None = None) -> bool:
-    """Whether this tick is a minute pass: the role's worktree is fine, the timer runs the rounds and `watch` is the
-    only duty due. Anything else is a round (it reports its own problems)."""
-    if role_cli.missing() or role_cli.mode(repo, wiring) != "timer" or tick.slot_problem(repo, wiring):
+    """Whether this tick is a minute pass: the tools are there, the timer runs the rounds and `watch` is the only duty
+    due. Anything else is a round (it reports its own problems). The worktree's cleanliness (`tick.slot_problem`:
+    three git calls) is the round's to check, every 5 minutes at the latest, not a pass's (plan 0480 D3)."""
+    if role_cli.missing() or role_cli.mode(repo, wiring) != "timer":
         return False
     top = tick.git(repo, "rev-parse", "--show-toplevel")
     rows, _, problems = tick.due_items(top, now, False, wiring)
@@ -142,7 +145,9 @@ def light(repo: str, wiring, now: dt.datetime | None = None) -> bool:
 
 
 def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
-    """One minute pass; the events print, one line each. A round that holds the tick lock does the watch itself."""
+    """One minute pass; the events print, one line each. A round that holds the tick lock does the watch itself.
+    The pass is timed from `pass_timing.begin()` (tollman.tick, before `light`): wall, process starts and `gh` calls go
+    to `pass-timing.jsonl` of the tollman's state folder (plan 0480 D1), never to stdout."""
     now = now or dt.datetime.now()
     top = tick.git(repo, "rev-parse", "--show-toplevel")
     main = mtm_scan.main_checkout(top)
@@ -151,9 +156,10 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            pass_timing.abandon()
             return 0
         with gh_runs.round(gh_runs.cache_dir(mtm_scan.state_dir(main, wiring.role))):
-            doc = mtm_scan.run_json(trains.QUEUE, main) or {}
+            doc = mtm_scan.run_json(mtm_scan.QUEUE, main) or {}
             asleep = modes.asleep(modes.of(doc))  # smuggle mode: the tollman sleeps, no train, no queue work
             panes = Panes(lambda: tick.context(top, main, {}, now, False, wiring)["panes"])
             planned = ([] if asleep else leaver_actions(top, main, doc, now, wiring, panes)) + events(
@@ -162,6 +168,8 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
             tick.execute(a, top, main, out, wiring)
             if a["duty"] == KIND or a["kind"] in PRINTED:
                 print(a["text"])
-        if any(out[k] for k in wake.KINDS):
+        if any(out[k] for k in ("wake", "relay", "notify")):  # wake.KINDS: wake loads only when it has work
+            import wake
             wake.hand_over(top, main, out, now, wiring)
+    pass_timing.finish(role_cli.state(repo, wiring))  # the pass's cost (D1): a line in pass-timing.jsonl, none on stdout
     return 0

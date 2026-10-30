@@ -22,7 +22,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -176,6 +175,7 @@ def refuse_real_state(d: Path, role: str, env: Mapping[str, str] | None = None) 
     created or written: a test that reaches it is a bug, never a quiet write into the live train."""
     if not (env if env is not None else os.environ).get(UNDER_TEST):
         return
+    import tempfile  # only under a test: a minute pass does not load it
     temp = {Path(t).resolve() for t in (tempfile.gettempdir(), "/tmp")}
     real = d.resolve()
     if not any(t == real or t in real.parents for t in temp):

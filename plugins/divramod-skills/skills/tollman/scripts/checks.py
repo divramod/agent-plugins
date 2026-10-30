@@ -165,14 +165,15 @@ def workflow(main: str = "") -> str:
     return (landing_workflow.pick(main) if main else None) or WORKFLOW
 
 
-def list_args(limit: int = 50, main: str = "") -> list[str]:
-    return ["gh", "run", "list", "--workflow", workflow(main), "--limit", str(limit), "--json", FIELDS]
-
-
 def runs(run_json, main: str) -> list[dict] | None:
-    """The landing workflow's runs, newest first, once per round (gh_runs); None: `gh run list` failed."""
-    got = gh_runs.listed(run_json, list_args(main=main), main)
-    return got if isinstance(got, list) else None
+    """The landing workflow's runs, newest first, from the round's one runs read (`mtm_ci.all_runs`: every workflow's
+    newest 50, once per round, with `event` and `displayTitle`) filtered by the workflow's file; None: GitHub did not
+    answer (plan 0480 step 02.02: no `gh run list` of its own)."""
+    got = mtm_ci.all_runs(run_json, main)
+    if got is None:
+        return None
+    path = f".github/workflows/{workflow(main)}"
+    return sorted((r for r in got if r["path"] == path), key=lambda r: r.get("createdAt") or "", reverse=True)
 
 
 def unfinished_checks(all_runs: list[dict] | None) -> list[dict]:

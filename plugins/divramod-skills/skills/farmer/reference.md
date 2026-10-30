@@ -65,10 +65,15 @@ task (planning plus the execution of its actions), acks, delegations, wake, summ
 gh calls; `--json` carries them as `timing` and `gh`. `farmer.py tick --dry-run --all-due` measures a full round
 (every opted-in item counted due; refused without `--dry-run`).
 
+A round reads once (plan 0480 step 02.02): `hal2-cli-agents list` in the context (the scan, `wake` and the checks take
+that list), the runs by `mtm_ci.all_runs`; the summary reuses `last-scan.json` up to 10 min (`scan_cache.FRESH_S`); the
+frame fetches `origin/<default>` and runs merge-from-main only when it moved since the last merge (`last-mfm.json`).
+
 What keeps a round short:
 
 - **Each CI run read once per round** (`gh_runs.py`): the ci duty, the orphans check, the summary and
-  ci_scan share every `gh run list` and each run's `gh run view --json jobs`; a completed run's jobs stay on disk
+  ci_scan share every `gh run list`, the landing runs' one `gh api .../actions/runs` (mtm_ci, plan 0480 D2) and each
+  run's `gh run view --json jobs`; a completed run's jobs stay on disk
   (`cache/run-jobs/<id>.json`, 7 days), a running run's are read again next round; uncached runs are read in
   parallel.
 - **The flaky source** (plan 0289): `flaky-candidate` findings come from `hal2-cli-git worktree checks --json` (`scripts/flaky_checks.py`, probed once per tick) where the installed CLI knows it, else from the landings count; `flaky.md` stays the ledger.

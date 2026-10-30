@@ -37,6 +37,18 @@ class Reason(unittest.TestCase):
         self.assertIsNone(busy.reason("/m", answer([], text="not json")))
         self.assertIsNone(busy.reason("/m", answer([], text="[]")))
 
+    def test_the_answer_as_a_program_for_the_tollman(self):
+        """Plan 0480 D4: the tollman's prune duty runs busy.py live (it never imports /prune)."""
+        import contextlib
+        import io
+        for value, want in (("deferred: train building (hold h1 of field 31, holding)", "deferred: train building "
+                             "(hold h1 of field 31, holding)\n"), (None, "\n")):
+            out = io.StringIO()
+            with mock.patch.object(busy, "reason", return_value=value) as reason, contextlib.redirect_stdout(out):
+                self.assertEqual(busy.main(["--repo", "/m"]), 0)
+            reason.assert_called_once_with("/m")
+            self.assertEqual(out.getvalue(), want)
+
 
 class Trims(fake_clis.Farm):
     """The executor on the scratch farm: no trim, no muck out and no size walk while a hold is live, trims after it."""

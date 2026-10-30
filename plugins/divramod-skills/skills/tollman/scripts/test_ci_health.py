@@ -125,6 +125,40 @@ class Healthy(Health):
         self.assertEqual((self.tick(), self.requests()), ("", []))
 
 
+class LazyRunners(Health):
+    """Plan 0480 D2: GitHub's runners are asked once a pass, only when a check needs them."""
+
+    def only_hz01(self):
+        """A toml of hz01's three runners alone (the journal: parked), no pipeline host runner awake."""
+        doc = (TOML.read_text().split("[[runners]]")[0] + "".join(
+            "[[runners]]" + part for part in TOML.read_text().split("[[runners]]")[1:] if 'code = "hz01-' in part))
+        (self.main / ci_fleet.TOML).write_text(doc)
+        self.assertEqual({r["machine"] for r in ci_fleet.catalog(str(self.main))}, {"hz01"})
+
+    def test_a_pass_with_no_check_needing_them_never_asks_for_the_runners(self):
+        self.only_hz01()
+        self.gh.runners = None  # GitHub would not answer: never asked, so nothing is blinded
+        self.queue(api_job(2, "x", ["ubuntu-latest"], stamp(self.now - dt.timedelta(minutes=30))))
+        self.assertEqual((ci_health.problems(str(self.main), self.now), self.gh.runner_lists()), ([], 0))
+        self.queue(CI_CHANGES)  # its only candidates are parked: the wake needs no runners list
+        (p,) = ci_health.problems(str(self.main), self.now)
+        self.assertEqual((p["kind"], self.gh.runner_lists()), ("wake", 0))
+        self.log.write_text(LOG + WOKEN)  # waking: nothing to judge, still no list
+        self.assertEqual((ci_health.problems(str(self.main), self.now), self.gh.runner_lists()), ([], 0))
+
+    def test_a_check_that_needs_them_asks_once_a_pass(self):
+        self.only_hz01()
+        self.log.write_text(LOG.replace("hz01: hetzner says parked", "hz01: hetzner says up"))
+        self.queue(CI_CHANGES, api_job(2, "b1-02-x", HZ, stamp(self.now)))  # hz01 awake: is its runner online?
+        self.assertEqual((ci_health.problems(str(self.main), self.now), self.gh.runner_lists()), ([], 1))
+        self.gh.runners = None
+        self.assertIsNone(ci_health.problems(str(self.main), self.now), "asked and unanswered: nothing is judged")
+        self.assertEqual(self.gh.runner_lists(), 2)
+
+    def test_the_host_offline_check_asks_for_them_without_a_queued_job(self):
+        self.assertEqual((self.check(), self.gh.runner_lists()), ([], 1), "the Mac's pipeline host runners are awake")
+
+
 class Problems(Health):
     def test_a_mac_vm_job_waiting_past_the_grace_runs_the_doctor_once(self):
         self.fleet(**{"mac-vm-a": "offline"})  # the VM runner is on GitHub only while a VM runs

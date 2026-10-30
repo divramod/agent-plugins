@@ -20,7 +20,8 @@ nothing, so a quiet minute costs no model call. The printed line wakes the tollm
    while idle.
 
 A problem prints once while it lasts (`ci-health.json` in the tollman's state folder: first seen and told); when it
-clears and comes back it is new. GitHub not answering judges nothing. `check(..., dry=True)` writes nothing.
+clears and comes back it is new. The runners GitHub lists are asked once a pass and only when a check needs them
+(plan 0480 D2); GitHub not answering judges nothing. `check(..., dry=True)` writes nothing.
 """
 
 import datetime as dt
@@ -57,8 +58,29 @@ def waking(fleet: dict, r: dict) -> bool:
     return bool(m.get("waking")) and m.get("state") in ci_fleet.ASLEEP
 
 
-def online(gh: dict, fleet: dict, r: dict) -> bool:
-    return gh.get(r["name"], {}).get("status") == "online" and not asleep(fleet, r)
+class Unanswered(Exception):
+    """GitHub did not list the runners: nothing is judged this pass."""
+
+
+class Runners:
+    """The runners GitHub lists ({name: {status, busy}}), asked once a pass and only when a check needs them (plan
+    0480 D2): a queued self-hosted job with candidates not waking, or a pipeline host runner not asleep."""
+
+    def __init__(self, main: str):
+        self.main, self.rows, self.asked = main, None, False
+
+    def __call__(self) -> dict:
+        if not self.asked:
+            self.rows, self.asked = ci_fleet.github_runners(mtm_scan.run_json, self.main), True
+        if self.rows is None:
+            raise Unanswered
+        return self.rows
+
+
+def online(gh, fleet: dict, r: dict) -> bool:
+    """GitHub lists the runner online and its machine is not asleep; `gh()` gives the runners (asked only for a
+    runner whose machine is awake)."""
+    return not asleep(fleet, r) and gh().get(r["name"], {}).get("status") == "online"
 
 
 def doctor(main: str) -> str:
@@ -78,9 +100,9 @@ def doctor(main: str) -> str:
     return ", ".join(f"{s} ({n})" for s, n in count.items()) or "no case"
 
 
-def job_problem(job: dict, cands: list[dict], gh: dict, fleet: dict, age: float) -> dict | None:
-    """The problem of one queued job (None: served, on its way, or not yet old enough to say)."""
-    if any(online(gh, fleet, r) for r in cands) or any(waking(fleet, r) for r in cands):
+def job_problem(job: dict, cands: list[dict], gh, fleet: dict, age: float) -> dict | None:
+    """The problem of one queued job (None: served, on its way, or not yet old enough to say); `gh()` the runners."""
+    if any(waking(fleet, r) for r in cands) or any(online(gh, fleet, r) for r in cands):
         return None
     sleeping = sorted({r["machine"] for r in cands if asleep(fleet, r)})
     base = {"job": job, "codes": [r["code"] for r in cands]}
@@ -94,10 +116,15 @@ def job_problem(job: dict, cands: list[dict], gh: dict, fleet: dict, age: float)
 
 
 def problems(main: str, now: dt.datetime) -> list[dict] | None:
-    """Every problem of this pass, [{kind, key, ...}]; None when GitHub did not answer."""
-    gh = ci_fleet.github_runners(mtm_scan.run_json, main)
-    if gh is None:
+    """Every problem of this pass, [{kind, key, ...}]; None when GitHub did not list the runners a check needed."""
+    try:
+        return look(main, now, Runners(main))
+    except Unanswered:
         return None
+
+
+def look(main: str, now: dt.datetime, gh) -> list[dict]:
+    """`problems` with the runners `gh()` (it raises Unanswered)."""
     runners, fleet, out, served = ci_fleet.catalog(main), ci_fleet.power(), [], set()
     for job in ci_fleet.queued_jobs(mtm_scan.run_json, main):
         if "self-hosted" not in job["labels"]:
@@ -110,7 +137,7 @@ def problems(main: str, now: dt.datetime) -> list[dict] | None:
             out.append({**p, "age": (now - created).total_seconds() if created else 0})
     for r in runners:
         if r["kind"] == "host" and r["labels"] & PIPELINE and r["code"] not in served and r["labels"]:
-            if not online(gh, fleet, r) and not asleep(fleet, r):
+            if not asleep(fleet, r) and not online(gh, fleet, r):
                 out.append({"kind": "host-offline", "key": f"offline:{r['code']}", "code": r["code"]})
     return out
 

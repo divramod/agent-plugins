@@ -15,6 +15,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import barn
 import prune
+import prune_ask
 import tick
 import trains
 from test_prune import STUB, data, todo
@@ -38,6 +39,7 @@ class AfterTheBarn(unittest.TestCase):
             self.fields.append({"slot": slot, "path": str(self.tmp / slot), "head": f"h{slot}", "size": None,
                                 "proof": "uncommitted changes" if slot == "04" else None,
                                 "sessions": [{"pane_id": f"%{slot}", "state": "idle", "since": 0}] if slot in ("03", "04") else []})
+        self.live = [self.agent(slot) for slot in ("03", "04")]  # hal2-cli-agents list --json, now
         self.stub = self.tmp / "stub" / "prune.py"
         self.stub.parent.mkdir()
         self.stub.write_text(STUB)
@@ -45,9 +47,15 @@ class AfterTheBarn(unittest.TestCase):
         for patch in (mock.patch.object(prune, "script", return_value=self.stub),
                       mock.patch.object(prune, "state", return_value=self.tmp / "state"),
                       mock.patch.object(tick.mtm_scan, "DATA", self.tmp / "roles"),
-                      mock.patch.object(barn.train_state, "lines", side_effect=lambda main: [LANDED])):
+                      mock.patch.object(barn.train_state, "lines", side_effect=lambda main: [LANDED]),
+                      mock.patch.object(prune_ask, "begin", return_value=4242),  # never a real detached ask
+                      mock.patch.object(prune, "held", return_value=None),  # never a real busy.py
+                      mock.patch.object(barn, "live_agents", side_effect=lambda: self.live)):  # never a real hal2-cli-agents
             patch.start()
             self.addCleanup(patch.stop)
+
+    def agent(self, slot, state="idle", pane=None):
+        return {"pane_id": pane or f"%{slot}", "checkout": str(self.tmp / slot), "state": state, "since": 0}
 
     def round(self, log=(), hours=1.0, prune_plan=None):
         """A round `hours` after the landing: the prune duty's fresh actions, on a canned /prune plan (the cars first)."""
@@ -55,6 +63,7 @@ class AfterTheBarn(unittest.TestCase):
         plan = prune_plan or [todo("03", "muck-out"), todo("14", "remove"), todo("13", "remove")]
         (self.stub.parent / "plan.json").write_text(json.dumps(data(self.fields, **{"phase-1": {"actions": plan}})))
         ctx = {"main": self.main, "top": "/x/tollman-hal2", "now": now, "log": list(log)}
+        prune.ask_and_save(self.main)  # the ask of the round before (plan 0480 D4), through the stub
         return tick.fresh(prune.plan({}, ctx), list(log), now)
 
     def done(self, actions, log=()):
@@ -84,6 +93,37 @@ class AfterTheBarn(unittest.TestCase):
         self.assertEqual(calls, [["hal2-cli-agents", "clear-and-continue", "--pane", "%03", "--without-plan",
                                   "--prompt", "/merge-from-main", "--detach"]])
         self.assertEqual([a for a in self.round(log) if a["kind"] == "barn-clear"], [], "once")
+
+    def cleared_log(self):
+        clean = next(a for a in self.round() if a["kind"] == "clean")
+        return [{"at": NOW.isoformat(), "key": clean["key"], "note": ""}]
+
+    def test_the_clear_looks_at_the_pane_live_and_waits_while_it_works(self):
+        """The prune facts are up to a round old (plan 0480 D4): a session that started a turn since is not cleared."""
+        log = self.cleared_log()
+        for state in ("working", "starting", "blocked-permission"):
+            self.live = [self.agent("03", state)]
+            self.assertNotIn("barn-clear", [a["kind"] for a in self.round(log)], state)
+        self.live = [self.agent("03", "working"), self.agent("03", "idle", pane="%99")]
+        self.assertNotIn("barn-clear", [a["kind"] for a in self.round(log)], "one busy session of the field is enough")
+        self.live = [self.agent("03", "sleeping")]
+        self.assertIn("barn-clear", [a["kind"] for a in self.round(log)], "a sleeping session rests")
+        self.live = [self.agent("03", "idle")]
+        self.assertIn("barn-clear", [a["kind"] for a in self.round(log)], "and the next round clears it: no key was logged")
+
+    def test_the_clear_uses_the_pane_the_live_list_names_and_never_a_list_it_cannot_read(self):
+        log = self.cleared_log()
+        self.live = [self.agent("03", "idle", pane="t:abc"), self.agent("13", "working")]
+        clear = [a for a in self.round(log) if a["kind"] == "barn-clear"]
+        self.assertEqual(clear[0]["argv"][3], "t:abc", "the session of the facts may have been replaced")
+        for gone in ([], [self.agent("03", "ended")], [self.agent("13", "idle")], None):
+            self.live = gone
+            self.assertNotIn("barn-clear", [a["kind"] for a in self.round(log)], gone)
+
+    def test_a_round_without_a_clear_due_does_not_read_the_list(self):
+        self.live = None
+        with mock.patch.object(barn, "live_agents", side_effect=AssertionError("no list wanted")):
+            self.round()  # no muck out logged yet: nothing to clear
 
     def test_a_failed_muck_out_or_no_session_clears_nothing(self):
         clean = next(a for a in self.round() if a["kind"] == "clean")

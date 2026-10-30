@@ -96,9 +96,16 @@ class Forming(Farm):
         self.assertEqual((tick.slot_problem(str(self.wm), tollman.WIRING), tick.slot_problem(str(self.wm), plain)),
                          (None, None))
         self.assertFalse(train_state.carries(str(self.wm)), "the train's worktree carries it, not the field")
+        frame = lambda r: [a["kind"] for a in r["planned"] if a["duty"] == "frame"]  # noqa: E731
         r = self.round()
-        self.assertEqual((self.last, [a["kind"] for a in r["planned"] if a["duty"] == "frame"]), ([], ["stay-current"]),
-                         "the field's own merge-from-main goes on while the train stands")
+        self.assertEqual((self.last, frame(r)), ([], []), "origin did not move: no merge-from-main (plan 0480 02.02)")
+        (self.main / "moved.txt").write_text("m")
+        git(self.main, "add", ".")
+        git(self.main, "commit", "-qm", "moved")
+        git(self.main, "push", "-q", "origin", "HEAD:main")
+        r = self.round()
+        self.assertEqual((self.last, frame(r)), ([], ["stay-current"]),
+                         "the field's own merge-from-main goes on while the train stands, once origin moved")
         d = json.loads(self.call("train", "--dry-run", "--json", repo=self.main)[1])
         self.assertEqual((d["standing"]["state"], d["cars"]), ("landing", []), "its cars are not the next train's")
         self.assertEqual((self.spawned, len(self.gate.calls)), ([self.carrier()], 1))

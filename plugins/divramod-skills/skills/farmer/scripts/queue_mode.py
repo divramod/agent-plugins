@@ -16,7 +16,6 @@ While the tollman's sleep flag stands (`roles/tollman/sleep.json` of its field, 
 duty tells nobody: the tollman's own "land yourself now" reaches every hitched field (hal2 plan 0375 D4, D19).
 """
 
-import duties
 import mtm_scan
 import roles
 from tick import act
@@ -24,7 +23,7 @@ from tick import act
 PRODUCTION, SMUGGLE = "production", "smuggle"
 PERIOD = 30 * 24 * 3600  # a smuggle period's word is never repeated within it (its key names the period)
 QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]
-LEAD = duties.LEAD
+LEAD = "farmer (development foreman)"  # duties.LEAD (test_queue_mode pins it); duties is heavy, a minute pass needs none of it
 TEXT = (LEAD + ": smuggle mode: run /merge-to-main now. The merge queue is in smuggle mode since {at} (by {by}): the tollman "
         "carries no train of a smuggle-mode crop, so your hitched crop ({head}) is smuggled: /merge-to-main reads the mode and runs the "
         "smuggle itself (hal2 plan 0360 D75, D76); this is the farmer's word, no need to ask the user.")
@@ -88,4 +87,5 @@ def plan(item: dict, ctx: dict, doc: dict | None = None) -> list[dict]:
 
 def plan_lead(item: dict, ctx: dict, doc: dict | None = None, scan: dict | None = None) -> list[dict]:
     """duty:lead: the development foreman's round (duties.plan_lead), then the smuggle mode's word (`plan`)."""
+    import duties
     return duties.plan_lead(item, ctx, scan) + plan(item, ctx, doc)

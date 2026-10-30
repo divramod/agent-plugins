@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import git_seed
 import origin
 import yard
 from engine_farm import Farm, out
@@ -36,7 +37,8 @@ class OriginNeutral(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = self.tmp / "repo"
-        git(self.tmp, "init", "-q", str(self.repo))
+        git_seed.guard(self)
+        git_seed.grow(self.tmp, "test_neutral_origin.OriginNeutral", lambda: git(self.tmp, "init", "-q", str(self.repo)))
 
     def test_without_a_root_or_a_farm_the_trailers_are_as_before(self):
         with kit.env(kit.FakeCli(self.tmp)):

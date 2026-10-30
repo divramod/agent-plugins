@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame
+import board
 import due
 import farmer
 import handoff
@@ -56,7 +57,7 @@ class Wiring(unittest.TestCase):
                                                  "duty:mainred", "duty:watch"}, "no task:* (D22)")
         self.assertEqual(w.min_tick, 1, "the watch ticks every minute (plan 0383 step 4)")
         self.assertEqual(roles.FARMER.min_tick, 5)
-        self.assertIs(w.carries, tollman.own_fix.carries, "D22: the field carries the trains and the barn's own fix")
+        self.assertIs(w.carries, tollman.carries, "D22: the field carries the trains and the barn's own fix (own_fix.carries)")
         self.assertIsNone(roles.FARMER.carries)
 
     def test_the_duties_moved_with_their_texts_and_the_farmer_lost_them(self):
@@ -268,7 +269,8 @@ class Rounds(Field):
         with mock.patch.object(tick.due, "is_due", return_value=True):
             code, out = self.call("tick")
         self.assertEqual(code, 0, out)
-        self.assertEqual([e["kind"] for e in self.wm_log()[n:]], ["stay-current"], "every key is in the log")
+        self.assertEqual([e["kind"] for e in self.wm_log()[n:]], [],
+                         "every key is in the log, and origin did not move: no merge-from-main (plan 0480 02.02)")
         self.assertEqual({json.loads(x)["name"] for x in (self.wm_state / "runs.jsonl").read_text().splitlines()[2:]},
                          {"duty:mtm", "duty:trains"}, "and the runs are recorded: no keyless action was dropped")
 
@@ -278,7 +280,7 @@ class Status(Field):
         lonely = self.tmp / "lonely"
         lonely.mkdir()
         git(lonely, "init", "-q", "-b", "main")
-        with mock.patch.object(tollman.due, "DATA", None):
+        with mock.patch.object(due, "DATA", None):
             s = tollman.status(str(lonely))
             self.assertEqual((s["field_exists"], s["timer"]["loaded"], s["mode"], s["last_tick"], s["last_tick_age_s"],
                               s["pending"]), (False, False, "claude", None, None, 0))
@@ -398,7 +400,7 @@ class QuietSkipsTheTick(unittest.TestCase):
             out = io.StringIO()
             with mock.patch.dict(os.environ, {"HAL2_STATE_DIR": tmp}), \
                     mock.patch.object(tollman.minute, "light", side_effect=AssertionError("minute")), \
-                    mock.patch.object(tollman.board, "safely", side_effect=AssertionError("board")), \
+                    mock.patch.object(board, "safely", side_effect=AssertionError("board")), \
                     mock.patch.object(role_cli, "run_tick", side_effect=AssertionError("round")), \
                     contextlib.redirect_stdout(out):
                 self.assertEqual(tollman.tick(args), 0)

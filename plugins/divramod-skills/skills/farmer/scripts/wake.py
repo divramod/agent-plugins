@@ -84,14 +84,16 @@ def write(main: str, data: dict, wiring: roles.Wiring = roles.FARMER) -> None:
     tmp.replace(f)
 
 
-def farmer_pane(top: str) -> str | None:
-    """The pane of the agent whose checkout is the role's worktree `top` (the farmer's, or another role's)."""
-    code, text = deliver.cli("list", "--json")
-    try:
-        data = json.loads(text) if code == 0 else []
-    except json.JSONDecodeError:
-        return None
-    rows = data.get("agents", []) if isinstance(data, dict) else data
+def farmer_pane(top: str, rows: list[dict] | None = None) -> str | None:
+    """The pane of the agent whose checkout is the role's worktree `top` (the farmer's, or another role's). `rows`:
+    the round's one agents list (tick.context); not given, `hal2-cli-agents list` is asked here."""
+    if rows is None:
+        code, text = deliver.cli("list", "--json")
+        try:
+            data = json.loads(text) if code == 0 else []
+        except json.JSONDecodeError:
+            return None
+        rows = data.get("agents", []) if isinstance(data, dict) else data
     target = Path(top).resolve()
     return next((a.get("pane_id") for a in rows
                  if a.get("checkout") and Path(a["checkout"]).resolve() == target), None)
@@ -149,8 +151,10 @@ def wake_session(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.
     return why or "handoff asked", False
 
 
-def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> dict:
+def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wiring = roles.FARMER,
+              agents: list[dict] | None = None) -> dict:
     """Add the round's items to wake.json and wake the role's session when it holds a batch it was not woken for.
+    `agents`: the round's one agents list (rows), else it is asked here when a wake is due.
     Returns {"items": n new, "pending": n in the file, "woken": bool, "why": refusal}."""
     data, new = read(main, wiring), items(out, wiring)
     seq = max((i["seq"] for i in data["items"]), default=0)
@@ -162,7 +166,7 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
     result = {"items": len(new), "pending": len(data["items"]), "woken": False}
     stale = data.get("woken_at") and now - dt.datetime.fromisoformat(data["woken_at"]) > REWAKE
     if data["items"] and (not data.get("woken_at") or stale or data.get("handoff")):
-        pane = farmer_pane(top)
+        pane = farmer_pane(top, agents) if agents is not None else farmer_pane(top)
         why, woken = (wake_session(pane, main, data, now, wiring=wiring) if pane
                       else (f"no {wiring.role} session", False))
         if why:

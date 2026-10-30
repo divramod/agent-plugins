@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import git_seed
 import train_state
 import trains
 import triage
@@ -34,22 +35,28 @@ def shape(actions):
 
 
 class Replays(unittest.TestCase):
-    def setUp(self):
-        """A barn and two cars: 07 changes seven.txt, 09 nine.txt (the evidence per car is a real diff)."""
-        self.main = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.main, True)
+    def grow(self):
+        """The barn and the crops 07 and 09, grown once and shared by every process (git_seed)."""
         git(self.main, "init", "-q", "-b", "main")
         git(self.main, "config", "user.email", "t@t")
         git(self.main, "config", "user.name", "t")
         git(self.main, "commit", "-q", "--allow-empty", "-m", "base")
-        base, heads = git(self.main, "rev-parse", "HEAD"), {}
+        base = git(self.main, "rev-parse", "HEAD")
         for field, f in (("07", "seven.txt"), ("09", "nine.txt")):
             git(self.main, "checkout", "-q", "-b", field, base)
             Path(self.main, f).write_text(field)
             git(self.main, "add", f)
             git(self.main, "commit", "-q", "-m", f)
-            heads[field] = git(self.main, "rev-parse", "HEAD")
         git(self.main, "checkout", "-q", "main")
+
+    def setUp(self):
+        """A barn and two cars: 07 changes seven.txt, 09 nine.txt (the evidence per car is a real diff)."""
+        self.main = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.main, True)
+        git_seed.guard(self)
+        git_seed.grow(self.main, "test_triage.Replays", self.grow)
+        base, *rest = git(self.main, "rev-parse", "main", "07", "09").split()
+        heads = dict(zip(("07", "09"), rest))
         self.top = str(Path(self.main) / "tollman-hal2")
         self.train = {"train": NAME, "at": AT, "carrier": "tollman-hal2", "base": base, "state": "landing",
                       "starts": 1, "pid": 4711, "started": "2026-10-17T10:05:00Z", "unhitched": [], "yard": [],

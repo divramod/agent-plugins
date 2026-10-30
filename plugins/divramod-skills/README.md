@@ -33,6 +33,10 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
     stdin touch, the skills unit's check of a smuggle (hal2's `.hal/smuggle.toml`).
   - [skillpath.py](scripts/skillpath.py), [skillpath.sh](scripts/skillpath.sh): how a script finds a sibling skill,
     flat or in a category (`sibling(name)`, `skill_dir name`).
+  - [git_seed.py](scripts/git_seed.py): the tests' shared git seed (`grow(tmp, key, build)`): a tree grown once per
+    run, kept on disk under a lock in the temp dir and copied per test; the last process out removes it. Also the
+    tests' 60 s hang guard (`guard`), a child killed by process group (`spawn`) and, on macOS, the real git first on
+    the PATH (`fast_git`).
 - `skills/<name>/`: one skill each, its `SKILL.md` (what the agent reads), its `scripts/` (with tests), templates and
   references.
   - `skills/halverse/scripts/`: [halverse.py](skills/actions/halverse/scripts/halverse.py) is the command line (its parser:

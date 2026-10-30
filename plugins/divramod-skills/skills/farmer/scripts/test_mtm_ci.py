@@ -1,7 +1,22 @@
 import datetime as dt
 import unittest
+from unittest import mock
 
+import gh_runs
 import mtm_ci
+
+ALL = mtm_ci.LAND_NAMES
+
+
+def git_with(*names, seen=None):
+    """git as `run(args, cwd)`: `ls-tree` of the workflows folder lists `names`, every other call answers nothing."""
+    def git(argv, cwd):
+        if seen is not None:
+            seen.append(argv)
+        if argv[:2] == ["git", "ls-tree"]:
+            return "".join(f".github/workflows/{n}\n" for n in ("ci.yml", *names))
+        return ""
+    return git
 
 
 def run(rid, branch, status="completed", conclusion="success", at="2026-10-05T06:00:00Z"):
@@ -261,61 +276,113 @@ class MtmCiTest(unittest.TestCase):
         since = dt.datetime(2026, 10, 5, 7, tzinfo=dt.timezone.utc).timestamp()
         self.assertEqual(mtm_ci.summary([run(1, "land/07")], lambda rid: [], since), [])
 
-    def test_ci_mode_asks_for_every_workflow_file_on_the_default_branch(self):
+    def test_ci_mode_reads_the_workflows_folder_of_the_default_branch_once(self):
         seen = []
-        self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: seen.append(argv) or "", "/m", "main"))  # none
-        self.assertEqual([argv[-1] for argv in seen], [f"origin/main:.github/workflows/{n}" for n in
-                                                       ("merge-to-main-local.yml", "merge-to-main-cloud.yml",
-                                                        "dev-merge-to-main.yml", "merge-to-main.yml")])
-        self.assertEqual(seen[0][:3], ["git", "cat-file", "-t"])
-        self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n", "/m", "main"))  # both
+        self.assertFalse(mtm_ci.ci_mode(git_with(seen=seen), "/m", "main"))  # none
+        self.assertEqual(seen, [["git", "ls-tree", "--name-only", "origin/main", ".github/workflows/"]])
+        self.assertTrue(mtm_ci.ci_mode(git_with(*ALL), "/m", "main"))  # all
 
     def test_ci_mode_accepts_either_workflow_file(self):
-        only_new = lambda argv, cwd: "blob\n" if argv[-1].endswith("/merge-to-main.yml") else ""
-        only_dev = lambda argv, cwd: "blob\n" if argv[-1].endswith("/dev-merge-to-main.yml") else ""
-        other = lambda argv, cwd: "blob\n" if argv[-1].endswith("/ci.yml") else ""
-        self.assertTrue(mtm_ci.ci_mode(only_new, "/m", "main"))
-        self.assertTrue(mtm_ci.ci_mode(only_dev, "/m", "main"))
-        for new in ("local", "cloud"):  # plan 0423 D4
-            self.assertTrue(mtm_ci.ci_mode(lambda argv, cwd: "blob\n" if argv[-1].endswith(f"-{new}.yml") else "",
-                                           "/m", "main"))
-        self.assertFalse(mtm_ci.ci_mode(other, "/m", "main"))
+        for name in ALL:  # plan 0423 D4: local and cloud, and the older two
+            self.assertTrue(mtm_ci.ci_mode(git_with(name), "/m", "main"), name)
+        self.assertFalse(mtm_ci.ci_mode(lambda argv, cwd: ".github/workflows/ci.yml\n", "/m", "main"))
 
-    def test_runs_of_every_workflow_file_are_joined_newest_first(self):
-        answers = {"dev-merge-to-main.yml": [run(5, "land/09", status="queued", conclusion="", at="2026-10-12T08:00:00Z")],
-                   "merge-to-main.yml": [run(4, "land/08", status="queued", conclusion="", at="2026-10-12T07:00:00Z"),
-                                         run(3, "land/05", at="2026-10-12T06:30:00Z"),
-                                         run(2, "land/07", at="2026-10-12T06:00:00Z"),
-                                         run(1, "land/03", status="in_progress", conclusion="",
-                                             at="2026-10-11T06:00:00Z")]}
-        asked = []
-        both = lambda args, cwd: asked.append(args) or answers.get(args[args.index("--workflow") + 1], [])
-        self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(both, "/m")], [5, 4, 3, 2, 1])
-        self.assertEqual([a[a.index("--workflow") + 1] for a in asked],
-                         ["merge-to-main-local.yml", "merge-to-main-cloud.yml", "dev-merge-to-main.yml", "merge-to-main.yml"])
-        self.assertEqual(asked[0][:3] + asked[0][5:7], ["gh", "run", "list", "--limit", "100"])
-        self.assertEqual(mtm_ci.unfinished(both, "/m"), 3)  # the unfinished runs of both files
-        rows = mtm_ci.landings(lambda args, cwd: answers.get(args[args.index("--workflow") + 1], [])
-                               if args[:3] == ["gh", "run", "list"] else {"jobs": []}, "/m", 0)
+    def test_a_land_name_whose_file_is_not_on_the_default_branch_is_never_listed(self):
+        seen = []
+        self.assertEqual(mtm_ci.live_land_names(git_with("merge-to-main-cloud.yml", "merge-to-main.yml"), "/m", "main"),
+                         ["merge-to-main-cloud.yml", "merge-to-main.yml"])  # LAND_NAMES order
+        gh = Lister({"merge-to-main-local.yml": [run(1, "land/03", status="queued", conclusion=None)],
+                     "merge-to-main-cloud.yml": [run(2, "land/05", status="queued", conclusion=None)]})
+        with mock.patch.object(mtm_ci, "_git", git_with("merge-to-main-local.yml", seen=seen)):
+            self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(gh, "/m")], [1])  # cloud's run: not on the branch
+            self.assertEqual(mtm_ci.unfinished(gh, "/m"), 1)
+        # the folder is read from origin's HEAD when the caller names no default
+        self.assertIn(["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], seen)
+        # a folder without a landing workflow: no gh call at all
+        gh.asked.clear()
+        with mock.patch.object(mtm_ci, "_git", git_with()):
+            self.assertEqual(mtm_ci.runs_of(gh, "/m"), [])
+        self.assertEqual(gh.asked, [])
+
+    def test_a_round_reads_the_workflows_folder_once(self):
+        seen = []
+        git = git_with("merge-to-main-local.yml", seen=seen)
+        with gh_runs.round(None) as stats:
+            self.assertTrue(mtm_ci.ci_mode(git, "/m", "main"))
+            with mock.patch.object(mtm_ci, "_git", git):
+                for _ in range(3):
+                    mtm_ci.runs_of(lambda args, cwd: [], "/m")
+        self.assertEqual([a[1] for a in seen], ["ls-tree"])
+        self.assertEqual(stats["list"], 1)  # the one runs read
+        seen.clear()
+        mtm_ci.ci_mode(git, "/m", "main")
+        mtm_ci.ci_mode(git, "/m", "main")
+        self.assertEqual(len(seen), 2)  # outside a round nothing is remembered
+
+    def test_a_run_of_the_api_becomes_a_gh_run_list_row(self):
+        api = {"id": 40983502064, "path": ".github/workflows/merge-to-main-cloud.yml@refs/heads/main",
+               "head_branch": "land/train-27-1", "head_sha": "e215" * 10, "status": "completed",
+               "conclusion": "cancelled", "created_at": "2026-10-30T01:03:17Z", "event": "push",
+               "html_url": "https://github.com/divramod/hal2/actions/runs/40983502064", "display_title": "docs: x",
+               "run_attempt": 2}
+        row = mtm_ci.as_row(api)
+        self.assertEqual({k: row[k] for k in mtm_ci.FIELDS.split(",")},
+                         {"databaseId": 40983502064, "headBranch": "land/train-27-1", "headSha": "e215" * 10,
+                          "status": "completed", "conclusion": "cancelled", "createdAt": "2026-10-30T01:03:17Z",
+                          "url": "https://github.com/divramod/hal2/actions/runs/40983502064"})
+        self.assertEqual((row["path"], row["event"], row["displayTitle"]),
+                         (".github/workflows/merge-to-main-cloud.yml", "push", "docs: x"))
+        self.assertNotIn("run_attempt", row)
+        self.assertEqual(mtm_ci.as_row({"id": 1})["path"], "")  # a run without a path matches no workflow
+        # the read is one gh api call projected by gh's jq to these fields, 50 runs
+        self.assertEqual(mtm_ci.RUNS_ARGS[:3], ["gh", "api", "repos/{owner}/{repo}/actions/runs?per_page=50"])
+        self.assertEqual(mtm_ci.RUNS_ARGS[3], "--jq")
+        for name in mtm_ci.AS_ROW:
+            self.assertIn(name, mtm_ci.RUNS_ARGS[4])
+
+    @mock.patch.object(mtm_ci, "_git", git_with(*ALL))
+    def test_runs_of_every_live_workflow_file_come_from_one_read_newest_first(self):
+        gh = Lister({"dev-merge-to-main.yml": [run(5, "land/09", status="queued", conclusion=None,
+                                                   at="2026-10-12T08:00:00Z")],
+                     "merge-to-main.yml": [run(4, "land/08", status="queued", conclusion=None, at="2026-10-12T07:00:00Z"),
+                                           run(3, "land/05", at="2026-10-12T06:30:00Z"),
+                                           run(2, "land/07", at="2026-10-12T06:00:00Z"),
+                                           run(1, "land/03", status="in_progress", conclusion=None,
+                                               at="2026-10-11T06:00:00Z")],
+                     "ci.yml": [run(6, "land/04", status="queued", conclusion=None, at="2026-10-12T09:00:00Z")]},
+                    order=[1, 3, 6, 2, 5, 4])  # GitHub's order is not trusted
+        with gh_runs.round(None) as stats:
+            self.assertEqual([r["databaseId"] for r in mtm_ci.runs_of(gh, "/m")], [5, 4, 3, 2, 1])  # never ci.yml's
+            self.assertEqual(mtm_ci.unfinished(gh, "/m"), 3)  # the unfinished runs of the landing files
+            rows = mtm_ci.landings(gh, "/m", 0)
         self.assertEqual([(r["slot"], r["outcome"]) for r in rows],
                          [("09", "running"), ("08", "running"), ("05", "landed"), ("07", "landed"), ("03", "running")])
+        self.assertEqual((stats["list"], len([a for a in gh.asked if a == mtm_ci.RUNS_ARGS])), (1, 1))
+        self.assertEqual(rows[0]["url"], "https://x/runs/5")
 
-    def test_a_workflow_file_github_does_not_know_has_no_runs(self):
-        old = [run(1, "land/03", status="in_progress", conclusion="", at="2026-10-11T06:00:00Z")]
-        new = [run(2, "land/07", status="queued", conclusion="", at="2026-10-12T06:00:00Z"), run(3, "land/05")]
-        before = lambda args, cwd: old if "merge-to-main.yml" in args and "dev-merge-to-main.yml" not in args else None
-        renamed = lambda args, cwd: new if "dev-merge-to-main.yml" in args else None  # plan 0349 D52's name alone
-        self.assertEqual((mtm_ci.unfinished(before, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(before, "/m")]),
-                         (1, [1]))
-        self.assertEqual((mtm_ci.unfinished(renamed, "/m"), [r["databaseId"] for r in mtm_ci.runs_of(renamed, "/m")]),
-                         (1, [2, 3]))
-        self.assertEqual((mtm_ci.unfinished(lambda args, cwd: None, "/m"), mtm_ci.runs_of(lambda args, cwd: None, "/m")),
-                         (0, []))
+    @mock.patch.object(mtm_ci, "_git", git_with(*ALL))
+    def test_github_not_answering_gives_no_runs(self):
+        for answer in (None, {"message": "Bad credentials"}):
+            self.assertEqual((mtm_ci.unfinished(lambda args, cwd: answer, "/m"),
+                              mtm_ci.runs_of(lambda args, cwd: answer, "/m"),
+                              mtm_ci.all_runs(lambda args, cwd: answer, "/m")), (0, [], None))
+        self.assertEqual(mtm_ci.all_runs(lambda args, cwd: [], "/m"), [])  # an empty list is an answer
 
-    def test_a_run_listed_under_both_names_counts_once(self):
-        same = [run(1, "land/03", status="in_progress", conclusion="")]
-        self.assertEqual(mtm_ci.unfinished(lambda args, cwd: same, "/m"), 1)
-        self.assertEqual(len(mtm_ci.landings(lambda args, cwd: same if args[2] == "list" else {"jobs": []}, "/m", 0)), 1)
+
+class Lister:
+    """gh as `run_json(args, cwd)`: the runs read (mtm_ci.RUNS_ARGS) answers {workflow file: [run rows]} in the API's
+    shape (in `order` of ids, else as given), a `gh run view` no jobs. `asked`: every call."""
+
+    def __init__(self, by_file: dict, order=None):
+        rows = [(f".github/workflows/{name}", r) for name, rs in by_file.items() for r in rs]
+        if order:
+            rows.sort(key=lambda pr: order.index(pr[1]["databaseId"]))
+        self.api = [{**{theirs: r.get(ours) for theirs, ours in mtm_ci.AS_ROW.items()}, "path": path} for path, r in rows]
+        self.asked = []
+
+    def __call__(self, args, cwd):
+        self.asked.append(args)
+        return self.api if args == mtm_ci.RUNS_ARGS else {"jobs": []}
 
 
 if __name__ == "__main__":

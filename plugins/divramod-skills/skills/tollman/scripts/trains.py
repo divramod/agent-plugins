@@ -71,7 +71,7 @@ import yard_report
 from tick import act, default_ref
 from trains_sort import HELD, HELD_LEFT, base_of, current_plan, held_for, servant, sort_out  # noqa: F401  (re-exported)
 
-QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]
+QUEUE = mtm_scan.QUEUE  # the queue read; defined with mtm_scan.run_json so a minute pass needs no trains
 ROLE = "tollman"
 TRAIN = ROLE + " (wagon train)"
 ENGINE = Path(__file__).with_name("engine.py")

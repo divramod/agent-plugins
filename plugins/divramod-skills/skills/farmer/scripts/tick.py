@@ -40,25 +40,30 @@ round takes it as it is: no check of what it holds, no merge-from-main, no commi
 """
 
 import datetime as dt
+import importlib
 import json
 import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
-import acks
-import commit_origin
 from logstate import paused, paused_by_any_boss, read_log, waiting_for_user  # noqa: F401  (tick.<name> for callers)
-import delegation
-import deliver
 import due
-import field_pause
 import gh_runs
-import lead_marker
 import mtm_scan
 import roles
-import scan_cache
-import wake
+
+LAZY = ("acks", "commit_origin", "delegation", "deliver", "field_pause", "lead_marker", "live_sessions", "scan_cache",
+        "wake")  # imported where used: a minute pass needs none of them (plan 0480 D3); `tick.<name>` still finds them
+
+
+def __getattr__(name: str):
+    """`tick.deliver` and the other LAZY modules, imported on the first ask (PEP 562)."""
+    if name in LAZY:
+        module = globals()[name] = importlib.import_module(name)
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 OFFLINE = 75  # EX_TEMPFAIL: a recheck that could not tell (this machine is offline) is not a failure
 
@@ -132,6 +137,7 @@ def act(duty: str, kind: str, do: str, slot: str = "-", **fields) -> dict:
 
 def role_edit(top: str, wiring: roles.Wiring = roles.FARMER) -> tuple[list[dict], bool]:
     """The user's uncommitted role file edit (role_files): commit it when valid. Returns (actions, round may go on)."""
+    import commit_origin
     name, role = wiring.role_file, wiring.role
     if not git(top, "status", "--porcelain", "-uall", "--", *wiring.role_files):
         return [], True
@@ -216,12 +222,16 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
     """What every duty's planner reads: the log, the opted-in duties, the agents by pane, each worktree's pane and the
     worktrees whose landing runs or holds the queue (never touched), the paused fields (field_pause) and the role's
     wiring."""
-    agents = deliver.cli("list", "--json")[1]
+    import deliver
+    import field_pause
+    import live_sessions
+    code, agents = deliver.cli("list", "--json")  # the round's one agents list (plan 0480 step 02.02)
     try:
         data = json.loads(agents)
     except json.JSONDecodeError:
-        data = []
-    rows = data.get("agents", []) if isinstance(data, dict) else data
+        data = None
+    rows = (data.get("agents", []) if isinstance(data, dict) else data) or []
+    strict = live_sessions.read(lambda _: data if code == 0 else None)  # None: unreadable, never "empty"
     queue = mtm_scan.run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
     tickets = queue.get("queue", [])
     landing = {t.get("slot") for t in tickets if t.get("state") == "active"
@@ -230,6 +240,7 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
     return {"top": top, "main": main, "now": now, "dry": dry, "log": log, "wiring": wiring,
             "paused_fields": paused if paused is not None else field_pause.load(main),
             "duties": {n.split(":", 1)[1] for n in items if n.startswith("duty:")},
+            "agents": strict, "agent_rows": rows,
             "agents_by_pane": {a.get("pane_id"): a for a in rows},
             "panes": {a["slot"]: a.get("pane_id") for a in rows if a.get("slot") and a.get("checkout")
                       and Path(a["checkout"]).parent == Path.home() / ".hal/git/worktree" / Path(main).name},
@@ -241,6 +252,8 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
                paused: dict | None = None) -> dict:
     """Plan everything after the frame's git work: the due items and their actions, each tagged with its `item`
     (whose time its execution adds to). A paused field's starter acts are records instead (field_pause.skip)."""
+    import acks
+    import field_pause
     timing = timing if timing is not None else {}
     items, settings, problems = due_items(top, now, all_due, wiring)
     if problems:
@@ -260,12 +273,15 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
     with timed(timing, "acks"):
         ack_acts = field_pause.skip(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["paused_fields"])
         actions += [{**a, "item": "acks"} for a in fresh(ack_acts, ctx["log"], ctx["now"], role)]
-    return {"due": items, "settings": settings, "actions": actions, "stop": False}
+    return {"due": items, "settings": settings, "actions": actions, "stop": False, "agent_rows": ctx["agent_rows"]}
 
 
 def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
     """Carry out one planned action; wake and notify items are collected in `out`. An act that would start, continue or
     wake the session of a paused field (field_pause) is not carried out: it becomes a logged record."""
+    import acks
+    import deliver
+    import field_pause
     if a["do"] == "ran":
         due.record_run(top, a["name"], out.get("now"), wiring.role)
         return
@@ -297,10 +313,37 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
                  wiring.role)
 
 
-def stay_current(top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
-    """Merge the default branch into the role's worktree the way /mfm does; a failure needs the model."""
+def merged_file(main: str, wiring: roles.Wiring) -> Path:
+    return mtm_scan.state_dir(main, wiring.role) / "last-mfm.json"
+
+
+def origin_moved(top: str, main: str, wiring: roles.Wiring = roles.FARMER) -> str | None:
+    """The sha of `origin/<default>` after the frame's one `git fetch` when it moved since the last merge-from-main
+    that succeeded (the sha it merged, `last-mfm.json` of the role's state) or this worktree does not hold it; None
+    when there is nothing to merge: the round then makes no `hal2-cli-git worktree merge-from-main` (plan 0480 step
+    02.02). A fetch that fails (offline) or a ref that cannot be read gives "" (merge as before)."""
+    ref = default_ref(top)
+    if sh(["git", "fetch", "--quiet", "origin", ref.removeprefix("origin/")], top, 120)[0]:
+        return ""
+    code, sha = sh(["git", "rev-parse", "--verify", "--quiet", ref], top, 30)
+    sha = sha.strip()
+    if code or not sha:
+        return ""
+    try:
+        last = json.loads(merged_file(main, wiring).read_text()).get("sha")
+    except (OSError, ValueError, AttributeError):
+        last = None
+    held = sh(["git", "merge-base", "--is-ancestor", sha, "HEAD"], top, 30)[0] == 0
+    return None if last == sha and held else sha
+
+
+def stay_current(top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER, sha: str = "") -> None:
+    """Merge the default branch into the role's worktree the way /mfm does; a failure needs the model. A success
+    records the merged `sha` (origin_moved)."""
     a = act("frame", "stay-current", "run", argv=MFM, text=f"merge-from-main in the {wiring.role}'s worktree")
     execute(a, top, main, out, wiring)
+    if not a["exit"] and sha:
+        merged_file(main, wiring).write_text(json.dumps({"schema": 1, "sha": sha}) + "\n")
     if a["exit"]:
         try:
             status = json.loads(a["output"].splitlines()[-1]).get("status", "error")
@@ -312,6 +355,7 @@ def stay_current(top: str, main: str, out: dict, wiring: roles.Wiring = roles.FA
 
 def slot_state(main: str) -> dict[str, dict]:
     """Each worktree's CURRENT_PLAN and commits not on main (what the delegation follow-up reads)."""
+    import lead_marker
     out = {}
     for w in mtm_scan.worktrees(main):
         out[Path(w["path"]).name] = {"plan": lead_marker.current_plan(w["path"]),
@@ -321,6 +365,7 @@ def slot_state(main: str) -> dict[str, dict]:
 
 def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
     """Place this round's delegations (planned ones in a dry run), then follow up on the running foremen."""
+    import delegation
     settings = out.get("settings") or {}
     limit, values = delegation.parse_limit(settings.get("servant_limit")), delegation.servant_values(settings)
     todo = [a for a in out["planned"] if a["do"] == "delegate"] if dry else out.get("delegate", [])
@@ -330,6 +375,7 @@ def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
 
 def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
     """The round's summary from the log: a file of its own when the round did something, latest.md always."""
+    import scan_cache
     role = wiring.role
     # The round's own scan: duty:mtm wrote last-scan.json this round; a new snapshot only when it is missing or
     # stale (plan 0333 step 7: the second snapshot cost 247 s of a 731 s round).
@@ -359,12 +405,13 @@ def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, al
         top = toplevel(repo)
         main = mtm_scan.main_checkout(top)
         held = carrying(top, wiring)  # the worktree stays as it is: nothing merged in, no role file commit (D22)
-        if not held:
+        moved = "" if held or dry else origin_moved(top, main, wiring)  # a dry round plans it, touching nothing
+        if not held and moved is not None:
             out["planned"].append(act("frame", "stay-current", "run", argv=MFM,
                                       text=f"merge-from-main in the {wiring.role}'s worktree"))
-        if not dry and not held:
-            stay_current(top, main, out, wiring)
-            out["done"].append(out["planned"][0])
+            if not dry:
+                stay_current(top, main, out, wiring, moved)
+                out["done"].append(out["planned"][0])
         edit, go_on = ([], True) if held else role_edit(top, wiring)
     with gh_runs.round(gh_runs.cache_dir(mtm_scan.state_dir(main, wiring.role))) as out["gh"]:
         rest(out, top, main, handlers, now, dry, all_due, edit, go_on, wiring)
@@ -375,6 +422,8 @@ def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, al
 def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None, dry: bool, all_due: bool,
          edit: list[dict], go_on: bool, wiring: roles.Wiring = roles.FARMER) -> None:
     """The round after its frame: plan, execute, delegate, wake, summarize (inside one gh_runs round)."""
+    import field_pause
+    import wake
     timing = out["timing"]
     out["planned"] += edit
     paused = field_pause.of(out, main)  # asked once per round (D2), shared by the planners and `execute`
@@ -395,7 +444,7 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
             out["wake_items"] = wake.items({k: [a for a in out["planned"] if a["do"] == k] for k in wake.KINDS}
                                            | {"delegations": out.get("delegations", [])}, wiring)
         else:
-            out["woke"] = wake.hand_over(top, main, out, now or dt.datetime.now(), wiring)
+            out["woke"] = wake.hand_over(top, main, out, now or dt.datetime.now(), wiring, rnd.get("agent_rows"))
     if not dry:
         with timed(timing, "summary"):
             summarize(main, top, out, wiring)

@@ -18,6 +18,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import field_facts
 import live_sessions
 import logstate
+import batch
 import busy
 import prune_proof
 import responses
@@ -118,11 +119,11 @@ def context(main: str, now: dt.datetime | None = None) -> dict:
 
 
 def proofs(fs: list[dict], ctx: dict, rows: list[dict] | None, now_ms: float | None = None,
-           build=prune_proof.build_running) -> dict[str, str | None]:
+           build=prune_proof.build_running, refs=None) -> dict[str, str | None]:
     """{slot: None when the field is free, else why not}, one field after the other (D14: only measuring runs in
-    parallel)."""
+    parallel). `refs`: batch.Refs, the commit counts of every branch read once."""
     now_ms = now_ms if now_ms is not None else time.time() * 1000
-    return {f["slot"]: prune_proof.refusal(f, ctx, rows, now_ms, build) for f in fs}
+    return {f["slot"]: prune_proof.refusal(f, ctx, rows, now_ms, build, refs=refs) for f in fs}
 
 
 def disk(main: str) -> dict:
@@ -199,25 +200,30 @@ def goal_met(d: dict, cfg: dict) -> bool:
     return d["free_gb"] >= cfg["goal"]["free_gb"] and d["used_pct"] <= cfg["goal"]["used_pct"]
 
 
-def collect(main: str, now: dt.datetime | None = None, build=prune_proof.build_running, measure=sizes.measure_all,
-            only: set[str] | None = None, lookup=field_facts.plan_state,
-            cached_sizes: bool = False) -> dict:
+def collect(main: str, now: dt.datetime | None = None, build=None, measure=sizes.measure_all,
+            only: set[str] | None = None, lookup=None, cached_sizes: bool = False) -> dict:
     """The facts: the disk, the config, the last train's cars and per field its kind, sessions, proof, size and what
     field_facts adds (`only`: those fields;
-    `cached_sizes`: sizes from the cache only, a miss is unknown). `now_ms` is the clock the proof used."""
+    `cached_sizes`: sizes from the cache only, a miss is unknown). `now_ms` is the clock the proof used.
+
+    One `ps -A`, one `git for-each-ref` with ahead-behind and one `hal2-cli-plans list --json` serve all fields
+    (batch.py, field_facts.PlanIndex; plan 0480 D5), each read on first use. `build`, `lookup` replace them in tests."""
+    build = build or batch.Processes().running
+    lookup = lookup or field_facts.PlanIndex(main)
+    refs = batch.Refs(main)
     cfg = config(main)
     every = fields(main)
     fs = [f for f in every if only is None or f["slot"] in only]
     rows = agents(main)
     ctx = context(main, now)
     now_ms = time.time() * 1000
-    why = proofs(fs, ctx, rows, now_ms, build)
+    why = proofs(fs, ctx, rows, now_ms, build, refs)
     wait = busy.reason(main)  # a train builds: no size walk (plan 0472 D1), the cache only
     size = measure(main, fs, cached_only=True) if cached_sizes or wait else measure(main, fs)
     now_disk = disk(main)
     answers = responses.candidates(main, cfg, [main] + [f["path"] for f in every],
                                    measured=not (cached_sizes or wait) and short_of_space(now_disk, cfg))
-    more = field_facts.extra(fs, ctx, main, {s: w is None for s, w in why.items()}, lookup, build)
+    more = field_facts.extra(fs, ctx, main, {s: w is None for s, w in why.items()}, lookup, build, refs)
     return {"main": main, "now_ms": now_ms, "busy": wait, "responses": answers, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
             "fields": [{**f, "sessions": session(f, rows), "free": why[f["slot"]] is None, "proof": why[f["slot"]],
                         "size": size.get(f["slot"]), **more[f["slot"]]} for f in fs]}

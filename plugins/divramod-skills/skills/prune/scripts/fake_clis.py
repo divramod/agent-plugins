@@ -50,6 +50,9 @@ def worktrees():
 
 if name == "hal2-cli-agents":
     print(json.dumps(data.get("agents", [])) if args[:1] == ["list"] else "{}")
+elif name == "hal2-cli-plans" and args[:1] == ["list"]:
+    print(json.dumps({"plans": [{"slug": k, "number": int(k[:4]) if k[:4].isdigit() else None, **v}
+                                for k, v in data.get("plans", {}).items()]}))
 elif name == "hal2-cli-plans":
     plan = args[1] if len(args) > 1 else ""
     if plan in data.get("plans", {}):

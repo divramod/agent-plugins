@@ -13,7 +13,7 @@ orphaned work with a handoff (the plan's `handoff.md` or the root `HANDOFF.md`) 
 **Through CI** (the default branch has a landing workflow (`merge-to-main-local.yml`, `merge-to-main-cloud.yml`, or the older
 `dev-merge-to-main.yml`, `merge-to-main.yml`; plan 0423); hal2 plan 0131): landings are candidates on
 `land/<slot>` with a pull request each, tested by GitHub Actions. The scan reads them from GitHub (`ci: true`;
-`gh pr list --head 'land/'`, `gh run list --workflow <file>` for both names); a red candidate keeps the queue held for its
+`gh pr list --head 'land/'`, one `gh api .../actions/runs` filtered by the files' paths, plan 0480 D2); a red candidate keeps the queue held for its
 worktree until its fix lands (the user, 2026-10-06: "run landing until everything is fixed and merged and then release"): its session reads the red jobs, reproduces them with `gate/main.sh <job>`, fixes
 and lands again at once. A workflow whose jobs stop their run (the step `fail fast: stop the run`, plan 0263) is red
 at its first job that failed or hit its time limit (told by the job's steps; since plan 0319 the job that failed ends

@@ -14,6 +14,7 @@ import due
 import leavers
 import minute
 import mtm_scan
+import pass_timing
 import role_cli
 import tick
 import train_state
@@ -91,6 +92,44 @@ class Quiet(Pass):
         self.assertEqual(self.sh, [], "no merge from main: a pass is no round")
         self.assertFalse((self.wm_state / "summaries").exists())
         self.assertEqual([c for c in self.gh.calls if c[1:3] == ["run", "view"]], [["gh", "run", "view", "501", "--json", "jobs"]])
+
+    def test_a_pass_notes_its_cost_in_pass_timing_and_still_prints_nothing(self):
+        """Plan 0480 D1: wall, process starts and gh calls of the pass go to roles/tollman/pass-timing.jsonl."""
+        self.train("formed", "started")
+        self.assertEqual(self.tick(), "")
+        rows = [json.loads(t) for t in (self.wm_state / "pass-timing.jsonl").read_text().splitlines()]
+        self.assertEqual(len(rows), 1)
+        rec = rows[0]
+        self.assertEqual((rec["schema"], sorted(rec)), (1, ["at", "gh", "procs", "schema", "wall_ms"]))
+        self.assertRegex(rec["at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertGreaterEqual(rec["wall_ms"], 0)
+        self.assertGreaterEqual(rec["procs"], 1, "light asks git for the top folder: a process start")
+        self.assertEqual(rec["gh"], len(self.gh.calls), "every gh command the fake saw is counted")
+        self.assertGreaterEqual(rec["gh"], 1)
+        self.assertEqual(self.tick(), "")
+        self.assertEqual(len((self.wm_state / "pass-timing.jsonl").read_text().splitlines()), 2, "one line a pass")
+
+    def test_a_pass_reads_the_runs_once(self):
+        """Plan 0480 D2: one `gh api .../actions/runs` a pass for the watch, the next train and CI health, never a
+        `gh run list`; without hal2-runners.toml no check needs GitHub's runners."""
+        self.train("formed", "started")
+        for n in (1, 2):
+            self.assertEqual(self.tick(), "")
+            self.assertEqual((self.gh.runs_lists(), self.gh.runner_lists()), (n, 0), f"pass {n}")
+        self.assertEqual([c for c in self.gh.calls if c[1:3] == ["run", "list"]], [])
+        self.assertIn(["gh", "api", "repos/{owner}/{repo}/actions/runs/501/jobs?per_page=100&page=1"], self.gh.calls,
+                      "the unfinished run's queued jobs: a jobs call, no runs list")
+        rows = [json.loads(t) for t in (self.wm_state / "pass-timing.jsonl").read_text().splitlines()]
+        self.assertEqual(sum(r["gh"] for r in rows), len(self.gh.calls))
+
+    def test_a_round_and_a_pass_held_back_write_no_timing_record(self):
+        with (self.wm_state / "tick.lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertEqual(self.tick(), "")
+        due.record_run(str(self.wm), "duty:mtm", dt.datetime(2020, 1, 1), role="tollman")
+        self.assertIn("tollman tick (round)", self.tick())
+        self.assertFalse((self.wm_state / "pass-timing.jsonl").exists())
+        self.assertIsNone(pass_timing._pass, "nothing is left counting")
 
     def test_a_round_is_due_when_more_than_the_watch_is(self):
         due.record_run(str(self.wm), "duty:mtm", dt.datetime(2020, 1, 1), role="tollman")
