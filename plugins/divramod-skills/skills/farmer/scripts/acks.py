@@ -12,8 +12,10 @@
 
 The tick stamps every templated send (`stamp_send`) and plans the follow-up (`plan`): no ack within ACK_AFTER, the
 instruction is sent once more; still none ACK_AFTER later, the farmer is woken (`no-ack`) with the screen; a
-`refused` ack always wakes it. `started` stops the clock, `done` closes the instruction. State: the log's `ask-ack`,
-`ack` and `ack-resend:<id>` entries.
+`refused` ack always wakes it. `started` stops the clock, `done` closes the instruction. An instruction neither sent
+nor acked within STALE (24 h), or sent under a role name no role has any more (`wagon-master`), is never followed
+up (L74 of the tollman: week-old acks woke it once their keys' week ran out). State: the log's `ask-ack`, `ack` and
+`ack-resend:<id>` entries.
 
 Another role (hal2 plan 0294) stamps with its own name and keeps its own log: `--role <role>` here, `role` in
 `stamp`, `stamped_id` and `stamp_send` (`tollman [<id>]: ...`, replies to the tollman session).
@@ -32,6 +34,7 @@ import mtm_scan
 import roles
 
 ACK_AFTER = dt.timedelta(minutes=10)
+STALE = dt.timedelta(hours=24)  # an instruction with nothing newer than this is history, never a wake (L74)
 STATUSES = ("started", "done", "refused")
 REPLY_TO = "Reply `ack {id}: started|done|refused <why>` by SendMessage to the {role} session."
 REPLY = REPLY_TO.replace("{role}", roles.ROLE)  # the farmer's
@@ -78,7 +81,7 @@ def instructions(log: list[dict]) -> dict[str, dict]:
     """Every instruction by id with its acks and when it was re-sent."""
     out: dict[str, dict] = {}
     for e in log:
-        kind, at = e.get("kind"), dt.datetime.fromisoformat(e["at"])
+        kind, at = e.get("kind"), mtm_scan.log_time(e["at"])
         if kind == "ask-ack" and e.get("id"):
             out.setdefault(e["id"], {"acks": [], "resent": None}).update(
                 id=e["id"], slot=e.get("slot", ""), at=at, text=e.get("text") or e.get("what", ""),
@@ -90,13 +93,20 @@ def instructions(log: list[dict]) -> dict[str, dict]:
     return out
 
 
+def stale(i: dict, now: dt.datetime) -> bool:
+    """L74: nothing about the instruction (sent, acked, re-sent) is newer than STALE, or its sender is a retired role."""
+    last = max([i["at"], i["resent"] or i["at"]] + [a["at"] for a in i["acks"]])
+    sender = re.match(r"^(\S+) \[", i.get("text") or "")
+    return now - last >= STALE or bool(sender and sender.group(1) not in roles.ROLES)
+
+
 def plan(log: list[dict], now: dt.datetime, panes: dict, capture=None) -> list[dict]:
     """The round's ack follow-ups: re-send once, then wake; a refusal wakes at once."""
     from tick import act  # the tick imports this module
     capture = capture or (lambda pane: deliver.cli("capture", pane)[1][-3000:] if pane else "")
     out = []
     for i in instructions(log).values():
-        if "slot" not in i:
+        if "slot" not in i or stale(i, now):
             continue
         last = i["acks"][-1]["status"] if i["acks"] else None
         pane = panes.get(i["slot"]) or i["pane"]

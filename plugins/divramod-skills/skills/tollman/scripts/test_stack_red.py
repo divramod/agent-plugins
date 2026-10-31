@@ -6,6 +6,7 @@ import contextlib
 import datetime as dt
 import io
 import unittest
+from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
@@ -55,20 +56,18 @@ class Rule(unittest.TestCase):
         self.assertTrue(text.startswith("t0, t1") and text.endswith("t9 and 4 more"), text)
         self.assertEqual(stack_red.words([{"name": "stack-test"}])[0], "the job's failing tests (read its log)")
 
-    def test_a_landed_train_with_a_red_stack_test_logs_it_and_tells_every_car(self):
+    def test_a_landed_train_with_a_red_stack_test_logs_it_and_tells_no_car(self):
+        """Plan 0490 step 3, D13: who fixes a red stack-test is the finished run's triage's, never the train's cars."""
         out = trains.settle("/f/tollman-hal2", TRAIN, {**LANDED, "red": [RED]}, {"07": "%7"})
         self.assertEqual(shape(out), [("landed", "run", "-"), ("in-the-barn", "send", "07"), ("in-the-barn", "send", "09"),
-                                      ("stack-red", "run", "-"), ("stack-red-fix", "send", "07"),
-                                      ("stack-red-fix", "send", "09"), ("chain", "run", "-")])
-        log, fix = out[3], out[4]
+                                      ("stack-red", "run", "-"), ("chain", "run", "-")])
+        log = out[3]
         self.assertEqual(log["after"], out[0]["key"], "the board line follows the landed verb")
         self.assertEqual(log["argv"][2:], ["post", "--kind", "red", "--from", "tollman-hal2", "--to", "-", "--train",
                                            TRAIN["train"], "--cars", "07,09", "--status", "stack-test", "--repo",
                                            "/f/tollman-hal2", "--text", log["argv"][-3], "--run", "https://x/runs/9"])
-        self.assertEqual((fix["pane"], out[5]["pane"], {a["after"] for a in out[4:6]}), ("%7", None, {log["key"]}))
-        for part in ("train 07+09@", "is in the barn, but 03-hz-host-a/stack-test is red (https://x/runs/9)",
-                     "Fix these tests in your next harvest", "daemon::socket_roundtrip, hub::tenant_rls"):
-            self.assertIn(part, fix["text"])
+        self.assertIn("daemon::socket_roundtrip, hub::tenant_rls", log["argv"][-3])
+        self.assertIn("the run's triage orders its owners", log["text"])
         self.assertEqual(len({a["key"] for a in out}), len(out), "every key is its own")
 
     def test_a_green_landing_and_a_red_train_get_no_stack_red_action(self):
@@ -96,22 +95,28 @@ class Watch(unittest.TestCase):
                               list(log), fetch, now or self.NOW)
         return out, asked
 
-    def test_a_red_stack_test_of_the_run_tells_every_car_and_logs_it(self):
+    def test_a_red_stack_test_of_the_run_logs_it_and_marks_the_run_due_for_its_triage(self):
         out, asked = self.watch([{"name": "03-hz01-host-b/merge", "status": "completed", "conclusion": "success"},
                                  {"name": "03-hz01-host-a/stack-test (stack-test)", "status": "completed",
                                   "conclusion": "failure"}])
         self.assertEqual(asked, ["38600000001"])
-        self.assertEqual(shape(out), [("stack-red", "run", "-"), ("stack-red-fix", "send", "07"),
-                                      ("stack-red-fix", "send", "09")])
+        self.assertEqual(shape(out), [("stack-red", "run", "-"), ("run-triage", "run", "-")], "no car told (D13)")
         self.assertEqual(out[0]["key"], f"stack-red:{TRAIN['train']}")
-        self.assertIn("03-hz01-host-a/stack-test (stack-test) is red (https://github.com/divramod/hal2/actions/runs/"
-                      "38600000001)", out[1]["text"])
+        self.assertIn("03-hz01-host-a/stack-test (stack-test) is red: ", out[0]["argv"][-3])
+        due = out[1]
+        self.assertEqual((due["key"], due["after"]), ("run-triage:38600000001", out[0]["key"]))
+        self.assertEqual(due["argv"][1:4], [str(Path(stack_red.__file__).with_name("run_triage_wire.py")), "due",
+                                            "--repo"])
+        self.assertIn("https://github.com/divramod/hal2/actions/runs/38600000001", due["argv"])
+
+    def test_a_run_whose_triage_started_is_never_read(self):
+        self.assertEqual(self.watch([], log=[{"key": "run-triage:38600000001"}]), ([], []))
 
     def test_a_red_positioned_stack_test_of_the_run_counts(self):
         out, _ = self.watch([{"name": "03-hz01-host-b/01-merge", "status": "completed", "conclusion": "success"},
                              {"name": "03-hz01-host-a/01-stack-test", "status": "completed", "conclusion": "failure"}])
         self.assertEqual(shape(out)[0], ("stack-red", "run", "-"))
-        self.assertIn("03-hz01-host-a/01-stack-test is red", out[1]["text"])
+        self.assertIn("03-hz01-host-a/01-stack-test is red", out[0]["text"])
 
     def test_a_red_stack_test_of_the_matrix_alias_names_counts(self):
         # Plan 0349 D101: `<matrix alias>-<NN>-<job>`, the merge as `d2-01-git-merge`.
@@ -122,7 +127,7 @@ class Watch(unittest.TestCase):
         out, _ = self.watch([{"name": "d2-01-git-merge", "status": "completed", "conclusion": "success"},
                              {"name": "d1-01-stack-test", "status": "completed", "conclusion": "failure"}])
         self.assertEqual(shape(out)[0], ("stack-red", "run", "-"))
-        self.assertIn("d1-01-stack-test is red", out[1]["text"])
+        self.assertIn("d1-01-stack-test is red", out[0]["text"])
 
     def test_a_running_stack_test_waits_and_a_green_one_ends_the_watch(self):
         running = [{"name": "03-hz01-host-a/stack-test", "status": "in_progress", "conclusion": ""}]

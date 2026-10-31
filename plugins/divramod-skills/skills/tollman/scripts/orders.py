@@ -21,12 +21,16 @@ the train. Replaces unhitch-after-red and breakup (the user's own `--by-user` st
   frozen.merge_car), a `fixed` line; the last order closed, the train is `retry` and the next round's `restart` lands
   the same cars plus the fixes on a new candidate (the merge; no empty retry commit, engine.fresh). A refused answer
   keeps the order open and tells the foreman why.
+- plan 0490 step 10: `fixed` takes a landing whose process is gone as ended (L47, L108: `still_lands`), `--redundant`
+  (L56); the texts' PUSH and PROOF (L84, L85, L106, L113); a fix left local over 30 min wakes once (L106)
 - `answers`: the round reads the foreman's ack (`acks.py ack <id> done fixed <sha>`, the message's ack id found by its
   `fix order <id>`) and runs `tollman.py fixed` by code (deterministic first).
 """
 
+import datetime as dt
 import re
 import sys
+import time
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
@@ -40,10 +44,17 @@ MAIN = "main"  # `order main`: the barn's red, fixed by the tollman's own hand (
 OWN_FIX = "tollman-train-fix"
 CLI = Path(__file__).with_name("tollman.py")
 FIXED = re.compile(r"\bfixed\s+([0-9a-f]{7,40})\b")
+# L84, L106: the side branch carries the train's generated commit (CHANGELOG.md), which a field's pre-push refuses
+PUSH = "`HAL2_PRE_PUSH=0 git push origin {branch}` (the train's own CHANGELOG commit is no change of yours)."
+# L113 (fail-fast cancels the rest of a run: a red job's other tests stay unseen), L85 (a gate helper needs its jobs'
+# paths): what a fix runs before it is answered; the triage's order says the same (run_triage_text.ORDER)
+PROOF = (" Before you answer, run the whole red job, not only its failing test (`code/bash/scripts/gate/main.sh <job> "
+         "--branch origin/main`); a fix that touches code/bash/scripts/gate/ also runs `bats "
+         "code/bash/scripts/gate/test-select.bats code/bash/scripts/gate/test.bats`.")
 HEAD = "tollman (wagon train): fix order {id} for field {field}: train {train} is red ({red}). Run: {run}. Why: {why}."
 TEXT = {
     "order": HEAD + "\nIn your field: `git fetch origin {carrier}; git switch -C {branch} origin/{carrier}` (the train "
-                    "with every car and fix so far, {base}), fix, commit, `git push origin {branch}`, then answer "
+                    "with every car and fix so far, {base}), fix, commit, " + PUSH + PROOF + " Then answer "
                     "`done fixed <sha>` with the ack below (`tollman.py fixed` is run by the tollman, you only "
                     "answer). `{branch}` is a side branch: never landed on its own, it rides in this train; after the barn "
                     "merge it into your branch before /merge-from-main, then delete it (merge-to-main's references/tollman.md, \"A fix "
@@ -55,11 +66,15 @@ TEXT = {
              "the run has finished.",
     "post": "tollman (wagon train): fix order {id} for field {field}: train {post} is in the barn, but {red} is red "
             "after its merge. Run: {run}.\nIn your field: `git fetch origin {carrier}; git switch -C {branch} "
-            "origin/{carrier}` (the next train {train}, {base}), fix, commit, `git push origin {branch}`, then answer "
+            "origin/{carrier}` (the next train {train}, {base}), fix, commit, " + PUSH + PROOF + " Then answer "
             "`done fixed <sha>` with the ack below. `{branch}` is a side branch: never landed on its own, the tollman "
             "merges it into the next train before that train's run starts (nothing waits for it); after the barn "
             "merge it into your branch before /merge-from-main, then delete it. `tollman.py triage {rid}` shows the "
             "evidence.",
+    "unpushed": "fix order {id}: field {field}'s fix {sha} sits on its local {branch}, not on origin, for over 30 "
+                "min (L106: its pre-push refused the train's CHANGELOG commit?). Check it, then push it yourself "
+                "(`HAL2_PRE_PUSH=0 git push origin {sha}:refs/heads/{branch}`) and run `tollman.py fixed {field} "
+                "{sha}`.",
     "refused": "tollman (wagon train): your fix {sha} for fix order {id} is refused: {why}. The order stays open: "
                "branch `{branch}` from `origin/{carrier}`, fix, push and answer `done fixed <sha>` again.",
 }
@@ -162,22 +177,57 @@ def merge(top: str, o: dict, sha: str) -> Done:
     return git(top, "rev-parse", "HEAD")
 
 
+STALE = 30 * 60  # an order this old with its fix only local wakes the session (L106)
+WAIT = 30  # seconds `fixed` waits for a landing's process to end after its run finished (L47)
 POST_WAITS = ("formed", "landing", "paused", "split")  # a post-merge fix: the landing's process merges it (next_train)
 
 
-def fixed(top: str, field: str, sha: str, panes: dict, now=None) -> tuple[int, str, list[dict]]:
-    """The answer to `field`'s open order: merged, or refused with the foreman told why."""
+def told_finished(main: str, train: dict) -> bool:
+    """The 1-minute watch told the run of the train's current start finished (`done:<run>`, watch_events.py)."""
+    import watch_events  # its imports reach far: only here
+    s = watch_events.state(main)
+    return (s.get("train"), s.get("started")) == (train["train"], train.get("started")) and \
+        f"done:{s.get('run')}" in (s.get("seen") or [])
+
+
+def still_lands(top: str, main: str, train: dict, now=None) -> str:
+    """Why the `landing` train's run is not over for a fix (L34), or "" once it is: its landing's process is gone
+    (L108: stopped by signal, no red line), also when it ends within WAIT s of the run the watch told finished (L47).
+    Over, the red line is written here as the round's settle writes it (an early order: `fixing`), unless it landed."""
+    alive = lambda: train_state.alive(train.get("pid"))  # noqa: E731
+    for _ in range(WAIT if alive() and told_finished(main, train) else 0):
+        time.sleep(1)
+        if not alive():
+            break
+    if alive():
+        return "the train's land run still runs; the fix is merged after it ends"
+    result = train_state.result(main) or {}
+    if result.get("status") in ("landed", "nothing") or (result.get("status") == "shipping" and result.get("commit")):
+        return "the train landed: the round settles it, its early orders ride the next train"
+    train_state.append(main, "red", Path(top).name, now, train=train["train"], status=result.get("status") or "ended",
+                       run=result.get("run") or train.get("land_run"),
+                       why="its landing's process is gone: red line by `fixed` (L47, L108)")
+    return ""
+
+
+def fixed(top: str, field: str, sha: str | None, panes: dict, now=None,
+          redundant: bool = False) -> tuple[int, str, list[dict]]:
+    """The answer to `field`'s open order: merged, or refused with the foreman told why; `redundant` (L56): the
+    order closed on the carrier's head, its fix in the train already."""
     main = mtm_scan.main_checkout(top)
     train = train_state.standing(train_state.lines(main))
     o = next((o for o in (train or {}).get("orders", []) if o["field"] == field), None)
     p = None if o else next((p for p in (train or {}).get("post", []) if p["field"] == field), None)
-    if o and train["state"] == "landing":  # L34: a fix is merged and run only after the workflow has finished
-        return 1, f"fix order {o['id']} waits: the train's land run still runs; the fix is merged after it ends", []
+    if o and train["state"] == "landing" and (why := still_lands(top, main, train, now)):
+        return 1, f"fix order {o['id']} waits: {why}", []
+    train = train_state.standing(train_state.lines(main)) if o else train
     if p and train["state"] in POST_WAITS:
         return 1, f"fix order {p['id']} waits: the landing merges it before its run starts, else the next train", []
     if not p and (not train or train["state"] != "fixing" or not o):
         return 1, f"no open fix order for {field}", []
     o = o or p
+    if redundant:
+        return close(top, main, train, o, now)
     code, commit = take(top, main, train, o, sha, now)
     if code:
         carrier = git(top, "branch", "--show-current")[1]
@@ -191,6 +241,15 @@ def fixed(top: str, field: str, sha: str, panes: dict, now=None) -> tuple[int, s
     rest = [x["id"] for x in train["orders"] if x["id"] != o["id"]]
     return 0, f"fix order {o['id']} merged ({sha[:12]}): " + (f"waits for {', '.join(rest)}" if rest else
                                                               "the same cars land again at the next round"), []
+
+
+def close(top: str, main: str, train: dict, o: dict, now=None) -> tuple[int, str, list[dict]]:
+    """A redundant order (L56: two orders for one red, the first fix covered both) closed on the carrier's head:
+    nothing merged, a `fixed` line marked `redundant`."""
+    head = git(top, "rev-parse", "HEAD")[1]
+    train_state.append(main, "fixed", Path(top).name, now, train=train["train"], field=o["field"], id=o["id"],
+                       sha=head, commit=head, redundant=True)
+    return 0, f"fix order {o['id']} closed as redundant on the carrier's head {head[:12]}", []
 
 
 def take(top: str, main: str, train: dict, o: dict, sha: str, now=None) -> Done:
@@ -211,14 +270,39 @@ def answered(o: dict, log: list[dict]) -> str | None:
                  and e.get("what") == "done" and (m := FIXED.search(e.get("note") or ""))), None)
 
 
-def answers(top: str, rows: list[dict], log: list[dict]) -> list[dict]:
+def stopped(top: str, train: dict) -> bool:
+    """A `landing` train under the hold whose landing's process is gone (L108): nothing restarts it (L107), so its
+    answered early orders are taken now (`fixed` writes its red line)."""
+    import hold  # the hold file of the main checkout
+    return train.get("state") == "landing" and not train_state.alive(train.get("pid")) \
+        and bool(hold.of(mtm_scan.main_checkout(top)))
+
+
+def unpushed(top: str, o: dict, now: dt.datetime) -> dict | None:
+    """One wake for an order older than STALE whose fix sits on the local `<NN>-train-fix`, descending from its base,
+    but not on origin (L106: the pre-push hook refused it, the foreman's session ended), else None."""
+    at = dt.datetime.fromisoformat(str(o.get("at") or now.isoformat()).replace("Z", "+00:00"))
+    if (now - at).total_seconds() < STALE:
+        return None
+    branch = o["branch"]
+    code, local = git(top, "rev-parse", "-q", "--verify", f"refs/heads/{branch}")
+    pushed = git(top, "rev-parse", "-q", "--verify", f"refs/remotes/origin/{branch}")[1]
+    if code or local == pushed or git(top, "merge-base", "--is-ancestor", o["base"], local)[0]:
+        return None
+    return act("trains", "fix-unpushed", "wake", o["field"], key=f"unpushed:{o['id']}:{local}",
+               text=TEXT["unpushed"].format(id=o["id"], field=o["field"], sha=local[:12], branch=branch))
+
+
+def answers(top: str, rows: list[dict], log: list[dict], now: dt.datetime | None = None) -> list[dict]:
     """The round's `fixed` runs: an open order whose message's ack says `done fixed <sha>`; a post-merge order's
-    only while no landing runs (the landing's process merges it itself, next_train.py)."""
+    only while no landing runs (the landing's process merges it itself, next_train.py); an early order's also
+    while a held train's landing is gone (`stopped`). An order with no answer whose fix is local only: one wake."""
     train = train_state.standing(rows) or {}
-    out = []
-    own = train.get("orders", []) if train.get("state") == "fixing" else []
+    out, now = [], now or dt.datetime.now(dt.timezone.utc)
+    own = train.get("orders", []) if train.get("state") == "fixing" or stopped(top, train) else []
     for o in own + ([] if train.get("state") in POST_WAITS else train.get("post", [])):
         if not (sha := answered(o, log)):
+            out += [w for w in [unpushed(top, o, now)] if w]
             continue
         argv = [sys.executable, str(CLI), "fixed", o["field"], sha, "--repo", top]
         refused = act("trains", "fix-refused", "wake", key=f"stuck:fixed:{o['id']}:{sha}",

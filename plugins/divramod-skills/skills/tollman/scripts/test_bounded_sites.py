@@ -48,7 +48,9 @@ class Sites(unittest.TestCase):
 
     def test_the_carriers_and_the_trials_fetch_give_up_after_one_retry(self):
         top = str(self.dir)
-        self.assertIsInstance(self.stall("git", "NETWORK_GIT", carrier.git, top, "fetch", "-q", "origin"), subprocess.TimeoutExpired)
+        code, text = self.stall("git", "NETWORK_GIT", carrier.git, top, "fetch", "-q", "origin")
+        self.assertEqual(code, carrier.TIMED_OUT, "the carrier's timeout is exit 124, never an exception (plan 0490 row 10)")
+        self.assertIn("timed out", text)
         self.assertIsInstance(self.stall("git", "NETWORK_GIT", trial.git, top, "fetch", "origin"), subprocess.TimeoutExpired)
 
     def test_the_yards_git_and_the_engines_hal2_cli_git_end_within_their_limits(self):

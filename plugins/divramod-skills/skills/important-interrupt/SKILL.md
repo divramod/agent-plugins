@@ -23,7 +23,8 @@ question: the user is waiting for a quiet machine).
 
 Tells every live session by code, collects who paused, quiets the machine (`quiet.py apply --runner --yes`: builds
 and tests frozen, simulators, Ollama, timer LaunchAgents, Docker, the CI runner), stops the CI VMs and holds
-hal2-daemon so it cannot start them again, then rescans until the CPU is quiet. Kept: this session, its checkout and
+hal2-daemon so it cannot start them again, turns the workqueue's quiet mode on (`hal2-cli-workqueue quiet on`, recorded with its undo; a quiet the user set
+before stays; a missing CLI is reported, never fatal), then rescans until the CPU is quiet. Kept: this session, its checkout and
 the user's apps (Teams, Zoom, Chrome, terminals). A landing is never aborted: its processes are frozen in place and
 it is adopted again on continue.
 
@@ -32,7 +33,7 @@ terminal), and what still runs. Exit 4 means the CPU was not quiet in time: say 
 
 ## done
 
-Undoes the stop in reverse (machine first, hal2-daemon last, then the sessions get "continue"). Sessions that were
+Undoes the stop in reverse (the workqueue's quiet mode off first, so full CPU is back by default; the machine next, hal2-daemon last, then the sessions get "continue"). Sessions that were
 held before the interrupt (an earlier stop-all-agent-work or pause) stay as they were; an earlier stop stays in
 force. Exit 1 with one line when no interrupt is active. Relay its lines: who got the message, who is gone or failed.
 

@@ -24,6 +24,11 @@ Wiring.min_tick); the other duties keep their own crons. A tick on which only `w
 5. CI/CD health (ci_health.py, step 11, D12, D13): every runner of hal2-runners.toml checked each pass, a line only
    for a new problem (a queued job nobody serves, a pipeline host runner offline); a parked cloud machine with a
    queued job gets the supervisor's wake request at once.
+6. on the watched run's `workflow finished` (hal2 plan 0490 step 3, D6): the run's triage starts as
+   run_triage_wire.py's detached child, which waits for this pass's or round's tick lock, so it reads and plans
+   only after the chain of 4. has formed the next train, beside it; the pass goes on at once. The triages written
+   since are added last (run_triage_wire.pending: the orders, notes and the one wake of each), carried out in this
+   pass's or round's own execution; in smuggle mode only the start.
 
 A quiet pass imports only what it uses (plan 0480 D3): the orders, the chain, the wake and the trains module load when
 a pass has something to do for them (test_light_start bounds it).
@@ -60,8 +65,19 @@ def events(top: str, main: str, dry: bool, doc: dict | None = None, panes: dict 
     after a `job failed` the early or post-merge order or the wake, and the next train on a green merge job (3., 4.).
     `doc`: the queue's (read when needed); `panes`: the sessions' (a post-merge red with no train standing is told)."""
     fresh = watch_events.new(main, train_state.lines(main), dry)
-    return [act(KIND, e["kind"], "record", "-", key=e["key"], text=e["text"]) for e in fresh] + early(
-        top, main, fresh, doc, panes) + next_train(top, main, doc) + ci_health.check(top, main, None, dry)
+    slow = [act("trains", "slow-job", "wake", "-", key="wake-" + e["key"], text=e["text"]) for e in fresh
+            if e["kind"] == "slow-job"]  # L127: flagged at once, judged by the session (instructions/trains.md)
+    return [act(KIND, e["kind"], "record", "-", key=e["key"], text=e["text"]) for e in fresh] + slow + early(
+        top, main, fresh, doc, panes) + next_train(top, main, doc) + ci_health.check(top, main, None, dry) + triage(
+        top, main, fresh, dry, doc)
+
+
+def triage(top: str, main: str, fresh: list[dict], dry: bool, doc: dict | None = None) -> list[dict]:
+    """6.: the finished run's triage started (beside the pass, see 6.) and the triages' planned actions, last."""
+    import run_triage_wire as wire
+    planned = wire.pending(main)
+    return wire.started(top, main, fresh, watch_events.state(main), dry) + (
+        planned if planned and awake(main, doc) is not None else [])
 
 
 def awake(main: str, doc: dict | None) -> dict | None:

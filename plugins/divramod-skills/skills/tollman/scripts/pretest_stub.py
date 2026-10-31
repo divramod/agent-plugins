@@ -21,12 +21,17 @@ case "$1" in
   plan) shift; head=
     while [[ $# -gt 0 ]]; do [[ $1 != --head ]] || head=$2; shift 2; done
     echo "plan $head" >>"$here/calls"
+    if [[ -f "$here/plan-builds" ]]; then  # a range that needs the checkout's hal2-cli-git: a cold build
+      [[ -z ${HAL2_GATE_NO_BUILD-} ]] || { echo "gate: hal2-cli-git: the checkout's build is needed (the range changes the detection), not built (HAL2_GATE_NO_BUILD)" >&2; exit 3; }
+      sleep 30 & echo $! >"$here/plan-child"; wait
+    fi
     if [[ -f "$here/plan-hangs" ]]; then sleep 30 & echo $! >"$here/plan-child"; wait; fi
     f="$here/plan-$head"; [[ -f $f ]] || f="$here/plan"
     printf 'linux=%s\nlinux-a=[]\nstack=[]\nmacos=[]\n' "$(cat "$f")" ;;
   *) job=$1; echo "run $job" >>"$here/calls"; echo $$ >"$here/pid-$job"
     mkdir -p "$here/running"; touch "$here/running/$job"; ls "$here/running" | wc -l >>"$here/counts"
     echo "$HAL_CHANGED_PACKAGES|$HAL_GATE_BASE|$HAL_GATE_HEAD|$HAL2_GATE_NO_INSTALL" >"$here/env-$job"
+    echo "${CI-}|${GITHUB_ACTIONS-}|${CARGO_INCREMENTAL-}" >"$here/ci-$job"
     code=0; [[ ! -f "$here/job-$job" ]] || source "$here/job-$job"
     rm -f "$here/running/$job"; echo "$job done"; exit "$code" ;;
 esac
@@ -76,11 +81,12 @@ class Stub:
         return [c.split()[1] for c in self.calls() if c.startswith("run ")]
 
 
-def config(path: Path, jobs, budget=60, parallel=4, groups=None):
+def config(path: Path, jobs, budget=60, parallel=4, groups=None, plain=()):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"budget = {budget}\nparallel = {parallel}\n" + "".join(
         f'\n[[job]]\nname = "{j}"\nmedian = 20\nlocal = 18\n'
-        + (f'group = "{(groups or {})[j]}"\n' if j in (groups or {}) else "") for j in jobs))
+        + (f'group = "{(groups or {})[j]}"\n' if j in (groups or {}) else "")
+        + ("ci_env = false\n" if j in plain else "") for j in jobs))
     return path
 
 

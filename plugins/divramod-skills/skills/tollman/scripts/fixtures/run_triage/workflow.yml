@@ -1,0 +1,42 @@
+jobs:
+  a1-mac-host-hal2-a:
+  b1-az02-host-a:
+    needs: a1-mac-host-hal2-a
+  c2-az02-host-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a]
+  c3-hz01-host-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a]
+  c4-mac-vm-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a]
+  c1-mac-host-hal2-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a]
+  d1-az02-host-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, c2-az02-host-a, c3-hz01-host-b, c4-mac-vm-a, c1-mac-host-hal2-a]
+  d2-hz01-host-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, c2-az02-host-a, c3-hz01-host-b, c4-mac-vm-a, c1-mac-host-hal2-a]
+  e1-hz01-host-b:
+    needs: [b1-az02-host-a, d2-hz01-host-b]
+  e2-mac-host-hal2-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, c1-mac-host-hal2-a]
+  f2-mac-host-hal2-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, c1-mac-host-hal2-a, e2-mac-host-hal2-b]
+  f3-mac-host-hal2-c:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, c1-mac-host-hal2-a, e2-mac-host-hal2-b]
+  g1-mac-host-hal2-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, f2-mac-host-hal2-b, f3-mac-host-hal2-c]
+  h1-mac-host-hal2-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, f2-mac-host-hal2-b, f3-mac-host-hal2-c, g1-mac-host-hal2-b]
+  e3-mac-vm-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, c1-mac-host-hal2-a]
+  e6-hz01-host-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b]
+  e7-az02-host-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b]
+  f4-mac-vm-a:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, c1-mac-host-hal2-a, e3-mac-vm-a]
+  f1-hz01-host-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b, e1-hz01-host-b, e4-hz01-host-c, e5-hz01-host-b, e6-hz01-host-a]
+  e4-hz01-host-c:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d1-az02-host-a, d2-hz01-host-b]
+  e5-hz01-host-b:
+    needs: [a1-mac-host-hal2-a, b1-az02-host-a, d2-hz01-host-b]

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """A red stack-test after the merge (hal2 plan 0349 step 10, decisions D6, D11): stack-test runs beside the merge, so
 a train can land (its merge is green, status landed/nothing/shipping) while a job `.../stack-test` of the landing's
-result is red. The rule part, as code: the board gets a `red` line (status `stack-test`, the train's cars), and each
-car's foreman is told the failing tests as a fix for its next harvest. The train itself stays landed: nothing is
-unhitched, retried or broken up. `trains.settle` calls `actions` when it settles a landed train.
+result is red. The rule part, as code: the board gets a `red` line (status `stack-test`, the train's cars); who
+fixes it is the finished run's triage's (run_triage_wire.py, hal2 plan 0490 step 3, D13: a repeat is no car's, a
+build-phase timeout the pipeline field's, each failing spec its owner's, never the train's cars), so no car is told
+here. The train itself stays landed: nothing is unhitched, retried or broken up. `trains.settle` calls `actions`
+when it settles a landed train.
 
 The failing tests are what the red job carries: `tests` or `failed_tests` (a list or one string); a job without them
 is named with the run, so the foreman reads the job's log.
@@ -11,8 +13,9 @@ is named with the run, so the foreman reads the job's log.
 Since merge no longer waits for stack-test (plan 0349 step 4), the landing's result rarely holds it: it is mostly
 still running when the train settles. So `watch` reads the stack-test job of the newest landed train's land run
 itself (`gh run view <id> --json jobs`, the round's shared fetch, gh_runs), each round until it has ended, at most
-WATCH_HOURS after the landing: red (failure, cancelled, timed out), the same actions; anything else, one `record`
-line whose key ends the watch.
+WATCH_HOURS after the landing: red (failure, cancelled, timed out), the board line and a `run` that marks the run due
+for its triage (`run_triage_wire.py due`; the next 1-minute pass starts it); anything else, one `record` line whose
+key ends the watch. A run the 1-minute watch followed has its triage started already (`run-triage:<run>`).
 """
 
 import datetime as dt
@@ -68,23 +71,19 @@ def words(jobs: list[dict]) -> tuple[str, str]:
 
 
 def actions(top: str, train: dict, result: dict | None, panes: dict, after: str | None = None) -> list[dict]:
-    """[] unless the landed train's stack-test is red; else the board line and one `send` per car."""
+    """[] unless the landed train's stack-test is red; else the board line (D13: no car told; `panes` unused)."""
     jobs = red_jobs(result)
     if not jobs:
         return []
     name, cars, run = train["train"], [c["field"] for c in train["cars"]], (result or {}).get("run")
-    tests, what = words(jobs)
+    tests, _ = words(jobs)
     job = ", ".join(j["name"] for j in jobs)
     own, chain = Path(top).name, {"after": after} if after else {}
     board = [sys.executable, str(farmer_frame.SCRIPTS / "board.py"), "post", "--kind", "red", "--from", own,
              "--to", "-", "--train", name, "--cars", ",".join(cars), "--status", STACK, "--repo", top,
              "--text", f"train {name} is in the barn, but {job} is red: {tests}"] + (["--run", run] if run else [])
-    key = f"stack-red:{name}"
-    out = [act("trains", "stack-red", "run", "-", key=key, argv=board, text=f"train {name}: {job} is red after the merge",
-               **chain)]
-    text = TEXT.format(train=name, job=job, run=f" ({run})" if run else "", what=what, tests=tests)
-    return out + [act("trains", "stack-red-fix", "send", c, pane=panes.get(c), key=f"{key}:{c}", text=text, after=key)
-                  for c in cars]
+    return [act("trains", "stack-red", "run", "-", key=f"stack-red:{name}", argv=board,
+                text=f"train {name}: {job} is red after the merge; the run's triage orders its owners", **chain)]
 
 
 WATCH_HOURS = 6  # stack-test's own limit is 270 minutes; its run is read until it ends, at most this long
@@ -103,7 +102,7 @@ def stack_job(jobs: list[dict]) -> dict | None:
     return next((j for j in jobs if red_jobs({"red": [j]})), None)
 
 
-OWNED = ("post-order", "early-order", "train-red")  # the watch's keys of a run (post_merge.py): it settled the red
+OWNED = ("post-order", "early-order", "train-red", "run-triage")  # the watch's keys of a run: it settled the red
 
 
 def watch(top: str, main: str, rows: list[dict], panes: dict, log: list[dict], fetch=None,
@@ -132,6 +131,10 @@ def watch(top: str, main: str, rows: list[dict], panes: dict, log: list[dict], f
         return []
     train = {"train": name, "cars": [{"field": c} for c in row.get("cars") or []]}
     if job.get("conclusion") in RED:
-        return actions(top, train, {"red": [job], "run": row.get("run")}, panes)
+        argv = [sys.executable, str(Path(__file__).with_name("run_triage_wire.py")), "due", "--repo", top, "--run",
+                row.get("run") or "", "--train", name]
+        return actions(top, train, {"red": [job], "run": row.get("run")}, panes) + [
+            act("trains", "run-triage", "run", "-", key=f"run-triage:{rid}", argv=argv, after=f"stack-red:{name}",
+                text=f"train {name}: its land run {rid} is due for its triage")]
     return [act("trains", "stack-done", "record", "-", key=f"stack-done:{name}",
                 text=f"train {name}: {job.get('name')} ended {job.get('conclusion') or 'without a conclusion'}")]

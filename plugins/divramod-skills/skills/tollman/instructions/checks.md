@@ -51,4 +51,8 @@ A `gh` failure reads as busy: `unknown: gh failed`, and that round cancels and d
 |---|---|
 | a `checks` item | The act names the entry. Check with `checks list` and `checks busy --json`. A cancel or dispatch that failed is tried again at the next round (10-minute window); a deferral that never leaves (busy for hours) is a stuck landing: handle it as `mtm` says, and tell the session to run `ci-check --now` only when the user wants it |
 
+Without the `checks` duty in ROLE.md (`tollman.py checks busy --json` says `live: false`), ci-check dispatches at once and
+nothing defers: give a go only when no train is formed, pretesting or landing (`tollman.py train --dry-run` says "no train"
+and no land run is in progress), never promise the session a deferral (L123).
+
 Never: cancel a landing's or train's run, or a check with a started lane job; dispatch two checks in one round.

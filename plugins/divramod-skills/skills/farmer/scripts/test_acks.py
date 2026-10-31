@@ -60,6 +60,25 @@ class FollowUp(unittest.TestCase):
         self.assertEqual(tick.fresh([a], [{"at": at(1), "key": "ack-resend:12-1"}], NOW), [])
 
 
+class Stale(unittest.TestCase):
+    """L74 of the tollman (2026-10-21): acks of week-old messages (20-1, 27-1, 28-1, sent 2026-10-14 as wagon-master)
+    woke the session as new no-ack and refused items once their keys' week had run out."""
+
+    def test_a_week_old_instruction_refused_or_unanswered_never_wakes(self):
+        week = 7 * 24 * 60
+        refused = {"at": at(week - 5), "kind": "ack", "slot": "12", "what": "refused", "note": "x", "id": "12-1"}
+        self.assertEqual(plan([asked(week), refused]), [])
+        self.assertEqual(plan([asked(week)]), [], "no ack, a week old: no re-send, no wake")
+        fresh = dict(refused, at=at(30))
+        self.assertEqual(plan([asked(week), fresh]), [("wake", "refused", "12")], "a refusal of today still wakes")
+
+    def test_an_instruction_sent_under_a_retired_role_name_never_wakes(self):
+        old = {"at": at(30), **acks.ask_entry("20", "20-1", acks.stamp("wagon-master: fix it", "20-1", "wagon-master"),
+                                              "t:20", "tick")}
+        self.assertEqual(plan([old]), [])
+        self.assertEqual(plan([dict(old, text=acks.stamp("fix it", "20-1", "tollman"))]), [("send", "resend", "20")])
+
+
 class TickStamps(unittest.TestCase):
     def test_a_send_is_stamped_and_logged_before_it_is_typed(self):
         with tempfile.TemporaryDirectory() as d:

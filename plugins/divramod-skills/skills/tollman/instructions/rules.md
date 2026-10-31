@@ -40,16 +40,29 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
      the red names): the code sends its foreman the acked fix order while the run runs (`early_order.py`); a barn red
      is the tollman's own fix (`tollman.py order main`); a runner fault is rerun; any doubt wakes the session, which
      names the perpetrator and runs `tollman.py order <field> --why <job: error>`.
+     A red **step** of a job that still runs (`step failed: <job> <step>`, plan 0490 D25) is acted on at once:
+     triaged by its name, duration and runner (`run_triage_step.py`), its owner ordered in the same minute, to the
+     current train before the merge, to the next after it; the job's end orders nothing twice and rechecks it from
+     the job's log.
    - **merge green** (the job that moves `main`): the code pulls the new `main`, forms the next train on it and
      pretests it while the post-merge jobs still run, so it is ready the moment they end.
    - **workflow finished**: only now does the next run start, the red train's with its fixes or the next train's; one
-     land run runs at a time.
+     land run runs at a time. Triage the whole finished run, beside the next train, never before it: every red job
+     gets a fix order, a named wagon that already carries its fix, a board note, or `unsure` with what is missing
+     (the code does it: `run_triage_wire.py`, the triage's orders and notes run in the next pass; only `unsure` and
+     an unplaced red wake you, once per run).
 5. **A red train is fixed in place**: the culprit's foreman fixes on its branch (`<NN>-train-fix`) and answers
    `fixed <sha>`; the tollman merges the fix into the same train branch, pushes, and triggers the next run once the
    workflow is completely finished. Nothing leaves the train.
-6. **A red post-merge job** (after the merge: stack-test, a deploy) of a landed train never holds the next train: its
-   car's foreman is ordered by code (`order --post`), and the fix is merged into the train that stands, else the
-   foreman fixes it in its next harvest, before that train's run starts.
+6. **A red post-merge job** (after the merge: stack-test, a deploy, e*/f* jobs) of a landed train holds the next train
+   (the user, 2026-10-20, L37): a train is done only when its post-merge jobs are green. Its owner is ordered by code
+   (`order --post`): a car's red at once, while the run runs; a repeat of an earlier run's red, a build-phase timeout
+   or a failing spec by the finished run's triage, to the field that owns it, never the train's cars (D13 of plan
+   0490); the fix rides first as the next train's lead car, and that train's post-merge jobs must be green
+   before any further train departs. The code holds the push (`fix_wait.py`, D22): until each red of the run
+   before has its fix car or a named reason (`fix_wait.py reason --run <id> --why ...`); past its timeout a
+   `push-waits` wake, never a push. Forming and pretesting the next train early goes on; a red that names no car is a
+   board note for the farmer, never a hold.
 7. A ready wagon rides the next train: nothing waits for a train that could have formed.
 8. The yard (the main checkout) holds nothing the barn lacks that could ride a train.
 9. **The tollman owns CI/CD health** ("he's the responsible one for the CI/CD"). The same watch checks every runner of
@@ -78,6 +91,8 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
      │               │                   next train's run starts
  foreman fixes,      │                   (a post-merge red of the landed
  "fixed <sha>"       │                    train is fixed in this train first)
+     │               │                   beside it: the whole run triaged,
+     │               │                    each red job to its owner
      │               │
  tollman merges the fix into the SAME train branch
  (nothing leaves a train; the run restarts only after "workflow finished")

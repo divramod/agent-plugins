@@ -6,7 +6,8 @@ returns each round for a live landing, which it left alone before.
    one JSON line at its end only, ci_land.rs), so it is found by code: the newest run of a landing workflow
    (mtm_ci.runs_of) on the train's own branch `land/<land_ref>` (its `started` line's, train_branch.py, plan 0383;
    `land/<carrier>` for a train started before) created at or after the train's last `started` (a retry's fresh
-   commit gives a new run, and its new start leaves the old run behind). Once found it is noted as a `run` line of
+   commit gives a new run, and its new start leaves the old run behind), never a skipped one (the other landing
+   workflow's: its jobs skip by the setting, L134), those of the workflow `.hal/landing.toml` names first. Once found it is noted as a `run` line of
    train.jsonl (`watch.py run <url>`, an action), and later rounds read it from there (train_state.land_run).
    After a smuggle's pause (pause.py) the run is looked for again among those created since the pause began.
 2. Its jobs (`gh run view <id> --json jobs`, the round's shared fetch, gh_runs); the red ones by mtm_ci.red_jobs
@@ -31,7 +32,12 @@ import datetime as dt
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).resolve()
+
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+
+sys.path.insert(0, next(str(p / "scripts") for p in HERE.parents if (p / ".claude-plugin").is_dir()))
+import landing_workflow  # noqa: E402  (the skills unit's scripts/, plan 0423 D4: `.hal/landing.toml` is read there)
 import gh_runs
 import mtm_ci
 import mtm_scan
@@ -40,7 +46,16 @@ import train_branch
 import train_state
 from tick import act
 
-HERE = Path(__file__).resolve()
+
+def of_setting(main: str, runs: list[dict]) -> list[dict]:
+    """`runs` with those of the workflow `.hal/landing.toml` names (`HAL2_LAND_WORKFLOW` beats it) first, the order
+    kept otherwise; with no setting, unchanged. Each run of `mtm_ci.runs_of` carries its workflow file (`path`, plan
+    0480's one runs list): no gh call."""
+    choice = landing_workflow.setting(main)
+    if not choice:
+        return runs
+    ours = f".github/workflows/{landing_workflow.order(choice)[0]}"
+    return sorted(runs, key=lambda r: r.get("path") != ours)
 
 
 def find(main: str, train: dict | None, rows: list[dict]) -> tuple[str | None, bool]:
@@ -51,8 +66,10 @@ def find(main: str, train: dict | None, rows: list[dict]) -> tuple[str | None, b
         return cached, False
     since = mtm_ci.started({"createdAt": train.get("since") or train["started"]})  # after a pause: the newer run
     branch = train_branch.land(train)
-    hit = next((r for r in mtm_ci.runs_of(mtm_scan.run_json, main)
-                if r.get("headBranch") == branch and mtm_ci.started(r) >= since), None)
+    # a run GitHub skipped (the other landing workflow's: its jobs skip by the setting) is never followed (L134)
+    ours = [r for r in mtm_ci.runs_of(mtm_scan.run_json, main) if r.get("headBranch") == branch
+            and mtm_ci.started(r) >= since and r.get("conclusion") != "skipped"]
+    hit = next(iter(of_setting(main, ours)), None)
     return (hit.get("url") or str(hit.get("databaseId")), True) if hit else (None, False)
 
 

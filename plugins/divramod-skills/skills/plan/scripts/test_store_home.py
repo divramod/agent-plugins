@@ -42,6 +42,7 @@ UAT = HERE.parents[1] / "user-acceptance-tests" / "scripts" / "uat.py"
 
 
 @unittest.skipUnless(DEBUG, "no hal2-cli-plans with the store home (cargo build -p hal2-cli-plans)")
+@unittest.skipUnless((HANDOFF / "where.py").is_file(), "no handoff skill beside this one (test_field_independent's copy)")
 class StoreHome(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="plan-store-home-"))

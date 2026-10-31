@@ -418,10 +418,11 @@ def snapshot(repo: str, hours: float, fetch: bool = True, role: str = roles.ROLE
             "waits_for": t.get("waits_for"),  # leaving: it ended and stays held until its worktree's runs have
             "active_seconds": int(now - (landing_start(t.get("landing")) or now)),
         })
+    import field_root  # only the scan needs it: a quiet tollman pass stays light (plan 0480 D3)
     own = run(["git", "rev-parse", "--show-toplevel"], repo).strip()
     # hal2's own checkouts (.deliver, .bench) and every role's field (the caller's own, the farmer's, ...) are left out
     listed = [w for w in worktrees(main) if not Path(w["path"]).name.startswith(".") and w["path"] != own
-              and not roles.role_of(Path(w["path"]).name)]
+              and not roles.role_of(Path(w["path"]).name) and field_root.is_field(w, main)]  # L89, L96
     if fetch:
         fetch_leads(main, [w["path"] for w in listed])
     unknown = {"state": live_sessions.UNKNOWN}
@@ -452,6 +453,17 @@ def state_dir(main: str, role: str = roles.ROLE) -> Path:
 LOG_FIELDS = ("kind", "slot", "what", "note")
 
 
+def log_time(text: str) -> dt.datetime:
+    """A role log's `at` as naive local wall time (plan 0515 D1): the writers stamp `datetime.now()`, naive local; a
+    zoned stamp (`+00:00`, `Z`, hand-written) is converted to local time and its zone dropped. ValueError on garbage."""
+    return naive(dt.datetime.fromisoformat(str(text).replace("Z", "+00:00")))
+
+
+def naive(t: dt.datetime) -> dt.datetime:
+    """`t` as naive local wall time (an aware `now`, as some callers pass, compares with `log_time` values)."""
+    return t.astimezone().replace(tzinfo=None) if t.tzinfo else t
+
+
 def entries(path: Path) -> list[dict]:
     """The log's entries, tolerant of old or hand-written ones: an unreadable line or one without `at` is skipped,
     a missing kind, slot, what or note reads as "" (plan 0137: one entry without `note` crashed every tick)."""
@@ -459,7 +471,7 @@ def entries(path: Path) -> list[dict]:
     for line in path.read_text().splitlines() if path.exists() else []:
         try:
             e = json.loads(line)
-            dt.datetime.fromisoformat(e["at"])
+            log_time(e["at"])
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             continue
         out.append({**{k: "" for k in LOG_FIELDS}, **{k: v for k, v in e.items() if v is not None}})
@@ -532,7 +544,7 @@ def summary_dir(main: str, role: str = roles.ROLE) -> Path:
 
 
 def actions_since(main: str, since: float, role: str = roles.ROLE) -> list[dict]:
-    return [e for e in entries(state_dir(main, role) / "log.jsonl") if dt.datetime.fromisoformat(e["at"]).timestamp() >= since]
+    return [e for e in entries(state_dir(main, role) / "log.jsonl") if log_time(e["at"]).timestamp() >= since]
 
 
 def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes: str, lead: str = "",
@@ -664,7 +676,7 @@ def main(argv: list[str]) -> int:
     elif args.cmd == "status":
         d = state_dir(main_dir, role)
         cutoff = dt.datetime.now() - dt.timedelta(hours=6)
-        recent = [e for e in entries(d / "log.jsonl") if dt.datetime.fromisoformat(e["at"]) >= cutoff]
+        recent = [e for e in entries(d / "log.jsonl") if log_time(e["at"]) >= cutoff]
         last = d / "last-scan.json"
         status = {
             "priority": json.loads((d / "priority.json").read_text()) if (d / "priority.json").exists() else None,

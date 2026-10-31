@@ -19,6 +19,7 @@ from pathlib import Path
 
 import farmer_frame
 from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
+import boss_quiet
 import mtm_scan
 import transplant_mark
 from tick import act
@@ -54,7 +55,7 @@ TEXT = {
 
 
 def when(entry: dict) -> dt.datetime:
-    return dt.datetime.fromisoformat(entry["at"])
+    return mtm_scan.log_time(entry["at"])
 
 
 def role_of(ctx: dict) -> str:
@@ -187,8 +188,8 @@ class Planner:
                      text=f"disable the load-flaky test {test}: a brief in the farmer's delegation ledger",
                      on_fail=[fail])
         else:
-            self.add("flaky", "wake", f["slot"], REWAKE, key=f"flaky:{test}", text=f"flaky or real? {f['why']}",
-                     evidence=f)
+            self.add("flaky", "wake", f["slot"], boss_quiet.FLAKY_CLOSED, key=boss_quiet.flaky_key(test, f["slot"]),
+                     text=f"flaky or real? {f['why']}", evidence=f)  # closed until it fails in a new field (L94)
 
     def subservant(self, f: dict) -> None:
         """A parallel plan's servant (plans/LEAD) never lands: its merge-queue ticket wakes the tollman, the
@@ -219,8 +220,8 @@ class Planner:
         once instead (`stale_transplant`)."""
         slot, w = f["slot"], self.wt.get(f["slot"], {})
         lead = w.get("lead") or f.get("lead")
-        if lead and not w.get("missing"):
-            return
+        if (lead and not w.get("missing")) or slot in boss_quiet.skipped(self.ctx["main"], role_of(self.ctx)):
+            return  # a skip-listed field (L78) is never woken for
         mark = transplant_mark.of(slot, w.get("path", ""), self.ctx.get("transplants", []), self.now)
         if mark:
             self.stale_transplant(mark)
@@ -255,9 +256,14 @@ class Planner:
 
     def work_not_queued(self, f: dict) -> None:
         """One wake per state, not per hour (hal2 plan 0333 step 5): keyed by field, commits and plan for a day, and
-        none at all for a field that refused (it waits on the user) while it has no new commit."""
+        none at all for a field that refused (it waits on the user) while it has no new commit; a research plan with
+        a manual landing only a record line (L43, boss_quiet)."""
         ahead, plan = self.state_of(f)
         if self.refused_at(f["slot"], ahead):
+            return
+        if boss_quiet.research_manual(self.wt.get(f["slot"], {}).get("path", ""), plan, planread.plan_dir):  # L43
+            self.add("research-waits", "record", f["slot"], STATE_WAKE, key=f"research-waits:{f['slot']}:{plan}",
+                     text=f"{f['why']}: a research plan with a manual landing, no wake")
             return
         self.add(f["kind"], "wake", f["slot"], STATE_WAKE, key=f"work-not-queued:{f['slot']}:{ahead}:{plan}",
                  text=f["why"], evidence=f)

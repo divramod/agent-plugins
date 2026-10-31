@@ -292,12 +292,21 @@ class Proof(Crops):
         self.assertTrue(told["text"].endswith("Fix it, push and report it ready again (`hal2-cli-git worktree "
                                               "queue ready`)."), told["text"])
 
-    def test_a_clean_car_rides_and_one_not_at_its_hitched_head_waits(self):
+    def test_a_car_not_at_its_hitched_head_is_proven_on_its_hitched_sha(self):
+        # plan 0490 row 23, D24: a field that committed on after its hitch rides, proven on the hitched sha in the
+        # scratch worktree; before, it waited ("no proof yet: the field is at ...") and rode no train
         q = self.queue(**{"07": {"plans/0301-x/notes.md": "the worktree's pane\n"}, "09": {"nine.rs": "9\n"}})
         d = self.draft(q)  # the checkout is at 09's head: 07's field moved on
-        self.assertEqual((self.cars(d), d["unhitched"]), (["09"], []))
-        self.assertEqual(d["waiting"][0]["field"], "07")
-        self.assertTrue(d["waiting"][0]["why"].startswith("no proof yet: the field is at "), d["waiting"])
+        self.assertEqual((self.cars(d), d["unhitched"], d["waiting"]), (["07", "09"], [], []))
+        self.assertEqual(self.g("rev-parse", "HEAD"), q[1]["ready"]["head"], "the field's checkout is never changed")
+
+    def test_a_moved_on_car_whose_hitched_sha_has_a_finding_is_unhitched(self):
+        notes = f"plans/{self.PLAN}/notes.md"  # an open plan: its prose is checked
+        q = self.queue(**{"07": {notes: "the slot's pane\n"}, "09": {"nine.rs": "9\n"}})
+        d = self.draft(q)  # the checkout is at 09's head: the finding is on 07's hitched sha only
+        self.assertEqual(self.cars(d), ["09"])
+        (u,) = d["unhitched"]
+        self.assertEqual((u["field"], u["tell"], u["lines"]), ("07", "proof", [f"names: {notes}:1: slot — use worktree"]))
 
 
 TRAIN = {"train": "07+09@" + AT, "carrier": "tollman-hal2", "base": "b" * 40, "state": "landing", "starts": 1,
@@ -548,9 +557,11 @@ class State(unittest.TestCase):
         self.assertRegex(train_state.utc(naive), r"^2026-10-1[234]T\d\d:\d\d:05Z$")
         aware = tick.dt.datetime(2026, 10, 13, 12, 0, 5, tzinfo=tick.dt.timezone(tick.dt.timedelta(hours=2)))
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
-        self.assertEqual(json.loads(json.dumps(train_state.KINDS)),
-                         ["formed", "yard", "regenerated", "pretest", "started", "run", "red", "order", "fixed", "pause",
-                          "resumed", "retry", "unhitched", "barn", "landed", "cleared"])
+        kinds = ["formed", "yard", "regenerated", "joined", "declined", "pretest", "started", "run", "red", "order",
+                 "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared"]
+        self.assertEqual(json.loads(json.dumps(train_state.KINDS)), kinds)
+        schema = json.loads((Path(__file__).resolve().parent.parent / "schemas/train.schema.json").read_text())
+        self.assertEqual(schema["properties"]["kind"]["enum"], kinds, "the schema names every kind train_state writes")
 
 
 if __name__ == "__main__":

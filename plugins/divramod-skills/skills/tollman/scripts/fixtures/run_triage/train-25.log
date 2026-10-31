@@ -1,0 +1,43 @@
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:46:24.6818691Z [06] 🎬 21:46:24
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:56:59.4479590Z [21:56:59] phase build: failed after 600s (exit 124)
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:00.6788370Z [21:57:00] phase up: failed after 630s (exit 124)
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:00.6881346Z gate: unit hal2-hub: failed 
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:00.6881700Z gate: unit hal2-daemon: failed 
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:01.7888447Z ##[error]gate: stack-test: hub-e2e failed
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:01.7912950Z [06] 💥 21:57:01 ⏳ 00:10:37 (exit 1)
+d1-01-stack-test	[06] gate stack-test hub-e2e	2026-10-29T21:57:01.7918060Z ##[error]Process completed with exit code 1.
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T21:57:05.0081140Z [07] 🎬 21:57:05
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.2516553Z [22:10:47] phase build: failed after 601s (exit 124)
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.2840560Z [22:10:47] phase up: failed after 611s (exit 124)
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.6676605Z gate: unit hal2-web: failed 12m34s
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.7051111Z ##[error]gate: stack-test: web-e2e failed
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.7756560Z [07] 💥 22:10:47 ⏳ 00:13:42 (exit 1)
+d1-01-stack-test	[07] gate stack-test web-e2e	2026-10-29T22:10:47.7827629Z ##[error]Process completed with exit code 1.
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T22:37:17.8147540Z [13] 🎬 22:37:17
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T22:57:50.5532555Z   ✘  297 [electron] › e2e/electron/ocr.spec.ts:96:1 › the fake model moves to the second location, done only when its task is (31.7s)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T22:57:50.5551076Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/ocr.spec.ts › the fake model moves to the second location, done only when its task is
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:00:26.2905764Z   ✘  400 [electron] › e2e/electron/typing-results.spec.ts:106:1 › F38 results keys: Again (⌘R), Next Lesson (Return), Back (Esc) (31.5s)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:00:26.2907178Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/typing-results.spec.ts › F38 results keys: Again (⌘R), Next Lesson (Return), Back (Esc)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:00:26.2907969Z   Error: expect(locator).toBeVisible() failed
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:00:26.2909948Z   Error: element(s) not found
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:03:40.7789383Z   ✘  463 [electron] › e2e/electron/workqueue.spec.ts:158:1 › the Runners view lists the fake runners and Stop reaches the node (32.8s)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:03:40.7790840Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/workqueue.spec.ts › the Runners view lists the fake runners and Stop reaches the node
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:03:40.7791921Z   Error: expect(locator).toBeVisible() failed
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:03:40.7793996Z   Error: element(s) not found
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:04:08.7877598Z   ✘  464 [electron] › e2e/electron/workqueue.spec.ts:199:1 › WorkViewFirstContent and WorkHistoryPage (27.0s)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:04:08.7879135Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/workqueue.spec.ts › WorkViewFirstContent and WorkHistoryPage
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:04:08.7880704Z   Error: WorkViewFirstContent: n=5 p50=2286.6 p95=2635.2 ms, budget 500 ms x 2 = 1000 ms (busy: load 5 on 4 cores, median held)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:07:17.8933693Z ##[error]gate: stack-test: desktop-e2e failed
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:07:17.9120337Z [13] 💥 23:07:17 ⏳ 00:30:00 (exit 1)
+d1-01-stack-test	[13] gate stack-test desktop-e2e	2026-10-29T23:07:18.0643115Z ##[error]Process completed with exit code 1.
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:56.9520885Z Runner name: 'x64_vps_hetzner_ccx33_01_linux-ubuntu_26.04_host_b'
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:57.6177223Z [01] 🎬 21:46:57
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:57.6444049Z [02] 🎬 21:46:57
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:57.8834149Z [03] 🎬 21:46:57
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:58.4386029Z !! the user data is over 32 KiB
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:58.4429706Z [03] 💥 21:46:58 ⏳ 00:00:01 (exit 1)
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T21:46:58.4443811Z ##[error]Process completed with exit code 1.
+e4-01-hub-deploy	[02] stack-test green	2026-10-29T23:09:15.0040882Z [02] 🎬 23:09:15
+e4-01-hub-deploy	[02] stack-test green	2026-10-29T23:09:15.0068847Z ##[error]hub not deployed: stack-test failure; rerun after it is green
+e4-01-hub-deploy	[02] stack-test green	2026-10-29T23:09:15.0084992Z [02] 💥 23:09:15 ⏳ 00:00:01 (exit 1)
+e4-01-hub-deploy	[02] stack-test green	2026-10-29T23:09:15.0091845Z ##[error]Process completed with exit code 1.

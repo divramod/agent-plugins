@@ -11,12 +11,16 @@ POSIX only, like engine.spawn: its processes run in groups of their own (pretest
 
 The config: `budget` (seconds for the whole pretest, default 150), `parallel` (jobs at once, default 4) and one
 `[[job]]` per job with its `name` and, optional, its `group`: the jobs of one group run one after another, never
-side by side (the TypeScript jobs' `bun install` in one checkout). `median` and `local`, the measured seconds, are
+side by side (the TypeScript jobs' `bun install` in one checkout), and `ci_env = false`: the job runs without the
+runner's environment (pretest_jobs.CI_ENV, plan 0490 step 9). `median` and `local`, the measured seconds, are
 only read by people. No file, or no `[[job]]`: no pretest (`none`).
 
 The selection is CI's: one `gate plan` over the merge base of the barn and HEAD .. HEAD (the same
 `hal2-cli-git changes --keys` call merge-to-main.yml's `changes` makes) names the jobs the range needs and each job's
-content key; a configured job it does not select is `not needed`, one `gate list` does not know is `skipped`. A job
+content key; a configured job it does not select is `not needed`, one `gate list` does not know is `skipped`. The plan
+builds nothing (HAL2_GATE_NO_BUILD, plan 0490 step 17): a range that needs the checkout's own hal2-cli-git (it
+changes the change detection) would build it cold in the train's new field, past the budget, so the pretest ends
+`skipped` at once with that reason (NO_BUILD); the train's local phase builds nothing (plan 0467 D21, D29). A job
 runs as CI's gate action runs it, but installs nothing (pretest_jobs.py). Its cache is the gate's green marker,
 Mac-local (pretest_markers.py): a job whose marker is there is `cached` and not run (a local green never skips CI's
 job, D75); a field with changed tracked files writes no marker.
@@ -25,7 +29,7 @@ At most `parallel` jobs at once; the whole pretest within `budget`: a job still 
 (its process group) and `skipped`, as is one not yet started; a job whose output says a tool is missing, or that a
 signal from outside ended, is `skipped`; any other failure is red. The first red stops: no job starts after it, the
 running ones are killed (`skipped`). The result: `red`; `skipped` (a job was not decided, `gate list` or `plan` did
-not answer, or a job changed tracked files: merge-to-main would refuse the tree); `green` (every needed job cached or
+not answer, the plan needs a build, or a job changed tracked files: merge-to-main would refuse the tree); `green` (every needed job cached or
 green); `none`.
 
 Exit 0 green, skipped or none; 1 red; 2 usage.
@@ -53,6 +57,11 @@ from tick import default_ref
 CONFIG = ".github/hal2-pretest.toml"
 GATE = "code/bash/scripts/gate/main.sh"
 LANES = ("linux", "stack", "macos")  # gate plan's full lists; the others are cuts of them
+NO_BUILD = 3  # gate's exit when HAL2_GATE_NO_BUILD keeps it from building the checkout's hal2-cli-git
+
+
+class NoBuild(RuntimeError):
+    """`gate plan` needs a build the pretest does not make: no verdict, at once."""
 
 
 def read_config(path: Path) -> tuple[dict | None, str]:
@@ -63,10 +72,11 @@ def read_config(path: Path) -> tuple[dict | None, str]:
         raw = tomllib.loads(path.read_text())
         jobs = [str(j["name"]) for j in raw.get("job", [])]
         groups = {str(j["name"]): str(j["group"]) for j in raw.get("job", []) if j.get("group")}
+        plain = {str(j["name"]) for j in raw.get("job", []) if j.get("ci_env", True) is False}
         if not jobs:
             return None, f"no [[job]] in {path.name}"
         budget, parallel = float(raw.get("budget", 150)), max(1, int(raw.get("parallel", 4)))
-        return {"budget": budget, "parallel": parallel, "jobs": jobs, "groups": groups}, ""
+        return {"budget": budget, "parallel": parallel, "jobs": jobs, "groups": groups, "plain": plain}, ""
     except (tomllib.TOMLDecodeError, KeyError, TypeError, ValueError) as e:
         return None, f"{path.name} does not read: {e}"
 
@@ -94,9 +104,13 @@ def gate_jobs(top: str, gate: Path, timeout: float) -> set[str]:
 
 
 def plan(top: str, gate: Path, base: str, head: str, timeout: float, salt: str = "") -> dict[str, dict]:
-    """The jobs `gate plan` selects for base..head, each its entry ({job, key, packages, targets, ...})."""
+    """The jobs `gate plan` selects for base..head, each its entry ({job, key, packages, targets, ...}); NoBuild when
+    the plan would build the checkout's hal2-cli-git (the module doc)."""
     code, out, err = pretest_jobs.call(["bash", str(gate), "plan", "--base", base, "--head", head, "--salt", salt],
-                                       top, timeout)
+                                       top, timeout, {"HAL2_GATE_NO_BUILD": "1"})
+    if code == NO_BUILD:
+        said = next((x for x in err.splitlines() if "HAL2_GATE_NO_BUILD" in x), "").removeprefix("gate: ")
+        raise NoBuild(f"{said or 'gate plan needs a build'}: the train's local phase builds nothing, CI's plan decides")
     if code:
         raise RuntimeError(f"gate plan ended {code}: {(err or out).strip()[-300:]}")
     chosen = {}
@@ -108,9 +122,10 @@ def plan(top: str, gate: Path, base: str, head: str, timeout: float, salt: str =
 
 
 def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None = None, gate: Path | None = None,
-            progress: dict | None = None) -> dict:
+            progress: dict | None = None, only: set[str] | None = None) -> dict:
     """The pretest of the field `top`'s HEAD (the module doc), its markers below `state`: {result, seconds, jobs, why,
-    log, base, head}; the jobs' output in `log`, rewritten. `progress["red"]` names a red job as soon as one is."""
+    log, base, head}; the jobs' output in `log`, rewritten. `progress["red"]` names a red job as soon as one is.
+    `only`: the jobs that may run, the others `not needed` (a car that joined an open train: open_train.check)."""
     began, gate = time.monotonic(), gate or Path(top) / GATE
     cfg, why = read_config(config or Path(top) / CONFIG)
     head = git(top, "rev-parse", "HEAD")
@@ -122,6 +137,9 @@ def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None
         try:
             known = gate_jobs(top, gate, max(1.0, deadline - time.monotonic()))
             chosen = plan(top, gate, base, head, max(1.0, deadline - time.monotonic()), salt())
+            chosen = {j: e for j, e in chosen.items() if only is None or j in only}
+        except NoBuild as e:
+            done.update(result="skipped", why=str(e)[:300])
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
             done.update(result="skipped", why=f"the gate did not answer: {e}"[:300])
         else:
@@ -144,8 +162,9 @@ def judge(top: str, gate: Path, state: Path, cfg: dict, known: set[str], chosen:
     for r in rows if clean and not changed else []:
         if r["state"] == "run" and r["result"] == "green":
             markers.mark(green, r["job"], r["key"])
+    mac = next((f"{r['job']}: {r['why']}" for r in rows if (r["why"] or "").startswith(pretest_jobs.MAC)), "")
     why = (f"a job changed tracked files ({', '.join(changed[:5])}): merge-to-main would refuse the tree"
-           if changed else "")
+           if changed else mac)
     return {"rows": rows, "why": why, "jobs": [{k: v for k, v in r.items() if k != "text"} for r in rows],
             "result": "red" if red else "skipped" if changed or any(r["state"] == "skipped" for r in rows) else "green"}
 
@@ -165,7 +184,7 @@ def run_needed(top: str, gate: Path, cfg: dict, known: set[str], chosen: dict, g
             rows[job] = {"job": job, "key": entry["key"], "state": "cached", "seconds": 0, "result": "green",
                          "why": "green before with this content"}
         else:
-            todo.append(entry)
+            todo.append({**entry, "plain": True} if job in cfg.get("plain", ()) else entry)
     with tempfile.TemporaryDirectory(prefix="pretest-") as scratch:
         for row in pretest_jobs.run_jobs(top, gate, todo, base, head, deadline, cfg["parallel"], Path(scratch),
                                          cfg.get("groups"), progress):

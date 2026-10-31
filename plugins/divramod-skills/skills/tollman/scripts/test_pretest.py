@@ -118,6 +118,20 @@ class Pretest(FieldCase):
         code, r = dry(own=True)
         self.assertEqual((code, self.marked()), (0, ["gate-python-lint-k-python-lint"]))
 
+    def test_a_plan_that_needs_a_build_ends_skipped_at_once(self):
+        """Plan 0490 step 17: a range that changes the change detection needs the checkout's hal2-cli-git, a cold
+        build in the train's new field (14 of 15 recorded `gate plan` timeouts, 180 s each): the plan builds nothing
+        (HAL2_GATE_NO_BUILD), the pretest is skipped within seconds with that reason and runs no job."""
+        (self.stub.dir / "plan-builds").touch()
+        began = time.monotonic()
+        r = self.run_it(["python-lint", "bash-lint"], budget=60)
+        self.assertLess(time.monotonic() - began, 10, "no build, no waiting for the budget")
+        self.assertEqual((r["result"], r["jobs"], self.stub.ran()), ("skipped", [], []))
+        self.assertIn("the checkout's build is needed (the range changes the detection), not built", r["why"])
+        self.assertIn("the train's local phase builds nothing", r["why"])
+        self.assertIn("pretest of ", self.log.read_text())
+        self.assertFalse((self.stub.dir / "plan-child").exists(), "the plan started no build")
+
 
 if __name__ == "__main__":
     unittest.main()

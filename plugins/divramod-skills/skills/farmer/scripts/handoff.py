@@ -124,7 +124,7 @@ def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> s
         return f"{f} is missing: write it first"
     written = dt.datetime.fromtimestamp(f.stat().st_mtime)
     pending = wake.read(main, wiring).get("handoff")
-    since = dt.datetime.fromisoformat(pending["at"]) if pending else now - wake.HANDOFF_TIMEOUT
+    since = mtm_scan.log_time(pending["at"]) if pending else now - wake.HANDOFF_TIMEOUT
     return None if written >= since else f"{f} is older than this handoff ({since:%H:%M}): write it first"
 
 

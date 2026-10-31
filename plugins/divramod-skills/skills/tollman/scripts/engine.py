@@ -17,11 +17,9 @@ its `run` actions; none waits for CI.
       generated files takes the barn's side, and the train's last commit writes them again (generated.py, plan 0313
       step 8; a command that fails undoes the forming too)
   engine.py restart [--repo <field>]
-      mark the train (`hal2-cli-git worktree queue train`), then start its landing detached (`land`, which stamps
-      its own pid on the mark: `queue train <carrier> --pid`, so the tollman's sleep stops it, D2), its output in
-      train-landing.log, its pid in the state; also after an interrupted landing (the rerun adopts the run) and
-      after the session's `retry`, which first gives the field one empty commit: a new candidate, a fresh run; for a
-      train formed but never started (its form died) first the cars the field lacks (frozen.complete): the same train
+      under the hold (hold.py, read again: L88) nothing; else mark the train (`queue train`), start its landing
+      detached (`land` stamps its pid on the mark, D2; output train-landing.log); also after an interrupted landing,
+      the session's `retry` (one empty commit: a fresh run) and a train never started (frozen.complete first)
   engine.py land [--land-ref <train-...>] [--repo <field>]
       the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
       `pretest_red` and no landing starts), then the wait until the land run before has finished and the answered
@@ -30,9 +28,8 @@ its `run` actions; none waits for CI.
       `restart` names it). It stays that landing's parent until it ends, because a merge-to-main whose starter is
       gone ends `interrupted`
   engine.py landed [--run <url>] [--commit <sha>] [--repo <field>]
-      the train is in the barn: the field fast-forwarded to it, the CURRENT_PLAN pointer gone; the files the yard's
-      car carried leave the yard where they are still the same, and the yard is fast-forwarded (yard.settle); in a
-      farm whose plans live in its store, its sync trigger (`sync --if-due landing`, the plan skill's planread.py)
+      the train is in the barn: the field fast-forwarded, CURRENT_PLAN gone (its worktree dropped later, L135); the
+      yard's carried files dropped where still the same, the yard fast-forwarded; a store farm's `sync --if-due landing`
   engine.py red --status <status> [--run <url>] [--why <text>] [--repo <field>]
       the landing did not land; the train waits, frozen, for its fix or the session's `retry` (no wait limit, D7)
   engine.py breakup --why <text> [--by-user] [--repo <field>]
@@ -56,6 +53,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import bounded
 import frozen
 import generated
+import hold
 import mirror
 import mtm_scan
 import next_train
@@ -159,6 +157,8 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
         return 1, gone if train else "no train stands: nothing to land"
     if train["state"] == "landing" and train_state.alive(train["pid"]):
         return 0, f"train {train['train']}: its landing runs (pid {train['pid']})"
+    if held := hold.of(main):  # L88: read again right before the start, never the round's earlier reading
+        return 0, f"train {train['train']} not started: {hold.text(held)}"
     code, commit = fresh(top, train) if train["state"] == "retry" and not train["fixed"] else (0, None)  # a fix merged
     if code:
         return 1, f"train {train['train']} was not retried: {commit[-300:]}"
@@ -205,7 +205,7 @@ def land(top: str, ref: str | None = None) -> int:
         if pretest_train.before_landing(top):
             return 1
     next_train.before_push(top)
-    return subprocess.run(argv, cwd=top).returncode
+    return hold.stops(top) or subprocess.run(argv, cwd=top).returncode  # L88: the hold's last look
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
@@ -219,7 +219,7 @@ def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.
     train_state.append(main, "landed", field, now, train=train["train"], cars=[c["field"] for c in train["cars"]],
                        run=run, commit=commit, yard=home)
     behind = f"; {field} did not fast-forward: {out[-200:]}" if code else ""
-    behind += f"; {train_wt.drop(top)[1]}" if train_wt.is_train(field) else ""  # in the barn: nothing of it is lost
+    # its worktree stays until the next train formed: the chain's end drops it detached (train_wt.later, L135)
     if home:
         behind += (f"; the yard: {len(home['dropped'])} carried files dropped, {len(home['kept'])} kept, "
                    + ("fast-forwarded" if home["pulled"] else f"not fast-forwarded ({home['why']})"))
@@ -231,8 +231,8 @@ def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.
 
 def red(top: str, status: str, run: str | None = None, why: str = "", now: dt.datetime | None = None) -> Done:
     main, field, train, _ = here(top)
-    if not train:
-        return 0, "no train stands"
+    if not train or train["state"] != "landing":  # `fixed` wrote it already (L108): never a second red line
+        return 0, f"no landing train stands ({(train or {}).get('state', 'none')})"
     train_state.append(main, "red", field, now, train=train["train"], status=status, run=run, why=why)
     return 0, f"train {train['train']} is red ({status}): frozen, it waits for its fix or `retry` (plan 0360 D3, D7)"
 

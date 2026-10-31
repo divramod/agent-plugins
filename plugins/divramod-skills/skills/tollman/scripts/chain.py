@@ -9,6 +9,8 @@ the link in the log. The chain goes on only while a link ran `landed` or `breaku
 at a wait: nothing to do (nothing ready, a held place, a train that stands), a landing started (`form`,
 `restart`), a run that failed (its `on_fail` woke the session); and after MAX_LINKS links, where the next round goes
 on. Its wakes, relays and notices go to wake.json as a round's do (`wake.hand_over`).
+Only after its links, the next train formed, the worktrees of the trains before are dropped, detached (train_wt.later,
+L135: a landed train's `git worktree remove` inside the round held the next train back 6+ min).
 
 Who calls it: the user's `tollman.py unhitch --by-user` of a red train's car (plan 0360 D3; breakup, the split
 tells and the next form in the same call) and the round that finds a train landed (`trains.settle`'s `chain` action after `landed`:
@@ -25,6 +27,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import role_cli
 import tick
+import train_wt
 import wake
 
 MAX_LINKS = 3
@@ -86,7 +89,7 @@ def go(top: str, wiring, handler, links: int = MAX_LINKS, now: dt.datetime | Non
     items = sum(len(out.get(k, [])) for k in wake.KINDS)
     if items:
         wake.hand_over(top, main, out, now or dt.datetime.now(), wiring)
-    return {"links": steps, "why": why, "items": items}
+    return {"links": steps, "why": why, "items": items, "dropping": train_wt.later(top)}  # after the form (L135)
 
 
 @contextmanager
@@ -118,4 +121,5 @@ def report(r: dict) -> tuple[int, str]:
     lines = [f"chain link {n}: " + (", ".join(f"{k} {s}" + (f" (exit {e})" if e else "") for k, _, s, e in steps)
                                     or "nothing") for n, steps in enumerate(r["links"], 1)]
     lines.append(f"chain stops: {r['why']}" + (f"; {r['items']} items for the session (act)" if r["items"] else ""))
+    lines += [f"train worktrees {r['dropping']}"] if r.get("dropping") else []
     return 0, "\n".join(lines)

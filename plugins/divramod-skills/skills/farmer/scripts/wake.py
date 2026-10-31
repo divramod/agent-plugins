@@ -4,7 +4,7 @@ A round's items that need the model, `wake` (judgment), `relay` (a templated mes
 verbatim with SendMessage), `notify` (a notice for the user, pushed batched) and the delegations that could not be
 placed (`delegate-failed`), go into `wake.json` of the state folder (`roles/farmer/` of the farmer's worktree):
 
-  {"woken_at": <iso or null>, "items": [{"seq": n, "duty", "kind", "slot", "do", "text", "evidence"?, "brief"?,
+  {"woken_at": <iso or null>, "items": [{"seq": n, "duty", "kind", "slot", "do", "text", "evidence"?, "brief"?, "to"?,
                                          "instructions": <the file to read for this kind>}, ...]}
 
 Items accumulate until the session handles them (`farmer.py wake --done <seq>` drops every item up to `seq`). The
@@ -61,7 +61,7 @@ def items(out: dict, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
     found += [{"duty": wiring.role, "kind": "delegate-failed", "slot": d.get("slot") or "-", "do": "wake",
                "text": f"delegation failed: {d.get('title') or d.get('key')}", "evidence": d}
               for d in out.get("delegations", []) if d.get("state") == "error"]
-    keep = ("duty", "kind", "slot", "do", "text", "evidence", "brief", "why", "key")
+    keep = ("duty", "kind", "slot", "do", "text", "evidence", "brief", "why", "key", "to")
     return [{**{k: a[k] for k in keep if k in a}, "instructions": instructions(a["duty"], a["kind"], wiring)}
             for a in found]
 
@@ -127,7 +127,7 @@ def pending_handoff(pane: str, main: str, data: dict, now: dt.datetime, sleep=ti
         del data["handoff"]
         log_wake(main, "handoff-done", f"handed off: session {a['session_id']} got {act}", wiring)
         return None, True
-    if now - dt.datetime.fromisoformat(pending["at"]) < HANDOFF_TIMEOUT:
+    if now - mtm_scan.log_time(pending["at"]) < HANDOFF_TIMEOUT:
         return "handoff under way", False
     del data["handoff"]
     log_wake(main, "handoff-timeout", f"no handoff since {pending['at']}: plain /clear, then {act}", wiring)
@@ -164,7 +164,7 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
     if new:
         data["woken_at"] = data.get("woken_at") if data["items"][:-len(new)] else None
     result = {"items": len(new), "pending": len(data["items"]), "woken": False}
-    stale = data.get("woken_at") and now - dt.datetime.fromisoformat(data["woken_at"]) > REWAKE
+    stale = data.get("woken_at") and now - mtm_scan.log_time(data["woken_at"]) > REWAKE
     if data["items"] and (not data.get("woken_at") or stale or data.get("handoff")):
         pane = farmer_pane(top, agents) if agents is not None else farmer_pane(top)
         why, woken = (wake_session(pane, main, data, now, wiring=wiring) if pane
@@ -183,7 +183,7 @@ def close_older(main: str, written: float | None, wiring: roles.Wiring = roles.F
     wrote the handoff had seen it (plan 0383 D8). An item without an `at` stamp stays. Returns the closed items."""
     data = read(main, wiring)
     old = [i for i in data["items"]
-           if written is not None and i.get("at") and dt.datetime.fromisoformat(i["at"]).timestamp() < written]
+           if written is not None and i.get("at") and mtm_scan.log_time(i["at"]).timestamp() < written]
     if old:
         data["items"] = [i for i in data["items"] if i not in old]
         write(main, data, wiring)

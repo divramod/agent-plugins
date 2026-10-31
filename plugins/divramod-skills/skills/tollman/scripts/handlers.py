@@ -2,9 +2,38 @@
 
 A minute pass runs no handler, so it loads none; a round asks for the due duties' only. `HANDLERS` is a dict whose
 values are `module.function` until first asked for.
+
+A module that fails to import (L135: `module 'mtm_scan' has no attribute 'QUEUE'` at trains.py's import, the yard's
+files half updated while a round ran) is tried once more (`load`): after PAUSE, the module the error names reloaded
+from its file; a second failure raises.
 """
 
 import importlib
+import sys
+import time
+import types
+
+PAUSE = 2.0  # seconds before the one retry: the yard's update goes on meanwhile
+
+
+def stale(e: Exception) -> str | None:
+    """The loaded module the import error names (its file may be newer), or None."""
+    if isinstance(e, AttributeError) and isinstance(getattr(e, "obj", None), types.ModuleType):
+        return e.obj.__name__
+    return e.name if isinstance(e, ImportError) and e.name in sys.modules else None
+
+
+def load(module: str):
+    """`module` imported; an AttributeError or ImportError retried once after PAUSE, the module it names reloaded."""
+    try:
+        return importlib.import_module(module)
+    except (AttributeError, ImportError) as e:
+        print(f"tollman: importing {module} failed ({e}): once more in {PAUSE:g} s", file=sys.stderr, flush=True)
+        time.sleep(PAUSE)
+        importlib.invalidate_caches()
+        if (name := stale(e)) and name in sys.modules:
+            importlib.reload(sys.modules[name])
+        return importlib.import_module(module)
 
 
 class Handlers(dict):
@@ -14,7 +43,7 @@ class Handlers(dict):
         value = super().__getitem__(item)
         if isinstance(value, str):
             module, name = value.split(".")
-            value = getattr(importlib.import_module(module), name)
+            value = getattr(load(module), name)
             self[item] = value
         return value
 

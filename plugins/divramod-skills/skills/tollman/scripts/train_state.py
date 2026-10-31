@@ -12,6 +12,10 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              carried, none for a deletion)
   regenerated  a car's conflicts in generated files took the barn's side (generated.py, plan 0313 step 8):
              `commit` (the train's last, none when nothing differed), `files` (the paths written again), `why`
+  joined     a newly hitched wagon joined the formed train before its push (open_train.py, plan 0490 step 20): `cars`
+             (the one car, as `formed` names them; it counts from then on), `base` and `commit` (the carrier's head
+             before and after it), the pretest of the car's jobs (`result`, `seconds`, `jobs`, `why`)
+  declined   a join undone (open_train.decline): `field`, `head` (never joins this train again), `why`
   pretest    the train's pretest before its landing (pretest_train.py, plan 0349 D75): `seconds`, `result`
              (green, red, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state cached, run,
              skipped or not needed), `why`; its jobs' output in the text log `train-pretest.log`
@@ -73,8 +77,8 @@ ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
-KINDS = ("formed", "yard", "regenerated", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed",
-         "retry", "unhitched", "barn", "landed", "cleared")
+KINDS = ("formed", "yard", "regenerated", "joined", "declined", "pretest", "started", "run", "red", "order", "fixed",
+         "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared")
 RUNNER = "runner"  # a retry's `why` that starts so is the code's after a runner fault (triage.py)
 
 
@@ -148,13 +152,17 @@ def standing(rows: list[dict]) -> dict | None:
                      "worktree": e.get("worktree"),
                      "base": e.get("base"), "number": e.get("number"), "state": "formed", "starts": 0, "pid": None, "unhitched": [], "yard": [],
                      "runner_retries": 0, "land_run": None, "orders": [], "fixed": False, "pauses": [],
-                     "in_barn": [], "post": carry}
+                     "in_barn": [], "post": carry, "declined": []}
         elif not train or e.get("train") != train["train"]:
             continue
         elif kind == "yard":
             train["yard"] = e.get("files", [])
         elif kind == "regenerated":
             train["regenerated"] = e.get("commit")
+        elif kind == "joined":  # the open train (plan 0490 step 20): a car added before the push
+            train["cars"] = train["cars"] + e.get("cars", [])
+        elif kind == "declined":
+            train["declined"].append({"field": e.get("field"), "head": e.get("head")})
         elif kind == "pretest":
             train["pretest"] = e.get("result")
         elif kind == "started":

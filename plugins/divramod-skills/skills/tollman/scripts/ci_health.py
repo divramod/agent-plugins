@@ -19,8 +19,9 @@ nothing, so a quiet minute costs no model call. The printed line wakes the tollm
    the hand-started runners (the Mac's VM and Docker runners, `hal2-linux-host`, `hal2-windows-host`) are no problem
    while idle.
 
-A problem prints once while it lasts (`ci-health.json` in the tollman's state folder: first seen and told); when it
-clears and comes back it is new. The runners GitHub lists are asked once a pass and only when a check needs them
+A problem prints once while it lasts (`ci-health.json` in the tollman's state folder: first seen and told, each told
+key with its time); a host runner's that clears and comes back is new. A queued job's is told once for its run's life
+(RUN_LIFE, keyed by the job's id in its run): one that flaps clear and back between passes never wakes again (L72). The runners GitHub lists are asked once a pass and only when a check needs them
 (plan 0480 D2); GitHub not answering judges nothing. `check(..., dry=True)` writes nothing.
 """
 
@@ -43,6 +44,7 @@ VM_GRACE = 300
 HOST_GRACE = 180
 PIPELINE = {"hal2", "hal2-gate", "hal2-stack", "mac-host-hal2", "hal2-mac-host"}
 HOURS = "2"  # the window of the doctor
+RUN_LIFE = dt.timedelta(hours=6)  # a land run's longest life (next_train.MAX_WAIT): a job's problem is told once in it
 
 
 def clock(t: str) -> str:
@@ -126,10 +128,14 @@ def problems(main: str, now: dt.datetime) -> list[dict] | None:
 def look(main: str, now: dt.datetime, gh) -> list[dict]:
     """`problems` with the runners `gh()` (it raises Unanswered)."""
     runners, fleet, out, served = ci_fleet.catalog(main), ci_fleet.power(), [], set()
+    train: list[list[dict]] = []  # the standing train's own runners, read for the first job the barn's cannot serve
     for job in ci_fleet.queued_jobs(mtm_scan.run_json, main):
         if "self-hosted" not in job["labels"]:
             continue  # GitHub's own runners
         cands = [r for r in runners if job["labels"] <= r["labels"]]
+        if not cands:  # L91: a car of the train renamed the runners
+            train = train or [ci_fleet.train_catalog(main, {r["code"] for r in runners})]
+            cands = [r for r in train[0] if job["labels"] <= r["labels"]]
         created = ci_fleet.parse_time(job["created"])
         p = job_problem(job, cands, gh, fleet, (now - created).total_seconds() if created else 0)
         served |= {r["code"] for r in cands}
@@ -176,9 +182,9 @@ def check(top: str, main: str, now: dt.datetime | None = None, dry: bool = False
     found = problems(main, now)
     if found is None:
         return []
-    state = leavers.read(main, FILE, {})
-    old, told = state.get("first") or {}, set(state.get("told") or [])
-    first = {p["key"]: old.get(p["key"], now.strftime("%Y-%m-%dT%H:%M:%SZ")) for p in found}
+    state, stamp = leavers.read(main, FILE, {}), now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    old, told = state.get("first") or {}, kept(state.get("told"), now, stamp)
+    first = {p["key"]: old.get(p["key"], stamp) for p in found}
     for p in found:
         if p["kind"] == "host-offline":
             p["age"] = (now - ci_fleet.parse_time(first[p["key"]])).total_seconds()
@@ -192,5 +198,15 @@ def check(top: str, main: str, now: dt.datetime | None = None, dry: bool = False
     out = [act(DUTY, "runner", "wake", "-", key=f"ci-health:{p['key']}:{first[p['key']]}", text=line(p, main),
                evidence=evidence(p)) for p in ripe if p["key"] not in told]
     if not dry:
-        leavers.write(main, FILE, {"schema": SCHEMA, "first": first, "told": sorted(p["key"] for p in ripe)})
+        now_told = {p["key"]: told.get(p["key"], stamp) for p in ripe}
+        leavers.write(main, FILE, {"schema": SCHEMA, "first": first, "told": {
+            **{k: at for k, at in told.items() if not k.startswith("offline:")}, **now_told}})
     return out
+
+
+def kept(told, now: dt.datetime, stamp: str) -> dict:
+    """The told keys still in force, {key: told at}: a job's for RUN_LIFE (L72), a host runner's while it lasts (the
+    last pass's; the write drops one this pass did not find); an older file's list counts as told now."""
+    told = told if isinstance(told, dict) else {k: stamp for k in told or []}
+    return {k: at for k, at in told.items() if k.startswith("offline:")
+            or ((t := ci_fleet.parse_time(at)) and now - t < RUN_LIFE)}

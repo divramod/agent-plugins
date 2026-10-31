@@ -1,0 +1,42 @@
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.0759071Z Runner name: 'x64_vps_azure_d4as-v7_02_linux-ubuntu_26.04_host_a'
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.5400158Z [01] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.5521756Z [02] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.5892529Z [03] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.7535384Z [04] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.7854641Z [05] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:23:01.8261818Z [07] 🎬 23:23:01
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:36:17.3087875Z [08] 🎬 23:36:17
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:36:17.5115399Z [11] 🎬 23:36:17
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:38:43.5252965Z [12] 🎬 23:38:43
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:39:25.4196375Z [13] 🎬 23:39:25
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:55:46.4820135Z   ✘  298 [electron] › e2e/electron/ocr.spec.ts:96:1 › the fake model moves to the second location, done only when its task is (31.1s)
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:55:46.4821642Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/ocr.spec.ts › the fake model moves to the second location, done only when its task is
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:57:49.8310269Z   ✘  404 [electron] › e2e/electron/typing-results.spec.ts:106:1 › F38 results keys: Again (⌘R), Next Lesson (Return), Back (Esc) (31.8s)
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:57:49.8311089Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/typing-results.spec.ts › F38 results keys: Again (⌘R), Next Lesson (Return), Back (Esc)
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:57:49.8311592Z   Error: expect(locator).toBeVisible() failed
+d1-01-stack-test	UNKNOWN STEP	2026-10-29T23:57:49.8312713Z   Error: element(s) not found
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:24.8566646Z   ✘  463 [electron] › e2e/electron/workqueue.spec.ts:158:1 › the Runners view lists the fake runners and Stop reaches the node (32.3s)
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:24.8567638Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/workqueue.spec.ts › the Runners view lists the fake runners and Stop reaches the node
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:24.8568370Z   Error: expect(locator).toBeVisible() failed
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:24.8571019Z   Error: element(s) not found
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:46.6391811Z   ✘  464 [electron] › e2e/electron/workqueue.spec.ts:199:1 › WorkViewFirstContent and WorkHistoryPage (21.2s)
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:46.6392748Z failed now (attempt 1): electron › apps/hal9k-desktop/e2e/electron/workqueue.spec.ts › WorkViewFirstContent and WorkHistoryPage
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:00:46.6393502Z   Error: WorkViewFirstContent: n=5 p50=1684.4 p95=1999.6 ms, budget 500 ms x 2 = 1000 ms (busy: load 4 on 4 cores, median held)
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:09:25.4799911Z ##[error]gate: stack-test: desktop-e2e failed
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:09:25.4803237Z [13] 💥 00:09:25 ⏳ 00:30:00 (exit 1)
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:09:25.5465380Z ##[error]Process completed with exit code 1.
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:09:27.0538929Z [14] 🎬 00:09:27
+d1-01-stack-test	UNKNOWN STEP	2026-10-30T00:09:28.2079889Z [15] 🎬 00:09:28
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:26.2731985Z Runner name: 'x64_vps_hetzner_ccx33_01_linux-ubuntu_26.04_host_b'
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:27.0186926Z [01] 🎬 23:23:26
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:27.0544641Z [02] 🎬 23:23:27
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:27.4759107Z [03] 🎬 23:23:27
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:28.4834552Z !! the user data is over 32 KiB
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:28.4915912Z [03] 💥 23:23:28 ⏳ 00:00:01 (exit 1)
+e5-01-runner-image-linux	UNKNOWN STEP	2026-10-29T23:23:28.4941521Z ##[error]Process completed with exit code 1.
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:05.7602868Z Runner name: 'x64_vps_hetzner_ccx33_01_linux-ubuntu_26.04_host_c'
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:07.2805075Z [01] 🎬 00:11:07
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:07.2954676Z [02] 🎬 00:11:07
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:07.2980922Z ##[error]hub not deployed: stack-test failure; rerun after it is green
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:07.2997359Z [02] 💥 00:11:07 ⏳ 00:00:00 (exit 1)
+e4-01-hub-deploy	UNKNOWN STEP	2026-10-30T00:11:07.3002295Z ##[error]Process completed with exit code 1.

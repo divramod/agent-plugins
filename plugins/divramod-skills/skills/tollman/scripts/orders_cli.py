@@ -4,6 +4,7 @@ no round sends it again), wakes handed to the session's wake.json as a round's (
 
   tollman.py order <field>|main --why <text> [--run <url>] [--smuggle] [--post <train>] [--repo <dir>]
   tollman.py fixed <field>|main <sha> [--repo <dir>]
+  tollman.py fixed <field> --redundant [--repo <dir>]    its fix is in the train already (L56)
 
 `main` with no train standing is own_fix.py's: the fix becomes the first car of the next train (plan 0360 step 8).
 `--smuggle`: the field is a smuggle's, no car (a resume conflict or a smuggled red, smuggled.py, plan 0360 step 18).
@@ -32,7 +33,9 @@ def add_parser(sub) -> None:
     o.add_argument("--post", help="the landed train whose run is red after its merge (plan 0383 step 6)")
     f = sub.add_parser("fixed")
     f.add_argument("field")
-    f.add_argument("sha")
+    f.add_argument("sha", nargs="?")
+    f.add_argument("--redundant", action="store_true",
+                   help="its fix is in the train already: closed on the carrier's head (L56)")
 
 
 def deliver(top: str, main: str, actions: list[dict], ctx: dict, wiring) -> None:
@@ -55,8 +58,11 @@ def main(args, wiring) -> int:
                                orders.order(carrier, args.field, args.why, args.run, ctx["panes"],
                                                  smuggle=args.smuggle, post=args.post))
     else:
+        if not (args.sha or args.redundant):
+            print("fixed needs <sha> or --redundant")
+            return 2
         code, text, actions = (own_fix.fixed(top, args.sha) if own else
-                               orders.fixed(carrier, args.field, args.sha, ctx["panes"]))
+                               orders.fixed(carrier, args.field, args.sha, ctx["panes"], redundant=args.redundant))
     deliver(top, main_dir, actions, ctx, wiring)
     print(text)
     return code

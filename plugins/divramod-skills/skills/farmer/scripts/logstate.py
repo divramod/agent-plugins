@@ -32,7 +32,7 @@ def paused(log: list[dict], now: dt.datetime) -> set[str]:
     out: dict[str, bool] = {}
     for e in log:
         kind, _, rest = e.get("key", "").partition(":")
-        if kind in ("pause", "go") and dt.datetime.fromisoformat(e["at"]) >= now - PAUSE_AGE:
+        if kind in ("pause", "go") and mtm_scan.log_time(e["at"]) >= now - PAUSE_AGE:
             out[rest.rsplit(":", 1)[-1]] = kind == "pause"
     return {slot for slot, on in out.items() if on}
 

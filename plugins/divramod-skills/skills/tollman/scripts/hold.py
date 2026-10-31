@@ -3,7 +3,8 @@
 hold stands, no wagon train forms, restarts or lands: `trains.plan` (the round and the chain: `chain.py`, the green
 merge job's next train in `minute.py`, the user's unhitch) returns one `held` line instead of forming. What goes on:
 the watch (the minute pass, the live land run's events, leavers.check), fix orders and their answers, the
-settling of a landing that landed or ended, and a landing that runs: it is never cut (merge-queue-policy). It
+settling of a landing that landed or ended (never its restart, L107), and a landing that runs: it is never cut
+(merge-queue-policy); engine.py reads the hold again right before a start and before the push (L88). It
 replaces unloading the timer. The hold is `hold.json` (`why`, `at`) in the tollman's state folder; `status` shows
 `held: <why>`.
 
@@ -43,6 +44,24 @@ def text(held: dict) -> str:
 def line(held: dict) -> dict:
     """The round's one record of a hold (no key: one tick.log line each round, as `asleep`'s)."""
     return act("trains", "held", "record", text=f"{text(held)}: no train forms or lands; a landing that runs goes on")
+
+
+def keep(actions: list[dict], held: dict | None) -> list[dict]:
+    """A settling landing's actions under the hold `held` (L107): its restart dropped for the hold's line (an
+    interrupted landing starts again only after `unhold`); landed, red and their messages go on."""
+    if not held or not any(a.get("kind") == "restart" for a in actions):
+        return actions
+    return [a for a in actions if a.get("kind") != "restart"] + [line(held)]
+
+
+def stops(top: str) -> int:
+    """The detached landing's last look before merge-to-main pushes (L88: a train formed a minute after the hold
+    started its landing): held, it prints the result `held` (trains.AGAIN: started again after `unhold`) and
+    returns 1; else 0. Read from the file, never the round's earlier reading."""
+    held = of(mtm_scan.main_checkout(top))
+    if held:
+        print(json.dumps({"status": "held", "message": text(held)}), flush=True)
+    return int(bool(held))
 
 
 def add_parser(sub) -> None:

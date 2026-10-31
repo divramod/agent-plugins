@@ -138,7 +138,7 @@ def handled(main: str, now: float | None = None) -> set[tuple[str, int]]:
     for line in f.read_text().splitlines():
         try:
             e = json.loads(line)
-            at = dt.datetime.fromisoformat(e["at"]).timestamp() if e.get("at") else cutoff
+            at = mtm_scan.log_time(e["at"]).timestamp() if e.get("at") else cutoff
             if at >= cutoff:
                 out.add((e["session"], int(e["since"])))
         except (json.JSONDecodeError, KeyError, ValueError, TypeError):

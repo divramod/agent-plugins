@@ -28,6 +28,11 @@ loose bullets) is no entry.
     learnings.py ... untaken [--code y] [--json]   the entries not taken yet
     learnings.py ... mark-taken <n> [<n> ...] [--plan <plan>]
     learnings.py ... rules                          one line per entry: its number, slug and rule (what act reads)
+    learnings.py ... archive <n> [<n> ...] --why <commit|plan>   move entries to the `## Archive` section
+                                                    (learnings_archive.py): `rules`, `untaken` and verdicts.py skip them
+
+`add --brief` (an entry with `--code y`) then posts its fix brief to the farmer, detached, never awaited
+(learn_brief.py, hal2 plan 0490 step 14, D10).
 """
 
 import argparse
@@ -50,6 +55,7 @@ FIELD = re.compile(r"^\s*(?:[-*]\s+)?\*\*([A-Za-z][A-Za-z ]*?)(?:\*\*(?:\s*\([^)
 HEAD = re.compile(r"^## (.+)$")
 DATE = re.compile(r"^\d{4}-\d\d-\d\d")
 NUMBER = re.compile(r"^L(\d+)$")
+ARCHIVE = re.compile(r"^## Archive\s*$")  # the section the archived entries live in, always the file's last
 
 
 @dataclass
@@ -107,11 +113,14 @@ def _heading(text):
     return None
 
 
-def parse(text):
-    """The entries of a learnings file, in file order."""
+def parse(text, archived=False):
+    """The entries of a learnings file, in file order; those under `## Archive` only with `archived`."""
     lines = text.splitlines()
     entries, cur, last = [], None, None
+    stop = next((i for i, l in enumerate(lines) if ARCHIVE.match(l)), len(lines))
     for i, line in enumerate(lines):
+        if i >= stop and not archived:
+            break
         h = HEAD.match(line)
         if h:
             if cur:
@@ -133,7 +142,7 @@ def parse(text):
         elif line.strip() and last and line[:1] in " \t":  # a continuation line
             cur.fields[last] = (cur.fields[last] + " " + line.strip()).strip()
     if cur:
-        cur.end = len(lines)
+        cur.end = len(lines) if archived else min(len(lines), stop)
     # a dated section of loose bullets is no entry
     entries = [e for e in entries if "case" in e.fields or "rule" in e.fields]
     used = 0
@@ -190,7 +199,7 @@ def add(directory, case, cause, rule, code="n", slug=None, at=None, extra=(), ro
     with locked(directory):
         path = directory / FILE
         text = path.read_text() if path.is_file() else _envelope(role or directory.name)
-        n = max([e.n for e in parse(text)] + [0]) + 1
+        n = max([e.n for e in parse(text, True)] + [0]) + 1
         at = at or _now()
         given = {k.strip().lower() for k, _ in extra}
         rows = [("Case", case), ("Cause", cause), ("Rule", rule), ("Code change", code)]
@@ -199,8 +208,17 @@ def add(directory, case, cause, rule, code="n", slug=None, at=None, extra=(), ro
         rows += [(k, v) for k, v in extra] + [("Taken", "-")]
         block = f"## L{n} · {at} · {_slug(slug or case)}\n\n" + "\n".join(
             f"**{k}:** {_line(v)}" for k, v in rows) + "\n"
-        _write(path, text.rstrip("\n") + "\n\n" + block)
+        _write(path, _insert(text, block))
         return _entry(block, n)
+
+
+def _insert(text, block):
+    """`block` at the end of the entries: before the `## Archive` section when the file has one."""
+    lines = text.splitlines()
+    at = next((i for i, l in enumerate(lines) if ARCHIVE.match(l)), None)
+    if at is None:
+        return text.rstrip("\n") + "\n\n" + block
+    return "\n".join(lines[:at]).rstrip("\n") + "\n\n" + block + "\n" + "\n".join(lines[at:]) + "\n"
 
 
 def _entry(block, n):
@@ -262,6 +280,15 @@ def rules_text(directory):
     return "\n".join(f"L{e.n} {e.slug}{tags(e)}: {e.rule or e.case}" for e in read(directory))
 
 
+def _add_cmd(args, d):
+    extra = [tuple(f.split("=", 1)) for f in args.field if "=" in f]
+    e = add(d, args.case, args.cause, args.rule, args.code, args.slug, args.at, extra, args.role, args.metric, args.start)
+    print(f"L{e.n} {e.slug}")
+    if args.brief and e.code == "y":
+        import learn_brief  # lazy: it imports the farmer skill's frame
+        learn_brief.spawn(d, e.n, args.role)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--role", default="tollman")
@@ -276,6 +303,7 @@ def main(argv=None):
     a.add_argument("--metric", help="the metric the rule should move (verdicts.py's METRICS)")
     a.add_argument("--start", help="when the rule took effect, UTC; default the entry's time")
     a.add_argument("--field", action="append", default=[], metavar="KEY=VALUE")
+    a.add_argument("--brief", action="store_true", help="with --code y: post the fix brief to the farmer, detached")
     u = sub.add_parser("untaken")
     u.add_argument("--code", choices=("y", "n"))
     u.add_argument("--json", action="store_true")
@@ -283,13 +311,13 @@ def main(argv=None):
     m.add_argument("numbers", nargs="+", type=int)
     m.add_argument("--plan", default="-")
     sub.add_parser("rules")
+    r = sub.add_parser("archive")
+    r.add_argument("numbers", nargs="+", type=int)
+    r.add_argument("--why", required=True, help="the commit or plan that ended the entry")
     args = ap.parse_args(argv)
     d = folder(args.role, args.dir)
     if args.verb == "add":
-        extra = [tuple(f.split("=", 1)) for f in args.field if "=" in f]
-        e = add(d, args.case, args.cause, args.rule, args.code, args.slug, args.at, extra, args.role, args.metric,
-                args.start)
-        print(f"L{e.n} {e.slug}")
+        _add_cmd(args, d)
     elif args.verb == "untaken":
         found = untaken(d, args.code)
         if args.json:
@@ -300,6 +328,11 @@ def main(argv=None):
     elif args.verb == "mark-taken":
         done = mark_taken(d, set(args.numbers), args.plan)
         print("taken: " + (", ".join(f"L{n}" for n in done) or "none"))
+        return 0 if done else 1
+    elif args.verb == "archive":
+        import learnings_archive
+        done = learnings_archive.archive(d, set(args.numbers), args.why)
+        print("archived: " + (", ".join(f"L{n}" for n in done) or "none"))
         return 0 if done else 1
     else:
         print(rules_text(d))

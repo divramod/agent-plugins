@@ -6,14 +6,25 @@ not land leaves its head there, and the next train's push would be refused as no
 the remote branch back on a base with a leased push (D2, D6, D11): a breakup on the dead train's base, a new train's
 form on its own base."""
 
+import subprocess
+
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import bounded
 
 Done = tuple[int, str]  # the exit code and what happened, one line
+LOCAL_LIMIT = 600  # seconds: a local git of the carrier (a merge of a big car)
+KEEPALIVE = bounded.SSH  # a stalled link ends within a minute (L58)
+TIMED_OUT = 124
 
 
 def git(top: str, *args: str) -> Done:
-    p = bounded.run(["git", *args], cwd=top, local=600)
+    """git in `top`, its exit code and output, through bounded.run: a call to origin gets its limit, an ssh keepalive
+    and one more try only after a timeout or a network fault, so a healthy call never waits longer (L58, L63); a
+    timeout is exit 124, never an exception."""
+    try:
+        p = bounded.run(["git", *args], cwd=top, local=LOCAL_LIMIT)
+    except subprocess.TimeoutExpired as e:
+        return TIMED_OUT, f"git {args[0] if args else ''} timed out after {e.timeout} s"
     return p.returncode, (p.stdout + p.stderr).strip()
 
 

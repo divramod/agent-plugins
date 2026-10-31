@@ -263,6 +263,41 @@ class PausedFields(unittest.TestCase):
             self.assertEqual(scan.paused_fields("/nowhere"), {})
 
 
+class TrainField(unittest.TestCase):
+    """Hal2 plan 0490 row 19 (tollman L107): a session in a `tollman-train-*` field is never scanned or resumed."""
+
+    TRAIN = "tollman-train-0375-0365"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        scan.RECORDS = Path(self.tmp.name)
+
+    def find(self, agents, events=(), orphans=()):
+        return scan.find_incidents(PROJECT, agents, list(events), list(orphans), {"handled": {}, "resumes": {}}, NOW,
+                                   tails=lambda s: tail("server_error", "Connection lost"), plan_of=lambda c: None,
+                                   moved=lambda s, t: None)
+
+    def test_the_names_of_a_train_field(self):
+        self.assertTrue(scan.in_train_field(self.TRAIN))
+        self.assertTrue(scan.in_train_field(None, f"/home/u/.hal/git/worktree/hal2/{self.TRAIN}/"))
+        self.assertFalse(scan.in_train_field("01", "/w/01", None, "tollman-hal2"))
+
+    def test_a_failed_session_in_a_train_field_is_no_incident(self):
+        train = agent(slot=self.TRAIN, session="s9", checkout=f"/w/{self.TRAIN}")
+        event = {**failed_event("s9"), "cwd": f"/w/{self.TRAIN}"}
+        self.assertEqual(self.find([train], [event]), [])
+        [normal] = self.find([agent()], [failed_event()])  # a numbered field is still found and resumable
+        self.assertEqual((normal["class"], normal["action"]), ("F1", "resume"))
+
+    def test_an_idle_hung_or_lost_session_in_a_train_field_is_skipped_too(self):
+        hung = agent(slot=self.TRAIN, state="working", since=NOW - 90 * MIN, checkout=f"/w/{self.TRAIN}")
+        self.assertEqual(self.find([hung]), [])
+        orphan = {"id": "t:abc", "worktree": f"/w/{self.TRAIN}", "created": NOW - MIN}
+        with mock.patch.object(scan, "project_of", return_value=PROJECT):
+            self.assertEqual(self.find([], orphans=[orphan]), [])
+
+
 class PausedFieldEndToEnd(unittest.TestCase):
     """A paused field with a plan and a handoff and no session survives a scan with nothing started; a lost terminal
     host in it is listed as `paused`, never restored. The CLIs are fakes on PATH that log every call."""

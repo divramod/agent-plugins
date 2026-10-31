@@ -36,9 +36,14 @@ kind = "text-log"
 description = "The output of the train's pretest (scripts/pretest_train.py, plan 0349 D75), each job's line then its output, rewritten by every pretest."
 
 [[files]]
+path = "train-drop.log"
+kind = "text-log"
+description = "The detached drop runs of the train worktrees left after a landing (scripts/train_wt.py `later`, L135): one line per worktree dropped or kept and why; appended, started over once past 1 MB."
+
+[[files]]
 path = "cache/**"
 kind = "cache"
-description = "The pretest's green markers, `cache/pretest/gate-<job>-<key>` (empty files, scripts/pretest.py), under CACHEDIR.TAG: may be deleted at any time, a marker older than 14 days goes at every pretest."
+description = "The pretest's green markers, `cache/pretest/gate-<job>-<key>` (empty files, scripts/pretest.py), the proof's verdicts `cache/proof/<hash>.json` (scripts/proof.py, 7 days) and the kept scratch worktree `cache/scratch/proof` with its lock (scripts/proof_scratch.py, plan 0490 step 23: the repository at a moved car's hitched sha, made again when missing or broken), under CACHEDIR.TAG: may be deleted at any time, a marker older than 14 days goes at every pretest."
 
 [[files]]
 path = "log.jsonl"
@@ -69,7 +74,7 @@ description = "Present while the rounds are silenced (`tollman.py silence`, farm
 [[files]]
 path = "*.lock"
 kind = "lock"
-description = "tick.lock (the round) and board.lock (the board's writers), held with flock."
+description = "tick.lock (the round), board.lock (the board's writers) and train-drop.lock (one drop run of the train worktrees at a time), held with flock."
 
 [[files]]
 path = "tick.log*"
@@ -79,6 +84,11 @@ kind = "text-log"
 path = "prune-run.log"
 kind = "text-log"
 description = "The output of the duty prune's last detached /prune run (scripts/prune.py start; plan 0377 step 7): workflow commands and the report."
+
+[[files]]
+path = "run-triage.log"
+kind = "text-log"
+description = "The output of the last detached triage of a finished land run (scripts/run_triage_wire.py run, plan 0490 step 3), rewritten by every start."
 
 [[files]]
 path = "prune-ask.log"
@@ -94,7 +104,7 @@ description = "The tollman's sleep (hal2 plan 0365 D3): present while it sleeps,
 [[files]]
 path = "*.json"
 kind = "snapshot"
-description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json; learn.json, the duty learn's last day (scripts/learn.py); prune-run.json, the duty prune's detached /prune run (its pid and start, scripts/prune.py start; plan 0377 step 7); prune-ask.json and prune-plan.json, the duty prune's detached ask of /prune's plan (its pid and start) and its answer `{schema, at, data, why}` (scripts/prune_ask.py, plan 0480 D4), each rewritten by the next ask, the answer not used past 20 minutes; mode.json, the queue's mode the last round saw, `asleep` while the sleep flag stood (scripts/modes.py, plan 0360 step 25, plan 0375); queue-seen.json, the placed tickets and the priority list the last pass saw, and queue-released.json, the places the user or the farmer gave up on purpose (scripts/leavers.py, plan 0383 step 3); watch-events.json, the live land run the duty watch follows and the event keys told (scripts/watch_events.py, plan 0383 step 4); ci-health.json, the CI/CD problems seen (first seen) and told (scripts/ci_health.py, plan 0383 step 11)."
+description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, paused.json; learn.json, the duty learn's last day (scripts/learn.py); prune-run.json, the duty prune's detached /prune run (its pid and start, scripts/prune.py start; plan 0377 step 7); prune-ask.json and prune-plan.json, the duty prune's detached ask of /prune's plan (its pid and start) and its answer `{schema, at, data, why}` (scripts/prune_ask.py, plan 0480 D4), each rewritten by the next ask, the answer not used past 20 minutes; mode.json, the queue's mode the last round saw, `asleep` while the sleep flag stood (scripts/modes.py, plan 0360 step 25, plan 0375); queue-seen.json, the placed tickets and the priority list the last pass saw, and queue-released.json, the places the user or the farmer gave up on purpose (scripts/leavers.py, plan 0383 step 3); watch-events.json, the live land run the duty watch follows, the event keys told and `base`, its jobs' median seconds in the last green runs (scripts/watch_events.py, plan 0383 step 4; slow_jobs.py, plan 0490 step 11); ci-health.json, the CI/CD problems seen (first seen) and told (each with its time: a queued job's kept 6 h, L72; scripts/ci_health.py, plan 0383 step 11); run-triage.json, the finished land runs' triages: due, started, their planned actions and red units' signatures, the last 8 runs (scripts/run_triage_wire.py, plan 0490 step 3), with `reds` (each red's key, kind, job, owner, files), `reasons` (the session's `fix_wait.py reason`) and `push` (the waiting push's timeout wake) that hold the next train's push (scripts/fix_wait.py, plan 0490 step 21); skip.json, the fields the merge-to-main boss never wakes for as orphans `{schema, fields: {<field>: {why, at, by}}}`, written only by `boss_quiet.py skip`, kept until removed (plan 0490 step 11, L78)."
 
 [[files]]
 path = "summaries/**"
@@ -133,4 +143,4 @@ description = "The duty learn's daily before/after verdict per learning and the 
 path = "briefs/*.md"
 kind = "record"
 type = "Brief"
-description = "The duty learn's daily brief of the untaken learnings for one foreman (scripts/learn.py), placed through the farmer's delegation ledger."
+description = "The duty learn's daily brief of the untaken learnings for one foreman (scripts/learn.py), and a code learning's fix brief `fix-L<n>.md` (scripts/learn_brief.py, plan 0490 step 14), placed through the farmer's delegation ledger."

@@ -25,7 +25,8 @@ barn is put back on its place, its foreman told, and a ticket held by `worktree 
 `left` for `draft`: every car waits behind it until it is back in motion. A train that stands goes on.
 
 While a train stands (`standing`, step 6) it is frozen (plan 0360 D3, frozen.py): nothing leaves it, a later
-hitch waits for the next train, no wait limit ends it (D7). Its landing still runs: the watch reads its land run;
+hitch joins only while its landing waits for the run before (open_train.py, plan 0490 step 20), else waits for the
+next train, no wait limit ends it (D7). Its landing still runs: the watch reads its land run;
 at its first red job the one car the triage names gets its fix order by code, an unclear culprit wakes once (watch.py,
 plan 0360 step 5; early_order.py, plan 0383 step 5). Landed: every car's foreman is told "in the barn"
 (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest before the
@@ -69,7 +70,7 @@ import watch
 import watch_events
 import yard_report
 from tick import act, default_ref
-from trains_sort import HELD, HELD_LEFT, base_of, current_plan, held_for, servant, sort_out  # noqa: F401  (re-exported)
+from trains_sort import HELD, HELD_LEFT, base_of, current_plan, held_ahead, held_for, servant, sort_out  # noqa: F401  (re-exported)
 
 QUEUE = mtm_scan.QUEUE  # the queue read; defined with mtm_scan.run_json so a minute pass needs no trains
 ROLE = "tollman"
@@ -79,7 +80,7 @@ PROVE = proof.verdict  # (main, field, head, barn) -> {state: green | red | wait
 MAX_STARTS = 5  # an interrupted landing is started again this often, then the train is red (it stands, D7)
 HOUR = 3600
 LANDED = ("landed", "nothing")  # the landing's results that mean: every car's crop is in the barn
-AGAIN = (None, "interrupted", "waiting", "testing", "paused")  # no result, or one whose rerun goes on
+AGAIN = (None, "interrupted", "waiting", "testing", "paused", "held")  # no result, or one whose rerun goes on (held: L88)
 HITCH = "report it ready again (`hal2-cli-git worktree queue ready`)"
 TEXT = {
     "conflict": TRAIN + ": field {field} is unhitched: its crop conflicts with {what} in {files}. {then}, resolve "
@@ -110,10 +111,10 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mod
     rides, later = kinds.split(tickets, own, mode)  # only adjacent production wagons ride (plan 0375 D8)
     wagons, unhitched = sort_out(main, default, rides, own)
     out = {"base": base, "cars": [], "unhitched": unhitched, "waiting": later, "alone": False}
-    acc, held = base, left or held_for(tickets, own)
+    acc = base
     for t in wagons:
         field, head = t["slot"], t["ready"]["head"]
-        if held:
+        if held := left or held_ahead(tickets, own, t):  # only a place ahead of it (L95)
             out["waiting"].append({"field": field, "why": (HELD_LEFT if left else HELD).format(field=held)})
             continue
         if out["alone"]:
@@ -237,7 +238,7 @@ def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict
     if train and train["state"] == "landing" and landing(train["pid"]):
         return pre + watch.actions(top, main, train, rows, tickets)  # its land run read, a red job wakes once
     if train and train["state"] == "landing":  # frozen (D3): a mark that names other cars is marked again
-        return pre + settle(top, train, result(main), panes, tickets)
+        return pre + hold.keep(settle(top, train, result(main), panes, tickets), held)  # held: no restart (L107)
     if held:  # plan 0383 step 7 (D7): the hold; a landing that runs or settles went on above, nothing forms or starts
         return pre + [hold.line(held)]
     if train and train["state"] in ("retry", "formed"):  # formed, never started: the same train, never a re-draft

@@ -32,6 +32,14 @@ class Name(unittest.TestCase):
         self.assertTrue(train_wt.ours(None, "tollman-hal2") and train_wt.ours("tollman-train-f07", "tollman-hal2"))
         self.assertFalse(train_wt.ours("02", "tollman-hal2"), "another field's carrier")
 
+    def test_l104_a_23_car_train_s_name_stays_within_hal2_git_s_64_characters(self):
+        cars = [{"field": f"{n:02}", "plan": f"{300 + n:04}-plan"} for n in range(1, 24)]
+        self.assertEqual(train_wt.name(cars), "tollman-train-big-0301-0323-23")
+        self.assertLessEqual(len(train_wt.name(cars)), train_wt.MAX)
+        five = cars[:5]
+        self.assertEqual(train_wt.name(five), "tollman-train-0301-0302-0303-0304-0305", "a short name stays whole")
+        self.assertEqual(train_wt.name(cars[:20]), "tollman-train-big-0301-0320-20", "the same cars, the same name")
+
 
 class Drop(unittest.TestCase):
     def setUp(self):
@@ -97,6 +105,27 @@ class Drop(unittest.TestCase):
         self.assertIn("left from before", text)
         git(wt, "reset", "-q", "--hard", "HEAD^")
         self.assertEqual(train_wt.add(str(self.field), self.cars), (0, str(wt)), "a clean leftover goes first")
+
+    def test_l55_a_landed_train_s_origin_branch_is_deleted_with_a_lease_others_stay(self):
+        wt = self.train()
+        git(wt, "push", "-q", "origin", f"HEAD:refs/heads/{wt.name}")  # the landing pushes the carrier's head
+        git(wt, "push", "-q", "origin", "HEAD:main")  # in the barn
+        git(self.main, "fetch", "-q", "origin")
+        git(self.field, "switch", "-q", "-c", "tollman-train-0400")  # a train still standing: its local branch
+        git(self.field, "push", "-q", "origin", "tollman-train-0400")
+        self.commit(self.car, "late.txt")
+        git(self.car, "push", "-q", "origin", "HEAD:refs/heads/tollman-train-0401")  # a dead train, not in the barn
+        git(self.main, "fetch", "-q", "origin")
+        ran = []
+        with mock.patch.object(train_wt, "SPAWN", lambda argv, **kw: ran.append(subprocess.run(argv, cwd=kw["cwd"]))):
+            code, text = train_wt.drop(str(wt))
+        self.assertEqual((code, len(ran), ran[0].returncode), (0, 1, 0), text)
+        self.assertIn("origin's landed train branches deleted: tollman-train-0375", text)
+        heads = git(self.main, "ls-remote", "--heads", "origin")
+        self.assertNotIn("refs/heads/tollman-train-0375", heads)
+        for kept in ("tollman-train-0400", "tollman-train-0401", "07"):
+            self.assertIn(f"refs/heads/{kept}", heads)
+        self.assertEqual(train_wt.sweep(str(self.main)), "", "nothing left to delete: no push")
 
     def test_only_a_train_s_worktree_is_ever_dropped(self):
         self.assertEqual(train_wt.drop(str(self.car))[0], 1)

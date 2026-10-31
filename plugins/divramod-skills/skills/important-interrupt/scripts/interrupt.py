@@ -9,7 +9,7 @@ stop, in this order: the stop record (stop-all-agent-work's stopall.py, "kind": 
 an active stop or with an older pause record is an earlier hold and is left as it is); every other live session told
 to pause (messenger.py, Claude Code's inbox socket, else hal2-cli-agents send); hal2-daemon frozen, every tart VM
 stopped; quiet.py apply --runner with every CONFIRM row confirmed (no safety question); every build and test process
-frozen (freeze.py); then every 5 s a re-scan freezes what is new, until the CPU is at least --idle % idle and nothing
+frozen (freeze.py); the workqueue's quiet mode on (wq_quiet.py, its undo recorded); then every 5 s a re-scan freezes what is new, until the CPU is at least --idle % idle and nothing
 was new, or --timeout seconds passed; then the replies (a newer pause record or an idle state) until --reply-wait
 seconds after the start. Every action goes into the stop record with its undo. A row per run goes to
 <root>/log.jsonl, <root> being $IMPORTANT_INTERRUPT_ROOT or ~/skills/important-interrupt.
@@ -34,6 +34,7 @@ import freeze  # noqa: E402
 import messenger  # noqa: E402
 import quiet  # noqa: E402
 import stopall  # noqa: E402
+import wq_quiet  # noqa: E402
 
 KIND = "important-interrupt"
 STOP_TEXT = (
@@ -70,7 +71,7 @@ def classify(text: str) -> str:
     """The kind of a recorded or printed action, from its text (quiet.py's actions carry no kind)."""
     text = text.removeprefix("would ")
     for prefix, kind in (("freeze build", "build"), ("freeze hal2-daemon", "daemon"), ("stop tart VM", "vm"),
-                         ("freeze ", "session"), ("terminate orphan", "orphan"), ("terminate Ollama", "ollama"),
+                         ("freeze ", "session"), ("set workqueue quiet", "quiet"), ("terminate orphan", "orphan"), ("terminate Ollama", "ollama"),
                          ("shut down", "simulator"), ("pause container", "docker"),
                          ("unload LaunchAgent actions.runner.", "runner"), ("unload ", "agent")):
         if text.startswith(prefix):
@@ -230,6 +231,10 @@ def stop(a, d: Deps) -> int:
     tbl = freeze.proc_table(d.sys)
     kinds = freeze_pass(d, freeze.daemon(tbl), dry) + freeze_pass(d, freeze.vms(d.sys), dry)
     kinds += quiet_pass(d, keep, dry, True) + builds_pass(d, keep, dry)
+    wq_kinds, wq_note = wq_quiet.turn_on(d, dry)
+    kinds += wq_kinds
+    if wq_note and not dry:
+        update_record(d, workqueue_quiet=wq_note)
     if dry:
         idle = freeze.cpu_idle(d.sys)
         d.out(f"would re-scan every {RESCAN} s until CPU idle >= {a.idle}% (now {idle}%) and nothing new, "

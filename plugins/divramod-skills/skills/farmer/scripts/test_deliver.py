@@ -7,6 +7,7 @@ from unittest import mock
 
 import deliver
 import mtm_scan
+import session_names
 import tick
 
 
@@ -73,6 +74,7 @@ class Prompt(unittest.TestCase):
         out = {"wake": [], "notify": []}
         a = tick.act("lead", "pause", "send", "08", pane="%8", text="pause", key="pause:L1:08")
         with mock.patch.object(deliver, "send", return_value="agent is working"), \
+                mock.patch.object(session_names, "name_of", return_value=None), \
                 mock.patch.object(mtm_scan, "log") as log:
             tick.execute(a, "/x/farmer", "/x/hal2", out)
         self.assertEqual([r["kind"] for r in out["relay"]], ["pause"])

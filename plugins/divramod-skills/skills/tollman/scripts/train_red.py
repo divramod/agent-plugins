@@ -14,12 +14,14 @@
 - an early fix order stands (early_order.py, plan 0383 step 5, D5): the red line only; the train is `fixing` at once
   and waits for that order's `fixed` (a `runner`, `main` or `car` verdict changes nothing)
 - no run to read (a red pretest, a conflict, a landing that ended without a result too often): one wake
-  (`train-red:<train>:<starts>`, TEXT failed)
+  (`train-red:<train>:<starts>`, TEXT failed); but a landing that ended with an error and no run whose message is a
+  network fault (transient.py: the carrier's push the remote closed, L51) is a `runner` fault as above, retried by code
 """
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import smuggled
 import train_state
+import transient
 import triage
 from tick import act
 
@@ -50,6 +52,15 @@ def cars_of(train: dict) -> str:
     return plans + (f", yard ({len(train['yard'])} files of the yard)" if train.get("yard") else "")
 
 
+def no_run(result: dict | None, status: str, why: str) -> dict | None:
+    """A `runner` verdict for a landing that ended with an error and no run, when its words are a network fault
+    (plan 0490 step 9, L51: 'Connection to github.com closed by remote host' at the carrier's push); else None."""
+    if (result or {}).get("run") or status in ("conflict", "interrupted", "pretest_red"):
+        return None
+    hit = transient.TRANSIENT.search(" ".join(str(w) for w in ((result or {}).get("message"), why) if w))
+    return {"kind": "runner", "evidence": {"match": hit[0], "id": None}} if hit else None
+
+
 def text(verdict: dict, train: dict, state: str, why: str, run: str | None) -> str:
     """The wake's text for a `main` or `car` verdict."""
     return TEXT["main_red" if verdict["kind"] == "main" else "car_red"].format(
@@ -67,6 +78,7 @@ def actions(top: str, train: dict, result: dict | None, status: str, why: str, r
         return [red, *fix]
     names = [j.get("name", "") for j in (result or {}).get("red") or []]
     verdict = triage.of(top, train, link, names, list(tickets)) if status != "interrupted" else None
+    verdict = verdict or no_run(result, status, why)
     if not verdict:
         return [red, act("trains", "train-failed", "wake", key=f"train-red:{name}:{starts}", after=key,
                          text=TEXT["failed"].format(train=name, state=f"did not land ({status})", why=why,

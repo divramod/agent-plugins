@@ -2,7 +2,9 @@
 """What the tollman reads of the CI/CD fleet (hal2 plan 0383 step 11, D12, D13); read-only against GitHub and the
 CI supervisor's journal, plus the one thing it writes: a request for the supervisor to wake a parked machine.
 
-- the runners of `.github/hal2-runners.toml` (code, labels; the machine is the code's first part: `hz01-host-a`)
+- the runners of `.github/hal2-runners.toml` (code, labels; the machine is the code's first part: `hz01-host-a`), and
+  for a job the barn's list cannot serve also the standing train's own list (`train_catalog`, L91: a car renamed the
+  runner codes, so the train's labels were unknown to the barn's list)
 - the runners GitHub lists (`gh api repos/{owner}/{repo}/actions/runners`: status, busy)
 - the queued jobs of the live landing runs (`gh api .../actions/runs/<id>/jobs`: name, labels, created_at)
 - the supervisor's power journal (`<state root>/ci-supervisor/power.log`): a cloud machine's last state, `parked`
@@ -62,6 +64,14 @@ def catalog(main: str) -> list[dict]:
         out.append({"code": r.get("code"), "name": r.get("name"), "machine": parts[0],
                     "kind": parts[1] if len(parts) > 1 else "", "labels": {str(x).lower() for x in r.get("labels", [])}})
     return out
+
+
+def train_catalog(main: str, known: set[str]) -> list[dict]:
+    """The runners of the standing train's worktree (its carrier) that the barn's list lacks (codes not in `known`);
+    [] without a standing train or its worktree."""
+    import train_state
+    wt = (train_state.standing(train_state.lines(main)) or {}).get("worktree")
+    return [r for r in catalog(wt) if r["code"] not in known] if wt and Path(wt).is_dir() else []
 
 
 def machines(text: str) -> dict[str, dict]:

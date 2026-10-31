@@ -17,6 +17,7 @@ import engine
 import mtm_scan
 import next_train
 import post_merge
+import run_triage_wire
 import stack_red
 import tick
 import train_state
@@ -145,6 +146,7 @@ class MergeGreen(Trains):
         calls = []
         with (mock.patch.object(engine.pretest_train, "before_landing", lambda top: calls.append("pretest") or False),
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
+              mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88: test_orders_ended)
               mock.patch.object(engine.subprocess, "run",
                                 lambda argv, cwd: calls.append(argv) or types.SimpleNamespace(returncode=0))):
             self.assertEqual(engine.land("/x", "train-0382"), 0)
@@ -154,6 +156,16 @@ class MergeGreen(Trains):
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait"))):
             self.assertEqual(engine.land("/x", "train-0382"), 1)
         self.assertEqual(calls, ["pretest"], "a red pretest: no wait, no land run")
+
+
+class OpenWait(unittest.TestCase):
+    def test_the_open_train_joins_each_poll_while_the_run_before_runs_and_never_after(self):
+        runs, calls = [[{"databaseId": 720}], [{"databaseId": 720}], []], []  # plan 0490 step 20 (D21, D23, D9)
+        with mock.patch.object(next_train, "others", lambda main, own: runs.pop(0)), \
+                contextlib.redirect_stdout(io.StringIO()):
+            lines = next_train.wait("/m", "land/x", sleep=lambda s: calls.append("sleep"),
+                                    join=lambda: calls.append("join") or ["04 joined"])
+        self.assertEqual((calls, lines[1:]), (["join", "sleep", "join", "sleep"], ["04 joined", "04 joined"]))
 
 
 class PostMergeRed(Trains):
@@ -193,9 +205,14 @@ class PostMergeRed(Trains):
         self.assertNotIn(("fixed", "run", "20"), self.last, "the round leaves it to the landing's process")
 
         self.gh.runs[0] = dict(self.run, status="completed", conclusion="failure")  # the run before has finished
+        red = {"key": "triage:720:d1-01-stack-test", "kind": "file", "job": "d1-01-stack-test", "owner": "20",
+               "unit": "d1-01-stack-test", "run": self.url, "at": self.run["createdAt"], "files": ["code/x/twenty.py"],
+               "prefixes": []}  # its triage (plan 0490 step 21): the push waits for 20's fix car (D22)
+        run_triage_wire.update(str(self.main), "720", lambda e: e.update(at="2099-01-01T01:00:00+00:00", reds=[red]))
         with contextlib.redirect_stdout(io.StringIO()):
-            (line,) = next_train.before_push(str(self.cw))
+            line, goes = next_train.before_push(str(self.cw), sleep=self.fail)
         self.assertTrue(line.startswith(f"fix order 20-fix-1: 20's fix {sha[:12]} merged into train {b['train']}"))
+        self.assertEqual(goes, "next train: every red of run 720 has its fix car or a named reason: the push goes")
         self.assertEqual(out(self.cw, "rev-parse", "HEAD^2"), sha, "it rides this train's run")
         now = self.train()
         self.assertEqual((now["post"], now["state"], [c["field"] for c in now["cars"]]), ([], "landing", ["03"]))

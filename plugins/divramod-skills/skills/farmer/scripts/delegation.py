@@ -284,7 +284,7 @@ def follow_up(main: str, slots: dict[str, dict], limit: int | str, dry: bool, no
     for key, e in ledger(main).items():
         if e.get("state") != "running" or not e.get("slot"):
             continue
-        at = dt.datetime.fromisoformat(e["at"])
+        at = mtm_scan.log_time(e["at"])
         to = transplants.moved(main, e["slot"], at, call)  # plan 0286 D26: the foreman moved on, it did not land
         if to:
             moves.append({"key": key, "state": "running", "slot": to, "from": e["slot"]})

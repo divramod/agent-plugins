@@ -191,9 +191,10 @@ WEEK = 7 * 24 * 3600
 def fresh(actions: list[dict], log: list[dict], now: dt.datetime, role: str = roles.ROLE) -> list[dict]:
     """The actions an earlier round has not done yet (see the module doc); `role`: whose own worktree is never told."""
     seen: dict[str, dt.datetime] = {}
+    now = mtm_scan.naive(now)
     for e in log:
         if e.get("key"):
-            t = dt.datetime.fromisoformat(e["at"])
+            t = mtm_scan.log_time(e["at"])
             seen[e["key"]] = max(t, seen.get(e["key"], t))
     asked, dropped, out = waiting_for_user(log), set(), []
     for a in actions:
@@ -304,6 +305,9 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
     if a["do"] == "delegate":  # delegation.delegate logs it once it is placed
         out.setdefault("delegate", []).append(a)
         return
+    if a["do"] == "relay" and not a.get("to") and a["slot"] not in ("", "-"):  # L77, L98: never by field number
+        import session_names
+        a["to"] = session_names.name_of(session_names.field_path(main, a["slot"]))
     if a["do"] in ("wake", "notify", "relay"):
         out.setdefault(a["do"], []).append(a)
     note = a.get("why", "") + (f" (exit {a['exit']})" if a.get("exit") else "")
@@ -341,7 +345,10 @@ def origin_moved(top: str, main: str, wiring: roles.Wiring = roles.FARMER) -> st
 
 def stay_current(top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER, sha: str = "") -> None:
     """Merge the default branch into the role's worktree the way /mfm does; a failure needs the model. A success
-    records the merged `sha` (origin_moved)."""
+    records the merged `sha` (origin_moved). A stale index.lock goes first, logged (stale_lock, L52, L69)."""
+    import stale_lock
+    if note := stale_lock.clear(top):
+        execute(act("frame", "stale-lock", "record", text=note), top, main, out, wiring)
     a = act("frame", "stay-current", "run", argv=MFM, text=f"merge-from-main in the {wiring.role}'s worktree")
     execute(a, top, main, out, wiring)
     if not a["exit"] and sha:

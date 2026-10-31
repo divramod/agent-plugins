@@ -1,12 +1,15 @@
 """A train is frozen at forming (hal2 plan 0360 D3, D7): before forming wagons still drop out (trains.draft: a
 servant's field, a gone worktree, a head in the barn, a conflict, red light checks, the alone rule); from its
-`formed` line on nothing leaves the train, a later hitch waits for the next one, and no wait limit ends it: a red
-train waits until it is fixed. Only the user's own command (`--by-user`) breaks a formed train up or takes a car out
-of it; the session never passes it. The one undo left is `engine.form`'s own: a car that does not merge there, or a
+`formed` line on nothing leaves the train, and no wait limit ends it: a red train waits until it is fixed. A later
+hitch only joins: while its landing waits for the run before, a clean, proven wagon is added (open_train.join, plan
+0490 step 20, the one place a car comes in after forming); from the push on it waits for the next train. Only the
+user's own command (`--by-user`) breaks a formed train up or takes a car out of it; the session never passes it. The
+one undo left is `engine.form`'s own (and open_train.join's of its own car): a car that does not merge there, or a
 mark the queue refuses, undoes that same call's forming, before the train ever was in the queue.
 
-`merge_car` is the merge of one car into the carrier (`form`'s, and `complete`'s for a train whose form died between
-its lines); `complete` merges the cars the carrier lacks, so `restart` lands the same train, never a new draft.
+`merge_car` is the merge of one car into the carrier (`form`'s, open_train.join's, and `complete`'s for a train whose
+form died between its lines); `complete` merges the cars the carrier lacks, so `restart` lands the same train, never
+a new draft.
 """
 
 from pathlib import Path

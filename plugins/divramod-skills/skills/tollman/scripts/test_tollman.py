@@ -22,6 +22,7 @@ import handoff
 import mtm_scan
 import role_cli
 import roles
+import run_triage_wire
 import tick
 import timer
 import tollman
@@ -89,7 +90,9 @@ class Field(Repo):
             self.cmds.append(cmd)
             return (0 if self.loaded or cmd[1] != "print" else 113), ""
 
+        self.triages = []  # run_triage_wire's detached children: recorded, never started (no process leaves a test)
         for p in (mock.patch.object(Path, "home", return_value=self.tmp), mock.patch.object(timer, "run", launchctl),
+                  mock.patch.object(run_triage_wire, "SPAWN", lambda argv, **kw: self.triages.append(argv)),
                   mock.patch.object(timer.platform, "system", return_value="Darwin"),
                   mock.patch.object(role_cli.shutil, "which", return_value="/bin/x")):
             p.start()

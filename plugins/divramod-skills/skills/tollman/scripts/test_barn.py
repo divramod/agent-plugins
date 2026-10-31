@@ -137,11 +137,20 @@ class AfterTheBarn(unittest.TestCase):
         self.assertEqual([a for a in self.round(hours=23) if a["slot"] == "04"], [])
         late = [a for a in self.round(hours=25) if a["slot"] == "04"]
         self.assertEqual([(a["kind"], a["do"]) for a in late], [("barn-stuck", "wake")])
-        self.assertEqual(late[0]["key"], "barn-stuck:04:h04")
+        self.assertEqual(late[0]["key"], "barn-stuck:04:03+04+14@x", "by field and landed train (L109), never HEAD")
         self.assertIn("uncommitted", late[0]["text"])
         _, log, out = self.done(late)
         self.assertEqual([a["kind"] for a in out["wake"]], ["barn-stuck"])
         self.assertEqual([a for a in self.round(log, hours=26) if a["slot"] == "04"], [], "once")
+
+    def test_l109_a_field_running_a_new_plan_after_its_landing_is_not_stuck(self):
+        formed = {"kind": "formed", "train": "03+04+14@x", "cars": [{"field": "04", "plan": "0460-old"}]}
+        (self.tmp / "04" / "plans").mkdir()
+        (self.tmp / "04" / "plans" / "CURRENT_PLAN").write_text("0473-research-new\n")
+        with mock.patch.object(barn.train_state, "lines", side_effect=lambda main: [formed, LANDED]):
+            self.assertEqual([a for a in self.round(hours=25) if a["slot"] == "04"], [], "new work, not stuck")
+            (self.tmp / "04" / "plans" / "CURRENT_PLAN").write_text("0460-old\n")
+            self.assertEqual([a["kind"] for a in self.round(hours=25) if a["slot"] == "04"], ["barn-stuck"])
 
     def test_a_car_above_09_is_started_for_removal_before_other_free_fields(self):
         remove = [a for a in self.round() if a["kind"] == "remove"]

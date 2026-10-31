@@ -46,7 +46,7 @@ class Field(unittest.TestCase):
         """git for real; a check answers from `answers` and is counted."""
         if argv[0] == "git":
             return proof.sh(argv, cwd)
-        name = "records" if argv[0] == "hal2-cli-records" else "names"
+        name = {"hal2-cli-records": "records", "gh": "gh"}.get(argv[0], "names")
         self.calls.append(name)
         return self.answers.get(name, (0, "ok"))
 
@@ -97,15 +97,45 @@ class Checks(Field):
         self.assertEqual(list(self.cache.glob("*.json")), [], "a verdict that left findings out is not kept")
 
 
+class Lanes(Field):
+    """Plan 0490 step 7, L70: a crop that moves a job to runs-on labels the barn's runner list lacks, while no such
+    runner is online on GitHub, is red on its workflow line; a crop without a workflow change asks nothing new."""
+
+    WF = ".github/workflows/m.yml"
+
+    def barn(self):
+        self.g("checkout", "-q", "main")
+        self.commit({self.WF: "jobs:\n  b1-hz01-host-a:\n    runs-on: [self-hosted, linux, hz01-host-a]\n",
+                     ".github/hal2-runners.toml": '[[runners]]\nlabels = ["self-hosted", "linux", "hz01-host-a"]\n'})
+        self.g("checkout", "-q", "06")
+        self.g("merge", "-q", "main")
+        self.names_script()
+
+    def test_a_lane_moved_to_an_unknown_offline_runner_is_red(self):
+        self.barn()
+        head = self.commit({self.WF: "jobs:\n  b1-az02-host-a:\n    runs-on: [self-hosted, linux, az02-host-a]\n"})
+        self.answers["gh"] = (0, '{"runners": [{"name": "az02", "status": "offline", "labels": '
+                                 '[{"name": "self-hosted"}, {"name": "linux"}, {"name": "az02-host-a"}]}]}')
+        v = self.verdict(head)
+        self.assertEqual((v["state"], v["checks"]), ("red", ["names", "lanes"]))
+        self.assertTrue(v["lines"][0].startswith(f"lanes: {self.WF}: job b1 moves runs-on to [az02-host-a, "), v)
+        self.assertEqual(self.calls, ["names", "gh"])
+
+    def test_a_crop_without_a_workflow_change_runs_no_lane_check(self):
+        self.barn()
+        head = self.commit({"b.rs": "b\n"})
+        v = self.verdict(head)
+        self.assertEqual((v["state"], v["checks"], self.calls), ("green", ["names"], ["names"]))
+
+
 class Waits(Field):
-    def test_a_field_not_at_its_hitched_head_waits_and_nothing_runs_or_is_kept(self):
+    def test_a_field_not_at_its_hitched_head_is_proven_on_the_hitched_sha(self):
+        """Plan 0490 step 23 (D24): no longer `wait`; test_proof_scratch holds the scratch's cases."""
         self.names_script()
         hitched = self.commit({"b.rs": "b\n"})
         self.commit({"c.rs": "c\n"})  # the foreman went on after the hitch
         v = self.verdict(hitched)
-        self.assertEqual(v["state"], "wait")
-        self.assertIn("no proof yet", v["lines"][0])
-        self.assertEqual((self.calls, list(self.cache.glob("*.json"))), ([], []))
+        self.assertEqual((v["state"], self.calls), ("green", ["names"]))
 
     def test_a_missing_field_waits(self):
         v = proof.verdict("-", str(Path(self.d) / "gone"), "0" * 40, "main", run=self.run_, cache=self.cache)

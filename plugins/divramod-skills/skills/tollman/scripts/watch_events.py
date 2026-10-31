@@ -5,8 +5,13 @@ the round (steps 5 and 6) acts on. `new` returns only the events not seen before
 - `job-failed`: `job failed: <job>: <first error line>` for each red job of the run (mtm_ci.red_jobs: fail-fast
   cancels, ship, build and stop jobs left out); the line is the first error line of the job's failed log, else its
   first failed step
+- `step-failed`: `step failed: <job> <step>`, a red step of a job that still runs (step_red.py, plan 0490 step 25,
+  D25: one jobs list a pass while a job runs, none else), keyed `step:<run>:<job>:<step>`; run_triage_step_act.py
+  triages it and orders its fix at once
 - `merge-green`: `merge job green: <job> (<run url>)`, the merge job (`d2-01-git-merge`, mtm_ci.merged)
 - `finished`: `workflow finished: <conclusion> (<run url>)`, the run completed
+- `slow-job`: `job slow: <job> runs <n> min, over 2x its median ...`, a job past twice its median time in the last
+  green land runs (slow_jobs.py, plan 0490 step 11, D15, L127; the medians are read once per run and kept as `base`)
 
 The run is the standing landing train's (watch.find: its branch `land/train-<plans>`, train_branch.py); once noted it
 stays watched until its `finished` event, also after the train left the state `landing`, so the end of a run is never
@@ -18,6 +23,7 @@ minute.py's next train); a quiet pass writes nothing and returns []. Read-only a
 """
 
 import argparse
+import datetime as dt
 import os
 import sys
 
@@ -59,10 +65,16 @@ def collect(main: str, tgt: dict) -> list[dict]:
     for j in red:
         out.append({"key": f"job:{rid}:{j['name']}", "kind": "job-failed",
                     "text": f"job failed: {j['name']}: {job_error.first_error(main, rid, j, log)}"})
+    if tgt.get("base"):  # L127: a job past twice its usual time (slow_jobs; the jobs read above, no gh call)
+        import slow_jobs
+        out += slow_jobs.events(rid, jobs, tgt["base"], dt.datetime.now(dt.timezone.utc))
+    row = next((r for r in mtm_ci.runs_of(mtm_scan.run_json, main) if str(r.get("databaseId")) == rid), None)
+    if any(j.get("status") == "in_progress" for j in jobs):  # plan 0490 step 25: a red step of a running job
+        import step_red
+        out += step_red.events(main, rid, url, jobs, row)
     if mtm_ci.merged(jobs):
         name = next(j["name"] for j in jobs if mtm_ci.job_part(j.get("name", "")) in mtm_ci.MERGE_JOBS)
         out.append({"key": f"merge:{rid}", "kind": "merge-green", "text": f"merge job green: {name} ({url})"})
-    row = next((r for r in mtm_ci.runs_of(mtm_scan.run_json, main) if str(r.get("databaseId")) == rid), None)
     if row and row.get("status") == "completed":
         out.append({"key": f"done:{rid}", "kind": "finished",
                     "text": f"workflow finished: {row.get('conclusion') or 'unknown'} ({url})"})
@@ -75,20 +87,24 @@ def new(main: str, rows: list[dict], dry: bool = False) -> list[dict]:
     tgt = target(main, rows, state)
     if not tgt:
         return []
+    if "base" not in tgt:  # once per run: its jobs' medians in the last green runs (L127)
+        import slow_jobs
+        tgt = {**tgt, "base": slow_jobs.base(main, tgt["run"], dt.datetime.now(dt.timezone.utc))}
     told = set(tgt.get("seen") or [])
     fresh = [e for e in collect(main, tgt) if e["key"] not in told]
     for e in fresh:
         e["text"] = e["text"].replace("\n", " ")
     if not dry and (fresh or tgt is not state):
         done = any(e["kind"] == "finished" for e in fresh)
-        leavers.write(main, FILE, {**{k: tgt.get(k) for k in ("run", "url", "train", "started")}, "schema": SCHEMA,
+        leavers.write(main, FILE, {**{k: tgt.get(k) for k in ("run", "url", "train", "started", "base")},
+                                   "schema": SCHEMA,
                                    "seen": (list(told) + [e["key"] for e in fresh])[-KEEP:],
                                    "closed": bool(tgt.get("closed")) or done})
     return fresh
 
 
 def state(main: str) -> dict:
-    """The watched run as `watch-events.json` keeps it: {run, url, train, started, seen, closed}, or {}."""
+    """The watched run as `watch-events.json` keeps it: {run, url, train, started, base, seen, closed}, or {}."""
     return leavers.read(main, FILE, {})
 
 

@@ -20,7 +20,8 @@ one removal of a field 10-99 per round (the last train's cars come first in /pru
 a trim while the disk is short and, after the trims, /prune's responses (`tart prune`, the listed caches: disk
 watermark, plan 0472 D2); trims, muck outs and responses wait while a train builds (a workqueue hold or a train's local
 phase, plan 0472, both checked live: never the old plan's `busy`), and starts one run for them (the first action runs, the others are record lines
-carrying their keys). After the barn (barn.py) a car's session is cleared; every 6 hours the free disk and the biggest
+carrying their keys). A train worktree left beside the field (a drop after the landing failed or never ran) is
+dropped again, detached, at most hourly (train_wt.retry, L135). After the barn (barn.py) a car's session is cleared; every 6 hours the free disk and the biggest
 fields come from /prune's facts. The notices use /prune's own threshold and goal (its plan's `short` and `goal_met`,
 no constant here): a warning once per 6 hours above the goal (default 85% used) before the threshold bites, a
 low-disk notice past the threshold (default 90% used or under 150 GB free). /prune not installed or its plan failing
@@ -147,7 +148,7 @@ def report(main: str, ctx: dict, data: dict, hold: str | None = None) -> list[di
     now = ctx["now"]
     out = []
     if not any(str(e.get("key", "")).startswith("prune:disk:") and
-               (now - dt.datetime.fromisoformat(e["at"])).total_seconds() < REPORT_EVERY for e in ctx.get("log", [])):
+               (mtm_scan.naive(now) - mtm_scan.log_time(e["at"])).total_seconds() < REPORT_EVERY for e in ctx.get("log", [])):
         free = data["facts"]["disk"]["free_gb"]
         big = sorted(((f["size"]["bytes"] / 1e9, f["slot"]) for f in data["facts"]["fields"]
                       if f.get("size") and f["size"].get("bytes")), reverse=True)[:TOP]
@@ -256,7 +257,9 @@ def plan(item: dict, ctx: dict, data: dict | None = None, landed: dict | None = 
 
 
 def handler(item: dict, ctx: dict) -> list[dict]:
-    return plan(item, ctx)
+    """/prune's plan, and a train worktree left beside the field dropped again (train_wt.retry, L135)."""
+    import train_wt
+    return train_wt.retry(ctx.get("top", ctx["main"]), ctx["main"]) + plan(item, ctx)
 
 
 def main(argv: list[str]) -> int:

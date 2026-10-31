@@ -6,21 +6,21 @@
   "required": ["schema", "at", "kind", "slot"],
   "properties": {
     "schema": {"type": "integer", "minimum": 1, "maximum": 1},
-    "kind": {"enum": ["formed", "yard", "regenerated", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared"]},
+    "kind": {"enum": ["formed", "yard", "regenerated", "joined", "declined", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared"]},
     "train": {"type": "string", "minLength": 1, "description": "The train's name, `<car>+<car>@<formed at>`."},
     "number": {"type": "integer", "minimum": 1, "description": "A formed line: the train's number (hal2 plan 0398 D4, train_state.next_number), which names its land branch `land/train-<number>-<start>`; none on a train formed before it."},
     "cars": {
       "type": "array",
-      "description": "A formed line: the cars in the order they are merged, each an object with field, branch, head and plan; a landed line: their fields."
+      "description": "A formed line: the cars in the order they are merged, each an object with field, branch, head and plan; a joined line: the one car that joined the open train before its push (open_train.py, plan 0490 step 20), likewise; a landed line: their fields."
     },
-    "base": {"type": "string", "minLength": 7, "description": "The carrier's head before the cars were merged; an order line: the carrier's head the fix branches from."},
+    "base": {"type": "string", "minLength": 7, "description": "The carrier's head before the cars were merged; a joined line: before the car joined; an order line: the carrier's head the fix branches from."},
     "worktree": {"type": "string", "description": "A formed line: the path of the train's own worktree `tollman-train-<plan>-...`, the carrier (hal2 plan 0375 D5)."},
     "pid": {"type": "integer", "minimum": 1, "description": "The landing's detached process."},
     "log": {"type": "string", "description": "The landing's output file."},
     "land_ref": {"type": "string", "pattern": "^train-[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 195, "description": "A started line: the train's own branch, landed on `land/<land_ref>`: `train-<number>-<start>` picked by merge-to-main from the mark's `--train/--attempt` (plan 0398), or, on a train without a number, the plan-named branch given as `--land-ref` (train_branch.py, plan 0383 D2)."},
     "status": {"type": "string", "description": "A red line: the landing's result (`gate_failed`, `conflict`, `error`, ...)."},
     "run": {"type": "string", "description": "The land run's address; a run line: the run of the landing that runs now, found by watch.py (plan 0360 step 5); a pause line: the run watched when the pause came (the one it cancels, step 18)."},
-    "commit": {"type": "string", "description": "A landed line: the commit on the default branch; a yard line: the yard's commit in the carrier's field; a regenerated line: the train's last commit, which wrote the generated files again; a started line after a retry: the empty commit that gives the landing a new candidate, so a fresh run (plan 0313 step 13)."},
+    "commit": {"type": "string", "description": "A landed line: the commit on the default branch; a yard line: the yard's commit in the carrier's field; a regenerated line: the train's last commit, which wrote the generated files again; a joined line: the carrier's head after the car joined; a started line after a retry: the empty commit that gives the landing a new candidate, so a fresh run (plan 0313 step 13)."},
     "files": {
       "type": "array",
       "description": "A yard line: the yard's files that ride as the train's first car, each an object with path and hash (the hash of what was carried; none for a deletion). An unhitched line of the slot `yard`: the files that stay out until they change. A regenerated line: the paths of the generated files written again (plan 0313 step 8)."
@@ -30,25 +30,25 @@
       "description": "A landed line of a train the yard rode: what was done in the yard afterwards: dropped (paths), kept (path and why), pulled, why."
     },
     "pushed": {"type": "string", "description": "A cleared or formed line: what became of the carrier's remote branch, which a dead train's landing had pushed (put back on the base with a leased push, or why not; plan 0313 steps 1 and 14); none when there was nothing to push."},
-    "seconds": {"type": "number", "minimum": 0, "description": "A pretest line: how long the pretest took."},
+    "seconds": {"type": "number", "minimum": 0, "description": "A pretest line: how long the pretest took; a joined line: the pretest of the car's jobs."},
     "local_phase_seconds": {"type": "number", "minimum": 0, "description": "The first run line of a train: its local phase, from the formed line to the land run's creation (hal2 plan 0467 D21, D23; watch.py). Later run lines (a retry, a resume) carry none."},
-    "result": {"enum": ["green", "red", "skipped", "none"], "description": "A pretest line: its result (pretest.py)."},
+    "result": {"enum": ["green", "red", "skipped", "none"], "description": "A pretest line: its result (pretest.py); a joined line: that of the pretest of the car's jobs."},
     "jobs": {
       "type": "array",
-      "description": "A pretest line: one object per configured job, with job, key, state (cached, run, skipped, not needed), seconds, result and why."
+      "description": "A pretest or joined line: one object per configured job, with job, key, state (cached, run, skipped, not needed), seconds, result and why."
     },
     "local": {
       "type": "object",
       "description": "A pretest line: what the pretest, the train's local phase, cost the machine (local_load.py, plan 0472 step 4): seconds, load_peak (the highest 1-minute load average at its marks), disk_ops_s (mean whole-disk operations per second, none where the OS gives none without root) and marks, one object per start, mid (if the pretest lasted a probe interval) and end with t, at, load1 and ops_s (the rate since the mark before)."
     },
     "why": {"type": "string"},
-    "field": {"type": "string", "minLength": 1, "description": "An order or fixed line: the car's field the fix order is for, `main` (the barn's red, the tollman's own hand; plan 0360 step 6) or a smuggling field (step 18). A pause line: the smuggle's slot that paused the landing; a resumed line: the smuggles since the last resume (plan 0360 step 18)."},
+    "field": {"type": "string", "minLength": 1, "description": "A declined line: the field whose join was undone (open_train.decline). An order or fixed line: the car's field the fix order is for, `main` (the barn's red, the tollman's own hand; plan 0360 step 6) or a smuggling field (step 18). A pause line: the smuggle's field that paused the landing; a resumed line: the smuggles since the last resume (plan 0360 step 18)."},
     "seq": {"type": "integer", "minimum": 0, "description": "A pause line: the smuggle's ticket number (the queue's `paused_by.seq`): one line per pause."},
     "since": {"type": "string", "description": "A pause line: since when the smuggle paused the landing (the queue's `paused_by.since`)."},
     "branch": {"type": "string", "minLength": 1, "description": "An order line: the side branch the fix is made on, `<NN>-train-fix` or `tollman-train-fix`."},
     "id": {"type": "string", "minLength": 1, "description": "An order or fixed line: the fix order's id, `<field>-fix-<n>`."},
     "sha": {"type": "string", "minLength": 7, "description": "A fixed line: the fix's commit the foreman answered with."},
-    "head": {"type": "string", "minLength": 7, "description": "A barn line: the head of the field that was in the barn already when the tollman woke from smuggle mode (plan 0360 step 25, D75)."},
+    "head": {"type": "string", "minLength": 7, "description": "A declined line: the field's head that never joins that train again. A barn line: the head of the field that was in the barn already when the tollman woke from smuggle mode (plan 0360 step 25, D75)."},
     "how": {"enum": ["hitch", "formed", "running"], "description": "A barn line: a waiting hitch (its mark cleared), a car of a formed train (it left the train, D76) or of a running train (only recorded)."},
     "by": {"enum": ["user"], "description": "An unhitched line of a car of the standing train: taken out by the user's own command (`--by-user`, plan 0360 D3); the session never takes a car out of a formed train."}
   }

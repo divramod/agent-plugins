@@ -467,6 +467,7 @@ class Files(Farm):
               mock.patch.object(engine.subprocess, "run", run), mock.patch.object(engine, "cli", return_value=(0, "")),
               mock.patch.object(engine.pretest_train, "before_landing", pretest),
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
+              mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88's look: its own test)
               mock.patch.object(workqueue_hold, "cloud_train", lambda top: cloud),
               mock.patch("sys.stdout"), mock.patch.dict(os.environ)):
             os.environ.pop("HAL2_WORKQUEUE_HOLD", None)

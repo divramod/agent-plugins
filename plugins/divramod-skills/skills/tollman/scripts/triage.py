@@ -6,8 +6,11 @@ readers, shared per round: gh_runs; git in the main checkout), `of` does both fo
 - `runner`: the run's failed log (`gh run view <id> --log-failed`, its last LOG chars) matches the TRANSIENT
   patterns (transient.py, the farmer's until step 8): a network, registry or runner fault. Nobody is woken; when the
   landing has ended, trains.settle lands the same cars again on a fresh run (train_red.py)
+  Also a red job no runner served (gh gives it no step: L64) and a red only of a latency budget or a test's time
+  limit (run_triage_read.budget_only, L13: load on the shared host): one fresh run, a repeat counts as runner retries
 - `main`: the barn is red, not a car: the same job (stack_red.bare: the job without its matrix alias and position)
-  is red in the newest completed land run of another worktree that started before the train was formed, and that run's
+  is red in the newest completed land run of another worktree that started before the train was formed (the landing
+  workflow's first, a `skipped` run never: watch.of_setting, L134), and that run's
   candidate held the barn's head: one of its commit's parents (`gh api repos/{owner}/{repo}/commits/<sha>`) is
   the barn's head now. The toll gate keeps the barn still while the train lands, so the barn's head now is the one
   the train's candidate held (simpler than reading the run title's base, which names no commit)
@@ -26,8 +29,10 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import ci_scan
 import gh_runs
+import job_error
 import mtm_ci
 import mtm_scan
+import run_triage_read
 import smuggled
 import stack_red
 import transient
@@ -58,6 +63,12 @@ def classify(run: dict, red: list[dict], logs: str, history: dict) -> dict:
     base = {"run": run.get("url") or run.get("id"), "id": run.get("id"), "red": names}
     if match := transient.TRANSIENT.search(tail):
         return {"kind": "runner", "evidence": {**base, "match": match.group(0)}}
+    if red and all(run_triage_read.unserved(j) for j in red):  # L64: no runner ever took them
+        return {"kind": "runner", "evidence": {**base, "match": "no runner served " + ", ".join(names)}}
+    lines = [job_error.clean(t) for t in tail.splitlines()]  # without the log's job, step and time columns
+    if not run_triage_read.TIMEOUT.search(tail) and run_triage_read.budget_only(lines):  # L13: a load flake
+        hit = next(t for t in lines if run_triage_read.BUDGET.search(t))
+        return {"kind": "runner", "evidence": {**base, "match": "budget: " + hit.strip()[:200], "budget": True}}
     tests = mtm_scan.failing_tests(tail)
     if hit := smuggled.touched(history.get("smuggles"), tail, tests):
         return {"kind": "smuggled", "evidence": {**base, "slot": hit["slot"], "files": hit["hits"], "tests": tests,
@@ -100,9 +111,11 @@ def other_run(main: str, train: dict, fetch) -> dict | None:
     """The newest completed land run of another worktree that started before the train was formed, with its red jobs
     (a train's own branch `land/train-...` names no worktree: mtm_ci leaves it out, as the carrier's was)."""
     since, carrier = mtm_ci.started({"createdAt": train.get("at")}), train.get("carrier")
-    runs = [r for r in mtm_ci.runs_of(mtm_scan.run_json, main)
-            if mtm_ci.slot_of(r.get("headBranch") or "") not in ("", carrier) and r.get("status") == "completed"
-            and mtm_ci.started(r) < since]
+    import watch  # its import reaches post_merge, which imports this module
+    runs = watch.of_setting(main, [r for r in mtm_ci.runs_of(mtm_scan.run_json, main)  # the landing workflow's first
+                                   if mtm_ci.slot_of(r.get("headBranch") or "") not in ("", carrier)
+                                   and r.get("status") == "completed" and r.get("conclusion") != "skipped"  # L134
+                                   and mtm_ci.started(r) < since])
     if not runs:
         return None
     r, rid = runs[0], str(runs[0].get("databaseId"))

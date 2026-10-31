@@ -11,8 +11,9 @@ not clear itself. The prune duty (prune.py) then looks at each car of the newest
   draft in the box is not in the list; the clear job itself waits for it and never touches it;
 - a field 10-99 is removed by /prune's run (stopped by signal, removed through the proof): its plan orders the
   last train's cars first, so a car is removed right after the barn (prune.py starts the run for it);
-- a car whose field still holds work 24 hours after the landing: one wake, `barn-stuck:<slot>:<HEAD>`, never a forced
-  removal.
+- a car whose field still holds work 24 hours after the landing: one wake, `barn-stuck:<slot>:<train>`, never a
+  forced removal; none for a field whose CURRENT_PLAN names another plan than the car's that rode (its foreman's new
+  work, L109: keyed by HEAD, every new commit of field 16's new research plan woke again).
 """
 
 import datetime as dt
@@ -79,8 +80,26 @@ def clear(w: dict, agents: list[dict] | None) -> list[dict]:
                 text=f"clear field {w['slot']}'s session {pane}: its crop is in the barn, its work is safe")]
 
 
+def rode(main: str, landed: dict) -> dict[str, str]:
+    """{field: the plan its car carried} from the `formed` line of the landed train (`joined` cars too)."""
+    out: dict[str, str] = {}
+    for e in train_state.lines(main):
+        if e.get("train") == landed.get("train") and e.get("kind") in ("formed", "joined"):
+            out.update({str(c.get("field")): c.get("plan") or "" for c in e.get("cars", []) if isinstance(c, dict)})
+    return out
+
+
+def new_plan(w: dict, plan: str) -> bool:
+    """The field's CURRENT_PLAN names a plan, and not the one its car carried."""
+    try:
+        now = (Path(w["path"]) / "plans" / "CURRENT_PLAN").read_text().strip()
+    except OSError:
+        return False
+    return bool(now and plan and now != plan)
+
+
 def stuck(w: dict, landed: dict) -> dict:
-    return act("prune", "barn-stuck", "wake", w["slot"], key=f"barn-stuck:{w['slot']}:{w['head']}", window=ONCE,
+    return act("prune", "barn-stuck", "wake", w["slot"], key=f"barn-stuck:{w['slot']}:{landed.get('train')}", window=ONCE,
                text=f"field {w['slot']} rode train {landed.get('train')} into the barn over 24 h ago and still "
                     f"holds work: {w['why']}. Look; never remove it by force (new work of its foreman is fine)")
 
@@ -91,12 +110,13 @@ def actions(ctx: dict, found: list[dict], landed: dict | None) -> list[dict]:
         return []
     fields, out = cars(landed), []
     late = age(landed, ctx["now"]) >= STUCK_AFTER
-    agents = []  # the live list, read when the first clear is due
+    agents, plans = [], None  # the live list, read when the first clear is due; the cars' plans, at the first stuck
     for w in found:
         if w["slot"] not in fields or not Path(w["path"]).is_dir():
             continue
         if w["why"]:
-            out += [stuck(w, landed)] if late else []
+            plans = plans if plans is not None or not late else rode(ctx["main"], landed)
+            out += [stuck(w, landed)] if late and not new_plan(w, (plans or {}).get(w["slot"], "")) else []
         elif int(w["slot"]) < 10 and cleaned(ctx.get("log", []), w["slot"], w["head"]):
             if not agents:
                 agents.append(live_agents())

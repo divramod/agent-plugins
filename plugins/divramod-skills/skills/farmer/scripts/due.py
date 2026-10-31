@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 import bounded
+import mtm_scan
 import roles
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
@@ -230,7 +231,7 @@ def last_runs(repo: str, role: str = roles.ROLE) -> dict[str, dt.datetime]:
     out: dict[str, dt.datetime] = {}
     if f.exists():
         for e in map(json.loads, f.read_text().splitlines()):
-            out[e["name"]] = dt.datetime.fromisoformat(e["at"])
+            out[e["name"]] = mtm_scan.log_time(e["at"])
     return out
 
 

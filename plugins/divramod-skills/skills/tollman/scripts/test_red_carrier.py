@@ -90,7 +90,8 @@ class RedCarrier(Farm):
         self.round()
         self.assertIn(("form", "run", "-"), self.last)
         self.assertNotIn("pushed", self.last_line("formed"), "the landed train is in the base's history")
-        self.assertEqual(self.remote(), landed, "untouched: the next push fast-forwards it")
+        self.assertIsNotNone(landed)
+        self.assertIsNone(self.remote(), "deleted with a lease once it was in the barn (L55): nothing to push back")
         self.assertEqual(self.landing_push()[0], 0)
 
     def test_a_retry_keeps_the_red_head_on_the_remote_and_its_push_fast_forwards(self):

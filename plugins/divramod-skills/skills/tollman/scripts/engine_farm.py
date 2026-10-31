@@ -19,6 +19,7 @@ import engine
 import mtm_scan
 import tick
 import train_state
+import train_wt
 import trains
 import tollman
 from test_farmer import git
@@ -103,7 +104,7 @@ class Farm(Field):
     def setUp(self):
         super().setUp()
         self.gate, self.spawned, self.alive, self.typed, self.panes = Gate(), [], set(), [], {}
-        self.fields = {}
+        self.fields, self.detached = {}, []
         real = tick.sh
 
         def sh(argv, cwd, timeout=900):
@@ -133,10 +134,19 @@ class Farm(Field):
                   mock.patch.object(mtm_scan, "pid_alive", lambda pid: pid in self.alive),
                   mock.patch.object(train_state, "command_of", lambda pid: ""),  # the fake pid: never the host's ps
                   mock.patch.object(tick.deliver, "send", lambda pane, text, s=None: self.typed.append((pane, text))),
-                  mock.patch.object(tick.due, "is_due", return_value=True)):
+                  mock.patch.object(tick.due, "is_due", return_value=True),
+                  mock.patch.object(train_wt, "SPAWN", lambda argv, **kw: subprocess.run(  # L55's push, to its end
+                      argv, cwd=kw["cwd"], capture_output=True, env=kw.get("env"))),
+                  mock.patch.object(train_wt, "DETACH", self.detach)):
             p.start()
             self.addCleanup(p.stop)
         self.assertEqual(self.call("mode", "timer")[0], 0)
+
+    def detach(self, argv, **kw):
+        """train_wt.later's detached drop run (L135), in this process to its end, its lines in its log."""
+        self.detached.append(argv[2])
+        with contextlib.redirect_stdout(kw["stdout"]):
+            train_wt.main(argv[2:])
 
     def crop(self, name, files, plan=""):
         """A foreman's field with one commit the barn lacks, hitched: its ready ticket."""

@@ -50,7 +50,8 @@ class CarrierPush(Farm):
         # split after red, in the unhitch's own call (plan 0333 step 6): breakup, then the train of 07 alone forms
         self.assertEqual(code, 0, text)
         self.assertIn("chain link 1: breakup -, unhitched 06, form -\nchain stops: a landing started", text)
-        self.assertEqual(self.remote(ref), base, "the dead train is gone from origin")
+        self.assertIsNone(self.remote(ref), "the dead train is gone from origin: put back on the base, which is in "
+                          "the barn, then deleted with the dropped worktree's branch (L55)")
         self.assertEqual(self.cleared()["pushed"], f"origin's {ref} back on {base[:12]} (was {dead[:12]})")
         self.assertEqual((self.train()["base"], self.carrier()), (base, "tollman-train-0301"))
         code, text = self.landing_push()
@@ -95,7 +96,7 @@ class CarrierPush(Farm):
         code, text = engine.form(str(self.wm), [car])
         self.assertEqual(code, 1, text)
         self.assertIn(f"origin's {ref} back on {base[:12]}", text)
-        self.assertEqual(self.remote(ref), base)
+        self.assertIsNone(self.remote(ref), "back on the base, in the barn: deleted with the dropped branch (L55)")
         formed = [e for e in train_state.lines(str(self.main)) if e["kind"] == "formed"][-1]
         self.assertTrue(formed["pushed"].startswith(f"origin's {ref} back on"), "the form put it back (step 14)")
         self.assertNotIn("pushed", self.cleared(), "the breakup found it on the base already")

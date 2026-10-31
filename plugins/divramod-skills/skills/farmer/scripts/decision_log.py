@@ -93,7 +93,7 @@ def concerns(entry: dict, slot: str, repo: str) -> bool:
 
 
 def when(entry: dict) -> dt.datetime:
-    return dt.datetime.fromisoformat(entry["at"][:19])
+    return mtm_scan.log_time(entry["at"])
 
 
 def relayed(d: dict, ask: dict, repo: str) -> bool:

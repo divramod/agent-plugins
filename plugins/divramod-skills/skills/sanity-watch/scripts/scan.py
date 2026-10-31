@@ -19,7 +19,8 @@ day chronicle, the hook records, terminal orphans), Claude Code's transcripts (a
 under ~/skills/sanity-watch/. A session that rests while a background task of its own lives (a
 shell, a monitor, a subagent whose transcript moved in the last 20 min) waits, it has not
 stopped (a plan's coordinator waiting on its step's subagent); one whose subagents are all dead
-is F14. While the machine is quiet (hal2's marker, plan 0442 D11) a scan finds nothing: Quiet now stopped the
+is F14. A session in a `tollman-train-*` field (a train's carrier, the tollman's) is skipped: never an incident,
+never resumed. While the machine is quiet (hal2's marker, plan 0442 D11) a scan finds nothing: Quiet now stopped the
 sessions on purpose. Exit 0 on success, 2 when a tool is missing.
 """
 
@@ -228,6 +229,15 @@ def paused_fields(project: str) -> dict[str, dict]:
     return {f["field"]: f for f in fields if isinstance(f, dict) and f.get("field")} if isinstance(fields, list) else {}
 
 
+TRAIN_FIELD_PREFIX = "tollman-train-"  # a train's carrier field: no session runs there (tollman L107, hal2 plan 0490)
+
+
+def in_train_field(*places) -> bool:
+    """Whether any of `places` (a field name, a checkout or worktree path) is a `tollman-train-*` field: its engine
+    owns it, so a session there is never an incident, never resumed (`hal2-cli-git worktree run` refuses it, too)."""
+    return any(str(p or "").rstrip("/").rsplit("/", 1)[-1].startswith(TRAIN_FIELD_PREFIX) for p in places)
+
+
 def hold_paused(found: list[dict], paused: dict[str, dict]) -> None:
     """Gives every incident in a paused field (but a plain count) the action `paused`, in place: a paused field is
     never started, continued or woken (plan 0458), so no resume, restore, judge or handover is left for it."""
@@ -298,6 +308,9 @@ def find_incidents(project: str, agents: list[dict], events: list[dict], orphans
     """Every incident of `project`. Pure apart from `tails`, `plan_of` and `moved` (injected for tests). `paused`
     (fields by number) turns the action of every incident in a paused field into `paused` (`hold_paused`)."""
     plan_of = plan_of or current_plan
+    agents = [a for a in agents if not in_train_field(a.get("slot"), a.get("checkout"))]
+    events = [e for e in events if not in_train_field(e.get("cwd"))]
+    orphans = [o for o in orphans if not in_train_field(o.get("worktree"), o.get("cwd"))]
     mine = [a for a in agents if a.get("project") == project]
     by_session = {a.get("session_id"): a for a in agents if a.get("session_id")}
     found: list[dict] = []

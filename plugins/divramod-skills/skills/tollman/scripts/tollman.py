@@ -44,6 +44,8 @@
   tollman.py fixed <field>|main <sha> [--repo <dir>]
       the answer checked and merged into the carrier; the last one: the same cars land again (the round does it by
       code too, from the foreman's ack `done fixed <sha>`); a refused one keeps the order open, the foreman told why
+  tollman.py fixed <field> --redundant [--repo <dir>]
+      an order whose fix is in the train already, closed on the carrier's head (L56)
   tollman.py sleep|wake [--by <who>] [--why <text>] [--repo <dir>]
       the tollman's sleep flag (switch.py; plan 0365 D3, 0375): `hal2-cli-roles sleep tollman on|off`, `--by user` by
       default; asleep no train forms, every wagon lands alone in its turn, the hitched told so once
@@ -97,7 +99,7 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-from handlers import HANDLERS  # noqa: F401  (the duties' handlers, imported when asked for)
+from handlers import HANDLERS  # the duties' handlers, imported when asked for (a failed import once more)
 import minute
 import mtm_scan
 import pass_timing
@@ -220,8 +222,7 @@ def command(args, rest: list[str]) -> int:
         return code or (go_on(args.repo) if args.cmd == "unhitch" else 0)
     if args.cmd == "chain":
         import chain
-        import trains
-        code, text = chain.run(args.repo, WIRING, trains.handler, args.in_tick)
+        code, text = chain.run(args.repo, WIRING, HANDLERS["duty:trains"], args.in_tick)  # its import retried (L135)
         print(text)
         return code
     if args.cmd in ("silence", "unsilence"):
@@ -253,11 +254,10 @@ def go_on(repo: str) -> int:
     import board
     import chain
     import train_state
-    import trains
     train = train_state.standing(train_state.lines(mtm_scan.main_checkout(repo)))
     if not train or train["state"] != "split":
         return 0
-    code, text = chain.run(repo, WIRING, trains.handler)
+    code, text = chain.run(repo, WIRING, HANDLERS["duty:trains"])
     print(text)
     board.safely(mtm_scan.main_checkout(repo), "messages and acks", board.sync)
     return code

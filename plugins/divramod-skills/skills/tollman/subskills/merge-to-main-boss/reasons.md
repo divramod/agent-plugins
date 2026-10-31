@@ -261,7 +261,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   - 2026-10-04 ~01:30 · wt 01 and 10 (re-enqueued as seq 413/414): `reserve` returned "reserved" (queue_position 11) yet 01 dropped out and 21 got the turn; a new symptom of the same family. The boss's `front` at 00:42 may have been the trigger. Restored with `front 10 01`.
   - 2026-10-04 01:25–03:54 · wt 06: reserve said reserved; after merge-from-main + push, merge-to-main --keep-reserved waited "8 landing(s) ahead" until the 2 h limit. Fix delegated to a foreman (worktree 21).
 - **Likely trigger**: the boss's own `front` reorder restarts a waiter's running --max-wait slice (wt 01 saw it twice). Move a worktree at most once per slice; prefer 25m slices.
-- **Remedy**: tell waiters to use `--max-wait 25m` slices and to run landings detached (nohup); move carriers forward with `front` sparingly.
+- **Remedy**: tell waiters to use `--max-wait 25m` slices and to run landings detached (`setsid` or `hal2-cli-runs exec`, never nohup from a Bash call); move carriers forward with `front` sparingly.
 - **Lasting fix**: shot skill-mtm/6.
 
 ## R5 · Docker images are gone in the middle of a landing

@@ -53,9 +53,28 @@ def sort_out(main: str, default: str, tickets: list[dict], own: str) -> tuple[li
 
 
 def held_for(tickets: list[dict], own: str) -> str | None:
-    """The field whose reserved place holds every train back: a waiting ticket the user's order put there, with no
-    process of its own and no ready mark (plan 0294 step 12: the carrier's landing waited behind it). A leaving
-    ticket in front (held, `waits_for`) holds no train back: only a waiter's look frees it, and the hitched have
-    no process, so the carrier's landing has to wait behind it."""
-    return next((t["slot"] for t in tickets if t.get("reserved") and not t.get("ready") and not t.get("pid")
-                 and t.get("state") == "waiting" and t.get("slot") != own), None)
+    """The field whose reserved place holds the trains back: a waiting ticket the user's order put there, with no
+    process of its own and no ready mark (plan 0294 step 12: the carrier's landing waited behind it), standing ahead
+    of the first ready ticket in queue order; one behind it holds only the wagons behind it (`held_ahead`, tollman
+    learning L95: the carrier takes its first car's place). A leaving ticket in front (held, `waits_for`) holds no
+    train back: only a waiter's look frees it, and the hitched have no process, so the carrier's landing has to wait
+    behind it."""
+    first = next((t for t in _in_order(tickets) if t.get("ready") and t.get("slot") != own), None)
+    return held_ahead(tickets, own, first)
+
+
+def held_ahead(tickets: list[dict], own: str, wagon: dict | None) -> str | None:
+    """The field of the first reserved place (as `held_for` says) ahead of `wagon` in queue order (any, for no wagon):
+    the user ordered it in first, so `wagon` waits behind it (tollman learning L95)."""
+    end = float("inf") if wagon is None else wagon.get("position", 0)
+    for t in _in_order(tickets):
+        if t.get("position", 0) >= end:
+            return None
+        if (t.get("reserved") and not t.get("ready") and not t.get("pid") and t.get("state") == "waiting"
+                and t.get("slot") != own):
+            return t["slot"]
+    return None
+
+
+def _in_order(tickets: list[dict]) -> list[dict]:
+    return sorted(tickets, key=lambda t: t.get("position", 0))

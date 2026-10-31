@@ -9,8 +9,18 @@ The light checks, run read-only in the field on its hitched head, as the gate ru
   records  `hal2-cli-records check --repo <field>` (gate job records-check; the candidate's own build when the
            field's `.hal/own-cli.sh` names one, own_cli.py), when the crop touches `plans/`,
            `.adr/`, `docs/` or a `*.md` file
+  lanes    proof_lanes.check, when the crop changes a `.github/workflows/` file (plan 0490 step 7, L70): a job routed
+           to runs-on labels the barn's runner list lacks rides only when a runner with them is online on GitHub
+  keys, skills, env-readers, state-roots-count, nodes, state
+           proof_light (plan 0490 step 8: L61, L100, L102, L119, L126), each only when the crop touches its inputs
 
-  - A field whose checkout is not at the hitched head: `wait` ("no proof yet"), never unhitched, never cached.
+  - A records check that refuses (exit 10: the installed checker is older than the head's `checker`, L54) is no
+    proof: the car waits with the refusal line, never rides green; the verdict is not cached.
+
+  - A field whose checkout moved on from the hitched head is proven on the hitched sha itself in a detached scratch
+    worktree (proof_scratch, plan 0490 step 23, D24), with no uncommitted work; the field's checkout is never
+    changed. A scratch that cannot be made: `wait` with the reason, never red, never cached. A field at its hitched
+    head is proven in place (the fast path, D9); a field that cannot be read: `wait` ("no proof yet").
   - A check that cannot run (its script or CLI missing, an exit other than 0 or 1, a timeout) is skipped: it never
     makes a car red, the landing's gate still runs it.
   - A finding counts only for a path the crop changed (`<barn>...<head>`) that is clean in the field: what the
@@ -31,12 +41,16 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import own_cli
+import proof_lanes
+import proof_light
+import proof_scratch
 
 ROLE = "tollman"
 NAMES = "code/python/scripts/names-inventory/main.py"
 RECORDS = ["hal2-cli-records", "check"]
 DOCS = re.compile(r"^(plans/|\.adr/|docs/)|\.md$")
 TIMEOUT = 300
+REFUSED = 10  # hal2-cli-records: this binary is older than the repository's `checker` requirement (L54)
 KEEP = 7 * 24 * 3600
 SHOWN = 5  # finding lines a verdict keeps
 
@@ -71,8 +85,10 @@ def dirty(field: str, run=sh) -> set[str]:
 
 
 def checks_for(files: list[str]) -> list[str]:
-    """The light checks a crop's files call for: the names check always, the records check for docs and records."""
-    return ["names"] + (["records"] if any(DOCS.search(f) for f in files) else [])
+    """The light checks a crop's paths call for: the names check always, the records check for docs and records, the
+    lanes check for a workflow, proof_light's for their inputs (the ceilings, which need the files' text: prove)."""
+    return (["names"] + (["records"] if any(DOCS.search(f) for f in files) else [])
+            + (["lanes"] if any(proof_lanes.WORKFLOW.match(f) for f in files) else []) + proof_light.by_path(files))
 
 
 def build_run(run):
@@ -105,14 +121,30 @@ def findings(text: str, files: set[str], unclean: set[str]) -> tuple[list[str], 
     return kept, dropped
 
 
-def prove(field: str, head: str, barn: str, run=sh) -> dict:
-    """The checks on a field at its hitched head, uncached: {state, lines, checks, skipped, dropped}."""
+def one(check: str, field: str, barn: str, head: str, files: list[str], run, grew=None) -> tuple[int, str]:
+    """One check's (exit, output) in the field."""
+    if check == "lanes":
+        return proof_lanes.check(field, barn, head, files, run)
+    if check not in ("names", "records"):
+        return proof_light.check(check, field, barn, head, files, run, build_run(run), grew)
+    argv = argv_of(check, field, barn, head, run=run)
+    return run(argv, field) if argv else (127, "")
+
+
+def prove(field: str, head: str, barn: str, run=sh, clean: bool = False) -> dict:
+    """The checks on a checkout at the hitched head (the field, or a `clean` scratch with no uncommitted work, so no
+    status is read), uncached: {state, lines, checks, skipped, dropped}."""
     files = changed(field, barn, head, run=run)
-    names, unclean = set(files), dirty(field, run=run)
+    names, unclean = set(files), set() if clean else dirty(field, run=run)
     out = {"state": "green", "lines": [], "checks": [], "skipped": [], "dropped": 0}
-    for check in checks_for(files):
-        argv = argv_of(check, field, barn, head, run=run)
-        code, text = run(argv, field) if argv else (127, "")
+    grew, refused = proof_light.ceilings(field, barn, head, files, run), []
+    for check in checks_for(files) + list(grew):
+        code, text = one(check, field, barn, head, files, run, grew.get(check))
+        if check == "records" and code == REFUSED:
+            first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+            refused.append(f"no proof yet: the records check refused (exit {REFUSED}, the installed checker is older "
+                           f"than the head's `checker`; install the newer hal2-cli-records): {first}"[:400])
+            continue
         if code not in (0, 1):
             out["skipped"].append(check)
             continue
@@ -120,8 +152,8 @@ def prove(field: str, head: str, barn: str, run=sh) -> dict:
         kept, dropped = findings(text, names, unclean) if code == 1 else ([], 0)
         out["lines"] += [f"{check}: {line}" for line in kept]
         out["dropped"] += dropped
-    out["state"] = "red" if out["lines"] else "green"
-    out["lines"] = out["lines"][:SHOWN]
+    out["state"] = "red" if out["lines"] else "wait" if refused else "green"
+    out["lines"] = (out["lines"] or refused)[:SHOWN]
     return out
 
 
@@ -165,15 +197,18 @@ def verdict(main: str, field: str, head: str, barn: str, run=sh, cache: Path | N
     """Whether the car `field` (its worktree) may ride with its hitched `head`: {state: green | red | wait, lines,
     checks, ...}. `run` and `cache` are the commands and the state folder's cache unless a test says otherwise."""
     at = git(field, "rev-parse", "HEAD", run=run) if Path(field).is_dir() else ""
-    if at != head:
-        where = f"at {at[:12]}" if at else "not readable"
-        return {"state": "wait", "lines": [f"no proof yet: the field is {where}, not at its hitched head {head[:12]}"],
+    if not at:
+        return {"state": "wait", "lines": [f"no proof yet: the field is not readable, its hitched head {head[:12]}"],
                 "checks": []}
     cache = cache or cache_dir(main)
     name = Path(field).name
     if (hit := cached(cache, name, head)) is not None:
         return hit
-    v = prove(field, head, barn, run=run)
-    if v["state"] == "red" or not v["dropped"]:
+    if at == head:
+        v = prove(field, head, barn, run=run)
+    else:  # the foreman committed on after the hitch: the hitched sha in a scratch worktree (D24)
+        v = proof_scratch.prove(field, head, barn, cache.parent / "scratch",
+                                lambda root, h, b: prove(root, h, b, run=run, clean=True))
+    if v["state"] == "red" or (v["state"] == "green" and not v["dropped"]):  # a refusal is looked at again
         keep(cache, name, head, v)
     return v
