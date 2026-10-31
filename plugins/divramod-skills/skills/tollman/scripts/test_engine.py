@@ -447,7 +447,7 @@ class Files(Farm):
             self.assertEqual(engine.land(str(self.wm)), 4)
         self.assertEqual(engine.LAND, ["hal2-cli-git", "worktree", "merge-to-main", "--json"])
 
-    def hold_run(self, land_code, pretest_red=False):
+    def hold_run(self, land_code, pretest_red=False, cloud=False):
         """engine.land with a fake hal2-cli-workqueue: the calls in order, and the hold env each step saw."""
         calls = []
         real = subprocess.run
@@ -467,6 +467,7 @@ class Files(Farm):
               mock.patch.object(engine.subprocess, "run", run), mock.patch.object(engine, "cli", return_value=(0, "")),
               mock.patch.object(engine.pretest_train, "before_landing", pretest),
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
+              mock.patch.object(workqueue_hold, "cloud_train", lambda top: cloud),
               mock.patch("sys.stdout"), mock.patch.dict(os.environ)):
             os.environ.pop("HAL2_WORKQUEUE_HOLD", None)
             os.environ.pop("HAL2_WORKQUEUE_FREEZE", None)
@@ -474,18 +475,27 @@ class Files(Farm):
             after = os.environ.get("HAL2_WORKQUEUE_HOLD")
         return code, calls, after, real
 
-    def test_the_landing_takes_one_hold_over_pretest_and_merge_and_releases_it(self):
+    def test_the_hold_covers_only_the_pretest_never_the_wait_or_the_landing(self):
+        """Plan 0467: the train's wait for the run before (up to an hour) and its merge-to-main (whose own hold is
+        step-scoped) run without the tollman's hold."""
         code, calls, after, _ = self.hold_run(0)
         hold = calls[0].split("--id ")[1].split()[0]
         self.assertEqual((code, after), (0, None))
-        self.assertEqual(calls, [f"hold take --class landing --id {hold} --field tollman-x --owner-pid {os.getpid()}", f"pretest:{hold}", "wait",
-                                 f"land:{hold}", f"hold release --id {hold}"])
+        self.assertEqual(calls, [f"hold take --class landing --id {hold} --field tollman-x --owner-pid {os.getpid()}", f"pretest:{hold}",
+                                 f"hold release --id {hold}", "wait", "land:-"])
+
+    def test_a_cloud_train_takes_no_hold(self):
+        """Plan 0467 D37: a train through merge-to-main-cloud freezes nothing on this Mac, not even its pretest."""
+        code, calls, after, _ = self.hold_run(0, cloud=True)
+        self.assertEqual((code, after), (0, None))
+        self.assertEqual(calls, ["pretest:-", "wait", "land:-"])
 
     def test_the_hold_is_released_when_the_landing_or_the_pretest_fails(self):
         for land_code, red in ((5, False), (0, True)):
             code, calls, after, _ = self.hold_run(land_code, red)
             self.assertEqual(sum(c.startswith("hold take") for c in calls), 1)
-            self.assertTrue(calls[-1].startswith("hold release"), calls)
+            self.assertTrue(calls[2].startswith("hold release"), calls)
+            self.assertEqual(calls[3:], [] if red else ["wait", "land:-"], "a red pretest never waits nor lands")
             self.assertIsNone(after)
 
 

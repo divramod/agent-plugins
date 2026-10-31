@@ -43,6 +43,22 @@ class Fakes(unittest.TestCase):
         return len(f.read_text().split()) if f.exists() else 0
 
 
+def gone(pid: int, wait: float = 2.0) -> bool:
+    """The process is dead: no such pid, or a zombie nobody reaps (a CI container without an init, hz01)."""
+    end = time.monotonic() + wait
+    while True:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+        if not state or state.startswith("Z"):
+            return True
+        if time.monotonic() > end:
+            return False
+        time.sleep(0.05)
+
+
 class Bounded(Fakes):
     def test_a_stalled_git_ends_within_the_limit_is_retried_once_and_leaves_no_child(self):
         self.fake("git", STALL)
@@ -52,8 +68,7 @@ class Bounded(Fakes):
         self.assertLess(time.monotonic() - t0, 10, "two limits plus the kills, no 300 s sleep")
         self.assertEqual(self.calls(), 2, "one try and exactly one retry")
         child = int((self.dir / "child").read_text())
-        with self.assertRaises(ProcessLookupError):
-            os.kill(child, 0)  # the group was killed, not only the shell
+        self.assertTrue(gone(child), "the group was killed, not only the shell")
 
     def test_a_real_error_exit_is_not_retried(self):
         self.fake("git", 'echo x >> "$COUNT"\necho "fatal: not a git repository" >&2\nexit 128\n')

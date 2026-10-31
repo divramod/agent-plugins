@@ -5,7 +5,7 @@ description: Set up a new hal project in one call — a private GitHub repo divr
 
 # create-hal-project
 
-`create_project.py` does every deterministic step (gh, git, templates, smug text); the model only judges and reports.
+`create_project.py` calls `hal2-cli-projects new plan|apply` (hal2-projects does gh, git, the layout templates and the smug text; plan 0470); the model only judges and reports.
 `S=<skill-dir>/scripts`.
 
 | Call | Does |
@@ -21,7 +21,7 @@ description: Set up a new hal project in one call — a private GitHub repo divr
 
 1. Always first: `python3 $S/create_project.py --dry-run [--json] <name> <alias>`. Exit 0 prints one line per action
    (`repo`, `checkout`, `file`, `commit`, `push`, `hook`, `smug`), each `create`, `exists` or `skip`. Exit 1: a command failed
-   or the name is bad; exit 2: `gh` or `git` is missing (say so, stop); exit 3: `~/a/<name>` is a foreign non-empty
+   or the name is bad; exit 2: `gh`, `git` or `hal2-cli-projects` is missing (say so, stop); exit 3: `~/a/<name>` is a foreign non-empty
    folder (report it, stop).
 2. Show the plan in a few lines. An `exists` (repo, checkout, smug window) is kept as it is: say which, and judge only
    whether that is what the user meant (a half-made project is finished by the `create` actions; a different repo of
@@ -32,11 +32,9 @@ description: Set up a new hal project in one call — a private GitHub repo divr
 
 ## The first commit
 
-The flat files (README, CLAUDE.md, AGENTS.md, INTENT.md, GLOSSARY.md, `.gitignore`, the farmer's ROLE.md) and
-`scripts/foundation.py`'s tree (plan 0408): the hal folders with `.gitkeep`, the gate `code/bash/scripts/gate/main.sh`
-(`list`, `<job>`, `all`; jobs found by what exists, green on the empty layout), the pre-push unit, `.hal/setup.toml`,
-`.hal/cleanup`, `.gitattributes`, a LICENSE placeholder. The `hook` action links the pre-push hook into the checkout's
-`.git` after the push (`exists` when linked, `skip` for another tool's hook: reported, never overwritten).
+The layout is embedded in `hal2-projects` (`scaffold/templates/`): README, CLAUDE.md, AGENTS.md, INTENT.md, GLOSSARY.md,
+`.gitignore`, the farmer's ROLE.md, the hal folders, the gate, the pre-push unit, `.hal/`, a LICENSE placeholder. The
+`hook` action links the pre-push hook after the push (`exists` when linked, `skip` for another tool's hook).
 
 ## Next steps (printed, not run)
 

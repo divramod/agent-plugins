@@ -1,6 +1,0 @@
-# Every text file is checked out with LF on every system: the eol attribute wins over core.autocrlf.
-* text=auto eol=lf
-
-# secrets (git-secret, `hal2-cli-secrets`): the encrypted files are binary, the mapping merges line by line.
-*.secret binary
-.gitsecret/paths/mapping.cfg merge=union

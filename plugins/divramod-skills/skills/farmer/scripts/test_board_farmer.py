@@ -39,6 +39,14 @@ def fits(line: dict) -> list[str]:
     return bad + [f"unknown key {k}" for k in line if k not in SCHEMA["properties"]]
 
 
+def problems(p) -> list:
+    """The checker's problems: a current hal2-cli-roles puts them in the error's details on stderr, an older one
+    (a runner's installed CLI, hz01) in the report on stdout."""
+    if p.stderr.strip().startswith("{"):
+        return json.loads(p.stderr)["error"]["details"]["problems"]
+    return json.loads(p.stdout)["problems"]
+
+
 class FarmerBoard(Repo):
     def setUp(self):
         super().setUp()
@@ -180,7 +188,7 @@ class Files(FarmerBoard):
             f.write(json.dumps({"schema": 1, "at": board.utc(), "kind": "note", "slot": "%54", "from": OWN, "to": "%54"}) + "\n")
         p = subprocess.run(args, capture_output=True, text=True)
         self.assertEqual(p.returncode, 1, p.stdout)  # problems fail the check: the report is in the error's details
-        found = json.loads(p.stderr)["error"]["details"]["problems"]
+        found = problems(p)
         self.assertEqual({x["path"].rsplit("/", 1)[-1] for x in found}, {"board.jsonl"}, p.stdout)
         self.assertEqual(len({x["line"] for x in found}), 2, "the tollman's kind and the pane id, each line named")
 

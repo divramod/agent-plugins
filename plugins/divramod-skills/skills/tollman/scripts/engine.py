@@ -194,15 +194,18 @@ def fresh(top: str, train: dict) -> Done:
 def land(top: str, ref: str | None = None) -> int:
     """Its pid on the mark (the sleep stops its group, plan 0375 D2), the pretest, the wait for the run before and
     the post-merge fixes (next_train.py, plan 0383 step 6), then the landing on the train's branch `ref`
-    (`--land-ref`, plan 0383 D2), as this process's child: its output goes where this process's does (the log)."""
+    (`--land-ref`, plan 0383 D2), as this process's child: its output goes where this process's does (the log).
+    The workqueue hold covers only the pretest, the train's local work (plan 0467), and none for a train through
+    merge-to-main-cloud (D37): the wait holds nothing, and the landing's own step-scoped hold (hal2-git's hold_step)
+    governs the merge-to-main."""
     code, out = cli(["worktree", "queue", "train", Path(top).name, "--pid", str(os.getpid()), "--json"], top)
     print(*["tollman: the train's pid is not on its mark:", out[-200:]] * bool(code), flush=True)
     argv = LAND + ["--land-ref", ref] * bool(ref)
     with workqueue_hold.landing_hold(top):
         if pretest_train.before_landing(top):
             return 1
-        next_train.before_push(top)
-        return subprocess.run(argv, cwd=top).returncode
+    next_train.before_push(top)
+    return subprocess.run(argv, cwd=top).returncode
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
