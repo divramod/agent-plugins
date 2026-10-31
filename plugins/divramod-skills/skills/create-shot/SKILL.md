@@ -156,3 +156,9 @@ A shot sent to be carried out becomes a plan with `plan.py new --seed <shotfile>
 plan's Brief and the shot is linked to its plan.
 
 `--implement` skips the question and takes the recommended option (the first idle session, else a new one).
+
+A shot for a larger feature (several parts, designs or open questions; a simple shot stays as above) adds a fourth
+option to the question, "spec first": `python3 <skill-dir>/../spec/scripts/spec.py new "<title>" --seed
+<file>#<n>` in the user's own session (it takes the next plan number, links the shot in the spec's Context and marks
+it sent); then `/spec` runs the rounds. Never sent to a foreman the farmer started: `/spec` asks the user. Record
+[spec-loop](../../../../../../../.adr/spec-loop.md).

@@ -25,7 +25,8 @@ the repository's `roles/foreman/ROLE.md` ([role_duties.py](../farmer/scripts/rol
 ### plan
 Restock first (`/merge-from-main`), write the task into the `CURRENT_PLAN` pointer
 (`~/.adr/current-plan-names-the-task.md`), then run the plan as its coordinator: the [plan](../plan/SKILL.md) skill's
-"Run the plan", step after step, asking the user nothing once it runs. In a farm whose plans live in its plan store
+"Run the plan", step after step, asking the user nothing once it runs. A plan that grew from a spec keeps `spec.md` in its folder; `/grill-plan` on a
+spec-state plan stamps with `spec.py grilled`, never `plan.py grilled`, and `/spec` is never run here (it asks the user). In a farm whose plans live in its plan store
 the plan's files are a copy outside the tree (the plan skill's [store home](../plan/references/store-home.md)):
 edit them through `plan.py edit`/`apply`, never under `plans/`.
 

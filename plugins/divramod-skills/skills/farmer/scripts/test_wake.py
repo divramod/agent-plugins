@@ -3,6 +3,7 @@ import json
 import unittest
 from unittest import mock
 
+import roletime
 import tick
 import wake
 from test_farmer import NOW, Repo
@@ -112,7 +113,7 @@ class Handoff(Repo):
         self.agent["context_percent"] = wake.CLEAR_AT
         r = self.over({"wake": [judgment()]})
         self.assertEqual((r["woken"], r["why"], self.sent), (False, "handoff asked", ["/farmer handoff"]))
-        self.assertEqual(wake.read(self.main)["handoff"], {"at": NOW.isoformat(timespec="seconds"), "session": "a"})
+        self.assertEqual(wake.read(self.main)["handoff"], {"at": roletime.stamp(NOW), "session": "a"})
         for minutes in (5, 14):
             r = self.over({"wake": [judgment("08 asks too")]}, minutes)
             self.assertEqual(r["why"], "handoff under way")
@@ -128,7 +129,7 @@ class Handoff(Repo):
         self.assertEqual(self.sent, ["/farmer handoff"])
         data = wake.read(self.main)
         self.assertNotIn("handoff", data)
-        self.assertEqual(data["woken_at"], (NOW + dt.timedelta(minutes=3)).isoformat(timespec="seconds"))
+        self.assertEqual(data["woken_at"], roletime.stamp(NOW + dt.timedelta(minutes=3)))
         self.over({}, 10)
         self.assertEqual(len(self.sent), 1)
         self.assertEqual([e["kind"] for e in self.log()], ["handoff", "handoff-done", "wake"])
@@ -242,7 +243,10 @@ class CloseOlder(Wake):
         self.over({"wake": [judgment("old one")]}, NOW)
         self.over({"wake": [judgment("new one")]}, NOW + dt.timedelta(minutes=20))
         data = wake.read(self.main)
-        self.assertEqual([i["at"] for i in data["items"]], ["2026-10-03T10:20:00", "2026-10-03T10:40:00"])
+        # written as UTC `Z` (plan 0530; NOW is naive local): the same instants as the old local stamps
+        self.assertEqual([roletime.parse(i["at"]) for i in data["items"]],
+                         [roletime.parse("2026-10-03T10:20:00"), roletime.parse("2026-10-03T10:40:00")])
+        self.assertTrue(all(i["at"].endswith("Z") for i in data["items"]))
         data["items"].append({"seq": 3, "duty": "lead", "kind": "question", "slot": "-", "do": "wake",
                               "instructions": "x"})  # from before the stamp existed
         wake.write(self.main, data)

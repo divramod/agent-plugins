@@ -21,6 +21,8 @@ import threading
 import time
 from pathlib import Path
 
+import roletime
+
 FILE = "pass-timing.jsonl"
 SCHEMA = 1
 KEEP = 1440  # passes kept: a day of 1-minute passes
@@ -66,8 +68,7 @@ def record(now: dt.datetime | None = None) -> dict | None:
     """The counted pass as a record, None when none is counted."""
     if _pass is None:
         return None
-    now = now or dt.datetime.now(dt.timezone.utc)
-    return {"schema": SCHEMA, "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    return {"schema": SCHEMA, "at": roletime.stamp(now) if now is not None else roletime.now(),
             "wall_ms": round((time.perf_counter() - _pass["t0"]) * 1000), "procs": _pass["procs"], "gh": _pass["gh"]}
 
 

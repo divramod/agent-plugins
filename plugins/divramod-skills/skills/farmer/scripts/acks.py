@@ -12,10 +12,12 @@
 
 The tick stamps every templated send (`stamp_send`) and plans the follow-up (`plan`): no ack within ACK_AFTER, the
 instruction is sent once more; still none ACK_AFTER later, the farmer is woken (`no-ack`) with the screen; a
-`refused` ack always wakes it. `started` stops the clock, `done` closes the instruction. An instruction neither sent
-nor acked within STALE (24 h), or sent under a role name no role has any more (`wagon-master`), is never followed
-up (L74 of the tollman: week-old acks woke it once their keys' week ran out). State: the log's `ask-ack`, `ack` and
-`ack-resend:<id>` entries.
+`refused` ack always wakes it. `started` stops the clock, `done` closes the instruction. An instruction without any
+ack VOID_AFTER after it was sent is closed void (hal2 plan 0530 D6): one `ack-void` record (key `ack-void:<id>`), never
+a re-send or a wake, so a round after a long outage never sends days-old asks again. Any other instruction with
+nothing newer than STALE (24 h), or one sent under a role name no role has any more (`wagon-master`), is never
+followed up (L74 of the tollman: week-old acks woke it once their keys' week ran out). State: the log's `ask-ack`,
+`ack`, `ack-resend:<id>` and `ack-void:<id>` entries.
 
 Another role (hal2 plan 0294) stamps with its own name and keeps its own log: `--role <role>` here, `role` in
 `stamp`, `stamped_id` and `stamp_send` (`tollman [<id>]: ...`, replies to the tollman session).
@@ -32,8 +34,10 @@ import decision_log
 import deliver
 import mtm_scan
 import roles
+import roletime
 
 ACK_AFTER = dt.timedelta(minutes=10)
+VOID_AFTER = dt.timedelta(hours=24)  # an ask without any ack this long after it was sent is closed void (plan 0530 D6)
 STALE = dt.timedelta(hours=24)  # an instruction with nothing newer than this is history, never a wake (L74)
 STATUSES = ("started", "done", "refused")
 REPLY_TO = "Reply `ack {id}: started|done|refused <why>` by SendMessage to the {role} session."
@@ -78,46 +82,72 @@ def stamp_send(a: dict, main: str, role: str = roles.ROLE) -> None:
 
 
 def instructions(log: list[dict]) -> dict[str, dict]:
-    """Every instruction by id with its acks and when it was re-sent."""
+    """Every instruction by id with its acks, when it was re-sent and when it was closed void (`void`); times aware
+    UTC, an unreadable `at` skipped."""
     out: dict[str, dict] = {}
     for e in log:
-        kind, at = e.get("kind"), mtm_scan.log_time(e["at"])
+        kind, at, key = e.get("kind"), roletime.parse(e.get("at")), e.get("key") or ""
+        if at is None:
+            continue
         if kind == "ask-ack" and e.get("id"):
-            out.setdefault(e["id"], {"acks": [], "resent": None}).update(
+            out.setdefault(e["id"], {"acks": [], "resent": None, "void": None}).update(
                 id=e["id"], slot=e.get("slot", ""), at=at, text=e.get("text") or e.get("what", ""),
                 pane=e.get("pane") or "")
         elif kind == "ack" and e.get("id") in out:
             out[e["id"]]["acks"].append({"at": at, "status": e.get("what", ""), "why": e.get("note", "")})
-        elif (e.get("key") or "").startswith("ack-resend:") and e["key"][11:] in out:
-            out[e["key"][11:]]["resent"] = at
+        elif key.startswith("ack-resend:") and key[11:] in out:
+            out[key[11:]]["resent"] = at
+        elif key.startswith("ack-void:") and key[9:] in out:
+            out[key[9:]]["void"] = at
     return out
 
 
-def stale(i: dict, now: dt.datetime) -> bool:
-    """L74: nothing about the instruction (sent, acked, re-sent) is newer than STALE, or its sender is a retired role."""
-    last = max([i["at"], i["resent"] or i["at"]] + [a["at"] for a in i["acks"]])
+def hours(age: dt.timedelta) -> str:
+    """An age as `30 h` (whole hours), the way a void line names it."""
+    return f"{int(age.total_seconds() // 3600)} h"
+
+
+def retired(i: dict) -> bool:
+    """L74: the instruction was sent under a role name no role has any more (`wagon-master`)."""
     sender = re.match(r"^(\S+) \[", i.get("text") or "")
-    return now - last >= STALE or bool(sender and sender.group(1) not in roles.ROLES)
+    return bool(sender and sender.group(1) not in roles.ROLES)
+
+
+def stale(i: dict, now: dt.datetime) -> bool:
+    """L74: nothing about the instruction (sent, acked, re-sent) is newer than STALE."""
+    last = max([i["at"], i["resent"] or i["at"]] + [a["at"] for a in i["acks"]])
+    return now - last >= STALE
 
 
 def plan(log: list[dict], now: dt.datetime, panes: dict, capture=None) -> list[dict]:
-    """The round's ack follow-ups: re-send once, then wake; a refusal wakes at once."""
+    """The round's ack follow-ups: re-send once, then wake; a refusal wakes at once; an ask without any ack past
+    VOID_AFTER is closed void instead (one record, never re-sent or woken). A wake carries `born` (the refusal's or
+    the re-send's time), so tick.stale never wakes for a day-old one. `now` naive (local) or aware."""
     from tick import act  # the tick imports this module
+    now = roletime.aware(now)
     capture = capture or (lambda pane: deliver.cli("capture", pane)[1][-3000:] if pane else "")
     out = []
     for i in instructions(log).values():
-        if "slot" not in i or stale(i, now):
+        if "slot" not in i or i["void"] or retired(i):
             continue
         last = i["acks"][-1]["status"] if i["acks"] else None
         pane = panes.get(i["slot"]) or i["pane"]
-        if last == "refused":
+        if last is None and now - i["at"] >= VOID_AFTER:
+            out.append(act("ack", "ack-void", "record", i["slot"], key=f"ack-void:{i['id']}",
+                           text=f"{i['id']} closed void: no ack {hours(now - i['at'])} after it was sent "
+                                f"({roletime.stamp(i['at'])}), never re-sent"))
+        elif stale(i, now):
+            continue
+        elif last == "refused":
             out.append(act("ack", "refused", "wake", i["slot"], key=f"ack-refused:{i['id']}",
+                           born=roletime.stamp(i["acks"][-1]["at"]),
                            text=f"{i['id']} refused: {i['acks'][-1]['why']}", evidence={"instruction": i["text"]}))
         elif last is None and i["resent"] is None and now - i["at"] >= ACK_AFTER:
             out.append(act("ack", "resend", "send", i["slot"], pane=pane, key=f"ack-resend:{i['id']}",
                            ack_id=i["id"], text=i["text"]))
         elif last is None and i["resent"] and now - i["resent"] >= ACK_AFTER:
             out.append(act("ack", "no-ack", "wake", i["slot"], key=f"ack-wake:{i['id']}",
+                           born=roletime.stamp(i["resent"]),
                            text=f"no ack for {i['id']} after a re-send",
                            evidence={"instruction": i["text"], "screen": capture(pane)}))
     return out
@@ -162,12 +192,13 @@ def main(argv: list[str]) -> int:
         if not known:
             print(f"acks.py: no instruction {args.id} in the log (recorded anyway)", file=sys.stderr)
     else:
-        rows = [{"id": i["id"], "slot": i["slot"], "at": i["at"].isoformat(), "acks": [a["status"] for a in i["acks"]],
-                 "what": i["text"].splitlines()[0]} for i in instructions(log).values()
-                if "slot" in i and not any(a["status"] in ("done", "refused") for a in i["acks"])]
-        print(json.dumps(rows, indent=1) if args.json else "\n".join(
-            f"{r['id']:8} {r['at'][11:16]} {','.join(r['acks']) or 'no ack'}: {r['what'][:100]}" for r in rows)
-            or "nothing waits for an ack")
+        rows = [{"id": i["id"], "slot": i["slot"], "at": roletime.stamp(i["at"]),
+                 "acks": [a["status"] for a in i["acks"]], "what": i["text"].splitlines()[0]}
+                for i in instructions(log).values()
+                if "slot" in i and not i["void"] and not any(a["status"] in ("done", "refused") for a in i["acks"])]
+        print(json.dumps(rows, indent=1) if args.json else "\n".join(  # the time shown in local HH:MM
+            f"{r['id']:8} {mtm_scan.local_hhmm(r['at'])} {','.join(r['acks']) or 'no ack'}: {r['what'][:100]}"
+            for r in rows) or "nothing waits for an ack")
     return 0
 
 

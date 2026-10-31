@@ -257,11 +257,14 @@ class FolderTest(unittest.TestCase):
 
 
     def spec_folder(self, name: str = "0002-login") -> Path:
-        """A spec-only folder as the spec skill and the design skill leave it (hal2 plan 0364 D8): no plan.md."""
+        """A legacy spec-only folder (hal2 plan 0364 D8; since plan 0502 D7 a spec also has a plan.md), the Spec kind's keys and sections."""
         spec = self.root / "plans" / name
         (spec / "design" / "login" / "flow" / "v1").mkdir(parents=True)
         (spec / "spec.md").write_text("---\ntype: Spec\nschema: 1\nid: 2\ntitle: \"Login\"\ndescription: \"x\"\n"
-                                      "status: draft\ncreated: 2026-10-18\n---\n\n# Spec 0002: Login\n\n## Problem\n\nx\n")
+                                      "status: draft\ncreated: 2026-10-18\niteration: 1\ngrilled:\n---\n\n# Spec 0002: Login\n\n"
+                                      "## Problem\n\nx\n\n## Scope\n\n- In: x\n\n## Requirements\n\n- R1: x\n\n"
+                                      "## Acceptance criteria\n\n| ID | Given | When | Then |\n|---|---|---|---|\n"
+                                      "| A1 | a | b | c |\n")
         (spec / "design.html").write_text("<!doctype html><title>design</title>\n")
         (spec / "design" / "login" / "flow" / "v1" / "flow.mmd").write_text("flowchart LR\n  a --> b\n")
         return spec
@@ -271,8 +274,10 @@ class FolderTest(unittest.TestCase):
         """A spec folder passes the whole check and a named check, and its number is taken for the next plan."""
         self.new("Tiny")
         spec = self.spec_folder()
-        self.assertEqual(self.check(), (0, "ok: 4 records\n"))
-        self.assertEqual(self.check(str(spec)), (0, "ok: 4 records\n"))
+        for args in ((), (str(spec),)):  # the count depends on the checker's age (a Spec is a record since plan 0502)
+            code, out = self.check(*args)
+            self.assertEqual(code, 0, out)
+            self.assertRegex(out, r"^ok: \d+ records\n$")
         self.assertEqual(self.new("Next").parent.name, "0003-next")
         self.assertEqual(self.run_plan("check", str(self.root / "plans" / "0003-next" / "steps")).returncode, 1)
 

@@ -29,6 +29,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import checks
 import due
 import mtm_scan
+import roletime
 import roles
 from tick import sh
 
@@ -146,9 +147,9 @@ def cancel(main: str, rid: int, run=sh, run_json=None, now=None) -> tuple[int, s
 
 
 def listing(main: str) -> dict:
-    rows, cutoff = checks.lines(main), checks.utc(dt.datetime.now(dt.timezone.utc) - checks.TELL)
+    rows, cutoff = checks.lines(main), roletime.utcnow() - checks.TELL
     return {"pending": checks.pending(rows), "dispatched": [r for r in rows if r["kind"] == "dispatched"
-                                                           and r["at"] >= cutoff]}
+                                                           and checks.at(r) >= cutoff]}
 
 
 def record(main: str, args) -> dict:

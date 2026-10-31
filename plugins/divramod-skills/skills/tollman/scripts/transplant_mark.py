@@ -22,6 +22,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (puts the farmer skill's scripts on the path)
 import lead_marker
 import mtm_scan
+import roletime
 
 STALE = dt.timedelta(minutes=60)
 OPEN = ("prepared", "driven")
@@ -63,15 +64,12 @@ def history(main: str, call=None) -> list[dict]:
 
 
 def when(text) -> dt.datetime | None:
-    """An RFC 3339 time as an aware datetime; None when missing or unreadable."""
-    try:
-        return dt.datetime.fromisoformat(str(text).replace("Z", "+00:00")).astimezone()
-    except ValueError:
-        return None
+    """A record's time (any shape the files hold) as an aware datetime; None when missing or unreadable."""
+    return roletime.parse(text)
 
 
 def aware(now: dt.datetime) -> dt.datetime:
-    return now.astimezone()  # a naive time is the local one
+    return roletime.aware(now)  # a naive time is the local one
 
 
 def from_record(records: list[dict], slot: str, now: dt.datetime) -> Mark | None:

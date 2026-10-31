@@ -33,6 +33,7 @@ import deliver
 import due
 import mtm_scan
 import roles
+import roletime
 import transplants
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
@@ -93,7 +94,7 @@ def ledger(main: str) -> dict[str, dict]:
 
 def note(main: str, entry: dict, at: dt.datetime) -> None:
     with ledger_file(main).open("a") as f:
-        f.write(json.dumps({"at": at.isoformat(timespec="seconds"), **entry}) + "\n")
+        f.write(json.dumps({"at": roletime.stamp(at), **entry}) + "\n")
 
 
 def slug(text: str) -> str:
@@ -103,6 +104,7 @@ def slug(text: str) -> str:
 def write_brief(a: dict, main: str, now: dt.datetime) -> Path:
     d = mtm_scan.state_dir(main) / "briefs"
     d.mkdir(exist_ok=True)
+    now = roletime.aware(now).astimezone()  # the brief's name and text say the local day and time
     path = d / f"{now:%Y-%m-%d}-{slug(a['text'])}.md"
     evidence = json.dumps(a.get("brief") or a.get("evidence") or {}, indent=1, default=str)
     task = f"\n\n## What to do\n\n{a['task']}" if a.get("task") else ""
@@ -124,6 +126,7 @@ def write_role(main: str, brief: Path, title: str, now: dt.datetime, task: str |
     d = mtm_scan.state_dir(main) / "servants"
     d.mkdir(exist_ok=True)
     path = d / f"{slug(title)}.md"
+    now = roletime.aware(now).astimezone()  # shown as local time
     path.write_text(ROLE.read_text().format(repo=Path(main).name, farmer_slot=roles.slot_name(main), brief=brief, title=title,
                                             at=f"{now:%Y-%m-%d %H:%M}", task=task or PLAN_TASK.format(title=title)))
     return path
@@ -240,8 +243,8 @@ def has_room(limit: int | str, running: int) -> bool:
 
 def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, values: dict | None = None) -> dict:
     """Hand one `delegate` action to a foreman at `values` (model, effort; `servant_values`), or keep it waiting at
-    the limit. Returns what happened."""
-    held = ledger(main)
+    the limit. Returns what happened. `now` naive (local) or aware (roletime)."""
+    now, held = roletime.aware(now), ledger(main)
     if a.get("key") in held and held[a["key"]].get("state") in ("running", "landed"):
         return {"key": a["key"], "state": "in-hand", "slot": held[a["key"]].get("slot")}
     running = [e for e in held.values() if e.get("state") == "running"]
@@ -279,12 +282,14 @@ def follow_up(main: str, slots: dict[str, dict], limit: int | str, dry: bool, no
     """Running foremen whose worktree holds nothing any more have landed: recorded, their session stopped; one whose
     field a transplant moved (transplants.py) stays running in the target.
     `slots`: worktree → {"plan": CURRENT_PLAN text, "ahead": commits not on main}. Waiting briefs start when there
-    is room."""
-    done, moves = [], []
+    is room. `now` naive (local) or aware; an entry whose `at` does not parse is left as it is (roletime)."""
+    now, done, moves = roletime.aware(now), [], []
     for key, e in ledger(main).items():
         if e.get("state") != "running" or not e.get("slot"):
             continue
-        at = mtm_scan.log_time(e["at"])
+        at = roletime.parse(e.get("at"))
+        if at is None:
+            continue
         to = transplants.moved(main, e["slot"], at, call)  # plan 0286 D26: the foreman moved on, it did not land
         if to:
             moves.append({"key": key, "state": "running", "slot": to, "from": e["slot"]})

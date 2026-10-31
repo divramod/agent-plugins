@@ -29,6 +29,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_ci
 import mtm_scan
+import roletime
 
 TOML = ".github/hal2-runners.toml"
 LOG_TAIL = 256 * 1024  # bytes of the journal read: a machine's last state is always near its end
@@ -125,10 +126,7 @@ def queued_jobs(run_json, main: str) -> list[dict]:
 
 
 def parse_time(text: str | None) -> dt.datetime | None:
-    try:
-        return dt.datetime.fromisoformat(str(text).replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return roletime.parse(text)
 
 
 def request_path(machine: str) -> Path:
@@ -142,7 +140,7 @@ def request(machine: str, job: dict, why: str, now: dt.datetime) -> Path:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
-        tmp.write_text(json.dumps({"schema": 1, "machine": machine, "requested": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        tmp.write_text(json.dumps({"schema": 1, "machine": machine, "requested": roletime.stamp(now),
                                    "by": "tollman", "run": job["run"], "job": job["job"], "job_name": job["name"],
                                    "labels": sorted(job["labels"]), "why": why}, indent=1) + "\n")
         os.replace(tmp, path)

@@ -11,15 +11,14 @@ transplant older than the entry is no business of it: the entry was written afte
 import datetime as dt
 import json
 
+import roletime
+
 MOVED = ("driven", "arrived")
 
 
 def when(text) -> dt.datetime | None:
     """An RFC 3339 time of a record, as an aware datetime; None when it is missing or unreadable."""
-    try:
-        return dt.datetime.fromisoformat(str(text).replace("Z", "+00:00")).astimezone()
-    except ValueError:
-        return None
+    return roletime.parse(text if isinstance(text, str) else None)
 
 
 def history(main: str, call=None) -> list[dict]:

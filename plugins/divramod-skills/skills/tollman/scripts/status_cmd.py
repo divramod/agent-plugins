@@ -13,6 +13,7 @@ import hold
 import mtm_scan
 import role_cli
 import roles
+import roletime
 import timer
 import wake
 
@@ -22,7 +23,7 @@ def last_tick(state: Path) -> dt.datetime | None:
     at = [e["at"] for e in mtm_scan.entries(state / "log.jsonl") if e.get("by") == "tick"]
     runs = state / "runs.jsonl"
     at += [json.loads(line)["at"] for line in runs.read_text().splitlines()] if runs.exists() else []
-    return max(map(mtm_scan.log_time, at), default=None)
+    return max(filter(None, map(roletime.parse, at)), default=None)
 
 
 def status(repo: str, wiring: roles.Wiring, now: dt.datetime | None = None) -> dict:
@@ -30,10 +31,10 @@ def status(repo: str, wiring: roles.Wiring, now: dt.datetime | None = None) -> d
     (nothing is created for it): no timer file, no last tick."""
     field, state = roles.slot_dir(repo, wiring.role), role_cli.state(repo, wiring)
     last = last_tick(state)
-    age = int((mtm_scan.naive(now or dt.datetime.now()) - last).total_seconds()) if last else None
+    age = int((roletime.aware(now) - last).total_seconds()) if last else None
     return {"role": wiring.role, "field": str(field), "field_exists": field.is_dir(),
             "timer": timer.status(due.repo_name(repo), state, wiring), "mode": role_cli.mode(repo, wiring),
-            "last_tick": last.isoformat(timespec="seconds") if last else None, "last_tick_age_s": age,
+            "last_tick": roletime.stamp(last) if last else None, "last_tick_age_s": age,
             "pending": len(wake.read(mtm_scan.main_checkout(repo), wiring)["items"]),
             "held": hold.text(h) if (h := hold.of(mtm_scan.main_checkout(repo))) else None}
 

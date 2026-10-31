@@ -30,6 +30,7 @@ import delegation
 import due
 import learnings
 import mtm_scan
+import roletime
 import verdicts
 
 STAMP = "learn.json"
@@ -139,7 +140,7 @@ def farm_delegate(repo: str, role: str, now: dt.datetime | None = None):
     role_file = Path(repo) / "roles" / role / "ROLE.md"
     settings = due.schedule(role_file.read_text(), ())[1] if role_file.is_file() else {}
     limit, values = delegation.parse_limit(settings.get("servant_limit")), delegation.servant_values(settings)
-    return lambda action: delegation.delegate(action, main, limit, False, now or dt.datetime.now(), values)
+    return lambda action: delegation.delegate(action, main, limit, False, roletime.aware(now), values)
 
 
 def handler(item: dict, ctx: dict) -> list[dict]:

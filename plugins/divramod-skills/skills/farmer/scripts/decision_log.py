@@ -20,6 +20,7 @@ import datetime as dt
 import re
 
 import mtm_scan
+import roletime
 
 QUOTED = re.compile(r'"([^"]+)"|“([^”]+)”')
 STOP = {"with", "that", "this", "from", "into", "have", "after", "before", "when", "then", "than", "them", "they",
@@ -93,7 +94,9 @@ def concerns(entry: dict, slot: str, repo: str) -> bool:
 
 
 def when(entry: dict) -> dt.datetime:
-    return mtm_scan.log_time(entry["at"])
+    """The entry's `at` as an aware UTC time (roletime: `Z`, offsets and legacy local times compare right); an
+    unreadable one is the epoch, so it never crashes a check."""
+    return roletime.parse(entry.get("at")) or dt.datetime.fromtimestamp(0, dt.timezone.utc)
 
 
 def relayed(d: dict, ask: dict, repo: str) -> bool:
@@ -177,7 +180,7 @@ def mark(log: list[dict], ats: list[str], by: str, why: str) -> dict:
     """The `supersede` entry for decisions `ats` replaced by the later decision `by`; ValueError when one is wrong."""
     new = find(log, by)
     old = [find(log, a) for a in ats]
-    late = [e["id"] for e in old if e["at"] >= new["at"]]
+    late = [e["id"] for e in old if when(e) >= when(new)]  # parsed: naive-local and `Z` strings do not sort
     if late:
         raise ValueError(f"--by {new['id']} is not later than {', '.join(late)}")
     slots = ",".join(dict.fromkeys(str(e.get("slot") or "-") for e in old))

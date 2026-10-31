@@ -28,7 +28,9 @@ reader needs (`~/.adr/answer-in-few-words.md`); questions take the Q form (`~/.a
 
 ### shots
 What the user wants done later or elsewhere becomes a shot in the repository's `shotfiles/` (the skill
-[create-shot](../create-shot/SKILL.md)); sending it to a field is [shoot](../shoot/SKILL.md).
+[create-shot](../create-shot/SKILL.md)); sending it to a field is [shoot](../shoot/SKILL.md). For a larger feature the steward may start `/spec`
+([spec](../spec/SKILL.md)) in its own session, the user at hand; a spec is never started in a foreman, which asks
+nothing.
 
 ### small-work
 Small work (a look-up, a one-line fix, a document, an errand the user names) is done here at once

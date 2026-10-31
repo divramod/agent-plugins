@@ -1,20 +1,21 @@
 ---
 name: grill-plan
-description: Interview the user relentlessly about a plan, design, decision or idea until every branch of its design tree is resolved and nothing is silently assumed — in rounds of questions, each round asking every question whose prerequisites are settled, each with a recommended answer; facts are looked up, never asked; every decision is recorded in its one home (plan, intent doc or ADR) so nothing is asked twice; an autogrill also sizes every step (Model, Effort, Window, Size; a step over 35% of its window is split); `/grill-plan q` asks a single round for one step. Use when the user says grill (me) / stress-test / poke holes, or when /plan offers it before implementing a plan. `/grill-plan h` shows help.
+description: Interview the user relentlessly about a plan, design, decision or idea until every branch of its design tree is resolved and nothing is silently assumed — in rounds of questions, each round asking every question whose prerequisites are settled, each with a recommended answer; facts are looked up, never asked; every decision is recorded in its one home (plan, intent doc or ADR) so nothing is asked twice; an autogrill also sizes every step (Model, Effort, Window, Size; a step over 35% of its window is split); `/grill-plan q` asks a single round for one step; a plan in state spec is grilled on its `spec.md`, with its own ledgers and `spec.py grilled`. Questions follow the Q form (plain text after any background). Use when the user says grill (me) / stress-test / poke holes, or when /plan offers it before implementing a plan. `/grill-plan h` shows help.
 ---
 
 # grill-plan
 
 Adapted from Matt Pocock's `grill-me` / `grilling` skills
-([mattpocock/skills](https://github.com/mattpocock/skills), MIT). Changes: questions follow the global question rule (background first; the
-question tool only when each question and its options carry their own background),
+([mattpocock/skills](https://github.com/mattpocock/skills), MIT). Changes: questions follow the global question rule (a
+question that needs background ends the reply as plain text in the Q form; the question tool only when each question
+and its options carry their own background),
 the session is self-contained, and decisions are written down so a cleared session never re-asks them.
 
 ## Usage
 
 | Call | Does |
 |---|---|
-| `/grill-plan` | grill the current plan (the `CURRENT_PLAN` pointer) |
+| `/grill-plan` | grill the current plan (the `CURRENT_PLAN` pointer); a plan in state `spec` is grilled as [a spec](#a-spec) |
 | `/grill-plan <subject>` | grill a plan file, an idea or a decision |
 | `/grill-plan auto [<subject>]`, `/grill-plan a` | [auto](#auto): one round without questions, every branch decided by you |
 | `/grill-plan q [<subject>]`, `/grill-plan quick` | [quick](#quick): one round on the top risks, for a single step |
@@ -24,6 +25,7 @@ the session is self-contained, and decisions are written down so a cleared sessi
 
 1. **Subject.** The argument, or else the current plan (the `CURRENT_PLAN` pointer → `plans/<slug>/plan.md`; when it
    names a shot `<shotfile>/<n>[/<title-slug>]` instead, that shot in `shotfiles/<shotfile>.md`), or else ask what to grill.
+   A plan whose `plan.md` says `status: spec` is [a spec](#a-spec): its subject text is `spec.md`.
 2. **Already decided.** Read the subject plus the repo's decision records (`INTENT.md` or equivalent, the plan's
    ledger `decisions.md` or its **Decisions** section, `.adr/`). Anything answered there is settled: never ask it again; only reopen it when
    something new contradicts it, and say why.
@@ -42,11 +44,14 @@ is every open decision whose prerequisites are settled.
 
 Each round asks the whole frontier and nothing else:
 
-- One question-tool call per round (the tool takes up to 4 questions; a bigger frontier takes consecutive calls
-  in the same round). Never ask as plain text.
-- Each question: a short header, the question with the context needed to answer it, 2–4 concrete options with the
-  consequence of each, **your recommended option first, labelled "(Recommended)"**. Use multi-select only when
-  choices combine.
+- Ask in the global **Q form** (`~/AGENTS.md`, "Questions to the user"): numbered `Q<n>` (the number in the plan's
+  `questions.md`, else counted through the session, never reused), **exactly three options a) b) c), your recommended
+  one first, labelled "(Recommended)"**, each with its consequence; several independent questions together.
+- A round whose questions need background (a finding, a list, a diff, options to compare) ends the reply as
+  **plain text** after that background: no question tool in that reply, because the tool hides the text written before
+  it. Use the question tool (one call per round, up to 4 questions, consecutive calls for a bigger frontier) only when
+  each question and its options say everything needed to decide, or when the background was shown in an earlier reply.
+- Each question is clear on its own: the context needed to answer it, plain words, no step numbers or ids unexplained.
 - A question that depends on another question still open in this round belongs to a later round.
 - A round that changes a plan's steps also sizes the rows it changed, as [Auto](#auto) point 4 does.
 
@@ -57,6 +62,28 @@ Keep the user steering: if answers are all "recommended" for a long stretch, ask
 thought or should be cut. When a question can't be settled by talking (how something should look or feel), say so
 and suggest a throwaway prototype instead of guessing. If the tree grows huge, propose splitting the subject and
 grilling the pieces.
+
+## A spec
+
+A plan in state `spec` (`plan.md` with `status: spec` and no steps, `spec.md` beside it; made by `/spec`) is grilled
+like a plan, with these differences:
+
+- **Subject** is `spec.md`: the frontier is its `## Open questions` and `## Not yet specified` items, then any section
+  that is vague, contradicts another or has an acceptance criterion nobody can check. Items you settle leave those
+  sections; the text is updated in place (git keeps the rounds).
+- **Records** are the plan's own ledgers, no second place: `decisions.md` (a decision naming the one it replaces), and
+  questions through `hal2-cli-plans questions add|answer` (never by hand). Open questions are **typed**: a fact the
+  code or the web can give goes to a research hand (a subagent; findings into the plan's research doc), a picture
+  (how it looks, a flow, a data model) to `/design`, the rest to the user.
+- **Never** write product code in a round, never answer your own question for the user (an `auto` round decides
+  provisionally and says so) and never accept a design: accepting is the user's click in the design page.
+- **Stamp** the round with `python3 <spec-skill-dir>/scripts/spec.py grilled <n> --how manual|auto` (`--how
+  "autogrill x1"` for auto), which sets `grilled:` on `spec.md` and `plan.md`; never `plan.py grilled` on a spec.
+  `<spec-skill-dir>` is the `spec` skill next to this one.
+- **Finish** by running `spec.py iterate <n>` when the caller (`/spec`) asked for a round, and handing its checkpoint
+  back (plan now, bring in for later, another round); otherwise report the decisions and the open items.
+- **Planning keeps the stamp**: `/plan` fills the same plan in place and keeps `grilled`, so its autogrill counts the
+  spec's round (the spec text is what the Brief summarises); rounds the plan adds are stamped with `plan.py grilled`.
 
 ## Quick
 
@@ -123,8 +150,8 @@ Mark superseded decisions instead of deleting them. Don't commit; the user or `/
 ## Finish
 
 The session is done when the frontier is empty: every branch visited, nothing silently assumed. Then summarise the
-decisions in a few lines and end the reply with a plain-text question whether you have reached a shared understanding. Do not
-implement anything before the user confirms. When grilling a plan, mark it grilled:
+decisions in a few lines and end the reply with a plain-text question in the Q form whether you have reached a shared understanding. Do not
+implement anything before the user confirms. When grilling a plan, mark it grilled (a spec: `spec.py grilled`, see [A spec](#a-spec)):
 
 ```bash
 python3 <plan-skill-dir>/scripts/plan.py grilled         # after autogrill rounds: `(autogrill ×n, grill)`

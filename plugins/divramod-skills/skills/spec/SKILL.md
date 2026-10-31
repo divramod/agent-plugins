@@ -1,87 +1,100 @@
 ---
 name: spec
-description: Write a feature's spec before its plan — `/spec <title>` asks the user one round of questions (problem, users and goals, scope, requirements and constraints, acceptance), takes the next plan number and writes `plans/<NNNN>-<slug>/spec.md` (Problem, Users and goals, Scope, Requirements, Acceptance criteria in Given-When-Then, Open questions, Design), names the folder in the `CURRENT_PLAN` pointer and runs `/design create` when anything needs designing. The folder has no `plan.md`, so it can be committed and landed for later; `/plan new --spec <n>` plans it then. `/spec <n>` continues a spec, `/spec approve [<n>]` approves it, `/spec list` lists the specs. Use when the user says /spec, "write a spec", "spec this feature", "I want a spec first" or "describe the feature before planning". `/spec h` shows help.
+description: Write a feature's spec before its steps, optional at every level — `/spec <title>` makes the numbered plan at once in state spec (`plans/<NNNN>-<slug>/plan.md` without steps beside `spec.md`), fills the spec in one pass by default (what the conversation settled goes in unasked, one round of Q-form questions across the whole feature, `## Not yet specified` for what is too vague yet, `/design create` for what needs a picture) and ends at the checkpoint: plan now (`/plan` fills the steps in the same plan), bring it in for later (`/mtm`) or another round (`/grill-plan`). `/spec <n> update` changes a spec any time later, also a planned one, whose plan is flagged for review, never rewritten. `/spec <n>` continues; also `approve`, `abandon`, `list`. A simple feature goes straight to `/plan new`. Use when the user says /spec, "write a spec", "spec this feature", "I want a spec first", "update the spec" or "describe the feature before planning". `/spec h` shows help.
 ---
 
 # spec
 
-`S=<skill-dir>/scripts`. A spec is a plan folder before its plan: `plans/<NNNN>-<slug>/spec.md`, beside it the design
-skill's `design/` and `design.html`, no `plan.md` (decisions D8 and D9 of hal2 plan 0364). It is the long description,
-what and why, never how; the plan written from it later summarises it in its Brief. `spec.py` is the deterministic
-part (number, slug, file, the `CURRENT_PLAN` pointer, the approval); you ask, write the text and judge what needs designing.
-In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`, hal2 plan 0409) the spec is the
-store's: every `spec.py` answer adds `dir`, its copy outside the tree; write spec.md there, never under `plans/`, and
-`spec.py show` (or `approve`) takes the copy in.
+`S=<skill-dir>/scripts`. A spec is a plan from its start (hal2's record `spec-loop`, plan 0502 D6-D8):
+`plans/<NNNN>-<slug>/` holds `plan.md` in state `spec` (no steps, its Brief seeded from the spec), `spec.md`, the
+plan's own ledgers and handoff, and the design skill's `design/` and `design.html`. The spec is the long description,
+what and why, never how. `spec.py` is the deterministic part (number, slug, files, the `CURRENT_PLAN`
+pointer, rounds, the checkpoint, the review flag); you ask, write the text and judge what needs designing.
 
 | Call | Does |
 |---|---|
-| `/spec <title>` | ask one round of questions, write a new spec folder, design what needs it |
-| `/spec [<n>]` | continue the spec `<n>` (number, folder name, slug part), else the one in the `CURRENT_PLAN` pointer |
-| `/spec approve [<n>]` | approve a spec whose every section is written (`spec.py approve`) |
-| `/spec list` | every spec folder: status, design page, whether a plan.md exists |
+| `/spec <title>` | a new spec-state plan, filled in one pass, then the checkpoint |
+| `/spec [<n>]` | continue the spec `<n>` (number, folder name, slug part), else the one in `CURRENT_PLAN` |
+| `/spec <n> round` | another round on a draft spec (the checkpoint's third option) |
+| `/spec <n> update` | change a spec later, also an approved, brought-in or planned one |
+| `/spec approve [<n>]`, `/spec abandon [<n>]` | approve a spec with no placeholder left; abandon an unplanned one |
+| `/spec list` | every spec: state, round, design page, whether its plan's review is due |
 | `/spec h` | print this table and stop |
 
-`spec.py` commands (each takes `--repo <dir>`): `new "<title>" [--description <d>] [--fetch] [--json]`,
-`show [<n>] [--json]`, `list [--json]`, `approve [<n>] [--json]`.
+`spec.py [--repo <dir>]` commands (most take `--json`; `<n>` defaults to `CURRENT_PLAN`): `new "<title>"
+[--description <d>] [--seed <seedbag>#<n>] [--fetch]`, `show [<n>]`, `list`, `iterate [<n>]` (a round done: the
+checkpoint JSON), `update [<n>] [--what "<what changed>"]`, `reviewed [<n>]`, `grilled [<n>] [--how <how>]`, `approve
+[<n>]`, `abandon [<n>]`.
 
-## 1. Ask
+## Where it runs
 
-A simple feat (a rename, a flag, a fix, one obvious shape) needs no spec: say so in one line and offer `/plan new`
-instead (D10: "for simple feats, there is no spec needed"). Otherwise ask one round, plain text after what you found,
-every question in the Q form with the recommended answer first. Look facts up (code, INTENT.md, records, research,
-the installed CLIs' help), never ask them; ask only what the user decides:
+In a field the user talks to: never in the yard, never in a foreman the farmer started (it never asks, so it runs no
+`/spec`). The spec is optional at every level (D6): a simple feature (a rename, a flag, a fix, one obvious shape) gets
+no spec; say so in one line and offer `/plan new`.
 
-- **Problem**: what hurts today, for whom, why now.
-- **Users and goals**: who uses it in which situation; the goals as "the system SHALL ...", each must, should or
-  could; what it deliberately does not try (non-goals).
-- **Scope**: what is in, what is out and where that goes.
-- **Requirements and constraints**: what it must do; the stack, platforms, budgets and guardrails it keeps (the
-  repository's records bind it: name them, never re-ask them).
-- **Acceptance**: what a person sees when it works, as Given-When-Then.
+## 1. One pass (the default)
 
-An unanswered question never stops the spec: it goes into the spec's `## Open questions` and you go on.
+1. `python3 $S/spec.py new "<title>"` (at most four words: plan-names-are-short; `--fetch` first when other clones may
+   have taken numbers; `--seed` for a seed it grows from). It numbers the plan (never a hand number), writes plan.md in
+   state spec and spec.md, names the folder in `CURRENT_PLAN`. It refuses while `CURRENT_PLAN` names a started plan
+   (`--here` only on the user's words) and a slug `plans/` already has: continue that one or pick another title.
+2. Fill spec.md with what the conversation, code, INTENT.md, records, research and the CLIs' help already settle,
+   without asking again (D8 idea 6). Ids: goals `G<n>` ("the system SHALL ...", must, should or could; non-goals),
+   requirements `R<n>` (the binding records named, never re-asked), acceptance `A<n>` as Given-When-Then rows (happy,
+   edge, failure). `description` in the front matter: one sentence, at most 200 characters.
+3. Then one round across the whole feature (D8 idea 2): problem, users and goals, scope, requirements and
+   constraints, acceptance; only what the user decides. Each question into the plan's ledger with `hal2-cli-plans
+   questions add "<question>" --option <recommended> --option <b> --option <c>`, then asked as plain text after what
+   you found, in the global Q form (`Q<n>`, three options, the recommended first). Answers go into spec.md and the
+   ledger (`questions answer`); an unanswered one stays open and never stops the spec. What is too vague to ask yet goes
+   under `## Not yet specified`. Nothing open: say the feature is small enough and recommend plan now.
+4. Design: a screen a person sees, stored data, a flow or a call across a boundary runs the
+   [design](../design/SKILL.md) skill's `/design create`; `## Design` links `design.html` with a line on what it shows,
+   else "nothing to design" and why.
+5. `python3 $S/spec.py iterate` ends the round and prints the checkpoint (below). Commit the round's files (files home;
+   `docs(<NNNN>): spec round <n>`), one commit per round.
 
-## 2. Write
+## 2. The checkpoint
 
-1. `python3 $S/spec.py new "<title>"` (at most four words: plan-names-are-short; `--fetch` first when other clones
-   may have taken numbers). It takes the next number with the plan skill's `plan_number.py` (never a hand number),
-   writes `spec.md` from `templates/spec.md` and names the folder in the `CURRENT_PLAN` pointer. It refuses in a field whose `CURRENT_PLAN` pointer names a started plan (`--here` only on the user's words: the plan goes to `plans/PREVIOUS_PLAN`). It refuses a long title
-   and a slug a folder of `plans/` already has: then continue that one or pick another title.
-2. Fill every section of `spec.md` from the answers; replace every `<...>` placeholder. Ids: goals `G<n>`,
-   requirements `R<n>`, acceptance criteria `A<n>` (one table row each: ID, Given, When, Then; happy, edge and failure
-   rows), so the plan's done-whens and the design's scenarios can cite them. Set `description` in the front matter
-   to one sentence of the feature (at most 200 characters).
+Show `iterate`'s JSON as three options, its `recommended` first (plan now only when no placeholder, nothing under
+`## Not yet specified` and no open question is left; else another round), and do what the user picks:
 
-## 3. Design
+- **plan now**: `/plan` (the plan skill fills the steps into this same plan.md in place:
+  [spec-in-place](../plan/references/spec-in-place.md); offer `/spec approve` first when the user wants it marked).
+- **bring it in for later**: the user's `/mtm` hitches the field, the tollman's train lands it; planned later by
+  `/plan new --spec <n>`.
+- **another round**: `/grill-plan` on the spec (grill-me questions on spec.md, the plan's own ledger), then the spec
+  text and changed designs updated in place (`/design update <feat>`), `spec.py iterate`, one commit, the checkpoint
+  again.
 
-Decide whether anything needs designing: a screen a person sees, stored data, a flow, a call across a boundary. Then
-run the [design](../design/SKILL.md) skill's create (`/design create`): it reads this `spec.md`, splits it into feats
-and writes `design.html` beside it. In `## Design` link the page (`[design.html](design.html)`) and say in a line
-what it shows. Nothing to design: write "nothing to design" and why, in one line.
+## 3. Update later
 
-## 4. Approve and keep
+`/spec <n> update` (D6, D8 idea 5), any time, also after it was approved, brought in or planned:
 
-1. `python3 $S/spec.py show` and tell the user in a few lines: the folder, the goals, the open questions, the design
-   page (`/design serve` to review it). Ask whether to approve it.
-2. On the user's yes: `python3 $S/spec.py approve` (refused while a placeholder is left: fill it first).
-3. The folder can be committed and landed without a plan, "saved/merged to main for later": on the user's word with
-   `/gp` (commit and push) or the repository's landing. Later `/plan new --spec <n>` (the plan skill) writes
-   `plan.md` into the same folder, seeds its Brief from the spec and the accepted designs.
+1. Ask what changed (one line is enough); record it as a decision in the plan's `decisions.md` naming the decision it
+   replaces.
+2. `python3 $S/spec.py update <n> --what "<what changed>"`: back to draft, a new round; a plan with steps gets
+   `spec_review` in its plan.md (its Brief and steps are never rewritten here; `plan.py check` reports
+   `plan-spec-review` until the plan's session reviewed them and ran `spec.py reviewed <n>`).
+3. The round as in the one pass (spec text, questions, `/design update <feat>` for each changed design: a new version,
+   the old one kept), `spec.py iterate`, one commit, the checkpoint. Tell a planned spec's foreman.
 
 ## Continue
 
-`/spec <n>`: `python3 $S/spec.py show <n> --json`: its sections, the placeholders left, its design page, whether a
-`plan.md` exists. Work on what the user asks or what is left, by the steps above. A spec with a `plan.md` is planned:
-change it only on the user's word and tell the plan's foreman. An approved spec that changes is approved again
-(`spec.py approve`) once the user agrees to the change.
+`/spec <n>`: `python3 $S/spec.py show <n> --json` (sections, placeholders left, design page, state, round, review due);
+work on what the user asks or what is left, by the steps above.
 
 ## Rules
 
-- Never write `plan.md` here: that is the plan skill's `new --spec`. Never number a folder by hand.
-- A spec folder passes the checkers as it is: `python3 <plan skill>/scripts/plan.py check plans/<folder>` (its records
-  only) and `hal2-cli-records check`; its number counts as taken for every plan and spec (`plan_number.py list`).
-- While the `CURRENT_PLAN` pointer names a spec folder, the plan skill's `current` says it names no plan: expected until
-  `plan.md` exists.
+- A spec round never writes product code. You never accept a design and never answer your own question: designs are
+  accepted by the user on the design page only (`/design serve`), questions answered only by the user.
+- plan.md is written only by `spec.py` and the plan skill (`/plan` fills it in place, never a second folder or copy).
+  Never number a folder by hand.
+- In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`, D9): every `spec.py` answer adds
+  `dir`, the plan's copy outside the tree; write spec.md there and run `spec.py show` (or the next command) to apply
+  it; other files of the plan through the plan skill's `plan.py edit`/`apply`; commit no plan file there.
+- A spec passes the checkers as it is: `python3 <plan skill>/scripts/plan.py check plans/<folder>` and
+  `hal2-cli-records check`.
 
 Prerequisites: `scripts/check-prerequisites.sh` (python3, git); the plan skill beside this one (`plan_number.py`,
-`names.py`, `envelope.py`) comes with the plugin.
+`names.py`, `envelope.py`, `spec_link.py`) comes with the plugin.

@@ -21,6 +21,7 @@ import farmer_frame
 from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
 import boss_quiet
 import mtm_scan
+import roletime
 import transplant_mark
 from tick import act
 
@@ -54,8 +55,12 @@ TEXT = {
 }
 
 
+LONG_AGO = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+
+
 def when(entry: dict) -> dt.datetime:
-    return mtm_scan.log_time(entry["at"])
+    """The entry's `at` as an aware UTC time (any shape the log holds); one that does not parse is long ago."""
+    return roletime.parse(entry.get("at")) or LONG_AGO
 
 
 def role_of(ctx: dict) -> str:
@@ -78,7 +83,7 @@ def has_handoff(checkout: Path, plan: str) -> bool:
 
 class Planner:
     def __init__(self, snap: dict, ctx: dict):
-        self.snap, self.ctx, self.now, self.log = snap, ctx, ctx["now"], ctx["log"]
+        self.snap, self.ctx, self.now, self.log = snap, ctx, roletime.aware(ctx["now"]), ctx["log"]
         self.wt = {w["slot"]: w for w in snap["worktrees"]}
         self.queue = snap["queue"]
         self.out: list[dict] = []

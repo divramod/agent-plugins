@@ -26,6 +26,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path; board.py lives there)
 import gh_runs
 import mtm_scan
+import roletime
 from tick import act
 
 STACK = "stack-test"
@@ -119,11 +120,10 @@ def watch(top: str, main: str, rows: list[dict], panes: dict, log: list[dict], f
     done = {e.get("key") for e in log}
     if f"stack-red:{name}" in done or f"stack-done:{name}" in done or any(f"{k}:{rid}" in done for k in OWNED):
         return []
-    try:
-        at = dt.datetime.fromisoformat(str(row.get("at")).replace("Z", "+00:00"))
-    except ValueError:
+    at = roletime.parse(row.get("at"))
+    if at is None:
         return []
-    if (now or dt.datetime.now(dt.timezone.utc)) - at > dt.timedelta(hours=WATCH_HOURS):
+    if roletime.aware(now) - at > dt.timedelta(hours=WATCH_HOURS):
         return []
     fetch = fetch or gh_runs.view_jobs(mtm_scan.run_json, main)
     job = stack_job(gh_runs.jobs([rid], set(), fetch).get(rid) or [])

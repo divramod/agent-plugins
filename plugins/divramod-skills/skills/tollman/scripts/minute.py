@@ -49,6 +49,7 @@ import modes
 import mtm_scan
 import pass_timing
 import role_cli
+import roletime
 import tick
 import train_state
 import watch_events
@@ -164,7 +165,7 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
     """One minute pass; the events print, one line each. A round that holds the tick lock does the watch itself.
     The pass is timed from `pass_timing.begin()` (tollman.tick, before `light`): wall, process starts and `gh` calls go
     to `pass-timing.jsonl` of the tollman's state folder (plan 0480 D1), never to stdout."""
-    now = now or dt.datetime.now()
+    now = roletime.aware(now)
     top = tick.git(repo, "rev-parse", "--show-toplevel")
     main = mtm_scan.main_checkout(top)
     out = {"now": now, "wake": [], "notify": [], "relay": [], "done": []}

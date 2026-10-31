@@ -19,6 +19,7 @@ import subprocess
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
+import roletime
 import train_state
 import yard
 from tick import act
@@ -73,8 +74,8 @@ def settled_actions(main: str, rows: list[dict], panes: dict, now: dt.datetime |
     home = (last or {}).get("yard") or {}
     if not home or (home.get("pulled") and not home.get("kept")):
         return []
-    at = dt.datetime.fromisoformat(last["at"].replace("Z", "+00:00"))
-    if ((now or dt.datetime.now(dt.timezone.utc)) - at).total_seconds() > DAY:
+    age = roletime.age(last.get("at"), roletime.aware(now))
+    if age is None or age.total_seconds() > DAY:
         return []
     kept = home.get("kept") or []
     parts = [f"{len(kept)} of the files it carried from the yard stay there as they are ({named(kept)})"] * bool(kept)

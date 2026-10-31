@@ -21,6 +21,9 @@ whose key was logged within its window, and an action `after` a dropped key with
 that waits for the user (an `ask` in the log with no `answered` after it) are dropped too, and so are
 messages and wakes about the farmer's own worktree (its session is the one woken).
 
+Catch-up is safe (hal2 plan 0530 D6, catchup.py): a send, relay, wake or notify whose item (`born`) is older than its
+window is never done after a long outage, only logged once as a `stale-skip` record (`stale`).
+
 Every executed action except `ran` goes into the farmer's log with `"by": "tick"`.
 
 A paused field (hal2 plan 0458, `hal2-cli-git worktree pause`) is never started, continued or woken: the round asks
@@ -53,16 +56,20 @@ import due
 import gh_runs
 import mtm_scan
 import roles
+import roletime
 
 LAZY = ("acks", "commit_origin", "delegation", "deliver", "field_pause", "lead_marker", "live_sessions", "scan_cache",
         "wake")  # imported where used: a minute pass needs none of them (plan 0480 D3); `tick.<name>` still finds them
 
 
 def __getattr__(name: str):
-    """`tick.deliver` and the other LAZY modules, imported on the first ask (PEP 562)."""
+    """`tick.deliver` and the other LAZY modules, imported on the first ask (PEP 562); `tick.TALKS`, `STALE_AFTER`,
+    `STALE_KEEP` and `item_time` are catchup's, also loaded on first use (a quiet pass loads no catchup)."""
     if name in LAZY:
         module = globals()[name] = importlib.import_module(name)
         return module
+    if name in ("TALKS", "STALE_AFTER", "STALE_KEEP", "item_time"):
+        return getattr(importlib.import_module("catchup"), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -168,8 +175,8 @@ def due_items(top: str, now: dt.datetime | None = None, all_due: bool = False,
     items, settings, problems = due.schedule(path.read_text(), wiring.duties)
     if problems:
         return [], settings, problems
-    now, last = now or dt.datetime.now(), due.last_runs(top, wiring.role)
-    rows = [{"name": n, "cron": c, "last": last[n].isoformat() if n in last else None}
+    now, last = roletime.aware(now), due.last_runs(top, wiring.role)
+    rows = [{"name": n, "cron": c, "last": roletime.stamp(last[n]) if n in last else None}
             for n, c in items.items() if all_due or due.is_due(c, last.get(n), now)]
     return rows, settings, []
 
@@ -185,16 +192,21 @@ def item_actions(item: dict, handlers: dict, ctx: dict) -> list[dict]:
     return planned + [act(name if kind == "duty" else "task", "ran", "ran", name=item["name"])]
 
 
+def stale(actions: list[dict], now: dt.datetime) -> list[dict]:
+    """catchup.stale, loaded only when there are actions (a quiet pass loads no catchup: test_light_start's bound)."""
+    return importlib.import_module("catchup").stale(actions, now) if actions else actions
+
+
 WEEK = 7 * 24 * 3600
-
-
 def fresh(actions: list[dict], log: list[dict], now: dt.datetime, role: str = roles.ROLE) -> list[dict]:
-    """The actions an earlier round has not done yet (see the module doc); `role`: whose own worktree is never told."""
-    seen: dict[str, dt.datetime] = {}
-    now = mtm_scan.naive(now)
+    """The actions an earlier round has not done yet (see the module doc); `role`: whose own worktree is never told.
+    `now` naive (local) or aware; a log line whose `at` does not parse keys nothing (roletime, plan 0530). A stale
+    item's act is its `stale-skip` record first (`stale`)."""
+    now, seen = roletime.aware(now), {}
+    actions = stale(actions, now)
     for e in log:
-        if e.get("key"):
-            t = mtm_scan.log_time(e["at"])
+        t = roletime.parse(e.get("at")) if e.get("key") else None
+        if t is not None:
             seen[e["key"]] = max(t, seen.get(e["key"], t))
     asked, dropped, out = waiting_for_user(log), set(), []
     for a in actions:
@@ -265,16 +277,19 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
     main = mtm_scan.main_checkout(top)
     with timed(timing, "context"):
         opted = due.schedule((Path(top) / wiring.role_file).read_text(), wiring.duties)[0]
-        ctx = context(top, main, opted, now or dt.datetime.now(), dry, wiring, paused)
+        ctx = context(top, main, opted, roletime.aware(now), dry, wiring, paused)
     actions, role = [], wiring.role
     for item in items:
         with timed(timing, item["name"]):
-            planned = waiting_noise(fresh(field_pause.skip(item_actions(item, handlers, ctx), ctx["paused_fields"]),
-                                          ctx["log"], ctx["now"], role), ctx["waiting"])
+            # stale first: a paused field's stale item is one stale-skip, never a daily paused-skip (plan 0530 D6)
+            planned = stale(item_actions(item, handlers, ctx), ctx["now"])
+            planned = waiting_noise(fresh(field_pause.skip(planned, ctx["paused_fields"]), ctx["log"], ctx["now"],
+                                          role), ctx["waiting"])
         ctx.setdefault("told", set()).update(a["slot"] for a in planned if a["do"] in ("send", "relay"))
         actions += [{**a, "item": item["name"]} for a in planned]
     with timed(timing, "acks"):
-        ack_acts = field_pause.skip(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["paused_fields"])
+        ack_acts = field_pause.skip(stale(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["now"]),
+                                    ctx["paused_fields"])
         actions += [{**a, "item": "acks"} for a in fresh(ack_acts, ctx["log"], ctx["now"], role)]
     return {"due": items, "settings": settings, "actions": actions, "stop": False, "agent_rows": ctx["agent_rows"]}
 
@@ -401,7 +416,9 @@ def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARME
 
 def run(repo: str, dry: bool, handlers: dict, now: dt.datetime | None = None, all_due: bool = False,
         wiring: roles.Wiring = roles.FARMER) -> dict:
-    """One round. Dry: plan only, touch nothing. Returns the round as data (also what `--json` prints)."""
+    """One round. Dry: plan only, touch nothing. Returns the round as data (also what `--json` prints). A given `now`
+    may be naive (local) or aware: it is normalised to aware UTC here (roletime, plan 0530); None is the clock."""
+    now = roletime.aware(now) if now is not None else None
     timing: dict[str, float] = {}
     out = {"dry": dry, "now": now, "wake": [], "notify": [], "done": [], "planned": [], "timing": timing,
            "started": time.time()}
@@ -447,13 +464,13 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
             out["done"].append(a)
     if go_on and wiring.delegates:
         with timed(timing, "delegations"):
-            delegate_all(main, out, dry, now or dt.datetime.now())
+            delegate_all(main, out, dry, roletime.aware(now))
     with timed(timing, "wake"):
         if dry:
             out["wake_items"] = wake.items({k: [a for a in out["planned"] if a["do"] == k] for k in wake.KINDS}
                                            | {"delegations": out.get("delegations", [])}, wiring)
         else:
-            out["woke"] = wake.hand_over(top, main, out, now or dt.datetime.now(), wiring, rnd.get("agent_rows"))
+            out["woke"] = wake.hand_over(top, main, out, roletime.aware(now), wiring, rnd.get("agent_rows"))
     if not dry:
         with timed(timing, "summary"):
             summarize(main, top, out, wiring)

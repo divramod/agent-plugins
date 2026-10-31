@@ -4,6 +4,7 @@ worktrees with an open question to the user, the worktrees the boss paused."""
 import datetime as dt
 
 import mtm_scan
+import roletime
 
 
 def read_log(main: str, role: str = mtm_scan.roles.ROLE) -> list[dict]:
@@ -28,11 +29,14 @@ PAUSE_AGE = dt.timedelta(hours=12)
 
 
 def paused(log: list[dict], now: dt.datetime) -> set[str]:
-    """Worktrees the boss paused for a landing (a `pause:<landing>:<slot>` key in the last 12 h) with no go after it."""
+    """Worktrees the boss paused for a landing (a `pause:<landing>:<slot>` key in the last 12 h) with no go after it.
+    `now` naive (local) or aware; an entry whose `at` does not parse counts as old."""
     out: dict[str, bool] = {}
+    cutoff = roletime.aware(now) - PAUSE_AGE
     for e in log:
         kind, _, rest = e.get("key", "").partition(":")
-        if kind in ("pause", "go") and mtm_scan.log_time(e["at"]) >= now - PAUSE_AGE:
+        at = roletime.parse(e.get("at")) if kind in ("pause", "go") else None
+        if at is not None and at >= cutoff:
             out[rest.rsplit(":", 1)[-1]] = kind == "pause"
     return {slot for slot, on in out.items() if on}
 

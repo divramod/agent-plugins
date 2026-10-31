@@ -120,6 +120,8 @@ def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) ->
 
 
 def plan_watch(item: dict, ctx: dict, incidents: list[dict] | None = None) -> list[dict]:
+    """sanity-watch's incidents as acts; each talking act carries its incident's time as `born` (an epoch in ms or a
+    stamp), so tick.stale never resumes, restores or escalates an incident older than a day (plan 0530 D6)."""
     if incidents is None:
         state, at = watch_scan.load_state(), watch_scan.now_ms()
         agents = watch_scan.rows(watch_scan.run_json("hal2-cli-agents", "list", "--json"), "agents")
@@ -129,24 +131,24 @@ def plan_watch(item: dict, ctx: dict, incidents: list[dict] | None = None) -> li
         incidents = [i for i in found if i["id"] not in state.get("handled", {})]
     out = []
     for i in incidents:
-        slot, action = i.get("slot") or "-", i["action"]
+        slot, action, born = i.get("slot") or "-", i["action"], i.get("at")
         record = [sys.executable, str(sibling("sanity-watch") / "scripts/scan.py"), "record", i["id"]]
         landing = slot in ctx.get("landing", set())
         if action == "resume" and i.get("pane") and not landing:
             error = (i["evidence"].get("api_error") or {}).get("text") or i["name"]
             out.append(act("watch", "resume", "send", slot, pane=i["pane"], states=["failed"], key=f"watch:{i['id']}",
-                           text=TEXT["resume"].format(error=error[:160])))
+                           born=born, text=TEXT["resume"].format(error=error[:160])))
             out.append(act("watch", "handled", "run", slot, argv=record + ["resume", "--session", i["session"]],
                            after=f"watch:{i['id']}"))
         elif action == "count":
             out.append(act("watch", "handled", "run", slot, argv=record + ["count", "--note", i.get("reason", "")]))
         elif action in ("escalate", "handover"):
-            out.append(act("watch", action, "notify", slot, key=f"watch:{i['id']}",
+            out.append(act("watch", action, "notify", slot, key=f"watch:{i['id']}", born=born,
                            text=f"sanity-watch: {slot} {i['name']}: {i.get('reason') or action}"))
             out.append(act("watch", "handled", "run", slot, argv=record + [action], after=f"watch:{i['id']}"))
         elif action != "wait":
-            out.append(act("watch", action, "wake", slot, key=f"watch:{i['id']}", text=f"{i['class']} {i['name']}",
-                           evidence=i))
+            out.append(act("watch", action, "wake", slot, key=f"watch:{i['id']}", born=born,
+                           text=f"{i['class']} {i['name']}", evidence=i))
     return out
 
 

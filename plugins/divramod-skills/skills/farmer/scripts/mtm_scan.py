@@ -45,6 +45,7 @@ import lead_marker
 import live_sessions
 import pass_timing
 import roles
+import roletime
 
 import flaky_checks
 import mtm_ci
@@ -100,12 +101,8 @@ def pid_alive(pid) -> bool:
 
 
 def parse_time(text: str | None) -> float | None:
-    if not text:
-        return None
-    try:
-        return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return None
+    t = roletime.parse(text)
+    return t.timestamp() if t else None
 
 
 def landing_start(landing_id: str | None) -> float | None:
@@ -471,7 +468,8 @@ def entries(path: Path) -> list[dict]:
     for line in path.read_text().splitlines() if path.exists() else []:
         try:
             e = json.loads(line)
-            log_time(e["at"])
+            if roletime.parse(e["at"]) is None:  # every reader parses `at` with roletime: never None after this
+                continue
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             continue
         out.append({**{k: "" for k in LOG_FIELDS}, **{k: v for k, v in e.items() if v is not None}})
@@ -479,7 +477,7 @@ def entries(path: Path) -> list[dict]:
 
 
 def log(main: str, entry: dict, role: str = roles.ROLE) -> None:
-    entry = {"at": dt.datetime.now().isoformat(timespec="seconds"), **{k: "" for k in LOG_FIELDS}, **entry}
+    entry = {"at": roletime.now(), **{k: "" for k in LOG_FIELDS}, **entry}
     with (state_dir(main, role) / "log.jsonl").open("a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -544,7 +542,13 @@ def summary_dir(main: str, role: str = roles.ROLE) -> Path:
 
 
 def actions_since(main: str, since: float, role: str = roles.ROLE) -> list[dict]:
-    return [e for e in entries(state_dir(main, role) / "log.jsonl") if log_time(e["at"]).timestamp() >= since]
+    return [e for e in entries(state_dir(main, role) / "log.jsonl") if roletime.parse(e["at"]).timestamp() >= since]
+
+
+def local_hhmm(at: str) -> str:
+    """A state time as this machine's local `HH:MM` for a summary (a `Z` and a legacy local stamp alike)."""
+    t = roletime.parse(at)
+    return f"{t.astimezone():%H:%M}" if t else str(at)[11:16]
 
 
 def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes: str, lead: str = "",
@@ -572,7 +576,7 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     lines += ["", "## Findings", ""]
     lines += [f"- {f['kind']} {f['slot']}: {f['why']}" for f in snap["findings"]] or ["- none"]
     lines += ["", "## Actions", ""]
-    lines += [f"- {e['at'][11:16]} {e['kind']} {e['slot']}: {e['what']}" + (f" ({e['note']})" if e.get("note") else "")
+    lines += [f"- {local_hhmm(e['at'])} {e['kind']} {e['slot']}: {e['what']}" + (f" ({e['note']})" if e.get("note") else "")
               for e in ({**{k: "" for k in LOG_FIELDS}, **a} for a in actions)] or ["- none"]
     lines += ["", "## Worktrees", "", "| worktree | not on main | agent | plan |", "|---|---|---|---|"]
     lines += [f"| {w['slot']} | {w['ahead']} | {w.get('agent_state') or '-'} | {w.get('plan') or '-'} |"
@@ -668,15 +672,15 @@ def main(argv: list[str]) -> int:
         log(main_dir, {"kind": args.kind, "slot": args.slot, "what": args.what, "note": args.note}, role)
     elif args.cmd == "pause":
         (state_dir(main_dir, role) / "paused.json").write_text(
-            json.dumps({"since": dt.datetime.now().isoformat(timespec="seconds"), "note": args.note}))
+            json.dumps({"since": roletime.now(), "note": args.note}))
         log(main_dir, {"kind": "pause", "slot": "", "what": "paused", "note": args.note}, role)
     elif args.cmd == "resume":
         (state_dir(main_dir, role) / "paused.json").unlink(missing_ok=True)
         log(main_dir, {"kind": "pause", "slot": "", "what": "resumed", "note": args.note}, role)
     elif args.cmd == "status":
         d = state_dir(main_dir, role)
-        cutoff = dt.datetime.now() - dt.timedelta(hours=6)
-        recent = [e for e in entries(d / "log.jsonl") if log_time(e["at"]) >= cutoff]
+        cutoff = roletime.utcnow() - dt.timedelta(hours=6)
+        recent = [e for e in entries(d / "log.jsonl") if roletime.parse(e["at"]) >= cutoff]
         last = d / "last-scan.json"
         status = {
             "priority": json.loads((d / "priority.json").read_text()) if (d / "priority.json").exists() else None,

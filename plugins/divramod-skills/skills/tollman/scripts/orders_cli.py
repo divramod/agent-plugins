@@ -17,6 +17,7 @@ import datetime as dt
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import orders
+import roletime
 import own_fix
 import tick
 import train_state
@@ -50,7 +51,7 @@ def deliver(top: str, main: str, actions: list[dict], ctx: dict, wiring) -> None
 def main(args, wiring) -> int:
     main_dir = mtm_scan.main_checkout(args.repo)
     top = str(mtm_scan.roles.slot_dir(main_dir, wiring.role))
-    ctx = tick.context(top, main_dir, {}, dt.datetime.now(), False, wiring)
+    ctx = tick.context(top, main_dir, {}, roletime.aware(), False, wiring)
     own = args.field == orders.MAIN and not train_state.standing(train_state.lines(main_dir))  # plan 0360 step 8
     carrier = train_wt.carrier(top)  # a car's fix merges into the train's worktree (plan 0375 D5)
     if args.cmd == "order":

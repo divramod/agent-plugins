@@ -31,6 +31,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
+import roletime
 import trial as trial_merge
 from tick import act, default_ref
 from trains_sort import servant
@@ -56,7 +57,7 @@ TEXT = {
 
 
 def utc(now: dt.datetime | None = None) -> str:
-    return (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return roletime.now(now)
 
 
 def folder(main: str) -> Path:

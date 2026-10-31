@@ -36,8 +36,8 @@ import sys
 from pathlib import Path
 
 import bounded
-import mtm_scan
 import roles
+import roletime
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 DUTIES = roles.FARMER.duties  # the farmer's duty names; another role passes its own to `schedule`
@@ -114,8 +114,11 @@ def interval_minutes(cron_text: str) -> int:
 
 
 def is_due(cron_text: str, last: dt.datetime | None, now: dt.datetime) -> bool:
-    fire = last_fire(cron_text, now)
-    return fire is not None and (last is None or last < fire)
+    """Whether a fire time passed since `last`. A cron fires on local wall time, so `now` is matched as local; `last`
+    and `now` may be naive (local) or aware (roletime, plan 0530)."""
+    local = now.astimezone().replace(tzinfo=None) if now.tzinfo else now
+    fire = last_fire(cron_text, local)
+    return fire is not None and (last is None or roletime.aware(last) < roletime.aware(fire))
 
 
 def front_matter(text: str) -> dict:
@@ -227,17 +230,23 @@ def repo_name(repo: str) -> str:
 
 
 def last_runs(repo: str, role: str = roles.ROLE) -> dict[str, dt.datetime]:
+    """Each name's last run (the file's last line for it) as an aware UTC time; an unreadable line is skipped."""
     f = roles.state_dir(repo, DATA, role) / "runs.jsonl"
     out: dict[str, dt.datetime] = {}
-    if f.exists():
-        for e in map(json.loads, f.read_text().splitlines()):
-            out[e["name"]] = mtm_scan.log_time(e["at"])
+    for line in f.read_text().splitlines() if f.exists() else []:
+        try:
+            e = json.loads(line)
+            at = roletime.parse(e["at"])
+            if at is not None:
+                out[e["name"]] = at
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue
     return out
 
 
 def record_run(repo: str, name: str, at: dt.datetime | None = None, role: str = roles.ROLE) -> None:
     with (roles.state_dir(repo, DATA, role) / "runs.jsonl").open("a") as f:
-        f.write(json.dumps({"at": (at or dt.datetime.now()).isoformat(timespec="seconds"), "name": name}) + "\n")
+        f.write(json.dumps({"at": roletime.stamp(at) if at else roletime.now(), "name": name}) + "\n")
 
 
 def main(argv: list[str]) -> int:
@@ -265,8 +274,8 @@ def main(argv: list[str]) -> int:
         print(json.dumps({"ok": False, "problems": problems}, indent=1) if args.json else
               f"{roles.ROLE_FILE} problems:\n" + "\n".join(f"- {x}" for x in problems), file=None if args.json else sys.stderr)
         return 1
-    now, last = dt.datetime.now(), last_runs(args.repo)
-    rows = [{"name": n, "cron": c, "last": last[n].isoformat() if n in last else None,
+    now, last = roletime.utcnow(), last_runs(args.repo)
+    rows = [{"name": n, "cron": c, "last": roletime.stamp(last[n]) if n in last else None,
              "due": is_due(c, last.get(n), now)} for n, c in items.items()]
     if args.cmd == "due":
         rows = [x for x in rows if x["due"]]

@@ -48,13 +48,14 @@
       timer (`timer`). A tick without --dry-run runs only in timer mode, so the two never overlap.
 
 State: roles/farmer/ of the farmer's worktree farmer-<repo> (roles.py; $FARMER_DIR/<repo>/ overrides it): mode, tick.lock, log.jsonl, board.jsonl (board.py: the log's instructions, acks and notes, synced by every tick), runs.jsonl, questions.jsonl, wake.json,
-timer.json, tick.log, handoff.md, summaries/; its .gitignore ignores all but ROLE.md and itself.
+timer.json, tick-health.json, tick.log, handoff.md, summaries/; its .gitignore ignores all but ROLE.md and itself.
 Exit 0 ok (also: another tick holds the lock, `busy`), 1 roles/farmer/ROLE.md invalid, 2 a tool missing,
-3 no roles/farmer/ROLE.md, 4 not the farmer's worktree (or one still named `farmer`: migrate first), a worktree holding other work, or not in timer mode.
+3 no roles/farmer/ROLE.md, 4 not the farmer's worktree (or one still named `farmer`: migrate first), a worktree holding other work, or not in timer mode,
+5 the round raised (traceback in tick.log; tick-health.json counts the streak, the 2nd failed round in a row sends
+one desktop notice and a line at the top of summaries/latest.md: role_cli.py, tick_health.py).
 """
 
 import argparse
-import datetime
 import json
 import os
 import sys
@@ -69,6 +70,7 @@ import duties
 import role_cli
 import role_sync
 import roles
+import roletime
 import silence
 import migrate
 import questions
@@ -108,12 +110,14 @@ def run_tick(repo: str, dry: bool, as_json: bool, all_due: bool = False) -> int:
     as the tollman's tick does); a dry run writes nothing. None while the machine is quiet (role_cli.quiet)."""
     if role_cli.quiet(WIRING, dry):
         return 0
-    main_dir = tick.mtm_scan.main_checkout(repo)
+    main_dir, faults = tick.mtm_scan.main_checkout(repo), []  # a failed sync counts in tick-health.json (plan 0530)
     if not dry:
-        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE)
-    code = role_cli.run_tick(repo, dry, as_json, HANDLERS, WIRING, all_due)
+        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE, faults=faults)
+    before = len(faults)
+    code = role_cli.run_tick(repo, dry, as_json, HANDLERS, WIRING, all_due, faults=faults)
     if not dry:
-        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE)
+        board.safely(main_dir, "messages and acks", board.sync, role=roles.ROLE, faults=faults)
+        role_cli.after_sync(repo, WIRING, faults, before, code)
     return code
 
 
@@ -128,7 +132,7 @@ def run_delegate(args) -> int:
     a = tick.act("farmer", "brief", "delegate", key=f"brief:{delegation.slug(args.title)}", text=args.title,
                  brief={"brief_file": str(Path(args.brief).resolve())})
     result = delegation.delegate(a, main_dir, delegation.parse_limit(settings.get("servant_limit")), args.dry_run,
-                                 datetime.datetime.now(), delegation.servant_values(settings))
+                                 roletime.utcnow(), delegation.servant_values(settings))
     print(json.dumps(result, indent=1) if args.json else
           f"{result['state']}: {result.get('slot') or '-'}" + "".join(f"\n  {' '.join(map(str, c))}"
                                                                      for c in result.get("calls", [])))

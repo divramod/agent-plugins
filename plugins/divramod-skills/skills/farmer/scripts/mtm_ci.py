@@ -28,12 +28,12 @@ stops counting once a cancel step ended `failure` and no request is out (nobody 
 its time limit still asks from inside (stop step `success` in a job with a `cancelled` step): that request is out.
 """
 
-import datetime as dt
 import re
 import subprocess
 
 import bounded
 import gh_runs
+import roletime
 
 # The landing workflow's file, the name to prefer first: the one place that names them all.
 LAND_NAMES = ["merge-to-main-local.yml", "merge-to-main-cloud.yml", "dev-merge-to-main.yml", "merge-to-main.yml"]
@@ -110,10 +110,8 @@ def landing_of(branch: str) -> str:
 
 
 def started(run: dict) -> float:
-    try:
-        return dt.datetime.fromisoformat((run.get("createdAt") or "").replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return 0.0
+    t = roletime.parse(run.get("createdAt"))
+    return t.timestamp() if t else 0.0
 
 
 def outcome(run: dict) -> str:

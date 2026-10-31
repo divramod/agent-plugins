@@ -15,7 +15,6 @@ Exit 0 on success, 2 when a tool is missing.
 """
 
 import argparse
-import datetime as dt
 import json
 import os
 import re
@@ -30,6 +29,7 @@ import gh_runs
 import mtm_ci
 import pass_timing
 import roles
+import roletime
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 MINUTE = 60
@@ -59,10 +59,8 @@ def run_json(args: list[str], cwd: str | None = None):
 
 
 def parse_time(text: str | None) -> float:
-    try:
-        return dt.datetime.fromisoformat((text or "").replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return 0.0
+    t = roletime.parse(text)
+    return t.timestamp() if t else 0.0
 
 
 def main_checkout(repo: str) -> str:
@@ -181,7 +179,7 @@ def main(argv: list[str]) -> int:
     else:
         d = roles.state_dir(args.repo, DATA)
         with (d / "ci.jsonl").open("a") as f:
-            f.write(json.dumps({"at": dt.datetime.now().isoformat(timespec="seconds"), "run": args.run,
+            f.write(json.dumps({"at": roletime.now(), "run": args.run,
                                 "what": args.what, "note": args.note}) + "\n")
     return 0
 

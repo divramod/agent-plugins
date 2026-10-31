@@ -16,7 +16,6 @@ lead.jsonl in the farmer's state folder (roles/farmer/ of its worktree). Exit 0 
 """
 
 import argparse
-import datetime as dt
 import json
 import os
 import re
@@ -30,6 +29,7 @@ import bounded
 import lead_marker
 import mtm_scan
 import roles
+import roletime
 
 DATA = roles.OVERRIDE  # FARMER_DIR's root, else None: the farmer's worktree's roles/farmer/ (roles.state_dir)
 PROJECTS = Path(os.environ.get("CLAUDE_PROJECTS_DIR", Path.home() / ".claude/projects"))
@@ -138,7 +138,8 @@ def handled(main: str, now: float | None = None) -> set[tuple[str, int]]:
     for line in f.read_text().splitlines():
         try:
             e = json.loads(line)
-            at = mtm_scan.log_time(e["at"]).timestamp() if e.get("at") else cutoff
+            t = roletime.parse(e.get("at"))
+            at = t.timestamp() if t else cutoff
             if at >= cutoff:
                 out.add((e["session"], int(e["since"])))
         except (json.JSONDecodeError, KeyError, ValueError, TypeError):
@@ -216,7 +217,7 @@ def main(argv: list[str]) -> int:
                 print("nobody needs help")
     else:
         d = roles.state_dir(args.repo, DATA)
-        entry = {"at": dt.datetime.now().isoformat(timespec="seconds"), "session": args.session,
+        entry = {"at": roletime.now(), "session": args.session,
                  "since": args.since, "what": args.what, "note": args.note}
         with (d / "lead.jsonl").open("a") as f:
             f.write(json.dumps(entry) + "\n")

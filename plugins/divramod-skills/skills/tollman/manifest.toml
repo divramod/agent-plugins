@@ -48,7 +48,7 @@ description = "The pretest's green markers, `cache/pretest/gate-<job>-<key>` (em
 [[files]]
 path = "log.jsonl"
 kind = "event-log"
-description = "The frame's round log (the farmer skill's scripts): legacy lines without schema, at in local time."
+description = "The frame's round log (the farmer skill's scripts): lines without schema; `at` in RFC 3339 UTC with Z since hal2 plan 0530 (roletime.py), older lines legacy local time without an offset, read as local."
 
 [[files]]
 path = "runs.jsonl"
@@ -100,6 +100,12 @@ path = "sleep.json"
 kind = "snapshot"
 schema = "schemas/sleep.schema.json"
 description = "The tollman's sleep (hal2 plan 0365 D3): present while it sleeps, `{schema, by, at, why}`; while it stands the round starts no train and no land run, a train already landing is never cut. Written only by hal2-roles (`hal2-cli-roles sleep tollman on|off`), removed on waking."
+
+[[files]]
+path = "tick-health.json"
+kind = "snapshot"
+schema = "schemas/tick-health.schema.json"
+description = "The failing streak of the tollman's timer rounds (hal2 plan 0530 D4; the farmer skill's scripts/tick_health.py, from role_cli.run_tick): `{schema, at, failures, error, notified}`, rewritten by every round outside a dry run; the 2nd failed round in a row sends one desktop notice and a line at the top of summaries/latest.md, a good round resets it."
 
 [[files]]
 path = "*.json"

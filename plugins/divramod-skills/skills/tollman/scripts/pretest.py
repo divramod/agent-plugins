@@ -13,7 +13,9 @@ The config: `budget` (seconds for the whole pretest, default 150), `parallel` (j
 `[[job]]` per job with its `name` and, optional, its `group`: the jobs of one group run one after another, never
 side by side (the TypeScript jobs' `bun install` in one checkout), and `ci_env = false`: the job runs without the
 runner's environment (pretest_jobs.CI_ENV, plan 0490 step 9). `median` and `local`, the measured seconds, are
-only read by people. No file, or no `[[job]]`: no pretest (`none`).
+only read by people. No file, or no `[[job]]`: no pretest (`none`). The switch `enabled` (default on when missing;
+the repo's file says false since 2026-10-31, the user: "push to cloud as fast as possible without heavy local tests"):
+false is no pretest either; `HAL2_PRETEST=on|off` overrides it for one landing.
 
 The selection is CI's: one `gate plan` over the merge base of the barn and HEAD .. HEAD (the same
 `hal2-cli-git changes --keys` call merge-to-main.yml's `changes` makes) names the jobs the range needs and each job's
@@ -43,6 +45,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import os
 import tomllib
 from pathlib import Path
 
@@ -64,12 +67,15 @@ class NoBuild(RuntimeError):
     """`gate plan` needs a build the pretest does not make: no verdict, at once."""
 
 
-def read_config(path: Path) -> tuple[dict | None, str]:
-    """The pretest's config, or None and why there is no pretest."""
+def read_config(path: Path, switch: bool = True) -> tuple[dict | None, str]:
+    """The pretest's config, or None and why there is no pretest; `switch` False reads it whatever `enabled` says."""
     if not path.is_file():
         return None, f"no {CONFIG}"
     try:
         raw = tomllib.loads(path.read_text())
+        on = {"on": True, "off": False}.get(os.environ.get("HAL2_PRETEST", ""), raw.get("enabled", True) is True)
+        if switch and not on:
+            return None, f"the pretest is off (`enabled = false` in {path.name}; HAL2_PRETEST=on runs it)"
         jobs = [str(j["name"]) for j in raw.get("job", [])]
         groups = {str(j["name"]): str(j["group"]) for j in raw.get("job", []) if j.get("group")}
         plain = {str(j["name"]) for j in raw.get("job", []) if j.get("ci_env", True) is False}

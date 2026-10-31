@@ -43,6 +43,7 @@ from pathlib import Path
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import repo_root  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 from metrics_fold import CAUSE_RULES, CAUSES, cause_of, day_of, fold_trains, in_window, parse_time, read, spread  # noqa: E402,F401
+import roletime  # noqa: E402  (the frame's time helper; metrics_fold put the frame on the path)
 
 
 def train_metrics(f: dict, log: list[dict], keep) -> dict:
@@ -151,7 +152,7 @@ def measure(role, since=None, until=None, ci=None) -> dict:
         runs, status = None, {"status": "unknown", "why": f"ci-analyzer failed: {error}"}
     if runs is not None:
         first = [parse_time(r["created_at"]) for r in runs if r.get("created_at")]
-        status.update(runs=len(runs), first_run=min(first).isoformat().replace("+00:00", "Z") if first else None)
+        status.update(runs=len(runs), first_run=roletime.stamp(min(first)) if first else None)
         status["partial"] = bool(since and first and min(first) > since)
     times = [r["at"] for r in rows + log] + [parse_time(r["created_at"]) for r in runs or [] if r.get("created_at")]
     lo, hi = since or (min(times) if times else None), until
@@ -171,7 +172,7 @@ def measure(role, since=None, until=None, ci=None) -> dict:
         d = end
 
     def stamp(t):
-        return t.isoformat().replace("+00:00", "Z") if t else None
+        return roletime.stamp(t) if t else None
     return {"window": {"since": stamp(lo), "until": stamp(hi)}, "ci": status,
             "total": bucket(lambda t: t is not None and in_window(t, lo, hi)), "days": days}
 

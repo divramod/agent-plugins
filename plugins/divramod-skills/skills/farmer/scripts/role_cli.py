@@ -4,7 +4,8 @@ skill's `tollman.py` call these with their own `roles.Wiring` and handlers, so n
 
 State: the role's state folder (`roles/<role>/` of its field `<role>-<repo>`, roles.state_dir). Exit codes as
 farmer.py names them: 0 ok (also `busy`), 1 an invalid role file, 2 a tool missing, 3 no role file, 4 not the
-role's field, a field holding other work, or not in timer mode.
+role's field, a field holding other work, or not in timer mode, 5 the round raised (its traceback on stderr, the
+timer's tick.log; counted in tick-health.json by tick_health.py: the 2nd failed round in a row sends one notice).
 """
 
 import datetime
@@ -13,6 +14,7 @@ import importlib
 import json
 import shutil
 import sys
+import traceback
 from pathlib import Path
 
 import due
@@ -115,9 +117,10 @@ def quiet(wiring: roles.Wiring, dry: bool, env=None) -> bool:
 
 
 def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.Wiring, all_due: bool = False,
-             silent_lines=None) -> int:
+             silent_lines=None, faults: list | None = None) -> int:
     """One round behind the role's tick lock; outside a dry run only in timer mode. A silenced role (silence.py)
-    prints table lines only: `silent_lines(r, wiring)` or the default one line."""
+    prints table lines only: `silent_lines(r, wiring)` or the default one line. `faults`: the tick's board sync before
+    the round failed (board.safely): a round without an exception then counts as failed in tick-health.json."""
     import silence
     import timer
     cli, gone = wiring.cli.name, missing()
@@ -137,16 +140,65 @@ def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.
         except BlockingIOError:
             print("busy: another tick runs")
             return 0
-        timer.rotate(state(repo, wiring))
-        r = tick.run(repo, dry, handlers, all_due=all_due, wiring=wiring)
-        if not dry and not r.get("problem"):
-            follow_cron(repo, wiring)
+        try:
+            timer.rotate(state(repo, wiring))
+            r = tick.run(repo, dry, handlers, all_due=all_due, wiring=wiring)
+            if not dry and not r.get("problem"):
+                follow_cron(repo, wiring)
+        except Exception as exc:  # never silent (plan 0530 D4): the trace into tick.log, the streak counted
+            traceback.print_exc()
+            print(f"{cli}: the round failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            if not dry:
+                health(repo, wiring, exc)
+            return 5
+        if not dry:
+            health(repo, wiring, fault(faults))
     print(json.dumps(r, indent=1, default=str) if as_json else "", end="")
     if not as_json and not dry and silence.on(repo, wiring):
         print("\n".join((silent_lines or silence.round_lines)(r, wiring)))
     elif not as_json:
         print_round(r, wiring)
     return 4 if r.get("problem") else 0
+
+
+def health(repo: str, wiring: roles.Wiring, exc: BaseException | None = None, send=None) -> dict | None:
+    """Record the round in tick-health.json: a failure (`exc`) counts the streak and at its 2nd round notifies; a
+    good round resets it. Never raises: the round's own outcome stands."""
+    import tick_health
+    try:
+        st = state(repo, wiring)
+        summaries = lambda: tick.mtm_scan.summary_dir(tick.mtm_scan.main_checkout(repo), wiring.role)  # noqa: E731
+        if exc is None:
+            return tick_health.succeeded(st, summaries, wiring.role)
+        return tick_health.failed(st, summaries, wiring.role, exc, send=send)
+    except Exception as e:
+        print(f"{wiring.cli.name}: tick health not recorded: {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+
+
+class BoardFailed(RuntimeError):
+    """A board sync of the tick outside its round that failed (board.safely's `faults`): counted like a failed round."""
+
+
+def fault(faults: list | None) -> BoardFailed | None:
+    """The last of board.safely's `(what, error)` faults as one error for tick-health.json, None when there is none."""
+    return BoardFailed(f"board {faults[-1][0]}: {faults[-1][1]}") if faults else None
+
+
+def after_sync(repo: str, wiring: roles.Wiring, faults: list, before: int, code: int) -> None:
+    """The tick's board sync after its round: a failure counts in tick-health.json once per tick, so only when
+    nothing before it did (no failed sync before the round, `before`, and no failed round, exit 5)."""
+    if len(faults) > before and not before and code != 5:
+        health(repo, wiring, fault(faults))
+
+
+def failed_pass(repo: str, wiring: roles.Wiring, exc: BaseException) -> int:
+    """A pass outside run_tick (the tollman's minute) that raised: the trace into tick.log, the streak counted as a
+    failed round's (tick_health), exit 5. A good pass resets nothing: only a good round does."""
+    traceback.print_exc()
+    print(f"{wiring.cli.name}: the pass failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+    health(repo, wiring, exc)
+    return 5
 
 
 def follow_cron(repo: str, wiring: roles.Wiring) -> None:

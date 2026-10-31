@@ -26,6 +26,7 @@ import table
 MAIN = masterplan.MAIN
 DONE = "done"
 REOPENED = "running"
+SPEC = "spec"  # a plan in state spec (hal2 plan 0502, D7): the spec was brought in for later, nothing is open
 POINTER = "plans/CURRENT_PLAN"  # the words of the lines; the file is the git dir's or plans/ (pointers.py)
 NAME = pointers.CURRENT_PLAN
 ROW_DONE = re.compile(r"done(?: \(.*\))?")  # a finished row's two forms: `done`, `done (<note>)`
@@ -116,7 +117,8 @@ def leave(root: Path, steps_of, release: bool = False) -> dict:
       `done` or a plan this checkout does not hold: left alone;
     - `masterplan`: the plan is finished and its masterplan is not: the file names the masterplan now, the field
       goes on with its next plan;
-    - `deleted`: the plan is finished and belongs to no unfinished masterplan (a masterplan's last plan too), or the
+    - `deleted`: the plan is finished and belongs to no unfinished masterplan (a masterplan's last plan too), the
+      plan is in state `spec` (a spec brought in for later, hal2 plan 0502 D7: it has no step to keep it), or the
       file named a shot or a task: the work is in, the file is gone. With `release` (`leave --release`: the field
       does not carry on with the masterplan) also where the file would name the masterplan or names it already.
     - `restored`: the work is in and plans/PREVIOUS_PLAN (a `--here` switch, D4) keeps a plan still unfinished: the
@@ -152,6 +154,8 @@ def leave(root: Path, steps_of, release: bool = False) -> dict:
         return deleted(f"it named {was}, which is in")
     if release and masterplan.of(path):
         return deleted(f"the field is released from the masterplan {was} and is free again")
+    if masterplan.key(masterplan.read(path), "status") == SPEC:
+        return deleted(f"{was} is a spec brought in for later; planning it (`plan.py new --spec`) fills it in place")
     steps = steps_of(path)
     shaped = path.name == MAIN and shape.is_shape(path.parent)
     still = ["open"] if shaped and occupied.status_of(path) == "open" else \

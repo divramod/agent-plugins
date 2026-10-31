@@ -42,6 +42,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import barn
 import mtm_scan
 import prune_ask
+import roletime
 import tick
 import train_state
 from skillpath import sibling
@@ -145,10 +146,11 @@ def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen, respo
 def report(main: str, ctx: dict, data: dict, hold: str | None = None) -> list[dict]:
     """Every REPORT_EVERY: the free disk and the biggest fields (from /prune's facts) as a record; the watermark's
     notices (`watermark`) are their own, once per window each."""
-    now = ctx["now"]
+    now = roletime.aware(ctx["now"])
     out = []
     if not any(str(e.get("key", "")).startswith("prune:disk:") and
-               (mtm_scan.naive(now) - mtm_scan.log_time(e["at"])).total_seconds() < REPORT_EVERY for e in ctx.get("log", [])):
+               (roletime.age(e.get("at"), now) or dt.timedelta(days=9999)).total_seconds() < REPORT_EVERY
+               for e in ctx.get("log", [])):
         free = data["facts"]["disk"]["free_gb"]
         big = sorted(((f["size"]["bytes"] / 1e9, f["slot"]) for f in data["facts"]["fields"]
                       if f.get("size") and f["size"].get("bytes")), reverse=True)[:TOP]

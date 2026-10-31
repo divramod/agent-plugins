@@ -138,7 +138,8 @@ unknown id: say so and stop), before marking any: ids refer to that list.
      the shot (a global shot: `--seed global:<file>#<number>`), writes it into the plan's Context and its words
      become the Brief; a shot that asks for research rather than implementation becomes a
      research plan, `/plan new --research ...`, slug `<NNNN>-research-...`; then run the plan as its
-     coordinator: **You are the plan's coordinator: you never do a step yourself; each step runs in one subagent
+     coordinator (a shot for a larger feature (several parts, designs, open questions) may instead be offered a spec first,
+     see [Larger feature](#larger-feature-spec-first)): **You are the plan's coordinator: you never do a step yourself; each step runs in one subagent
      at its row's Model and Effort, sized under 35% of its Window; you check its done-when, commit it and keep
      `run` current.** `/plan` writes the plan's `<NNNN>-<slug>` into the `CURRENT_PLAN` pointer, so the statusline shows it; the file is
      gitignored runtime state, never committed, and `/mtm` deletes it once the plan has landed. A shot worked
@@ -149,3 +150,13 @@ unknown id: say so and stop), before marking any: ids refer to that list.
 The mark is written straight into the shotfile (or its store record), without renumbering: hal2-nvim renumbers on
 its next send. An open Neovim buffer of the shotfile reloads it (or asks, when it has unsaved changes); in the plan
 store's home hal2-nvim edits a copy and merges the mark per shot when it writes.
+
+## Larger feature: spec first
+
+A shot for a larger feature (several parts, designs or open questions a few questions cannot settle; a simple shot
+stays as above) gets the offer, in a session the user talks to (the main checkout, or a field the user opened), as a
+plain-text question: 1. spec first (recommended), 2. plan directly, 3. not now. Spec first:
+`python3 <skill-dir>/../spec/scripts/spec.py new "<title>" --seed <file>#<number>` (a global shot:
+`--seed global:<file>#<number>`): it takes the number, writes the spec-state plan with the shot linked in its Context
+and marks the shot sent; then run `/spec` on it. Never in a foreman the farmer started: `/spec` asks the user, and
+that session never asks (the user's rule, record [spec-loop](../../../../../../../.adr/spec-loop.md)).

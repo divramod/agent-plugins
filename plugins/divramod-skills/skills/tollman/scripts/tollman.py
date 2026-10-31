@@ -265,24 +265,31 @@ def go_on(repo: str) -> int:
 
 def tick(args) -> int:
     """A round, with the message board's messages and acks (the frame's log) posted before and after it (step 7);
-    a dry run writes nothing. None, not even the minute's watch, while the machine is quiet (role_cli.quiet)."""
+    a dry run writes nothing. None, not even the minute's watch, while the machine is quiet (role_cli.quiet). A minute
+    pass that raises and a failed board sync count in tick-health.json as a failed round does (hal2 plan 0530)."""
     if role_cli.quiet(WIRING, args.dry_run):
         return 0
     main_dir = mtm_scan.main_checkout(args.repo)
     if not (args.dry_run or args.json):
         pass_timing.begin()  # a pass is timed from here (light included): wall, processes, gh calls (minute.run)
-        if minute.light(args.repo, WIRING):
-            return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, a quiet minute prints nothing
+        try:
+            if minute.light(args.repo, WIRING):
+                return minute.run(args.repo, WIRING)  # only the 1-minute watch is due: no round, quiet prints nothing
+        except Exception as exc:  # never silent: outside run_tick, so counted here (plan 0530 step 5)
+            pass_timing.abandon()
+            return role_cli.failed_pass(args.repo, WIRING, exc)
         pass_timing.abandon()  # a round has its own timing line
     import board
     import train_state
+    faults: list = []
     if not args.dry_run:
-        board.safely(main_dir, "messages and acks", board.sync)
-    since = train_state.utc()
+        board.safely(main_dir, "messages and acks", board.sync, faults=faults)
+    since, before = train_state.utc(), len(faults)
     code = role_cli.run_tick(args.repo, args.dry_run, args.json, HANDLERS, WIRING, args.all_due,
-                             lambda r, w: silent_lines(main_dir, r, since, w))
+                             lambda r, w: silent_lines(main_dir, r, since, w), faults=faults)
     if not args.dry_run:
-        board.safely(main_dir, "messages and acks", board.sync)
+        board.safely(main_dir, "messages and acks", board.sync, faults=faults)
+        role_cli.after_sync(args.repo, WIRING, faults, before, code)
     return code
 
 

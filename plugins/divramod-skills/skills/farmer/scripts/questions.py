@@ -14,7 +14,6 @@ written plus one: never reused. Reading never creates the folder; a write needs 
 """
 
 import argparse
-import datetime as dt
 import fcntl
 import importlib.util
 import json
@@ -24,6 +23,7 @@ from pathlib import Path
 
 import mtm_scan
 import roles
+import roletime
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
@@ -37,7 +37,7 @@ SOURCE_LABEL = {"farmer": "the farmer's list", "ask": "open ask in the farmer's 
 
 
 def now_utc() -> str:
-    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return roletime.now()
 
 
 def sibling(name: str, folder: Path, file: str, on_path: bool = False):

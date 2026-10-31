@@ -2,8 +2,9 @@
 # (hal2's .adr/role-folder-formats.md): `hal2-cli-roles check <folder> --manifest <this file>`. The message board is
 # written by scripts/board.py (plan 0290 D23: the same script and form as the tollman's, `--role farmer`); the other
 # files are the frame's (this skill's scripts): the log.jsonl lines are legacy ones (no `schema`, local time without an
-# offset), declared as the record allows for legacy files (rule 3): they pass counted, are never rewritten and leave by
-# rotation and retention. One-off notes the user or the farmer leave in the folder are findings, as the record says.
+# offset; new lines carry `at` in UTC with Z since hal2 plan 0530), declared as the record allows for legacy files
+# (rule 3): they pass counted, are never rewritten and leave by rotation and retention. One-off notes the user or the
+# farmer leave in the folder are findings, as the record says.
 schema = 1
 role = "farmer"
 
@@ -16,7 +17,7 @@ description = "The message board: one line per instruction the farmer sent (an `
 [[files]]
 path = "log.jsonl"
 kind = "event-log"
-description = "The frame's round log, the farmer's journal (this skill's scripts): legacy lines without schema, at in local time. Read by scripts/board.py alone; hal2 never parses it."
+description = "The frame's round log, the farmer's journal (this skill's scripts): lines without schema; `at` in RFC 3339 UTC with Z since hal2 plan 0530 (roletime.py), older lines legacy local time without an offset, read as local. Read by scripts/board.py alone; hal2 never parses it."
 
 [[files]]
 path = "runs.jsonl"
@@ -42,6 +43,12 @@ description = "tick.lock (the round) and board.lock (the board's writers), held 
 [[files]]
 path = "tick.log*"
 kind = "text-log"
+
+[[files]]
+path = "tick-health.json"
+kind = "snapshot"
+schema = "schemas/tick-health.schema.json"
+description = "The failing streak of the farmer's timer rounds (hal2 plan 0530 D4; the farmer skill's scripts/tick_health.py, from role_cli.run_tick): `{schema, at, failures, error, notified}`, rewritten by every round outside a dry run; the 2nd failed round in a row sends one desktop notice and a line at the top of summaries/latest.md, a good round resets it."
 
 [[files]]
 path = "*.json"

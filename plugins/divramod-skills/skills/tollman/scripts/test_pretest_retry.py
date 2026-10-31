@@ -4,7 +4,10 @@ red and says load-flaky. L101: a red whose output is dyld's `Library not loaded`
 protoc and abseil) is the Mac's, skipped, never a car's. L114, L116, L120: every job sees the runner's environment
 (CI, GITHUB_ACTIONS, CARGO_INCREMENTAL=0) unless its config says `ci_env = false`."""
 
+import os
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import pretest
@@ -89,12 +92,27 @@ class CiEnvironment(FieldCase):
                                          plain=("records-check",)))[0]
         self.assertEqual(cfg["plain"], {"records-check"})
 
+    def test_the_switch_turns_the_pretest_off_and_the_env_back_on(self):
+        """The user, 2026-10-31: no local tests before a push; `enabled = false` is no pretest, HAL2_PRETEST=on one."""
+        path = config(self.tmp / "s.toml", ["python-lint"])
+        path.write_text("enabled = false\n" + path.read_text())
+        with mock.patch.dict(os.environ, {"HAL2_PRETEST": ""}):
+            cfg, why = pretest.read_config(path)
+        self.assertIsNone(cfg)
+        self.assertIn("off", why)
+        with mock.patch.dict(os.environ, {"HAL2_PRETEST": "on"}):
+            self.assertEqual(pretest.read_config(path)[0]["jobs"], ["python-lint"])
+        with mock.patch.dict(os.environ, {"HAL2_PRETEST": "off"}):
+            self.assertIsNone(pretest.read_config(config(self.tmp / "t.toml", ["python-lint"]))[0])
+        repo = Path(__file__).resolve().parents[8]
+        self.assertIsNone(pretest.read_config(repo / pretest.CONFIG)[0], "the repo's pretest is off")
+
     def test_the_repos_config_runs_no_rust_build(self):
         """Plan 0490 step 17: records-check (five CLIs built cold in every train's new field, killed at the budget in
         every train since 2026-10-20) left the repo's config; no configured job builds Rust."""
         from pathlib import Path
         repo = Path(__file__).resolve().parents[8]
-        cfg = pretest.read_config(repo / pretest.CONFIG)[0]
+        cfg = pretest.read_config(repo / pretest.CONFIG, switch=False)[0]
         self.assertIsNotNone(cfg, "the repo's .github/hal2-pretest.toml reads")
         self.assertNotIn("records-check", cfg["jobs"])
         self.assertEqual(cfg["plain"], set())

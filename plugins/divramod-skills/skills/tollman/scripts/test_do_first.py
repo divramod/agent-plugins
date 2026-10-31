@@ -10,6 +10,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (puts the farmer skill's scripts on the path)
 import deliver
 import handoff
+import roletime
 import tick
 import wake
 from test_farmer import NOW
@@ -50,7 +51,8 @@ class DoFirst(Field):
         self.assertNotIn("fix refused for 09", out)
         self.assertIn("closed 2 items older than the handoff: train-red -, fix-refused 09", out)
         self.assertIn("train 21 red", out)
-        self.assertTrue(out.rstrip().endswith("2 items, woken 2026-10-03T10:20:00"), out)  # item 0: the handoff
+        woken = roletime.stamp(NOW)  # the frame writes UTC `Z` (plan 0530), not a naive time
+        self.assertTrue(out.rstrip().endswith(f"2 items, woken {woken}"), out)  # item 0: the handoff
         self.assertEqual([i["text"] for i in wake.read(self.main, WIRING)["items"]], ["train 21 red"])
         code, again = self.call("act")
         self.assertNotIn("closed", again, "closed once, not again")

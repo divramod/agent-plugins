@@ -30,6 +30,7 @@ from pathlib import Path
 import deliver
 import mtm_scan
 import roles
+import roletime
 
 KINDS = ("wake", "relay", "notify")
 SKILL, SUBSKILLS = roles.FARMER.skill, roles.FARMER.subskills  # the farmer's, as ACT and HANDOFF
@@ -127,7 +128,8 @@ def pending_handoff(pane: str, main: str, data: dict, now: dt.datetime, sleep=ti
         del data["handoff"]
         log_wake(main, "handoff-done", f"handed off: session {a['session_id']} got {act}", wiring)
         return None, True
-    if now - mtm_scan.log_time(pending["at"]) < HANDOFF_TIMEOUT:
+    since = roletime.age(pending.get("at"), now)  # an unreadable stamp counts as timed out
+    if since is not None and since < HANDOFF_TIMEOUT:
         return "handoff under way", False
     del data["handoff"]
     log_wake(main, "handoff-timeout", f"no handoff since {pending['at']}: plain /clear, then {act}", wiring)
@@ -146,7 +148,7 @@ def wake_session(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.
         return why, not why
     why = deliver.send(pane, wiring.handoff)
     if not why:
-        data["handoff"] = {"at": now.isoformat(timespec="seconds"), "session": a.get("session_id")}
+        data["handoff"] = {"at": roletime.stamp(now), "session": a.get("session_id")}
         log_wake(main, "handoff", f"{wiring.handoff}: context {a.get('context_percent')}%", wiring)
     return why or "handoff asked", False
 
@@ -155,16 +157,17 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
               agents: list[dict] | None = None) -> dict:
     """Add the round's items to wake.json and wake the role's session when it holds a batch it was not woken for.
     `agents`: the round's one agents list (rows), else it is asked here when a wake is due.
-    Returns {"items": n new, "pending": n in the file, "woken": bool, "why": refusal}."""
-    data, new = read(main, wiring), items(out, wiring)
+    Returns {"items": n new, "pending": n in the file, "woken": bool, "why": refusal}. `now` naive (local) or aware."""
+    now, data, new = roletime.aware(now), read(main, wiring), items(out, wiring)
     seq = max((i["seq"] for i in data["items"]), default=0)
     for i in new:
         seq += 1
-        data["items"].append({"seq": seq, "at": now.isoformat(timespec="seconds"), **i})
+        data["items"].append({"seq": seq, "at": roletime.stamp(now), **i})
     if new:
         data["woken_at"] = data.get("woken_at") if data["items"][:-len(new)] else None
     result = {"items": len(new), "pending": len(data["items"]), "woken": False}
-    stale = data.get("woken_at") and now - mtm_scan.log_time(data["woken_at"]) > REWAKE
+    woke = roletime.age(data.get("woken_at"), now)  # an unreadable stamp: woken long ago, wake again
+    stale = data.get("woken_at") and (woke is None or woke > REWAKE)
     if data["items"] and (not data.get("woken_at") or stale or data.get("handoff")):
         pane = farmer_pane(top, agents) if agents is not None else farmer_pane(top)
         why, woken = (wake_session(pane, main, data, now, wiring=wiring) if pane
@@ -172,7 +175,7 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
         if why:
             result["why"] = why
         if woken:
-            data["woken_at"], result["woken"] = now.isoformat(timespec="seconds"), True
+            data["woken_at"], result["woken"] = roletime.stamp(now), True
             log_wake(main, "wake", f"{wiring.act}: {len(data['items'])} items", wiring)
     write(main, data, wiring)
     return result
@@ -180,10 +183,11 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
 
 def close_older(main: str, written: float | None, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
     """Close (drop) every item created before `written` (the handoff's last write, an epoch): the session that
-    wrote the handoff had seen it (plan 0383 D8). An item without an `at` stamp stays. Returns the closed items."""
+    wrote the handoff had seen it (plan 0383 D8). An item without a readable `at` stamp stays. Returns the closed
+    items."""
     data = read(main, wiring)
     old = [i for i in data["items"]
-           if written is not None and i.get("at") and mtm_scan.log_time(i["at"]).timestamp() < written]
+           if written is not None and (t := roletime.parse(i.get("at"))) is not None and t.timestamp() < written]
     if old:
         data["items"] = [i for i in data["items"] if i not in old]
         write(main, data, wiring)

@@ -28,7 +28,8 @@ meant; never a pane id, session id or title), `text`, and by kind (the names are
   board.py list [--kind <kind>] [--last <n>] [--json] [--role <role>] [--repo <dir>]       the lines (newest last)
   board.py sync [--role <role>] [--repo <dir>]
       the frame's messages, acks and notes (its log.jsonl: `ask-ack`, `ack`, a `record` of a kind in the role's
-      notes: NOTES for the tollman, `note` for the farmer) as `message`, `ack` and `note` lines, each once
+      notes: NOTES for the tollman, `note` for the farmer) as `message`, `ack` and `note` lines, each once; an
+      `ack-void` (hal2 plan 0530 D6) as the role's own `done` ack, `void: ...`
 
 A post that fails never fails a round: `safely` logs it to the frame's log (`board-failed`) and goes on.
 """
@@ -44,6 +45,7 @@ import sys
 from pathlib import Path
 
 import mtm_scan  # the tollman's scripts reach this folder through its farmer_frame
+import roletime
 
 ROLE = "tollman"  # the default role of every function and of `--role`
 ROLES = ("tollman", "farmer")
@@ -69,7 +71,7 @@ NOTES_OF = {"tollman": NOTES, "farmer": ("note",)}  # the log's `record` kinds t
 
 def utc(now: dt.datetime | None = None) -> str:
     """RFC 3339 UTC with `Z` and whole seconds; a time without a zone is this machine's local time."""
-    return (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return roletime.stamp(now) if now is not None else roletime.now()
 
 
 def own(main: str, role: str = ROLE) -> str:
@@ -169,12 +171,14 @@ def lines(main: str, kind: str | None = None, last: int | None = None, role: str
     return out[-last:] if last else out
 
 
-def safely(main: str, what: str, fn, *args, **kw):
+def safely(main: str, what: str, fn, *args, faults: list | None = None, **kw):
     """A hook's call: a failure is logged to the frame's log and swallowed, so a round goes on (D14); `role=` (the
-    farmer's tick) goes on to `fn`."""
+    farmer's tick) goes on to `fn`; `faults` (a list) gets `(what, error)` (role_cli.fault, plan 0530)."""
     try:
         return fn(main, *args, **kw)
     except Exception as e:  # noqa: BLE001  (any fault: the board must never stop a round)
+        if faults is not None:
+            faults.append((what, e))
         with contextlib.suppress(Exception):
             mtm_scan.log(main, {"kind": "board-failed", "slot": "-", "what": f"{what}: {e}"[:300], "by": "board"},
                          kw.get("role", ROLE))
@@ -211,7 +215,7 @@ def on_ready(main: str, tickets: list[dict]) -> list[dict]:
             if not mark or not mark.get("head") or field == me or (field, mark["head"]) in seen:
                 continue
             at = mark.get("at", "")
-            now = dt.datetime.fromisoformat(at.replace("Z", "+00:00")) if AT.match(at) else None
+            now = roletime.parse(at) if AT.match(at) else None
             try:
                 line = build("ready", field, me, now, head=mark["head"],
                              text=f"{field} is ready to ride with {mark['head'][:12]}")
@@ -224,11 +228,8 @@ def on_ready(main: str, tickets: list[dict]) -> list[dict]:
 
 
 def local_utc(at: str) -> dt.datetime | None:
-    """The frame's `at` (this machine's local time, no zone) as an aware time."""
-    try:
-        return dt.datetime.fromisoformat(at).astimezone()
-    except ValueError:
-        return None
+    """The frame's `at` (`Z`, an offset, or a legacy local time without a zone) as an aware time (roletime.parse)."""
+    return roletime.parse(at)
 
 
 def sync(main: str, role: str = ROLE) -> list[dict]:
@@ -255,6 +256,10 @@ def sync(main: str, role: str = ROLE) -> list[dict]:
                     line = build("ack", e["slot"] or "-", me, when, role=role, id=e["id"], status=e["what"],
                                  text=e.get("note"))
                     acked.add((e["id"], e["what"], line["at"]))
+                elif kind == "ack-void" and (vid := (e.get("key") or "")[9:]) and (vid, "done", utc(when)) not in acked:
+                    line = build("ack", me, e["slot"] or "-", when, slot=e["slot"] or "-", role=role, id=vid,
+                                 status="done", text=f"void: {e.get('what') or ''}")  # closed by the frame
+                    acked.add((vid, "done", line["at"]))
                 elif e.get("do") == "record" and kind in NOTES_OF[role] and e.get("what") and \
                         (e.get("slot") or "-", e["what"][:TEXT_MAX], utc(when)) not in noted:
                     line = build("note", me, e.get("slot") or "-", when, role=role, text=e["what"])

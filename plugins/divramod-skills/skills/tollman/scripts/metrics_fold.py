@@ -5,8 +5,12 @@ verdicts, hitch-to-barn and local-phase minutes, the local-phase load. Stdlib on
 import datetime as dt
 import json
 import math
+import re
 import statistics
 from pathlib import Path
+
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import roletime
 
 CAUSES = ("car", "barn", "engine", "runner", "unknown")
 # Ordered: the first rule whose word is in the lower-cased text wins (data, so a learning can tune it).
@@ -21,12 +25,18 @@ CAUSE_RULES = (
 
 # ---- reading ----
 
+ZONE = re.compile(r"(?:[zZ]|[+-]\d\d:?\d\d)$")
+
 def parse_time(text: str, local: bool = False) -> dt.datetime:
-    """A time as aware UTC; a text without a zone is UTC, or this machine's local time when `local`."""
-    t = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
-    if t.tzinfo is None:
-        t = t.astimezone() if local else t.replace(tzinfo=dt.timezone.utc)
-    return t.astimezone(dt.timezone.utc)
+    """A time as aware UTC; a text without a zone is UTC, or this machine's local time when `local` (the frame's
+    reading, roletime.parse); a text that is no time raises ValueError."""
+    value = str(text).strip()
+    if not local and not ZONE.search(value):
+        value = (value if "T" in value else value + "T00:00:00") + "Z"
+    t = roletime.parse(value)
+    if t is None:
+        raise ValueError(f"not a time: {text!r}")
+    return t
 
 
 def read(path: Path, local: bool = False) -> list[dict]:

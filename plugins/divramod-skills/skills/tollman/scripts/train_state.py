@@ -70,8 +70,8 @@ import subprocess
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-import board
 import mtm_scan
+import roletime
 
 ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
@@ -84,7 +84,7 @@ RUNNER = "runner"  # a retry's `why` that starts so is the code's after a runner
 
 def utc(now: dt.datetime | None = None) -> str:
     """RFC 3339 UTC with `Z` and whole seconds; a time without a zone is this machine's local time."""
-    return (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return roletime.now(now)
 
 
 def folder(main: str) -> Path:
@@ -117,7 +117,7 @@ def append(main: str, kind: str, slot: str, now: dt.datetime | None = None, **ke
         os.write(fd, (json.dumps(line) + "\n").encode())
     finally:
         os.close(fd)
-    board.safely(main, f"train state {kind}", board_line, line)
+    __import__("board").safely(main, f"train state {kind}", board_line, line)  # lazily: a quiet pass loads no board
     return line
 
 
@@ -126,7 +126,7 @@ def board_line(main: str, line: dict) -> None:
     A red train's cars are the standing train's. The yard is no field: its unhitch is no board line (D21)."""
     if line.get("slot") == YARD:
         return
-    board.on_state(main, line, standing(lines(main)) if line["kind"] == "red" else None)
+    __import__("board").on_state(main, line, standing(lines(main)) if line["kind"] == "red" else None)
 
 
 def lines(main: str) -> list[dict]:

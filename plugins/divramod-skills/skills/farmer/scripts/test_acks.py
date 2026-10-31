@@ -68,7 +68,8 @@ class Stale(unittest.TestCase):
         week = 7 * 24 * 60
         refused = {"at": at(week - 5), "kind": "ack", "slot": "12", "what": "refused", "note": "x", "id": "12-1"}
         self.assertEqual(plan([asked(week), refused]), [])
-        self.assertEqual(plan([asked(week)]), [], "no ack, a week old: no re-send, no wake")
+        self.assertEqual(plan([asked(week)]), [("record", "ack-void", "12")],
+                         "no ack, a week old: closed void (plan 0530 D6), no re-send, no wake")
         fresh = dict(refused, at=at(30))
         self.assertEqual(plan([asked(week), fresh]), [("wake", "refused", "12")], "a refusal of today still wakes")
 

@@ -30,6 +30,7 @@ planread = load("plan", "planread", __file__)  # a plan's files in either home (
 pointers = _pointers(__file__)  # CURRENT_PLAN in the git dir, else plans/ (step 12)
 
 import decision_log
+import roletime
 from decision_log import ACKS, IDS, concerns, flat, quotes, shares_wording, words
 
 WORKTREES = Path(os.environ.get("HAL2_WORKTREE_ROOT", Path.home() / ".hal/git/worktree"))
@@ -83,7 +84,8 @@ def present(entry: dict, have: str, distinct: set[str] | frozenset = frozenset()
     under the check), the entry's topic, a fragment of the user's quote, the entry's date with two key words; else at
     least half of its key words (biased toward reporting)."""
     text, want = f"{entry.get('what', '')} {entry.get('note', '')}".lower(), words(entry.get("what", ""))
-    ids, day = set(IDS.findall(text)), entry["at"][:10]
+    at = roletime.parse(entry.get("at"))  # the local day the user said it, also for a `Z` stamp
+    ids, day = set(IDS.findall(text)), f"{at.astimezone():%Y-%m-%d}" if at else str(entry.get("at", ""))[:10]
     if (set(entry.get("links", [])) | set(ACKS.findall(text))) & acks_in(have):
         return True
     for item in items(have):

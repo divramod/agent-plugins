@@ -6,72 +6,21 @@ PATH) and are skipped without it; the plan skill's own test_folder.py proves `pl
 import contextlib
 import io
 import json
-import os
-import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-
-import spec  # noqa: E402
-import envelope  # noqa: E402  (the plan skill's, put on the path by spec)
-import plan_number  # noqa: E402
-
-RECORDS = os.environ.get("HAL2_CLI_RECORDS") or shutil.which("hal2-cli-records")
-FILLED = {
-    "<what hurts today, for whom, and why now>": "Logging in needs a password nobody remembers.",
-    "<who uses it, in which situation>": "every member, on a new device",
-    "<a goal, as \"the system SHALL ...\">": "the system SHALL log a member in with a passkey",
-    "<what it deliberately does not try>": "no password reset",
-    "<what the feature covers>": "passkey sign-up and login",
-    "<what it leaves out, and where that goes>": "recovery (a later plan)",
-    "<the system SHALL ...>": "the system SHALL store only the public key",
-    "<stack, platforms, budgets and guardrails it must keep>": "WebAuthn, under 300 ms",
-    "<a state>": "a member with a passkey", "<an action>": "they log in", "<the observable result>": "they see home",
-    "<what needs designing: `/design create` writes design.html beside this file; or \"nothing to design\" for a simple "
-    "feat>": "the login screen and its flow: [design.html](design.html)",
-}
+from spec_testkit import FILLED, RECORDS, SpecCase, envelope, plan_number, spec  # noqa: F401
 
 
-class SpecTest(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name).resolve()
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
-        (self.root / "plans" / "0007-older-plan").mkdir(parents=True)
-        (self.root / "plans" / "0007-older-plan" / "plan.md").write_text("# Plan 0007: older plan\n")
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def run_spec(self, *args) -> tuple[int, str, str]:
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = spec.main(["--repo", str(self.root), *args])
-        return code, out.getvalue(), err.getvalue()
-
-    def new(self, title: str = "Login with passkeys") -> dict:
-        code, out, err = self.run_spec("new", title, "--json")
-        self.assertEqual(code, 0, err)
-        return json.loads(out)
-
-    def fill(self, info: dict) -> Path:
-        path = self.root / info["spec"]
-        text = path.read_text()
-        for old, new in FILLED.items():
-            text = text.replace(old, new)
-        path.write_text(text)
-        return path
-
+class SpecTest(SpecCase):
     def test_new_writes_spec_md_with_the_next_number_and_names_it_current(self):
         info = self.new()
         folder = self.root / "plans" / "0008-login-with-passkeys"
         self.assertEqual(info["slug"], folder.name)
-        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["spec.md"])
+        self.assertEqual(sorted(p.name for p in folder.iterdir()),
+                         ["decisions.md", "handoff.md", "plan.md", "questions.md", "spec.md"])
         self.assertEqual((self.root / "plans" / "CURRENT_PLAN").read_text(), folder.name + "\n")
         front, body = envelope.split((folder / "spec.md").read_text())
         meta = envelope.parse(front)
@@ -79,8 +28,10 @@ class SpecTest(unittest.TestCase):
                          ("Spec", 8, "draft", "Login with passkeys"))
         self.assertIn("# Spec 0008: Login with passkeys", body)
         self.assertEqual(envelope.headings(body, 2), ["Problem", "Users and goals", "Scope", "Requirements",
-                                                      "Acceptance criteria", "Open questions", "Design"])
-        self.assertIsNone(info["plan"])
+                                                      "Acceptance criteria", "Open questions", "Not yet specified", "Design"])
+        self.assertEqual((meta["iteration"], meta["grilled"]), (0, None))
+        self.assertEqual((info["plan"], info["state"], info["steps"], info["iteration"]),
+                         (f"plans/{folder.name}/plan.md", "spec", False, 0))
         self.assertIsNone(info["design"])
 
     def test_the_number_is_reserved_and_seen_as_taken(self):
@@ -139,14 +90,14 @@ class SpecTest(unittest.TestCase):
         self.fill(info)
         folder = self.root / info["folder"]
         (folder / "design.html").write_text("<!doctype html>\n")
-        (folder / "plan.md").write_text("# Plan 0008: login\n")
+        (folder / "plan.md").write_text("# Plan 0008: login\n")  # a legacy plan.md: no status
         code, out, _ = self.run_spec("show", "8", "--json")
         shown = json.loads(out)
         self.assertEqual((shown["placeholders"], shown["design"], shown["plan"]),
                          ([], f"{info['folder']}/design.html", f"{info['folder']}/plan.md"))
         self.assertIn("passkey sign-up and login", shown["sections"]["Scope"])
         code, out, _ = self.run_spec("show", "8")
-        self.assertIn("0008-login-with-passkeys: draft, plans/0008-login-with-passkeys/design.html, plan.md", out)
+        self.assertIn("0008-login-with-passkeys: draft, round 0, plans/0008-login-with-passkeys/design.html, plan without status", out)
 
     def test_a_users_own_angle_brackets_are_no_placeholder(self):
         info = self.new()
@@ -154,7 +105,7 @@ class SpecTest(unittest.TestCase):
         path.write_text(path.read_text().replace("- none", "- Is `<plan>` the number or the slug?"))
         self.assertEqual(spec.placeholders(path.read_text()), [])
 
-    def test_approve_refuses_placeholders_then_sets_status_and_date(self):
+    def test_approve_refuses_placeholders_then_sets_the_status(self):
         info = self.new()
         code, _, err = self.run_spec("approve")
         self.assertEqual(code, 1)
@@ -164,7 +115,7 @@ class SpecTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         approved = json.loads(out)
         self.assertEqual(approved["status"], "approved")
-        self.assertRegex(approved["approved"], r"^\d{4}-\d{2}-\d{2}$")
+        self.assertNotIn("approved:", (self.root / approved["spec"]).read_text(), "the Spec kind has no such key")
 
     def test_list_names_every_spec_folder_only(self):
         self.assertEqual(self.run_spec("list")[1], "no spec in plans/\n")
@@ -180,7 +131,7 @@ class SpecTest(unittest.TestCase):
             self.assertIn("not inside a git repository", err.getvalue())
 
     @unittest.skipUnless(RECORDS, "hal2-cli-records is not installed and $HAL2_CLI_RECORDS is unset")
-    def test_a_spec_only_folder_passes_the_records_checker(self):
+    def test_a_spec_plan_folder_passes_the_records_checker(self):
         info = self.new()
         folder = self.root / info["folder"]
         (folder / "design.html").write_text("<!doctype html>\n")

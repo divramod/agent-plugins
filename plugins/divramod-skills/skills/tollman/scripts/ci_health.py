@@ -33,6 +33,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import ci_fleet
 import leavers
 import mtm_scan
+import roletime
 import tick
 from skillpath import sibling
 from tick import act
@@ -177,12 +178,11 @@ def evidence(p: dict) -> dict:
 def check(top: str, main: str, now: dt.datetime | None = None, dry: bool = False) -> list[dict]:
     """The wake actions for this pass: one for each problem not told yet (the line is the action's text; it prints); the wake
     requests written and the state kept unless `dry`."""
-    now = now or dt.datetime.now(dt.timezone.utc)
-    now = now.astimezone(dt.timezone.utc) if now.tzinfo is None else now
+    now = roletime.aware(now)
     found = problems(main, now)
     if found is None:
         return []
-    state, stamp = leavers.read(main, FILE, {}), now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    state, stamp = leavers.read(main, FILE, {}), roletime.stamp(now)
     old, told = state.get("first") or {}, kept(state.get("told"), now, stamp)
     first = {p["key"]: old.get(p["key"], stamp) for p in found}
     for p in found:

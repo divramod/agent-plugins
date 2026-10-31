@@ -131,7 +131,10 @@ script, a recurring failure class, a rule patch in `pending/`), it delegates:
    - the done-when check: it tests only what the fix changes (`cargo nextest run -p <crate>`, `gate/main.sh <job>
      --branch origin/main`), never a whole-workspace test or a full gate job on the Mac (hal2 plan 0157);
    - the urgency;
-   - a pending patch's path, when there is one.
+   - a pending patch's path, when there is one;
+   - for a ready spec (a spec-state plan the user approved): "plan spec <NNNN>" instead of `/plan new`; the foreman runs
+     `/plan` on that plan, which fills its steps in place. `/spec` itself is never delegated: it asks the user
+     ([spec-loop](../../../../../../../.adr/spec-loop.md)).
 4. **Worktree**, the first free worktree counting from 00 (the user, 2026-10-13, plan 0270 D13: "the farmer should start
    in the first free worktree from 00"). The session started here runs the plan, so it is a foreman; its own servants
    stay in 30-99 (skills plan 0013); a foreman itself starts in any free field 00-99, lowest first (plan 0383 D16: "when i

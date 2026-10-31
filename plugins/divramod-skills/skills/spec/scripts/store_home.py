@@ -3,10 +3,10 @@ store's docs; the plan skill's planhome.py has the views).
 
 spec.py's own code runs unchanged on two copies outside the tree: the whole store rendered into a scratch view to
 find and list the specs (never applied), and the farm's edit folder (`home --json`'s `edit`, a stable view: a copy
-with edits of its own is kept) holding the spec it writes. `new` numbers the spec by the store (`hal2-cli-plans new`,
-the plan's plan.md then removed: a spec folder has none), `approve` sets its status; both apply the copy back, so
-the model's own edits of spec.md in that copy go in too. Every answer adds `dir`, the copy's folder: the model edits
-spec.md there and runs `spec.py show` (or `approve`) to apply it.
+with edits of its own is kept) holding the spec it writes. `new` numbers the plan by the store (`hal2-cli-plans new`; spec.py then writes plan.md in state spec over the store's
+and the spec beside it, D7), every other command (approve, iterate, update, abandon, reviewed) changes the copy; all
+apply it back, so the model's own edits of spec.md in that copy go in too. Every answer adds `dir`, the copy's folder: the model edits
+spec.md there and runs `spec.py show` (or another command) to apply it.
 """
 
 from __future__ import annotations
@@ -42,13 +42,14 @@ def run(spec, root: Path, info: dict, args):
             if (current := planhome.pointer_slug(root)):
                 stable.render(current)  # the occupied check reads the current plan
             planhome.register(root, stable.dir)
-            spec.CLAIM = lambda name, title: unplanned(stable.claim(name, title))
-            found = spec.new(root, args.title, args.description, False, args.here)
+            spec.CLAIM = stable.claim
+            found = spec.new(root, args.title, args.description, False, args.here, args.seed)
         else:
             name = spec.resolve(root, args.spec).name
             stable.render(name)
             planhome.register(root, stable.dir)
-            found = spec.approve(root, name) if args.command == "approve" else spec.describe(root, stable.dir / name)
+            args.spec = name
+            found = spec.act(root, args)
         apply(stable, spec)
         return {**found, "dir": str(stable.dir / found["slug"])}
     except planhome.HomeError as error:
@@ -58,8 +59,3 @@ def run(spec, root: Path, info: dict, args):
         planhome.register(root, None)
         scratch.close(apply=False)
 
-
-def unplanned(folder: Path) -> Path:
-    """A claimed plan's folder without its plan.md (a spec folder before its plan)."""
-    (folder / "plan.md").unlink(missing_ok=True)
-    return folder

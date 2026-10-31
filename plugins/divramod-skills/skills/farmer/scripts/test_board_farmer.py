@@ -142,7 +142,7 @@ class Tick(FarmerBoard):
         self.ack(self.stamp("07"), "started")
         seen = []
 
-        def round_(repo, dry, *args):
+        def round_(repo, dry, *args, **kw):  # run_tick also takes the syncs' `faults` (plan 0530)
             if not dry:
                 seen.append(len(self.lines()))
                 self.ack(self.stamp("09"), "done")  # what the round itself sends and gets

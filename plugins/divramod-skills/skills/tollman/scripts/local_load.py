@@ -22,6 +22,9 @@ import sys
 import threading
 import time
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import roletime
+
 INTERVAL = 60.0
 WHOLE_DISK = re.compile(r"^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+|nvme\d+n\d+|mmcblk\d+)$")
 
@@ -49,7 +52,7 @@ def probe() -> dict:
         load1 = round(os.getloadavg()[0], 2)
     except (OSError, AttributeError):
         load1 = None
-    return {"at": time.monotonic(), "utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    return {"at": time.monotonic(), "utc": roletime.now(),
             "load1": load1, "ops": disk_ops()}
 
 

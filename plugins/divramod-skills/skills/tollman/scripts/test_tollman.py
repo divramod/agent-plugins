@@ -21,6 +21,7 @@ import farmer
 import handoff
 import mtm_scan
 import role_cli
+import roletime
 import roles
 import run_triage_wire
 import tick
@@ -307,7 +308,8 @@ class Status(Field):
         self.assertEqual(tollman.status(str(self.wm), NOW)["last_tick_age_s"], 50 * 60)
         (self.wm_state / "runs.jsonl").write_text(json.dumps({"at": at(20), "name": "duty:trains"}) + "\n")
         s = tollman.status(str(self.wm), NOW)
-        self.assertEqual((s["last_tick"], s["last_tick_age_s"]), (at(20), 20 * 60))
+        # the status shows the newest tick as UTC `Z` now (plan 0530), the instant of the naive local line
+        self.assertEqual((s["last_tick"], s["last_tick_age_s"]), (roletime.stamp(NOW - tollman.dt.timedelta(minutes=20)), 20 * 60))
 
     def test_the_handoff_is_the_role_s_own_file(self):
         code, out = self.call("handoff")

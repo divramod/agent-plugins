@@ -9,6 +9,8 @@ again after the window until the log shows it typed (`do: send`), at most SEND_T
 
 import datetime as dt
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import roletime
 from tick import act
 
 ROLE = "tollman"
@@ -24,7 +26,8 @@ TEXT = {
 
 
 def at(row: dict) -> dt.datetime:
-    return dt.datetime.fromisoformat(row["at"].replace("Z", "+00:00"))
+    """The row's `at` as an aware UTC time; one that does not parse is long ago."""
+    return roletime.parse(row.get("at")) or dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
 
 
 def pane_of(entry: dict, panes: dict) -> str | None:

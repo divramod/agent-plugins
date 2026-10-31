@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
-"""spec.py: the deterministic part of the spec skill (hal2 plan 0364, step 4, D8 and D9).
+"""spec.py: the deterministic part of the spec skill (hal2 plans 0364 and 0502, D6 to D9).
 
-A spec is a plan folder before its plan: `plans/<NNNN>-<slug>/spec.md` (and the design skill's `design/` and
-`design.html`), no `plan.md`. It takes its number from the plan skill's `plan_number.py` (so no plan or spec of any
-worktree or branch gets it twice) and its slug by the plan skill's naming rule (`names.py`: at most four words).
+A spec is a plan from its start (D7): `new` makes the numbered folder `plans/<NNNN>-<slug>/` with `plan.md` in state
+`spec` (no steps yet, the Brief the spec's text) beside `spec.md`, the ledgers and the design skill's `design/` and
+`design.html`. It takes its number from the plan skill's `plan_number.py` (so no plan or spec of any worktree or
+branch gets it twice) and its slug by the plan skill's naming rule (`names.py`: at most four words).
 
-  spec.py new "<title>" [--description <d>] [--fetch] [--json]   write plans/<NNNN>-<slug>/spec.md from
-                                                                  templates/spec.md and name it in the CURRENT_PLAN pointer
-  spec.py show [<spec>] [--json]                                  a spec: its front matter, sections, placeholders
-                                                                  left, its design.html and whether it has a plan.md
-  spec.py list [--json]                                           every spec folder of plans/
-  spec.py approve [<spec>]                                        status draft -> approved (refused while a
-                                                                  placeholder of the template is left)
+  spec.py new "<title>" [--description <d>] [--seed <seedbag>#<n>] [--fetch] [--json]
+                                           the plan folder, plan.md in state spec and spec.md from templates/spec.md,
+                                           named in the CURRENT_PLAN pointer; --seed links and marks the seed sent
+  spec.py iterate [<spec>] [--json]        one round of a draft done: iteration + 1, the Brief re-seeded; prints the
+                                           checkpoint: plan now, bring in for later, another round (spec_rounds.py)
+  spec.py update [<spec>] [--what <text>]  a new round on any spec, also an approved or a planned one (D6): back to
+                                           draft; a plan with steps gets `spec_review` in plan.md, nothing rewritten
+  spec.py reviewed [<spec>]                clear the plan's `spec_review` flag once its Brief and steps were checked
+  spec.py grilled [<spec>] [--how <text>]  stamp `grilled: <date> (<how>)` on spec.md and plan.md (/grill-plan)
+  spec.py abandon [<spec>]                 the spec (and its unplanned plan) abandoned; a planned one is refused
+  spec.py approve [<spec>]                 status draft -> approved (refused while a placeholder of the template is left)
+  spec.py show [<spec>] [--json]           a spec: its front matter, sections, placeholders left, its design.html, its
+                                           plan's state and whether a review is due
+  spec.py list [--json]                    every spec folder of plans/
 
 In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`) the spec is the store's and its
 copy lives outside the tree: every answer adds `dir`, the folder to edit spec.md in (store_home.py).
@@ -30,6 +38,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))  # spec_plan, spec_rounds (spec_link loads this file by its path)
 TEMPLATE = HERE.parent / "templates" / "spec.md"
 sys.path.insert(0, next(str(_p / "scripts") for _p in HERE.parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
@@ -41,6 +50,9 @@ import names  # noqa: E402  (plan-names-are-short)
 import plan_number  # noqa: E402  (unique numbers across worktrees and branches)
 import planhome  # noqa: E402  (files or store, hal2 plan 0409)
 import pointers  # noqa: E402  (CURRENT_PLAN: the git dir's in the store home, else plans/)
+import seed as seeds  # noqa: E402  (plan.py new --seed: the seed a plan grows from)
+import spec_plan  # noqa: E402  (plan.md in state spec)
+import spec_rounds  # noqa: E402  (iterate, update, abandon, reviewed)
 
 PLANS = "plans"
 POINTER = "CURRENT_PLAN"
@@ -49,7 +61,8 @@ PLAN = "plan.md"
 DESIGN = "design.html"
 FOLDER = re.compile(r"^(\d{4})-([a-z0-9-]+)$")
 PLACEHOLDER = re.compile(r"<[a-z][^<>\n]*>")
-STATUSES = ("draft", "approved")
+STATUSES = ("draft", "approved", "abandoned")
+REVIEW = spec_rounds.REVIEW
 
 
 CLAIM = None  # the store home's numbering (store_home.py sets it for `new`), None in the files home
@@ -128,32 +141,37 @@ def describe(root: Path, folder: Path) -> dict:
     front, _ = envelope.split(text)
     meta = envelope.parse(front) if front is not None else {}
     rel = planhome.rel(folder, root, posix=True)
+    plan = folder / PLAN
+    flag = envelope.get(plan.read_text(), REVIEW) if plan.is_file() else None
     return {
         "number": folder.name[:4], "slug": folder.name, "folder": rel, "spec": f"{rel}/{SPEC}",
         "title": meta.get("title", ""), "description": meta.get("description", ""),
         "status": meta.get("status", ""), "created": str(meta.get("created", "")),
-        "approved": str(meta["approved"]) if "approved" in meta else None,
-        "plan": f"{rel}/{PLAN}" if (folder / PLAN).is_file() else None,
+        "iteration": int(meta.get("iteration") or 0), "grilled": str(meta.get("grilled") or ""),
+        "plan": f"{rel}/{PLAN}" if plan.is_file() else None, "state": spec_plan.state(folder) or None,
+        "steps": spec_plan.has_steps(folder), "review": flag, "review_due": flag is not None,
         "design": f"{rel}/{DESIGN}" if (folder / DESIGN).is_file() else None,
         "sections": sections(text), "placeholders": placeholders(text),
     }
 
 
-def new(root: Path, title: str, description: str = "", fetch: bool = False, here: bool = False) -> dict:
-    """Write the spec folder and name it in the CURRENT_PLAN pointer; refused before any number is taken, and in an
-    occupied field (a started plan is current) unless `here`: the user's switch, the plan goes to PREVIOUS_PLAN."""
+def refusals(root: Path, title: str, description: str, here: bool, seed: str) -> tuple[str, str, dict | None]:
+    """Every refusal of `new`, before any number is taken: (slug, description, the seed read or None)."""
     if (found := occupied.of(root)) is not None and not here:
         raise SpecError(occupied.refuse_text(found, "spec new"))
     try:
         names.refuse(title)
     except names.NameTooLong as error:
         raise SpecError(str(error)) from None
-    slug = slugify(title)
-    plans = planhome.plans_dir(root)
+    try:
+        sown = seeds.read(root, seed) if seed else None
+    except seeds.SeedError as error:
+        raise SpecError(str(error), 2) from None
+    slug, plans = slugify(title), planhome.plans_dir(root)
     taken = sorted(p.name for p in plans.glob(f"[0-9][0-9][0-9][0-9]-{slug}") if p.is_dir()) if plans.is_dir() else []
     if taken:
         spec_there = (plans / taken[0] / SPEC).is_file()
-        hint = f"continue it with `/spec {taken[0][:4]}`" if spec_there else "a folder without spec.md"
+        hint = f"continue it with `/spec {taken[0][:4]}`" if spec_there else "a plan without a spec.md"
         raise SpecError(f"{PLANS}/{taken[0]} already exists: {hint}; pick another title")
     description = " ".join((description or f"The spec of {title}: problem, scope, requirements and acceptance "
                             "criteria before its plan.").split())
@@ -164,27 +182,41 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
             occupied.check_here(root)
         except ValueError as error:
             raise SpecError(str(error)) from None
+    return slug, description, sown
+
+
+def numbered_folder(root: Path, slug: str, title: str, fetch: bool) -> tuple[int, Path]:
+    """The new plan's number and folder: the store's claim in the store home, else the plan skill's reservation."""
     if CLAIM is not None:
-        # the store home: numbered and titled by the store, its plan.md gone (a spec folder has none); every check
-        # above runs first, so a refusal claims no plan
         folder = CLAIM(slug, " ".join(title.split()))
-        number = int(folder.name[:4])
-    else:
-        try:
-            if fetch:
-                plan_number.git(root, "fetch", "--all", "--quiet")
-            number = plan_number.next_number(root, slug)
-        except plan_number.NumberError as error:
-            raise SpecError(str(error)) from None
-        folder = plans / f"{number:04d}-{slug}"
-        if folder.exists():
-            what = PLAN if (folder / PLAN).exists() else "the folder"
-            raise SpecError(f"{folder.relative_to(root)}: {what} already exists; continue it with `/spec {number}`")
+        return int(folder.name[:4]), folder
+    try:
+        if fetch:
+            plan_number.git(root, "fetch", "--all", "--quiet")
+        number = plan_number.next_number(root, slug)
+    except plan_number.NumberError as error:
+        raise SpecError(str(error)) from None
+    folder = planhome.plans_dir(root) / f"{number:04d}-{slug}"
+    if folder.exists():
+        what = PLAN if (folder / PLAN).exists() else "the folder"
+        raise SpecError(f"{folder.relative_to(root)}: {what} already exists; continue it with `/spec {number}`")
+    return number, folder
+
+
+def new(root: Path, title: str, description: str = "", fetch: bool = False, here: bool = False,
+        seed: str = "") -> dict:
+    """Write the plan folder (plan.md in state spec, the ledgers, spec.md) and name it in the CURRENT_PLAN pointer;
+    refused before any number is taken, and in an occupied field (a started plan is current) unless `here`: the
+    user's switch, the plan goes to PREVIOUS_PLAN. `seed` (`<seedbag>#<n>`) is linked into the plan and marked sent."""
+    slug, description, sown = refusals(root, title, description, here, seed)
+    number, folder = numbered_folder(root, slug, title, fetch)  # in the store home the claim comes after every check
+    title = " ".join(title.split())
     text = TEMPLATE.read_text().format(
-        id=number, number=f"{number:04d}", title=" ".join(title.split()), quoted_title=envelope.quote(title),
+        id=number, number=f"{number:04d}", title=title, quoted_title=envelope.quote(title),
         description=envelope.quote(description), date=dt.date.today().isoformat())
     folder.mkdir(parents=True, exist_ok=CLAIM is not None)
     (folder / SPEC).write_text(text)
+    spec_plan.write(root, folder, number, title, description, seeds.context_line(sown) if sown else "")
     if here:
         try:
             occupied.switch_here(root, folder.name)
@@ -192,42 +224,70 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
             shutil.rmtree(folder)
             raise SpecError(str(error)) from None
     pointers.write(root, POINTER, folder.name)
-    return describe(root, folder)
+    info = describe(root, folder)
+    if sown:
+        info["seed"] = seeds.mark(root, sown)
+    return info
 
 
 def approve(root: Path, ref: str | None) -> dict:
     folder = resolve(root, ref)
     path = folder / SPEC
     text = path.read_text()
+    if envelope.get(text, "status") == "abandoned":
+        raise SpecError(f"{folder.name}: the spec is abandoned")
     left = placeholders(text)
     if left:
         raise SpecError(f"{folder.name}: {len(left)} placeholder(s) left, first {left[0]}: fill them before approving")
-    text = envelope.set_key(text, "status", "approved")
-    path.write_text(envelope.set_key(text, "approved", dt.date.today().isoformat()))
+    path.write_text(envelope.set_key(text, "status", "approved"))
     return describe(root, folder)
 
 
 def line(info: dict) -> str:
-    plan = "plan.md" if info["plan"] else "no plan.md"
+    plan = f"plan {info['state'] or 'without status'}" if info["plan"] else "no plan.md"
     design = info["design"] or "no design.html"
     left = f", {len(info['placeholders'])} placeholder(s) left" if info["placeholders"] else ""
-    return f"{info['slug']}: {info['status'] or 'no status'}, {design}, {plan}{left} ({info['spec']})"
+    review = ", REVIEW DUE: the plan's Brief and steps" if info["review_due"] else ""
+    return (f"{info['slug']}: {info['status'] or 'no status'}, round {info['iteration']}, {design}, {plan}{left}{review} "
+            f"({info['spec']})")
+
+
+def act(root: Path, args) -> dict:
+    """The command `args` on the spec it names (spec.py's JSON answer); also what store_home.py runs on its copy."""
+    if args.command == "approve":
+        return approve(root, args.spec)
+    if args.command == "iterate":
+        return spec_rounds.iterate(sys.modules[__name__], root, args.spec)
+    if args.command == "update":
+        return spec_rounds.update(sys.modules[__name__], root, args.spec, args.what)
+    if args.command == "abandon":
+        return spec_rounds.abandon(sys.modules[__name__], root, args.spec)
+    if args.command == "reviewed":
+        return spec_rounds.reviewed(sys.modules[__name__], root, args.spec)
+    if args.command == "grilled":
+        return spec_rounds.grilled(sys.modules[__name__], root, args.spec, args.how)
+    return describe(root, resolve(root, args.spec))
 
 
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(prog="spec.py", description=__doc__.split("\n\n")[0])
     top.add_argument("--repo", help="the checkout (default: git's top level of the working directory)")
     sub = top.add_subparsers(dest="command", required=True)
-    p_new = sub.add_parser("new", help="write a new spec folder")
+    p_new = sub.add_parser("new", help="write a new plan folder with plan.md in state spec and spec.md")
     p_new.add_argument("title")
     p_new.add_argument("--description", default="")
+    p_new.add_argument("--seed", default="", metavar="SEEDBAG#N", help="the seed this spec grows from (plan.py new --seed)")
     p_new.add_argument("--fetch", action="store_true", help="git fetch --all first, to see other clones' numbers")
     p_new.add_argument("--here", action="store_true", help="the user's words only: switch an occupied field")
     p_new.add_argument("--json", action="store_true")
-    for name in ("show", "approve"):
+    for name in ("show", "approve", "iterate", "update", "abandon", "reviewed", "grilled"):
         p = sub.add_parser(name)
         p.add_argument("spec", nargs="?")
         p.add_argument("--json", action="store_true")
+        if name == "update":
+            p.add_argument("--what", default="", help="what changed, for the commit and the review")
+        if name == "grilled":
+            p.add_argument("--how", default="", help="how it was grilled, e.g. 'autogrill x1'")
     sub.add_parser("list").add_argument("--json", action="store_true")
     return top
 
@@ -248,12 +308,8 @@ def main(argv: list[str]) -> int:
             rows = [describe(root, f) for f in spec_folders(root)]
             print(json.dumps(rows, indent=2) if args.json else "\n".join(map(line, rows)) or "no spec in plans/")
             return 0
-        if args.command == "new":
-            info = new(root, args.title, args.description, args.fetch, args.here)
-        elif args.command == "approve":
-            info = approve(root, args.spec)
-        else:
-            info = describe(root, resolve(root, args.spec))
+        info = new(root, args.title, args.description, args.fetch, args.here, args.seed) \
+            if args.command == "new" else act(root, args)
     except SpecError as error:
         print(f"spec.py: {error}", file=sys.stderr)
         return error.code

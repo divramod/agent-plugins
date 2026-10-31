@@ -25,6 +25,7 @@ import deliver
 import due
 import mtm_scan
 import roles
+import roletime
 import wake
 
 MAX_LINES = 80
@@ -122,10 +123,12 @@ def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> s
     f = path(main, wiring)
     if not f.exists():
         return f"{f} is missing: write it first"
-    written = dt.datetime.fromtimestamp(f.stat().st_mtime)
+    written = dt.datetime.fromtimestamp(f.stat().st_mtime, dt.timezone.utc)
     pending = wake.read(main, wiring).get("handoff")
-    since = mtm_scan.log_time(pending["at"]) if pending else now - wake.HANDOFF_TIMEOUT
-    return None if written >= since else f"{f} is older than this handoff ({since:%H:%M}): write it first"
+    # `now` naive (local) or aware; a pending stamp that does not parse counts as not asked (roletime, plan 0530)
+    since = (roletime.parse(pending.get("at")) if pending else None) or roletime.aware(now) - wake.HANDOFF_TIMEOUT
+    return None if written >= since else \
+        f"{f} is older than this handoff ({since.astimezone():%H:%M}): write it first"
 
 
 def session_effort(top: str, wiring: roles.Wiring) -> str:

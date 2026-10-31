@@ -17,6 +17,9 @@ import sys
 import time
 from pathlib import Path
 
+import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import roletime
+
 PLAN_FILE, ASK_FILE, ASK_LOG = "prune-plan.json", "prune-ask.json", "prune-ask.log"
 SCHEMA = 1
 PLAN_TIMEOUT = 120  # the ask uses --cached-sizes (no walk, plan 0377 D26); the detached run measures and fills the cache
@@ -36,11 +39,15 @@ def alive(pid: int) -> bool:
 
 
 def utc(ts: float) -> str:
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat()
+    """UTC `Z` with microseconds, not whole seconds: `load` orders an ask against the float start time of a run."""
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def epoch(text: str) -> float:
-    return dt.datetime.fromisoformat(text).timestamp()
+    t = roletime.parse(text)
+    if t is None:
+        raise ValueError(f"not a time: {text!r}")
+    return t.timestamp()
 
 
 def write_json(path: Path, value: dict) -> None:

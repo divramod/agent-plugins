@@ -44,6 +44,7 @@ import checks_tell
 import deliver
 import gh_runs
 import mtm_ci
+import roletime
 import modes
 import mtm_scan
 import train_state
@@ -321,7 +322,7 @@ def jobs_fetch(run_json, main: str, all_runs: list[dict]):
 def handler(item: dict, ctx: dict, run_json=None) -> list[dict]:
     """duty:checks: the queue, the train state, the runs and the store, then the round's actions."""
     run_json = run_json or mtm_scan.run_json
-    now = ctx["now"] if ctx["now"].tzinfo else ctx["now"].astimezone()
+    now = roletime.aware(ctx["now"])
     panes = ctx.get("panes", {})
     s = {**state(ctx["main"], run_json, sessions=set(panes), now=now), "panes": panes, "log": ctx.get("log", [])}
     return plan(ctx["main"], s, jobs_fetch(run_json, ctx["main"], s["runs"]), now)

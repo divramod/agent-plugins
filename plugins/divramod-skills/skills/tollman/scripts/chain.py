@@ -26,6 +26,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import role_cli
+import roletime
 import tick
 import train_wt
 import wake
@@ -53,7 +54,7 @@ def failed(a: dict) -> bool:
 
 def link(top: str, main: str, wiring, handler, out: dict, now: dt.datetime | None) -> list[dict]:
     """One plan of the duty, done: the actions it ran (none: nothing to do)."""
-    ctx = tick.context(top, main, {ITEM["name"]: None}, now or dt.datetime.now(), False, wiring)
+    ctx = tick.context(top, main, {ITEM["name"]: None}, roletime.aware(now), False, wiring)
     actions = tick.fresh(handler(ITEM, ctx), ctx["log"], ctx["now"], wiring.role)
     for a in actions:
         tick.execute(a, top, main, out, wiring)
@@ -88,7 +89,7 @@ def go(top: str, wiring, handler, links: int = MAX_LINKS, now: dt.datetime | Non
             break
     items = sum(len(out.get(k, [])) for k in wake.KINDS)
     if items:
-        wake.hand_over(top, main, out, now or dt.datetime.now(), wiring)
+        wake.hand_over(top, main, out, roletime.aware(now), wiring)
     return {"links": steps, "why": why, "items": items, "dropping": train_wt.later(top)}  # after the form (L135)
 
 

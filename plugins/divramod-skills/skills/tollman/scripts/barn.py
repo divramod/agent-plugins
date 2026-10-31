@@ -21,6 +21,7 @@ import re
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import roletime
 import live_sessions
 import train_state
 from tick import act
@@ -49,8 +50,9 @@ def cleaned(log: list[dict], slot: str, head: str) -> bool:
 
 
 def age(landed: dict, now: dt.datetime) -> float:
-    at = dt.datetime.fromisoformat(landed["at"].replace("Z", "+00:00"))
-    return (now.astimezone(dt.timezone.utc) - at).total_seconds()
+    """Seconds since the train landed (0 when its `at` does not parse: it is then never late)."""
+    since = roletime.age(landed.get("at"), now)
+    return since.total_seconds() if since is not None else 0.0
 
 
 def live_agents() -> list[dict] | None:

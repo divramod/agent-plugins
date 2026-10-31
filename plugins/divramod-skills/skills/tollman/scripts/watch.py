@@ -41,6 +41,7 @@ import landing_workflow  # noqa: E402  (the skills unit's scripts/, plan 0423 D4
 import gh_runs
 import mtm_ci
 import mtm_scan
+import roletime
 import stack_red
 import train_branch
 import train_state
@@ -102,11 +103,11 @@ def local_phase_seconds(home: str, train: dict, rows: list[dict], url: str, now:
     rid = stack_red.run_id(url)
     hit = next((r for r in mtm_ci.runs_of(mtm_scan.run_json, home) if str(r.get("databaseId")) == rid), None)
     end = mtm_ci.started(hit) if hit else 0.0
-    end = end or (now or dt.datetime.now(dt.timezone.utc)).timestamp()
-    try:
-        begin = dt.datetime.fromisoformat(str(train.get("at")).replace("Z", "+00:00")).timestamp()
-    except ValueError:
+    end = end or roletime.aware(now).timestamp()
+    begun = roletime.parse(train.get("at"))
+    if begun is None:
         return None
+    begin = begun.timestamp()
     return round(max(end - begin, 0.0), 1)
 
 

@@ -61,6 +61,18 @@ def run(script: Path, args, env: dict | None = None, cwd: Path | str | None = No
     return result
 
 
+def run_spec(root: Path | str, *args) -> subprocess.CompletedProcess:
+    """The spec skill's `spec.py --repo <root> <args>` in this process (the plan skill's spec tests call it often; a
+    real interpreter start is the slow part). The module is the one spec_link loads, as `plan.py new --spec` does."""
+    import spec_link
+    module = spec_link.spec_module()
+    argv = ["--repo", str(root), *[str(a) for a in args]]
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = _call(module, argv)
+    return subprocess.CompletedProcess([sys.executable, "spec.py", *argv], code, out.getvalue(), err.getvalue())
+
+
 def _load(script: Path):
     if script.parent != HERE:
         return None

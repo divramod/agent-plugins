@@ -5,8 +5,11 @@ Split from tollman.py (plan 0480 D3, small-files); `tollman.silent_lines` calls 
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import minute
+import roletime
 import silence
 import train_state
+
+LONG_AGO = roletime.parse("1970-01-01T00:00:00Z")
 
 STATE = {"formed": "formed", "started": "landing", "red": "red", "order": "fixing", "fixed": "fixing",
          "pause": "paused by a smuggle", "resumed": "landing", "retry": "lands again", "landed": "in the barn", "cleared": "broken up"}
@@ -19,7 +22,9 @@ def of(main: str, r: dict, since: str, wiring) -> list[str]:
         return silence.round_lines(r, wiring)
     told = [a["text"] for a in r.get("done", []) if a["duty"] == minute.KIND and a["do"] == "record"]  # the watch's events
     rows = train_state.lines(main)
-    names = list(dict.fromkeys(e["train"] for e in rows if e.get("train") and e.get("at", "") >= since))
+    begin = roletime.parse(since)
+    names = list(dict.fromkeys(e["train"] for e in rows if e.get("train") and begin is not None
+                               and (roletime.parse(e.get("at")) or LONG_AGO) >= begin))
     stands = train_state.standing(rows)
     if stands and stands["train"] not in names:
         names.append(stands["train"])
