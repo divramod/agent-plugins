@@ -38,7 +38,9 @@ def print_dry_run(d: dict) -> None:
     t = d["standing"]
     print(f"standing: train {t['train']} ({t['state']})" if t else "standing: no train")
     print("next train" + (" (alone)" if d["alone"] else "") + ": "
-          + (", ".join(f"{c['field']} ({c['plan'] or c['branch']}, {c['head'][:12]})" for c in d["cars"]) or "none"))
+          + (", ".join(f"{c['field']} ({c['plan'] or c['branch']}, {c['head'][:12]}"
+                       + (f", to resolve in the train: {', '.join(c['conflict'][:5])}" if c.get("conflict") else "") + ")"
+                       for c in d["cars"]) or "none"))  # a conflict rides (plan 0522 D18, resolve.py)
     for name in ("unhitched", "waiting"):
         for x in d[name]:
             print(f"{name}: {x['field']}: {x['why']}")

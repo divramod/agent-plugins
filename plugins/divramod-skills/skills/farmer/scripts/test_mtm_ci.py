@@ -101,7 +101,7 @@ class MtmCiTest(unittest.TestCase):
         self.assertEqual([mtm_ci.job_part(n) for n in ("d2-01-git-merge", "c3-03-rust-lint", "d1-01-stack-test",
                                                        "a1-01-ci-route", "g1-02-ci-cache-clean-mac-host")],
                          ["git-merge", "rust-lint", "stack-test", "ci-route", "ci-cache-clean-mac-host"])
-        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-02-ci-cache-clean-mac-host", "e2-01-git-pull-main",
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-02-ci-cache-clean-mac-host", "e2-01-git-pull-main", "e2-01-install-mac",
                                                          "e3-01-agents-publish", "e4-01-hub-deploy")))
         self.assertFalse(mtm_ci.is_ship("d2-01-git-merge"))
         jobs = [{"name": "d2-01-git-merge", "conclusion": "success"},

@@ -381,7 +381,7 @@ def slot_state(main: str) -> dict[str, dict]:
     """Each worktree's CURRENT_PLAN and commits not on main (what the delegation follow-up reads)."""
     import lead_marker
     out = {}
-    for w in mtm_scan.worktrees(main):
+    for w in mtm_scan.field_worktrees(main):
         out[Path(w["path"]).name] = {"plan": lead_marker.current_plan(w["path"]),
                                      "ahead": mtm_scan.unmerged(w["path"], "main")}
     return out

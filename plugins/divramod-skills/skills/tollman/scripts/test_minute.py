@@ -202,7 +202,10 @@ class Events(Pass):
     def test_a_new_start_watches_its_own_run(self):
         self.train("formed", "started")
         self.set_run([job("d1-01-rust-test", "failure")], status="completed", conclusion="failure")
-        self.assertEqual(len(self.tick().splitlines()), 2)
+        lines = self.tick().splitlines()
+        self.assertEqual(lines[2:], [f"train {NAME} is red (gate_failed): d1-01-rust-test"],
+                         "the red run ends the landing at once (plan 0522 D17)")
+        self.assertEqual(train_state.standing(train_state.lines(str(self.main)))["state"], "red")
         self.train("retry", "started")
         newer = run(502, "land/" + BRANCH, "2099-01-02T00:00:00Z", status="in_progress")
         self.gh.runs.insert(0, newer)
@@ -228,7 +231,7 @@ class Events(Pass):
         self.assertIn(("watch", "job-failed", "record"),
                       [(a["duty"], a["kind"], a["do"]) for a in planned])
         handled = minute.handler({"name": "duty:watch"}, {"main": str(self.main), "dry": False})
-        self.assertEqual([a["text"] for a in handled if a["do"] == "record"],
+        self.assertEqual([a["text"] for a in handled if a["do"] == "record" and a["duty"] == "watch"],
                          ["job failed: d1-01-rust-test: test hub::tenant_rls ... FAILED"])
         self.assertEqual([(a["kind"], a["do"], a["key"]) for a in handled if a["do"] != "record"],
                          [("train-red", "wake", "train-red:501")], "no file names a car: unclear, the session judges")

@@ -121,23 +121,23 @@ The tollman takes a wagon off, clearing its ready mark, and tells its session wh
 one of
 
 ```
-tollman [<id>] (wagon train): field <NN> is unhitched: its crop conflicts with <the barn | the cars ahead (<fields>)> in <files>. Restock (/mfm), resolve it, push and report it ready again (...)
+tollman [<id>] (wagon train): field <NN> is unhitched before it rode: its light gate checks are red on <head>: <finding lines> Fix it, push and report it ready again (...)
 tollman [<id>] (wagon train): field <NN> is unhitched from the red train by the user: <why>. Fix it, push and report it ready again (...)
 tollman [<id>] (wagon train): field <NN> is unhitched: a servant's field (30-99) never rides a train, its foreman merges its branch.
 ```
 
 for these causes (acked like "in the barn"):
 
-- **a conflict** in the trial merge, with the default branch or with a wagon ahead of it in the queue, in any file
-  (generated files and lockfiles too: restock and resolve them yourself);
+- **red light gate checks** (names, records) on the hitched head, before it rode, with the finding lines (a
+  conflict never unhitches: every hitched wagon rides and is resolved in the train, plan 0522 D18, "A resolve
+  order" below);
 - **taken out of a red train by the user's own command**, with the failing job in the reason (a formed train is
   frozen, plan 0360 D3: the tollman itself never takes a car out of it; a red train waits for its fix);
 - **a servant's field**: a worktree 30-99 never hitches; its foreman merges its branch.
 
 The work is back with this session, and the rest of the train rides without it. Fix this worktree's own work only:
 
-1. `/mfm`; resolve what conflicts as its **Conflicts** says. A clean `/mfm` after a conflict means the other side
-   is a wagon that is not in the default branch yet: do it again once the default branch has moved.
+1. `/mfm`; resolve what conflicts as its **Conflicts** says.
 2. A red job: read its log (`gh run view <run> --log-failed`), reproduce it with
    `code/bash/scripts/gate/main.sh <job> --branch origin/main` where the repository has it, fix it and see it green.
 3. Commit, push, hitch again (the command above) and report `hitched` with the new head.
@@ -160,11 +160,13 @@ and it carries the commands:
 1. In this worktree: `git fetch origin <carrier>; git switch -C <NN>-train-fix origin/<carrier>` (`<carrier>` is
    the tollman's field, `tollman-<repo>`: the train with every car and every fix so far).
 2. Reproduce the red job (`code/bash/scripts/gate/main.sh <job> --branch origin/main` where the repository has it),
-   fix it, see it green, commit.
+   fix it, commit, see it green on that commit: the gate's last line is `gate: <job> green at <sha>`.
 3. `git push origin <NN>-train-fix`, then answer by SendMessage to the tollman session
-   `ack <id>: done fixed <sha>` (the pushed head). The tollman runs `tollman.py fixed`: it checks the sha is on
-   `origin/<NN>-train-fix` and descends from the train's head, merges it into its carrier and lands the same cars
-   plus the fix again. A refused fix comes back with the reason; the order stays open: fix, push, answer again.
+   `ack <id>: done fixed <sha>` (the pushed head); for a job the order names as one you run (a heavy one), add the
+   gate's line: `ack <id>: done fixed <sha>: gate: <job> green at <sha>`. The tollman runs `tollman.py fixed`: it
+   checks the sha is on `origin/<NN>-train-fix` and descends from the train's head, proves it green (a light job it
+   runs itself on the sha; a heavy one by your line; plan 0522 D5), merges it into its carrier and lands the same
+   cars plus the fix again. A refused fix comes back with the reason; the order stays open: fix, push, answer again.
 4. Switch back to `<NN>` (`git switch <NN>`) and wait for "in the barn".
 
 `<NN>-train-fix` is a side branch (the global record `side-branches-carry-the-slot-number`):
@@ -173,3 +175,33 @@ of "In the barn"): if the default branch holds it (`git merge-base --is-ancestor
 `git merge <NN>-train-fix` into `<NN>`, then `git branch -d <NN>-train-fix` (and `git push origin --delete
 <NN>-train-fix`); the deletion of merged side branches (item 3) covers the rest. Never unhitch, never land, never
 ask the tollman to take the car out: only the user's own command does that.
+
+## A resolve order
+
+Every hitched wagon rides the next train (plan 0522 D18, the user: "conflicts need to be resolved and every hitched
+wagon should go into the next train"): when this worktree's crop conflicts with the barn or with a car ahead of it,
+it is not unhitched; the train merges the cars before it, waits `resolving` and this session resolves the conflict
+on the train's branch. The message's first line is
+
+```
+tollman [<id>] (wagon train): resolve order <NN>-resolve-<n> for field <NN>: train <train> carries your crop <head>, and it conflicts with <the barn | the cars ahead (<fields>)> in <files>. ...
+```
+
+and it carries the commands:
+
+1. In this worktree: `git fetch origin <carrier>; git switch -C <NN>-train-resolve origin/<carrier>` (the train
+   with the cars before this one).
+2. `git merge <head>` (this worktree's hitched head), resolve every conflict keeping both sides' intent (this
+   crop's and the train's: never drop the other car's change), commit. Check what the resolve touches as for any
+   merge (the changed code's tests, `check-early-test-once`).
+3. `git push origin <NN>-train-resolve`, then answer by SendMessage to the tollman session
+   `ack <id>: done resolved <sha>` (the pushed head). The tollman runs `tollman.py resolved` by code: it checks the
+   sha is on `origin/<NN>-train-resolve`, descends from the train's head and holds this crop's head, and that no
+   conflict marker is left in the conflicting files; it fast-forwards the train to it, merges the cars behind and
+   lands the train once its light checks are green. A refused resolve comes back with the reason; the order stays
+   open: resolve, push, answer again.
+4. Switch back to `<NN>` (`git switch <NN>`): the hitch stays on its head. Wait for "in the barn".
+
+`<NN>-train-resolve` is a side branch: never landed on its own, never hitched; it rides in the train. After "in the
+barn" it is merged and deleted as `<NN>-train-fix` is above. Never unhitch, never land, never ask the tollman to
+take the car out or to resolve it: only the user's own command takes a car out.

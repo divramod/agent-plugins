@@ -14,11 +14,12 @@ Between trains (`draft`, steps 1 to 4; `tollman.py train --dry-run` prints it):
    adds, removes or renames the landing workflow or changes what starts its run (`on:`, `name:`, `run-name:`); a
    crop touching other gate files (jobs, job lists, lanes, runners) rides with the others, the train's own run
    tests it. Such a car behind the first waits for the next train, its why naming the change
-4. the trial merge in queue order (trial.py): a wagon that conflicts is unhitched and its foreman told why (a
-   template), unless every file of the conflict is generated (generated.py: the train writes them again); the
-   rest rides, every clean car (no car limit, plan 0463 D1)
+4. the trial merge in queue order (trial.py): every wagon rides (no car limit, plan 0463 D1; plan 0522 D18): one
+   that conflicts, not only in generated files (generated.py: the train writes them again), is a car with
+   `conflict` (its files) and `ahead`, and the trial goes on without its head
 5. `engine.py form`: the yard's work as the first car (yard.py, step 8), merge, mark, start the landing detached;
-   what the yard keeps is told to the farmer (yard_report.py)
+   a train with a conflicting car forms by `tollman.py resolve-form` and waits `resolving` for its foreman's
+   resolve on the train's branch (resolve.py); what the yard keeps is told to the farmer (yard_report.py)
 
 Before the draft (plan 0383 step 3, D3, D14; leavers.py): a placed ticket gone from the queue with its head not in the
 barn is put back on its place, its foreman told, and a ticket held by `worktree stop` told likewise; the field is
@@ -32,7 +33,9 @@ plan 0360 step 5; early_order.py, plan 0383 step 5). Landed: every car's foreman
 (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest before the
 push, `pretest_red`: pretest_train.py): triage (triage.py, train_red.py): a runner fault lands the same cars again on
 a fresh run by code; the barn's or a car's red is one wake, then nothing until the session's `retry`; the train
-waits for its fix. Interrupted (the process gone without a result): the same
+waits for its fix. An incomplete pretest (`pretest_incomplete`: the budget cut a job or the gate did not answer, plan
+0522 D7): the same landing again, up to PRETEST_WAITS in a row, then red as above.
+Interrupted (the process gone without a result): the same
 landing again, it adopts the run; after MAX_STARTS the train is red and the session woken instead. Formed and never
 started (its form died): the same train started (`restart` merges the cars it lacks first). The queue's mark naming
 other cars: the next `restart` marks the train's own again. Only a car the user's own command unhitched (`by:
@@ -48,6 +51,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import board
 import chain
 import early_order
+import foreman_wake
 import frozen
 import gate_car
 import generated
@@ -60,6 +64,7 @@ import orders
 import own_fix
 import pause
 import proof
+import resolve
 import stack_red
 import train_state
 import train_wt
@@ -81,10 +86,9 @@ MAX_STARTS = 5  # an interrupted landing is started again this often, then the t
 HOUR = 3600
 LANDED = ("landed", "nothing")  # the landing's results that mean: every car's crop is in the barn
 AGAIN = (None, "interrupted", "waiting", "testing", "paused", "held")  # no result, or one whose rerun goes on (held: L88)
+PRETEST_WAIT, PRETEST_WAITS = "pretest_incomplete", 3  # pretest_train.INCOMPLETE and WAITS (not imported: light start)
 HITCH = "report it ready again (`hal2-cli-git worktree queue ready`)"
 TEXT = {
-    "conflict": TRAIN + ": field {field} is unhitched: its crop conflicts with {what} in {files}. {then}, resolve "
-                        "it, push and " + HITCH + ".",
     "proof": TRAIN + ": field {field} is unhitched before it rode: its light gate checks are red on {head}:\n{lines}\n"
                      "Fix it, push and " + HITCH + ".",
     "servant": TRAIN + ": field {field} is unhitched: a servant's field (plans/LEAD) never rides a train, its foreman "
@@ -127,13 +131,6 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mod
         commit, files = trial_merge.merge(main, acc, head)
         if commit is None:
             out["waiting"].append({"field": field, "why": f"the trial merge of {head[:12]} could not run"})
-        elif files and not generated.only(main, base, files, commit):  # generated only: the train writes them again
-            barn = acc == base or bool(trial_merge.merge(main, base, head)[1])
-            ahead = [] if barn else [c["field"] for c in out["cars"]]
-            unhitched.append({"field": field, "head": head, "at": t["ready"].get("at", ""), "tell": "conflict",
-                              "files": files, "ahead": ahead,
-                              "why": f"conflicts with {'the cars ahead' if ahead else 'the barn'} in "
-                                     + ", ".join(files[:5])})
         elif (proven := PROVE(main, t["worktree"], head, default))["state"] == "wait":
             out["waiting"].append({"field": field, "why": proven["lines"][0]})
         elif proven["state"] == "red":
@@ -142,13 +139,19 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mod
         else:
             out["cars"].append({"field": field, "branch": t.get("branch") or field, "head": head,
                                 "plan": current_plan(t["worktree"])})
-            acc, out["alone"] = commit, bool(alone)
+            out["alone"] = bool(alone)
+            if files and not generated.only(main, base, files, commit):  # rides, resolved in the train (D18)
+                barn = acc == base or bool(trial_merge.merge(main, base, head)[1])
+                out["cars"][-1].update(conflict=files, ahead=[] if barn else [c["field"] for c in out["cars"][:-1]])
+            else:  # generated only: the train writes them again
+                acc = commit
     return out
 
 
-def run(kind: str, slot: str, key: str, verb: str, top: str, *args: str, window: int = 7 * 24 * HOUR, **fields):
-    """A `run` action of an engine verb; a failed one wakes the session (the run's key keeps it from looping)."""
-    argv = [sys.executable, str(ENGINE), verb, *args, "--repo", top]
+def run(kind: str, slot: str, key: str, verb: str, top: str, *args: str, window: int = 7 * 24 * HOUR,
+        script: Path = ENGINE, **fields):
+    """A `run` action of an engine verb (`script`'s); a failed one wakes the session (its key keeps it from looping)."""
+    argv = [sys.executable, str(script), verb, *args, "--repo", top]
     stuck = act("trains", "train-stuck", "wake", key=f"stuck:{key}",
                 text=TEXT["stuck"].format(verb=verb, what=fields.get("text", ""), cmd=" ".join(argv[1:])))
     return act("trains", kind, "run", slot, key=key, window=window, argv=argv, on_fail=[stuck], **fields)
@@ -172,21 +175,19 @@ def train_actions(top: str, d: dict, panes: dict, after: str | None = None) -> l
         fields = [c["field"] for c in d["cars"]]
         # The same cars are not formed again within the hour, unless this round broke their train up before.
         key = "form:" + "+".join(f"{c['field']}@{c['head'][:12]}" for c in d["cars"]) + (f":{after}" if after else "")
-        out.append(run("form", "-", key, "form", top, "--cars", json.dumps(d["cars"]), window=HOUR,
-                       text=f"wagon train: {', '.join(fields)}" + (" (alone)" if d["alone"] else ""), **chain))
+        tangled = [c["field"] for c in d["cars"] if c.get("conflict")]  # every wagon rides (resolve.py, D18)
+        out.append(run("form", "-", key, "resolve-form" if tangled else "form", top, "--cars", json.dumps(d["cars"]),
+                       window=HOUR, script=resolve.CLI if tangled else ENGINE, **chain, text=f"wagon train: "
+                       f"{', '.join(fields)}" + (" (alone)" if d["alone"] else "")
+                       + (f", {', '.join(tangled)} to resolve" if tangled else "")))
     return out
 
 
 def unhitched_text(u: dict) -> str:
-    """What a foreman is told whose field the draft unhitched (`tell`: `servant`, `proof` or `conflict`)."""
+    """What a foreman is told whose field the draft unhitched (`tell`: `servant` or `proof`; a conflict rides, D18)."""
     if u["tell"] == "servant":
         return TEXT["servant"].format(field=u["field"])
-    if u["tell"] == "proof":
-        return TEXT["proof"].format(field=u["field"], head=u["head"][:12], lines="\n".join(u["lines"]))
-    ahead = ", ".join(u["ahead"])
-    return TEXT["conflict"].format(
-        field=u["field"], files=", ".join(u["files"][:5]), what=f"the cars ahead ({ahead})" if ahead else "the barn",
-        then=f"Restock (/merge-from-main) once the train of {ahead} is in the barn" if ahead else "Restock (/merge-from-main)")
+    return TEXT["proof"].format(field=u["field"], head=u["head"][:12], lines="\n".join(u["lines"]))
 
 
 def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) -> list[dict]:
@@ -202,16 +203,28 @@ def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) 
         return [done] + [tell("in-the-barn", c["field"], f"barn:{name}:{c['field']}", text, panes, key)
                          for c in train["cars"]] + stack_red.actions(top, train, result, panes, key) + [
                             chain.action(top, key)]  # the next train in this round
+    if status == PRETEST_WAIT and train.get("pretest_waits", 0) <= PRETEST_WAITS:  # not green: the push waits (D7)
+        return [run("restart", "-", f"pretest-wait:{name}:{train['starts']}", "restart", top,
+                    text=f"train {name}: {result.get('message') or 'its pretest is incomplete'}, started again")]
     if status in AGAIN and train["starts"] < MAX_STARTS:
         return [run("restart", "-", f"restart:{name}:{train['starts']}", "restart", top,
                     text=f"train {name}: its landing ended {status or 'without a result'}, started again")]
     if status in AGAIN:
         status, why = "interrupted", f"its landing ended without a result {train['starts']} times"
     else:
-        red, suspects = ", ".join(j.get("name", "") for j in result.get("red") or []), result.get("suspects")
-        why = ((f"{red}, suspects: {', '.join(suspects)}" if red and suspects else red) or result.get("message")
-               or status)[:300]
+        why = (reds(result) or result.get("message") or status)[:300]
     return train_red.actions(top, train, result, status, why, run, tickets)  # triage first (plan 0360 step 5)
+
+
+def reds(result: dict) -> str:
+    """The red jobs of a landing's result: each with its own suspects when it names them (a pretest's, plan 0522
+    D14: `a (car 07), b (cars 07, 09)`), else the names and the result's suspects."""
+    red, suspects = result.get("red") or [], result.get("suspects")
+    if red and all(j.get("suspects") for j in red):
+        return ", ".join(f"{j.get('name', '')} (car{'s' * (len(j['suspects']) > 1)} {', '.join(j['suspects'])})"
+                         for j in red)
+    names = ", ".join(j.get("name", "") for j in red)
+    return f"{names}, suspects: {', '.join(suspects)}" if names and suspects else names
 
 
 def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict, alive=None,
@@ -280,6 +293,7 @@ def handler(item: dict, ctx: dict) -> list[dict]:
                                                                sleep_flag=flag, left=leave["held"],
                                                                held=hold.of(main)))  # one early order a round
     watched = watch_events.state(main)  # the 1-minute watch's run: its post-merge red is post_merge.py's
-    return out + yard_report.settled_actions(main, rows, panes) + stack_red.watch(
+    return foreman_wake.gate(out + yard_report.settled_actions(main, rows, panes) + stack_red.watch(
         top, main, rows, panes, log, watched=None if watched.get("closed") else str(watched.get("run") or "")) \
-        + orders.answers(top, rows, log)  # `fixed <sha>` (step 6)
+        + orders.answers(top, rows, log) + resolve.actions(top, rows, panes, log)  # `fixed`, `resolved` (D18)
+        + foreman_wake.held(ctx, rows), ctx)  # an order's foreman started first (plan 0522 D21)

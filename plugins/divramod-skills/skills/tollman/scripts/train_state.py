@@ -16,9 +16,14 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              (the one car, as `formed` names them; it counts from then on), `base` and `commit` (the carrier's head
              before and after it), the pretest of the car's jobs (`result`, `seconds`, `jobs`, `why`)
   declined   a join undone (open_train.decline): `field`, `head` (never joins this train again), `why`
+  resolving  a car whose merge conflicts rides on (plan 0522 D18, resolve.py): `field`, `head`, `files`, `ahead` (the
+             cars merged before it, [] the barn), `base` (the carrier's head), `id`, `branch` (`<NN>-train-resolve`),
+             `unpublished` (why the base is not on origin); the train `resolving` until its `resolved` line
+  resolved   the car's foreman resolved it on the train's branch: `field`, `id`, `sha`, `commit`; the train `formed`
   pretest    the train's pretest before its landing (pretest_train.py, plan 0349 D75): `seconds`, `result`
-             (green, red, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state cached, run,
-             skipped or not needed), `why`; its jobs' output in the text log `train-pretest.log`
+             (green, red, incomplete, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state
+             cached, run, skipped or not needed), `why`, `tree` (the tree of the HEAD it tested: a new tree is
+             pretested again, plan 0522); its jobs' output in the text log `train-pretest.log`
   started    the landing's process: `pid`, `log`, `land_ref` (the train's own branch, landed on `land/<land_ref>`:
              `train-<number>-<start>`, the mark's `--train/--attempt`, plan 0398; `train-<plan>-...` before it); written again by every restart; after a `retry` also
              `commit`, the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
@@ -28,13 +33,16 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`
   order      a fix order (orders.py, plan 0360 step 6, D6, D29): `field` (a car's, or `main`: the tollman's own),
              `branch` (`<NN>-train-fix`, `tollman-train-fix`), `base` (the carrier's head it branches from), `why`,
-             `run`, `id`; open until its `fixed` line. One written while the train lands is *early* (plan 0383
-             D5, the triage named one car while the run runs): the train stays `landing`, its `red` makes it `fixing`.
+             `run`, `id`, `jobs` (the gate jobs its fix must turn green: fix_proof.py, plan 0522 D5); open until its
+             `fixed` line; one with `also` (an open early order's id) adds its `jobs` and `why` to that order, a
+             car's next red job while the run runs (plan 0522 D16). One written while the train lands is *early*
+             (plan 0383 D5, the triage named one car while the run runs): the train stays `landing`, its `red` makes it `fixing`.
              One with `post` (the landed train's name: a red after its merge job, post_merge.py, plan 0383 step 6,
              D6) never changes the state: it is in `post`, carried to the next train formed while it is open (so
              is an early order of a train that landed green), and its fix is merged into that train before its run
              starts (next_train.py)
-  fixed      a fix order answered: `field`, `id`, `sha` (the fix), `commit` (the carrier's merge of it)
+  fixed      a fix order answered: `field`, `id`, `sha` (the fix), `commit` (the carrier's merge of it), `unproven`
+             (the session's why when it took the fix without proof, plan 0522 D5)
   pause      a smuggle paused the train's landing (pause.py, plan 0360 step 18, D58): `field` (the smuggle's slot),
              `seq`, `since` (the queue's `paused_by`), `run` (the land run watched then: the run the pause cancels,
              triage.paused_by); the train `paused` until its `resumed` line
@@ -50,11 +58,13 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              yard's car, with its `files`, which stay out of every train until they change
   landed     the train is in the barn: `cars`, `run`, `commit`; `yard` when the yard rode ({dropped, kept, pulled,
              why}: what yard.settle did there)
+  woke       slot (names-ok: every line's key): a car's field that had no session when the train's order (`id`)
+             needed its foreman: started (foreman_wake.py, plan 0522 D21), `field`, `why`; changes no state
   cleared    the train is no more (a car that did not merge in its form, the user's split or breakup, a leftover
              mark): `why` and `pushed` when the carrier's remote branch went back on the base, or why it did not
 
 `standing` folds the lines into the train that stands, or None between trains: its `state` is `formed` (merged or
-merging, no landing started), `landing` (its pretest's result in `pretest`), `red` (frozen, waits for its fix or the
+merging, no landing started), `resolving` (a car's conflict waits for its foreman's resolve, `resolve`: frozen), `landing` (its pretest's result in `pretest`), `red` (frozen, waits for its fix or the
 session's retry), `fixing` (red with fix orders open, `orders`: frozen as red; the post-merge orders, `post`, never
 count), `retry` (also once the last order is
 `fixed`: `fixed` true, the merge is the new candidate), `paused` (a smuggle paused its landing, `pauses`: frozen,
@@ -77,8 +87,9 @@ ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
-KINDS = ("formed", "yard", "regenerated", "joined", "declined", "pretest", "started", "run", "red", "order", "fixed",
-         "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared")
+KINDS = ("formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "run",
+         "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke")
+ORDER_KEYS = ("id", "field", "branch", "base", "why", "run", "at", "jobs")  # an open order's, as its line has them
 RUNNER = "runner"  # a retry's `why` that starts so is the code's after a runner fault (triage.py)
 
 
@@ -163,8 +174,11 @@ def standing(rows: list[dict]) -> dict | None:
             train["cars"] = train["cars"] + e.get("cars", [])
         elif kind == "declined":
             train["declined"].append({"field": e.get("field"), "head": e.get("head")})
-        elif kind == "pretest":
-            train["pretest"] = e.get("result")
+        elif kind in ("resolving", "resolved"):  # every wagon rides (plan 0522 D18): a conflict waits for its resolve
+            train.update(state=kind.replace("resolved", "formed"), resolve=e if kind == "resolving" else None)
+        elif kind == "pretest":  # incomplete ones in a row: pretest_train.WAITS (plan 0522 D7)
+            waits = (train.get("pretest_waits", 0) + 1) * (e.get("result") == "incomplete")
+            train.update(pretest=e.get("result"), pretest_tree=e.get("tree"), pretest_waits=waits)
         elif kind == "started":
             train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"),
                          land_run=None, fixed=False, since=None, land_ref=e.get("land_ref"))
@@ -188,6 +202,8 @@ def standing(rows: list[dict]) -> dict | None:
         elif kind == "barn":  # a car already in the barn (smuggled, modes.py): a formed train's leaves it (D76)
             train["in_barn"].append(e.get("slot"))
             train["cars"] = [c for c in train["cars"] if e.get("how") != "formed" or c["field"] != e.get("slot")]
+        elif kind == "woke":  # a car's foreman started for an order (plan 0522 D21): only recorded
+            pass
         elif kind == "unhitched":
             train["unhitched"].append({"field": e.get("slot"), "why": e.get("why", ""), "by": e.get("by")})
             train["state"] = "split"
@@ -199,7 +215,7 @@ def standing(rows: list[dict]) -> dict | None:
 def carried(train: dict) -> list[dict]:
     """The early orders of a train that landed green: their red did not hold the merge, so they are post-merge
     orders now, for the next train (plan 0383 step 6)."""
-    return [{**{k: o.get(k) for k in ("id", "field", "branch", "base", "why", "run", "at")}, "post": train["train"]}
+    return [{**{k: o.get(k) for k in ORDER_KEYS}, "post": train["train"]}
             for o in train["orders"] if o.get("early")]
 
 
@@ -208,14 +224,19 @@ def fix(train: dict, e: dict) -> None:
     post-merge order (`post`) only opens and closes: the train's state stays as it is."""
     post = [o for o in train["post"] if o["id"] != e.get("id")]
     if e["kind"] == "order" and e.get("post"):
-        train["post"] = post + [{k: e.get(k) for k in ("id", "field", "branch", "base", "why", "run", "at", "post")}]
+        train["post"] = post + [{k: e.get(k) for k in (*ORDER_KEYS, "post")}]
         return
     if e["kind"] == "fixed" and len(post) < len(train["post"]):
         train["post"] = post
         return
+    if e["kind"] == "order" and e.get("also"):  # another red job for an open order (plan 0522 D16): it grows
+        for o in (o for o in train["orders"] if o["id"] == e["also"]):
+            o.update(jobs=list(dict.fromkeys((o.get("jobs") or []) + (e.get("jobs") or []))),
+                     why=f"{o.get('why')}; {e.get('why')}")
+        return
     if e["kind"] == "order":
         early = train["state"] == "landing"  # placed while the run runs (plan 0383 D5): the landing goes on
-        train["orders"].append({**{k: e.get(k) for k in ("id", "field", "branch", "base", "why", "run", "at")},
+        train["orders"].append({**{k: e.get(k) for k in ORDER_KEYS},
                                 "early": early})
         train["state"] = train["state"] if early else "fixing"
         return

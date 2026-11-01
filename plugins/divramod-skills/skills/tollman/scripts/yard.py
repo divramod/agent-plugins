@@ -181,12 +181,19 @@ def crops(yard: str, default: str, heads: dict[str, str]) -> dict[str, str]:
 
 def fields(yard: str) -> dict[str, str]:
     """{field: head} of the farm's other worktrees (`git worktree list`)."""
-    out, path = {}, ""
-    for line in run(yard, "worktree", "list", "--porcelain").stdout.splitlines():
+    import field_root  # a scratch worktree named like a field is none (hal2 plan 0539 step 4)
+    out, cur = {}, {}
+    for line in [*run(yard, "worktree", "list", "--porcelain").stdout.splitlines(), ""]:
         if line.startswith("worktree "):
-            path = line[9:]
-        elif line.startswith("HEAD ") and os.path.realpath(path) != os.path.realpath(yard):
-            out[os.path.basename(path)] = line[5:]
+            cur = {"path": line[9:]}
+        elif line.startswith("branch "):
+            cur["branch"] = line[7:].removeprefix("refs/heads/")
+        elif line.startswith("HEAD "):
+            cur["head"] = line[5:]
+        elif not line and cur.get("head") and os.path.realpath(cur["path"]) != os.path.realpath(yard) \
+                and field_root.is_field(cur, yard):
+            out[os.path.basename(cur["path"])] = cur["head"]
+            cur = {}
     return out
 
 

@@ -53,5 +53,16 @@ class Scan(unittest.TestCase):
         self.assertEqual([(f["kind"], f["slot"]) for f in got["findings"]], [("work-without-agent", "04")])
 
 
+class FieldWorktrees(unittest.TestCase):
+    def test_a_scratch_worktree_named_like_a_field_is_none(self):
+        """Plan 0539 step 4: what tick.slot_state, questions, decision_check and the triage's plans read."""
+        main = "/x/hal2"
+        wts = [{"path": str(ROOT / "09"), "branch": "09"}, {"path": "/tmp/scratchpad/resolve/09", "branch": "s"},
+               {"path": "/tmp/scratchpad/resolve/04", "branch": "s4"}]
+        with mock.patch.object(scan, "worktrees", return_value=wts):
+            got = scan.field_worktrees("/Users/u/a/hal2")
+        self.assertEqual([w["path"] for w in got], [str(ROOT / "09")])
+
+
 if __name__ == "__main__":
     unittest.main()

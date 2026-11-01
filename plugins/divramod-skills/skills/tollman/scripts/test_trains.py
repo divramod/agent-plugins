@@ -110,12 +110,14 @@ class Trial(Crops):
         self.assertEqual((self.g("rev-list", "--parents", "-n", "1", commit).split()[1:], files), ([five, b], []))
         self.assertEqual(trial.merge(self.d, commit, a)[1], ["a.rs"])
         self.assertEqual(trial.merge(self.d, commit, intent)[1], ["INTENT.md"],
-                         "an append-only file conflicts too: nothing resolves it for a foreman")
+                         "an append-only file conflicts too: its foreman resolves it in the train (D18)")
         self.assertEqual(trial.merge(self.d, "main", "0" * 40), (None, []), "git cannot say")
         self.assertEqual(self.g("for-each-ref"), before, "no ref moves")
         self.assertEqual(self.g("status", "--porcelain"), "")
         d = self.draft(q)
-        self.assertEqual((self.cars(d), [u["field"] for u in d["unhitched"]]), (["05", "07"], ["09", "11"]))
+        self.assertEqual((self.cars(d), d["unhitched"]), (["05", "07", "09", "11"], []), "every wagon rides (D18)")
+        self.assertEqual([(c["field"], c.get("conflict")) for c in d["cars"]],
+                         [("05", None), ("07", None), ("09", ["a.rs"]), ("11", ["INTENT.md"])])
 
 
 class Draft(Crops):
@@ -158,20 +160,24 @@ class Draft(Crops):
                          [("31", "servant", "a servant's field (plans/LEAD) never rides"),
                           ("05", None, "its worktree is gone"), ("04", None, "its head is in the barn already")])
 
-    def test_a_wagon_that_conflicts_is_unhitched_with_its_files_and_the_rest_rides(self):
+    def test_a_wagon_that_conflicts_rides_with_its_files_and_is_never_unhitched(self):
+        # Plan 0522 D18 (the user, 2026-10-31): "every hitched wagon should go into the next train".
         q = self.queue(**{"07": {"a.rs": "seven\n"}, "09": {"a.rs": "nine\n"}, "11": {"c.rs": "c\n"}})
         d = self.draft(q)
-        self.assertEqual(self.cars(d), ["07", "11"])
-        (u,) = d["unhitched"]
-        self.assertEqual((u["field"], u["files"], u["ahead"], u["tell"]), ("09", ["a.rs"], ["07"], "conflict"))
-        self.assertEqual(u["why"], "conflicts with the cars ahead in a.rs")
+        self.assertEqual((self.cars(d), d["unhitched"], d["waiting"]), (["07", "09", "11"], [], []))
+        nine = d["cars"][1]
+        self.assertEqual((nine["conflict"], nine["ahead"]), (["a.rs"], ["07"]))
+        self.assertNotIn("conflict", d["cars"][2], "the trial goes on without 09's head: 11 is clean")
+        (form,) = trains.train_actions("/f", d, {})
+        self.assertEqual((form["kind"], form["argv"][1:3]), ("form", [str(trains.resolve.CLI), "resolve-form"]))
+        self.assertIn("09 to resolve", form["text"])
 
     def test_a_conflict_with_the_barn_is_named_so(self):
         q = self.queue(**{"07": {"seven.rs": "7\n"}, "09": {"a.rs": "nine\n"}})
         self.g("checkout", "-q", "main")
         self.write("main", {"a.rs": "the barn moved\n"}, new=False)
-        (u,) = self.draft(q)["unhitched"]
-        self.assertEqual((u["field"], u["ahead"], u["why"]), ("09", [], "conflicts with the barn in a.rs"))
+        nine = self.draft(q)["cars"][1]
+        self.assertEqual((nine["field"], nine["ahead"], nine["conflict"]), ("09", [], ["a.rs"]))
 
     def test_the_alone_rule(self):
         # D12: only a car changing what starts the landing's run rides alone, the only car of its train.
@@ -557,8 +563,9 @@ class State(unittest.TestCase):
         self.assertRegex(train_state.utc(naive), r"^2026-10-1[234]T\d\d:\d\d:05Z$")
         aware = tick.dt.datetime(2026, 10, 13, 12, 0, 5, tzinfo=tick.dt.timezone(tick.dt.timedelta(hours=2)))
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
-        kinds = ["formed", "yard", "regenerated", "joined", "declined", "pretest", "started", "run", "red", "order",
-                 "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared"]
+        kinds = ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started",
+                 "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared",
+                 "woke"]
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)), kinds)
         schema = json.loads((Path(__file__).resolve().parent.parent / "schemas/train.schema.json").read_text())
         self.assertEqual(schema["properties"]["kind"]["enum"], kinds, "the schema names every kind train_state writes")

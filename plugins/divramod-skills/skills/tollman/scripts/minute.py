@@ -21,7 +21,12 @@ Wiring.min_tick); the other duties keep their own crons. A tick on which only `w
    (next_train.py); keyed `chain:merge-green:<train>`, so it runs once (plan 0383 step 6, D6, L33). In smuggle mode
    none.
 
-5. CI/CD health (ci_health.py, step 11, D12, D13): every runner of hal2-runners.toml checked each pass, a line only
+5. the landing's end (landing_end.py, plan 0522 step 7, D17): a land run of the landing train finished red
+   ends the landing red at once (the red line, as the round's settle writes it), the foremen's `fixed` answers are
+   taken while it is `fixing`, and the fixed train lands again once the last start's process is gone; a pass only,
+   a round's trains duty does these itself.
+
+6. CI/CD health (ci_health.py, step 11, D12, D13): every runner of hal2-runners.toml checked each pass, a line only
    for a new problem (a queued job nobody serves, a pipeline host runner offline); a parked cloud machine with a
    queued job gets the supervisor's wake request at once.
 6. on the watched run's `workflow finished` (hal2 plan 0490 step 3, D6): the run's triage starts as
@@ -58,8 +63,15 @@ from tick import act, default_ref
 
 ITEM = "duty:watch"
 KIND = "watch"  # the duty name in the actions
-PRINTED = ("early-order", "post-order", "chain", "runner")  # the trains' actions of a pass that print their line
+PRINTED = ("early-order", "post-order", "chain", "runner", "red", "fixed", "restart")  # the pass's trains lines
 
+
+def ended(top: str, main: str, doc: dict, log: list[dict]) -> list[dict]:
+    """landing_end's actions, the module loaded only while a train stands (a quiet pass stays light)."""
+    if not train_state.standing(train_state.lines(main)):
+        return []
+    import landing_end
+    return landing_end.actions(top, main, doc, log)
 
 def events(top: str, main: str, dry: bool, doc: dict | None = None, panes: dict | None = None) -> list[dict]:
     """The new events of the watched land run as `record` actions, one line each (the line is the action's text),
@@ -97,7 +109,7 @@ def early(top: str, main: str, fresh: list[dict], doc: dict | None = None, panes
     s, rows = watch_events.state(main), train_state.lines(main)
     rid, url, standing = str(s.get("run") or ""), s.get("url"), train_state.standing(rows)
     hit = next((e for e in fresh if e["kind"] == "job-failed" and e["key"].startswith(f"job:{rid}:")), None)
-    own = bool(standing) and (standing["train"], standing.get("started")) == (s.get("train"), s.get("started"))
+    own = watch_events.of(s, standing)
     train = standing if own else post_merge.past(rows, s.get("train"))
     if not hit or not train or (doc := awake(main, doc)) is None:
         return []
@@ -179,9 +191,10 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
             doc = mtm_scan.run_json(mtm_scan.QUEUE, main) or {}
             asleep = modes.asleep(modes.of(doc))  # smuggle mode: the tollman sleeps, no train, no queue work
             panes = Panes(lambda: tick.context(top, main, {}, now, False, wiring)["panes"])
+            log = read_log(main, wiring.role)
             planned = ([] if asleep else leaver_actions(top, main, doc, now, wiring, panes)) + events(
-                top, main, False, doc, panes)
-        for a in tick.fresh(planned, read_log(main, wiring.role), now, wiring.role):
+                top, main, False, doc, panes) + ([] if asleep else ended(top, main, doc, log))
+        for a in tick.fresh(planned, log, now, wiring.role):
             tick.execute(a, top, main, out, wiring)
             if a["duty"] == KIND or a["kind"] in PRINTED:
                 print(a["text"])

@@ -11,9 +11,9 @@ on the green merge job of the train before (minute.py) and is pretested at once;
    push starts, no join after it (D9: a join never delays the push of a train whose run before has ended).
 2. The post-merge fixes: each open post-merge order the train carries (train_state's `post`: a red after the merge
    of the train before, post_merge.py) whose foreman answered `done fixed <sha>` (orders.answered, the role's log)
-   is checked and merged into the carrier with its `fixed` line (orders.take), so it rides this train's run; a
-   refused or unanswered one stays open and goes on to the next train. No wagon leaves the train: only fixes and
-   newly hitched wagons join.
+   is checked, proven green (orders.proven, never waited for here: the round runs the proof) and merged into the
+   carrier with its `fixed` line (orders.take), so it rides this train's run; a refused, unproven or unanswered one
+   stays open and goes on to the next train. No wagon leaves the train: only fixes and newly hitched wagons join.
 3. The fix wait (fix_wait.py, plan 0490 step 21, D22): between 1. and 2., when the run before concluded red, the push
    waits until each of its red jobs has its fix car in the train or a named reason; each round merges the answered
    fixes (2.) and, while a red holds, runs the open train's join round; a timeout wakes the tollman, never pushes.
@@ -65,9 +65,11 @@ def merge_posts(top: str, main: str, train: dict) -> list[str]:
     """2.: the answered post-merge fixes merged into the carrier; a line each."""
     log, lines = read_log(main, train_state.ROLE), []
     for o in train.get("post") or []:
-        if not (sha := orders.answered(o, log)):
+        if not (answer := orders.answered(o, log)):
             continue
-        code, text = orders.take(top, main, train, o, sha)
+        sha, note = answer
+        code, text = orders.proven(top, main, o, sha, note, foreground=False)  # proven by the round (plan 0522 D5)
+        code, text = (code, text) if code else orders.take(top, main, train, o, sha)
         lines.append(f"fix order {o['id']}: {o['field']}'s fix {sha[:12]} " +
                      (f"stays open: {text[-200:]}" if code else f"merged into train {train['train']} ({text[:12]})"))
         print(lines[-1], flush=True)

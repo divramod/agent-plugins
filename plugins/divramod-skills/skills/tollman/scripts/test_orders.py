@@ -2,13 +2,18 @@
 orders the car's foreman to fix on `<NN>-train-fix` from the carrier's head, the foreman answers `fixed <sha>`, the
 fix is merged into the carrier and the same cars land again. No real gh, origin is the farm's bare repository."""
 
+import contextlib
+import io
 import json
 import unittest
+from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import acks
+import fix_proof
 import orders
 import train_state
+import tick
 import wake
 import tollman
 from engine_farm import Farm, out
@@ -19,7 +24,9 @@ C = "tollman-train-0294-f09"  # the train's own worktree and branch, the carrier
 MERGED = f"Merge 07-train-fix into {C} (fix order 07-fix-1)"
 
 
-class Orders(Farm):
+class Red(Farm):
+    """A red train of the cars 07 and 09, its run red on rust-test."""
+
     def setUp(self):
         super().setUp()
         self.crop("07", {"seven.txt": "7"}, plan="0294-tollman-role")
@@ -47,11 +54,17 @@ class Orders(Farm):
         git(path, "push", "-q", "-f", "origin", f"{field}-train-fix")
         return out(path, "rev-parse", "HEAD")
 
+    def green(self, sha, job="rust-test"):
+        """The gate's line for a green job on `sha` (plan 0522 D5: the proof a heavy job's answer carries)."""
+        return f"gate: {job} green at {sha[:12]}"
+
     def broken_up_never(self):
         self.assertNotIn("cleared", [k for k, _ in self.state()])
         self.assertFalse([c for c in self.gate.calls if "--clear" in c], self.gate.calls)
         self.assertNotIn("breakup", [k for k, _, _ in self.last])
 
+
+class Orders(Red):
     def test_an_order_writes_its_line_publishes_the_carrier_and_sends_one_acked_message(self):
         code, text = self.call("order", "07", "--why", "its test fails", "--run", RUN)
         self.assertEqual(code, 0, text)
@@ -84,7 +97,7 @@ class Orders(Farm):
     def test_a_good_fix_is_merged_and_the_same_cars_land_again_never_broken_up(self):
         self.call("order", "07", "--why", "its test fails")
         sha = self.fix("07")
-        code, text = self.call("fixed", "07", sha)
+        code, text = self.call("fixed", "07", sha, "--proof", self.green(sha))
         self.assertEqual(code, 0, text)
         self.assertEqual(out(self.cw, "log", "-1", "--format=%s"), MERGED)
         self.assertEqual(out(self.cw, "rev-parse", "HEAD^2"), sha)
@@ -112,17 +125,19 @@ class Orders(Farm):
         code, text = self.call("fixed", "07", out(self.fields["07"], "rev-parse", "HEAD"))
         self.assertEqual(code, 1, text)
         self.assertIn("is not on origin/07-train-fix", text)
-        self.assertEqual(self.call("fixed", "07", local)[0], 0)
+        self.assertEqual(self.call("fixed", "07", local, "--proof", self.green(local))[0], 0)
 
     def test_two_orders_restart_the_train_only_after_both_are_fixed(self):
         self.call("order", "07", "--why", "07 breaks the test")
         self.call("order", "09", "--why", "09 breaks the lint")
         self.assertEqual([o["field"] for o in self.train()["orders"]], ["07", "09"])
-        self.assertEqual(self.call("fixed", "07", self.fix("07"))[0], 0)
+        sha = self.fix("07")
+        self.assertEqual(self.call("fixed", "07", sha, "--proof", self.green(sha))[0], 0)
         self.assertEqual(self.train()["state"], "fixing")
         self.round()
         self.assertEqual((self.last, len(self.spawned)), ([], 1), "09's fix still open")
-        self.assertEqual(self.call("fixed", "09", self.fix("09"))[0], 0)
+        sha = self.fix("09")
+        self.assertEqual(self.call("fixed", "09", sha, "--proof", self.green(sha, "python-lint"))[0], 0)
         self.round()
         self.assertEqual((self.last, len(self.spawned)), ([("restart", "run", "-")], 2))
         self.assertEqual(out(self.cw, "log", "-2", "--first-parent", "--format=%s").splitlines(),
@@ -134,7 +149,8 @@ class Orders(Farm):
         self.call("order", "07", "--why", "its test fails")
         ack_id = self.typed[0][1].split("]")[0].removeprefix("tollman [")
         sha = self.fix("07")
-        argv = ["ack", ack_id, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]
+        argv = ["ack", ack_id, "done", "fixed", f"{sha}:", *self.green(sha).split(), "--repo", str(self.wm),
+                "--role", "tollman"]
         self.assertEqual(acks.main(argv), 0)
         self.round()
         self.assertEqual(self.last, [("fixed", "run", "07")])
@@ -159,7 +175,8 @@ class Orders(Farm):
         git(self.cw, "commit", "-qm", "the barn's fix")
         sha = out(self.cw, "rev-parse", "HEAD")
         git(self.cw, "switch", "-q", C)
-        self.assertEqual(self.call("fixed", "main", sha)[0], 0, "the tollman's own side branch, local")
+        self.assertEqual(self.call("fixed", "main", sha, "--proof", self.green(sha))[0], 0,
+                         "the tollman's own side branch, local")
         self.assertEqual(self.train()["state"], "retry")
 
     def test_an_order_needs_a_red_train_and_a_car(self):
@@ -177,9 +194,107 @@ class Orders(Farm):
         self.assertEqual(self.call("order", "03", "--why", "x")[0], 1, "03 rides no car")
         code, text = self.call("order", "03", "--smuggle", "--why", "conflicts with your smuggle in a.txt")
         self.assertEqual(code, 0, text)
-        line = train_state.lines(str(self.main))[-1]
+        rows = train_state.lines(str(self.main))
+        line = [r for r in rows if r["kind"] == "order"][-1]
         self.assertEqual((line["field"], line["branch"], line["id"]), ("03", "03-train-fix", "03-fix-1"))
         self.assertEqual(self.train()["state"], "fixing")
+        # plan 0522 D21: 03 has no session, so the order first starts its foreman (faked by the farm) and says so
+        self.assertEqual(self.started, [["hal2-cli-git", "worktree", "run", "03", "--agent", "claude", "--detach"]])
+        self.assertEqual((rows[-1]["kind"], rows[-1]["field"], rows[-1]["id"]), ("woke", "03", "03-fix-1"))
+
+
+class Proof(Red):
+    """Plan 0522 D5: a `fixed <sha>` counts only proven green: a light job (python-lint here) run by the tollman on the
+    sha (its pretest faked: `self.proof`), a heavy one (rust-test) by the gate's green line in the answer."""
+
+    def setUp(self):
+        super().setUp()
+        self.proof, self.proved, farm = {"result": "green"}, [], tick.sh
+        cfg = {"budget": 180, "parallel": 3, "jobs": ["python-lint"], "groups": {}}
+
+        def sh(argv, cwd, timeout=900):  # `fix_proof.py start` in this process, its detached run too
+            if argv[1:2] != [str(fix_proof.CLI)]:
+                return farm(argv, cwd, timeout)
+            with contextlib.redirect_stdout(io.StringIO()) as text:
+                return fix_proof.main(argv[2:]), text.getvalue()
+
+        def prove(top, main, jobs, sha, log):
+            self.proved.append((jobs, sha))
+            return {"jobs": [], "why": "", "errors": {}, **self.proof}
+
+        def spawn(argv, out, cwd):
+            with contextlib.redirect_stdout(io.StringIO()):
+                fix_proof.main(argv[2:])
+            return 1
+        for patch in (mock.patch.object(tick, "sh", sh), mock.patch.object(fix_proof, "prove", prove),
+                      mock.patch.object(fix_proof, "spawn", spawn),
+                      mock.patch.object(fix_proof, "light_jobs", return_value=(cfg, cfg["jobs"])),
+                      mock.patch.object(fix_proof, "known_jobs", return_value={"python-lint", "rust-test"})):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def ack(self, sha, *proof):
+        ack_id = self.typed[0][1].split("]")[0].removeprefix("tollman [")
+        self.assertEqual(acks.main(["ack", ack_id, "done", "fixed", sha, *" ".join(proof).split(), "--repo",
+                                    str(self.wm), "--role", "tollman"]), 0)
+
+    def test_a_heavy_job_s_answer_without_its_green_line_is_refused_with_it_taken(self):
+        self.call("order", "07", "--why", "its test fails")
+        self.assertEqual(train_state.lines(str(self.main))[-1]["jobs"], ["rust-test"], "named by the train's red")
+        self.assertIn("For rust-test add the line the gate prints", self.typed[0][1])
+        sha = self.fix("07")
+        self.ack(sha)
+        self.round()
+        self.assertEqual((self.last[0], self.train()["state"]), (("fixed", "run", "07"), "fixing"))
+        self.assertIn("no proof for rust-test", self.typed[-1][1], "the foreman is told what is missing")
+        self.ack(sha, ":", self.green(sha, "python-lint"))  # a line of another job is no proof of this one
+        self.round()
+        self.assertEqual(self.train()["state"], "fixing")
+        self.ack(sha, ":", self.green(sha))
+        self.round()
+        self.assertEqual(self.train()["state"], "retry")
+        self.assertEqual(self.proved, [], "a heavy job is never run here")
+
+    def test_a_light_job_is_run_on_the_sha_by_the_round_red_refused_green_taken(self):
+        self.call("order", "07", "--why", "python-lint: x.py:1:1: E501", "--job", "python-lint")
+        self.assertIn("The tollman runs python-lint itself on your sha", self.typed[0][1])
+        red = self.fix("07")
+        self.proof = {"result": "red", "errors": {"python-lint": "x.py:1:1: E501 line too long"}}
+        self.ack(red)
+        self.round()  # the proof starts (here: runs to its end at once); nothing is taken yet
+        self.assertEqual((self.last, self.proved), ([("fix-proof", "run", "07")], [(["python-lint"], red)]))
+        self.round()
+        self.assertEqual((self.last[0], self.train()["state"]), (("fixed", "run", "07"), "fixing"))
+        self.assertIn("python-lint: x.py:1:1: E501 line too long", self.typed[-1][1], "the red line, told")
+        good = self.fix("07", text="fixed again")
+        self.proof = {"result": "green"}
+        self.ack(good)
+        self.round()
+        self.assertEqual(self.last, [("fix-proof", "run", "07")])
+        self.round()
+        self.assertEqual((self.train()["state"], out(self.cw, "rev-parse", "HEAD^2")), ("retry", good))
+
+    def test_a_running_proof_is_waited_for_and_only_one_runs_at_a_time(self):
+        self.call("order", "07", "--why", "x", "--job", "python-lint")
+        sha = self.fix("07")
+        self.alive.add(4711)
+        fix_proof.write(str(self.main), "07-fix-1", sha, {"state": "running", "attempt": 1, "pid": 4711})
+        self.ack(sha)
+        self.round()
+        self.assertEqual((self.last, self.train()["state"]), ([], "fixing"), "it waits for the proof")
+        self.assertEqual(fix_proof.start(str(self.cw), str(self.main), "09-fix-1", sha), tick.OFFLINE)
+
+    def test_the_manual_fixed_proves_at_once_and_unproven_is_the_session_s_word(self):
+        self.call("order", "07", "--why", "x", "--job", "python-lint", "--job", "rust-test")
+        sha = self.fix("07")
+        self.proof = {"result": "red", "errors": {"python-lint": "E501"}}
+        code, text = self.call("fixed", "07", sha, "--proof", self.green(sha))
+        self.assertEqual(code, 1, text)
+        self.assertIn("red on", text)
+        self.assertEqual(self.proved, [(["python-lint"], sha)])
+        code, text = self.call("fixed", "07", sha, "--unproven", "the red is 09's car")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(train_state.lines(str(self.main))[-1]["unproven"], "the red is 09's car")
 
 
 if __name__ == "__main__":

@@ -75,7 +75,8 @@ def take(top: str, main: str) -> list[str]:
 
 def joiners(main: str, top: str, train: dict, doc: dict) -> list[dict]:
     """The cars the round's draft would take now on the carrier's head, the train's own cars and declined heads left
-    out; none when the train or the first of them rides alone."""
+    out; none when the train or the first of them rides alone. A conflicting car never joins: it rides the next
+    train, which resolves it (plan 0522 D18)."""
     import trains  # the round's draft: loaded only when the wait looks for wagons
     default, carrier = default_ref(main), Path(top).name
     if any(gate_car.alone_why(main, default, c["head"]) for c in train["cars"]):
@@ -86,7 +87,7 @@ def joiners(main: str, top: str, train: dict, doc: dict) -> list[dict]:
                and (t.get("slot"), (t.get("ready") or {}).get("head")) not in declined]
     head = git(top, "rev-parse", "HEAD")[1]
     d = trains.draft(main, tickets, carrier, head, default, modes.of(doc))
-    return [] if d["alone"] else d["cars"]
+    return [] if d["alone"] else [c for c in d["cars"] if not c.get("conflict")]  # a conflict: the next train (D18)
 
 
 def join(top: str, main: str, train: dict, car: dict) -> tuple[int, str]:

@@ -42,11 +42,12 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
 
 
 def retry(repo: str, why: str, now: dt.datetime | None = None, skip_pretest: bool = False) -> Done:
-    main, _, train, _ = engine.here(repo)
+    main, _, train, top = engine.here(repo)
     if not train or train["state"] != "red":
         return 1, "no red train without open fix orders stands: nothing to land again (a fix is `tollman.py fixed`)"
     if skip_pretest:  # the session's word: this red is the Mac's (pretest_train.before_landing lets it through)
+        code, tree = engine.git(top, "rev-parse", "HEAD^{tree}")  # this tree only: a later fix is pretested (0522)
         train_state.append(main, "pretest", train["carrier"], now, train=train["train"], seconds=0, result="skipped",
-                           jobs=[], why=f"skipped by the session: {why}")
+                           jobs=[], why=f"skipped by the session: {why}", tree=None if code else tree or None)
     train_state.append(main, "retry", train["carrier"], now, train=train["train"], why=why)
     return 0, f"train {train['train']} lands again at the next round{' without its pretest' * skip_pretest}: {why}"

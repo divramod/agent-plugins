@@ -1,4 +1,5 @@
-"""Hal2 plan 0313 step 8 (D13): a trial-merge conflict only in generated files is no unhitch. The case of 2026-10-14
+"""Hal2 plan 0313 step 8 (D13): a trial-merge conflict only in generated files needs no resolve (plan 0522 D18: no
+conflict unhitches any more, its foreman resolves it in the train). The case of 2026-10-14
 (the tollman's train.jsonl, 11:04:57Z): fields 07 and 13 conflicted with the barn only in plans/uats.md, which
 every foreman writes again, and were unhitched by hand. On engine_farm's farm (a bare origin, no landing, D5), the
 map `.github/hal2-versions.toml` names a fake regenerator, `gen.py`, which writes plans/uats.md from the plans'
@@ -73,34 +74,35 @@ class GeneratedConflicts(Farm):
         self.assertEqual((line["commit"], line["files"]), (out(self.cw, "rev-parse", "HEAD"), ["plans/uats.md"]))
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "13"])
 
-    def test_a_conflict_in_generated_and_other_files_still_unhitches(self):
+    def test_a_conflict_in_generated_and_other_files_rides_to_be_resolved(self):
+        # Plan 0522 D18: no unhitch; the car rides and its foreman resolves the conflict in the train (resolve.py).
         self.commit(self.main, "vimPreset.ts", "base\n", push=True)
         self.plan_crop("05", "0005", {"vimPreset.ts": "five\n"})
         self.plan_crop("13", "0013")
         self.barn("0009", {"vimPreset.ts": "barn\n"})
         self.round()
-        self.assertEqual(self.last, [("unhitch", "run", "05"), ("unhitched", "relay", "05"), ("form", "run", "-")])
-        why = [e for e in train_state.lines(str(self.main)) if e["kind"] == "unhitched"][0]["why"]
-        self.assertEqual(why, "conflicts with the barn in plans/uats.md, vimPreset.ts")
-        self.assertEqual([c["field"] for c in self.train()["cars"]], ["13"])
+        self.assertEqual(self.last, [("form", "run", "-")])
+        self.assertEqual(self.train()["state"], "resolving")
+        self.assertEqual(self.train()["resolve"]["files"], ["plans/uats.md", "vimPreset.ts"])
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["05", "13"])
 
-    def test_a_conflict_in_the_hand_written_part_of_a_partly_generated_file_unhitches(self):
+    def test_a_conflict_in_the_hand_written_part_of_a_partly_generated_file_is_resolved_by_its_foreman(self):
         self.commit(self.main, "AGENTS.md", AGENTS.format(hand="base", rules="- a"), push=True)
         self.crop("05", {"AGENTS.md": AGENTS.format(hand="five", rules="- a")})
         self.barn("0009", {"AGENTS.md": AGENTS.format(hand="barn", rules="- a")})
         self.round()
-        self.assertEqual(self.last[:2], [("unhitch", "run", "05"), ("unhitched", "relay", "05")])
+        self.assertEqual((self.last, self.train()["state"]), ([("form", "run", "-")], "resolving"))
         conflict = "<<<<<<< ours\n{}\n=======\nb\n>>>>>>> x"
         self.assertTrue(generated.in_blocks(AGENTS.format(hand="h", rules=conflict.format("- a"))))
         self.assertFalse(generated.in_blocks(AGENTS.format(hand=conflict.format("h"), rules="- a")))
         self.assertTrue(generated.in_blocks("# UATs\n" + conflict.format("0007")), "generated whole")
 
-    def test_a_conflict_in_a_plan_s_uat_results_still_unhitches_its_verdicts_are_never_the_barn_s(self):
+    def test_a_conflict_in_a_plan_s_uat_results_is_resolved_by_its_foreman_its_verdicts_are_never_the_barn_s(self):
         self.commit(self.main, "plans/0001/uat-results.jsonl", '{"check": 1}\n', push=True)
         self.plan_crop("05", "0005", {"plans/0001/uat-results.jsonl": '{"check": 1}\n{"check": 2, "by": "05"}\n'})
         self.barn("0009", {"plans/0001/uat-results.jsonl": '{"check": 1}\n{"check": 2, "by": "barn"}\n'})
         self.round()
-        self.assertEqual(self.last[:2], [("unhitch", "run", "05"), ("unhitched", "relay", "05")])
+        self.assertEqual((self.last, self.train()["state"]), ([("form", "run", "-")], "resolving"))
         self.assertFalse(generated.only(str(self.main), "HEAD", ["plans/0001/uat-results.jsonl"]))
 
     def test_a_failing_regenerator_breaks_the_train_up_and_wakes_the_session_no_car_is_unhitched(self):

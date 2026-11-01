@@ -65,7 +65,8 @@ TO_SLOT = ("unhitched", "message", "note")  # the lines the tollman sends: their
 KEYS = ("id", "text", "cars", "run", "head", "status", "train", "commit")
 TEXT_MAX = 2000
 # What the tollman says unasked about the yard and an old transplant: a note on the board, never a message (D9)
-NOTES = ("yard-left", "yard-kept", "transplant-stale", "queue-leaver")  # queue-leaver: leavers.py (plan 0383)
+# queue-leaver: leavers.py (plan 0383); foreman-paused: a paused car's foreman an order needs (plan 0522 D21)
+NOTES = ("yard-left", "yard-kept", "transplant-stale", "queue-leaver", "foreman-paused")
 NOTES_OF = {"tollman": NOTES, "farmer": ("note",)}  # the log's `record` kinds that become a `note` line
 
 

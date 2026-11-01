@@ -17,9 +17,13 @@ its follow-up that stops the foreman after the landing): the tollman places no d
 tollman, so the skill change lands as a wagon like any other.
 
 In the tick `handler` plans one keyed `run` action of this script (a wake when it fails); a dry run executes none.
+Not while a train lands (`in_flight`, plan 0522 D16): the round that runs it holds tick.lock (192 s on 2026-10-31,
+while run 41167356202 went red), and the minute pass, which watches the land run and sends its fix orders, skips while
+the lock is held; the day's run waits for the first round without a landing.
 """
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import sys
@@ -143,11 +147,19 @@ def farm_delegate(repo: str, role: str, now: dt.datetime | None = None):
     return lambda action: delegation.delegate(action, main, limit, False, roletime.aware(now), values)
 
 
+def in_flight(main: str) -> bool:
+    """Whether a train lands now (its state `landing`: the landing's process and its land run), see the module doc."""
+    import train_state
+    with contextlib.suppress(OSError):
+        return (train_state.standing(train_state.lines(main)) or {}).get("state") == "landing"
+    return False
+
+
 def handler(item: dict, ctx: dict) -> list[dict]:
     """duty:learn: nothing when the run is stamped today, else one keyed run of this script; a failed run wakes."""
     role = ctx["wiring"].role
     role_dir, today = mtm_scan.state_dir(ctx["main"], role), today_utc(ctx["now"])
-    if stamped(role_dir) == today:
+    if stamped(role_dir) == today or (role == "tollman" and in_flight(ctx["main"])):
         return []
     argv = [sys.executable, str(Path(__file__).resolve()), "run", "--dir", str(role_dir), "--repo", ctx["top"],
             "--role", role, "--today", today]

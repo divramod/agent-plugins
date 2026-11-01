@@ -4,8 +4,10 @@ call started included. POSIX only, like engine.spawn (process groups, killpg).
 
 A job runs as merge-to-main.yml's gate action runs it (.github/actions/gate/action.yml): `gate/main.sh <job>` from the
 field's root with the plan entry's packages and targets and the range in its environment, and HAL2_GATE_NO_INSTALL
-(gate/tools.sh: `need` installs nothing on the user's Mac, it prints `gate: tool missing: <tool>` and fails). Its
-end: 0 green; the tool marker in its output, or a signal no one here sent: skipped; any other code red.
+(gate/tools.sh: `need` installs nothing on the user's Mac, it prints `gate: tool missing: <tool>` and fails), and
+HAL2_CLI_GIT when the pretest found the installed hal2-cli-git fit (pretest.installed_cli: no job builds it). Its
+end: 0 green; the tool marker in its output, or a signal no one here sent: skipped; any other code red. A job the
+deadline stops or never starts is cut: its why starts with BUDGET (pretest.judge: `incomplete`, never passed).
 
 Plan 0490 step 9: a job sees a runner's environment (CI_ENV: CI, GITHUB_ACTIONS, CARGO_INCREMENTAL=0; L114, L116,
 L120), unless its config says `ci_env = false` (the entry's `plain`: a job whose CI branch differs on a Mac, or that
@@ -27,6 +29,7 @@ import transient
 
 POLL = 0.1
 TOOL = "gate: tool missing:"
+BUDGET = "the budget ended"  # a cut job's why starts so
 CI_ENV = {"CI": "true", "GITHUB_ACTIONS": "true", "CARGO_INCREMENTAL": "0"}
 TIMEOUT = re.compile(r"Test timed out in \d+ ?ms|timed out after \d+ ?ms|Exceeded timeout of \d+ ?ms", re.IGNORECASE)
 OTHER = re.compile(r"AssertionError|AssertError|error TS\d+|error\[E\d+\]|SyntaxError|ReferenceError|panicked at|"
@@ -37,8 +40,9 @@ FLAKY = "a test timeout twice: load-flaky (flaky_brief.py place)"
 MAC = "the Mac's, not a car's (L101: brew reinstall the tool)"
 
 
-def environment(entry: dict, base: str, head: str) -> dict:
-    """What merge-to-main.yml's gate action exports for a job, and the gate's switch that installs nothing."""
+def environment(entry: dict, base: str, head: str, cli: str = "") -> dict:
+    """What merge-to-main.yml's gate action exports for a job, the gate's switch that installs nothing and the
+    installed hal2-cli-git (`cli`, when the pretest found it fit)."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("HAL_CHANGED_", "HAL_GATE_", "HAL_PACKAGE_"))}
     for key, name in (("packages", "HAL_CHANGED_PACKAGES"), ("targets", "HAL_CHANGED_TARGETS")):
         if entry.get(key, "*") != "*":
@@ -46,7 +50,7 @@ def environment(entry: dict, base: str, head: str) -> dict:
     if entry.get("plain"):  # a plain job runs as on the Mac, also when the pretest itself runs on a CI runner
         env = {k: v for k, v in env.items() if k not in CI_ENV}
     return {**env, **({} if entry.get("plain") else CI_ENV), "HAL_GATE_BASE": base, "HAL_GATE_HEAD": head,
-            "HAL2_GATE_NO_INSTALL": "1"}
+            "HAL2_GATE_NO_INSTALL": "1", **({"HAL2_CLI_GIT": cli} if cli else {})}
 
 
 def timeout_only(text: str) -> bool:
@@ -86,12 +90,13 @@ def call(argv: list[str], cwd: str, timeout: float, env: dict | None = None) -> 
     return p.returncode, out, err
 
 
-def start(top: str, gate: Path, e: dict, base: str, head: str, row: dict) -> subprocess.Popen | None:
+def start(top: str, gate: Path, e: dict, base: str, head: str, row: dict, cli: str = "") -> subprocess.Popen | None:
     """The job's process in a group of its own, its output in its row's file; None: it cannot start (why in row)."""
     try:
         with row["out"].open("a" if row.get("retries") else "w") as out:
             return subprocess.Popen(["bash", str(gate), e["job"]], cwd=top, stdin=subprocess.DEVNULL, stdout=out,
-                                    stderr=subprocess.STDOUT, env=environment(e, base, head), start_new_session=True)
+                                    stderr=subprocess.STDOUT, env=environment(e, base, head, cli),
+                                    start_new_session=True)
     except OSError as err:
         row["why"] = f"cannot start: {err}"
         return None
@@ -123,19 +128,20 @@ def again(row: dict) -> bool:
     """A red row whose output is only a test timeout, not run again yet: set back to wait for its second run."""
     if row.get("retries") or row.get("result") != "red" or not timeout_only(output(row)):
         return False
-    row.update(retries=1, state="skipped", result=None, why=f"{AGAIN}; the budget ended before it ran again")
+    row.update(retries=1, state="skipped", result=None, why=f"{BUDGET} before it ran again ({AGAIN})")
     return True
 
 
 def run_jobs(top: str, gate: Path, todo: list[dict], base: str, head: str, deadline: float, parallel: int,
-             scratch: Path, groups: dict | None = None, progress: dict | None = None) -> list[dict]:
+             scratch: Path, groups: dict | None = None, progress: dict | None = None, cli: str = "") -> list[dict]:
     """Each entry of `todo` as a gate job: its row {job, key, state, seconds, result, why, out}, at most `parallel`
-    at once, a job whose group ({job: group}) has one running waiting for it. The first red stops the rest; the
-    deadline stops all; whatever ends this (an exception, SIGTERM as SystemExit) stops every job still running.
-    `progress["red"]` names the red job as soon as it is known."""
+    at once, a job whose group ({job: group}) has one running waiting for it. A red stops nothing: every job runs, so
+    the pretest names every red at once (plan 0522 D14); the deadline stops all; whatever ends this (an exception,
+    SIGTERM as SystemExit) stops every job still running. `progress["red"]` names the first red job as soon as it is
+    known."""
     groups, progress, entries = groups or {}, progress if progress is not None else {}, {e["job"]: e for e in todo}
     rows = {e["job"]: {"job": e["job"], "key": e.get("key"), "state": "skipped", "seconds": 0, "result": None,
-                       "why": "the budget ended before it started", "out": scratch / f"{e['job']}.log"} for e in todo}
+                       "why": f"{BUDGET} before it started", "out": scratch / f"{e['job']}.log"} for e in todo}
     waiting, running, red, stopped = list(todo), {}, "", "the pretest ended while it ran"
     try:
         while True:
@@ -149,17 +155,15 @@ def run_jobs(top: str, gate: Path, todo: list[dict], base: str, head: str, deadl
                     red = red or ended
             if red:
                 progress["red"] = red
-            if red or time.monotonic() >= deadline:
-                stopped = f"stopped: {red} is red" if red else "the budget ended while it ran"
-                for e in waiting if red else []:
-                    rows[e["job"]]["why"] = f"not started: {red} is red"
+            if time.monotonic() >= deadline:
+                stopped = f"{BUDGET} while it ran"
                 break
             busy = {groups[j] for j in running if j in groups}
             while len(running) < parallel and (free := [e for e in waiting if groups.get(e["job"]) not in busy]):
                 e = free[0]
                 waiting.remove(e)
                 busy |= {groups[e["job"]]} if e["job"] in groups else set()
-                if p := start(top, gate, e, base, head, rows[e["job"]]):
+                if p := start(top, gate, e, base, head, rows[e["job"]], cli):
                     running[e["job"]] = (p, time.monotonic())
             if not running and not waiting:
                 break

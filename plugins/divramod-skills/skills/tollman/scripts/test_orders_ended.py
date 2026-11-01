@@ -33,6 +33,11 @@ from test_farmer import git
 from test_orders import Orders
 
 
+def green(sha, job="rust-test"):
+    """The gate's line for the heavy job green on `sha`: the proof `fixed` takes (plan 0522 D5)."""
+    return f"gate: {job} green at {sha[:12]}"
+
+
 class Ended(Train20):
     def ordered(self):
         """The round places 20's early order; 20's foreman pushes its fix and acks it."""
@@ -40,7 +45,8 @@ class Ended(Train20):
         sha = self.fix()
         ((_, msg),) = self.typed
         ack = msg.split("]")[0].removeprefix("tollman [")
-        self.assertEqual(acks.main(["ack", ack, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]), 0)
+        self.assertEqual(acks.main(["ack", ack, "done", "fixed", f"{sha}:", *green(sha).split(), "--repo", str(self.wm),
+                                    "--role", "tollman"]), 0)
         return sha
 
     def held(self):
@@ -55,7 +61,7 @@ class Ended(Train20):
     def test_l108_a_landing_stopped_by_signal_counts_as_ended_and_the_fix_merges(self):
         sha = self.ordered()
         self.alive.clear()  # the user's hold: the landing stopped by signal, no result, no red line
-        code, text = self.call("fixed", "20", sha)
+        code, text = self.call("fixed", "20", sha, "--proof", green(sha))
         self.assertEqual(code, 0, text)
         self.merged(sha)
         self.assertEqual(engine.red(str(self.cw), "interrupted")[0], 0)
@@ -71,21 +77,21 @@ class Ended(Train20):
         # orders' own clock only: patching time.sleep itself also caught subprocess's wait backoff on Linux
         clock = mock.Mock(wraps=orders.time, sleep=lambda s: waited.append(s) or self.alive.clear())
         with mock.patch.object(orders, "time", clock):
-            code, text = self.call("fixed", "20", sha)
+            code, text = self.call("fixed", "20", sha, "--proof", green(sha))
         self.assertEqual((code, waited), (0, [1]), text)
         self.merged(sha)
 
     def test_a_landing_whose_process_lives_and_whose_run_is_not_told_finished_still_waits(self):
         sha = self.ordered()
         with mock.patch.object(orders.time, "sleep", side_effect=AssertionError("no wait without the watch's word")):
-            code, text = self.call("fixed", "20", sha)
+            code, text = self.call("fixed", "20", sha, "--proof", green(sha))
         self.assertEqual(code, 1)
         self.assertIn("still runs", text)
 
     def test_a_landing_that_landed_is_never_taken_for_red(self):
         sha = self.ordered()
         self.ends({"status": "landed", "run": self.url, "commit": "c" * 40})
-        code, text = self.call("fixed", "20", sha)
+        code, text = self.call("fixed", "20", sha, "--proof", green(sha))
         self.assertEqual(code, 1)
         self.assertIn("the train landed", text)
         self.assertNotIn("red", [k for k, _ in self.state()])
@@ -142,7 +148,7 @@ class Redundant(Orders):
     def test_l56_a_redundant_order_closes_on_the_carrier_s_head_and_the_train_lands_again(self):
         self.assertEqual(self.call("order", "07", "--why", "records red")[0], 0)
         self.assertEqual(self.call("order", "09", "--why", "the same records red")[0], 0)
-        self.assertEqual(self.call("fixed", "07", self.fix("07"))[0], 0)
+        self.assertEqual(self.call("fixed", "07", (sha := self.fix("07")), "--proof", self.green(sha))[0], 0)
         head = out(self.cw, "rev-parse", "HEAD")
         self.assertEqual(self.call("fixed", "09")[0], 2, "neither a sha nor --redundant")
         code, text = self.call("fixed", "09", "--redundant")

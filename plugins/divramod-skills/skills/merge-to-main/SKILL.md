@@ -170,11 +170,13 @@ The tollman's message that this worktree is in the barn (or, seen by the session
 
 ### Unhitched
 
-The tollman's message that this worktree is unhitched, with the reason (a conflict with the default branch or
-a wagon ahead, or named as the cause of a red train), gives the work back: fix this worktree's own work (`/mfm`,
-resolve, reproduce and fix the red job, test), commit, push and hitch again. Never land it yourself instead.
+The tollman's message that this worktree is unhitched, with the reason (red light checks before it rode, or the
+user's own word), gives the work back: fix this worktree's own work (`/mfm`, reproduce and fix the red job, test),
+commit, push and hitch again. Never land it yourself instead.
 A red train's car is not unhitched but given a fix order (`<NN>-train-fix`, answered `fixed <sha>`):
-[references/tollman.md, "A fix order"](references/tollman.md#a-fix-order).
+[references/tollman.md, "A fix order"](references/tollman.md#a-fix-order). A conflicting car is not unhitched
+either but given a resolve order (`<NN>-train-resolve`, answered `resolved <sha>`; plan 0522 D18):
+[references/tollman.md, "A resolve order"](references/tollman.md#a-resolve-order).
 
 ## 1. Reserve the merge queue
 

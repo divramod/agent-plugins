@@ -217,11 +217,34 @@ class ProcReviewTest(unittest.TestCase):
         import sys
         import time
         import proc
-        code = ("import subprocess,sys;subprocess.Popen([sys.executable,'-c','import time;time.sleep(20)'],"
-                "start_new_session=True);import time;time.sleep(30)")
+        import os
+        import signal
+        import subprocess
+        import tempfile
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        pidfile = Path(scratch.name) / "grandchild"
+        code = ("import subprocess,sys;p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(300)'],"
+                f"start_new_session=True);open({str(pidfile)!r},'w').write(str(p.pid));import time;time.sleep(300)")
+        popen = subprocess.Popen
+
+        class Ready(popen):
+            """The run's limit starts once the child has started its grandchild: a slow start is no early timeout."""
+
+            def communicate(self, input=None, timeout=None):
+                if timeout is not None and not getattr(self, "met", False):
+                    self.met, end = True, time.monotonic() + 120
+                    while not pidfile.exists() and self.poll() is None and time.monotonic() < end:
+                        time.sleep(0.01)
+                return super().communicate(input, timeout)
+
         self.assertEqual(proc.DRAIN, 5)
-        start = time.monotonic()
-        with mock.patch.object(proc, "DRAIN", 0.2):  # the drain's length is not the point: that it ends is
+        with mock.patch.object(proc, "DRAIN", 0.2), mock.patch.object(proc.subprocess, "Popen", Ready):
             run = proc.run([sys.executable, "-c", code], cwd=None, env=None, timeout=1)
         self.assertTrue(run["timed_out"])
-        self.assertLess(time.monotonic() - start, 12)
+        # The grandchild still lives: the run ended without waiting for it (an event, not a wall time: plan 0532 step 16).
+        grandchild = int(pidfile.read_text())
+        try:
+            os.kill(grandchild, 0)
+        finally:
+            os.kill(grandchild, signal.SIGKILL)

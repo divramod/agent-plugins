@@ -202,7 +202,7 @@ def run(message: str, repo_dir: str, dry: bool = False) -> tuple[int, str]:
     import mtm_scan
     main = mtm_scan.main_checkout(repo_dir)
     log = mtm_scan.entries(mtm_scan.state_dir(main) / "log.jsonl")
-    trees = {Path(w["path"]).name: w["path"] for w in mtm_scan.worktrees(main)}
+    trees = {Path(w["path"]).name: w["path"] for w in mtm_scan.field_worktrees(main)}
     code, text, entry = check(message, Path(main).name, log, trees)
     if entry and not dry:
         mtm_scan.log(main, entry)

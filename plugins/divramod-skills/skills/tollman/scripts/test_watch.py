@@ -70,8 +70,9 @@ class Watch(unittest.TestCase):
                     logs={"501": "test hub::tenant_rls ... FAILED\nassertion failed"})
         first = self.watch(gh)
         self.assertEqual(shape(first), [("train-run", "run", f"train-run:{NAME}:501"),
+                                        ("early-red", "record", "early-red:501:d1-01-rust-test"),  # 0522 D17
                                         ("train-red", "wake", "train-red:501")])
-        wake = first[1]
+        wake = first[2]
         for part in (f"train {NAME} is red while it lands", "d1-01-rust-test", OURS["url"],
                      "Cars: 07 (0360-tollman-and-skills), 09 (09).", "tollman.py triage 501"):
             self.assertIn(part, wake["text"])

@@ -165,7 +165,7 @@ def subservant_refusal(w: dict, lead: dict, ctx: dict, agents: list[dict] | None
 def slots(main: str) -> list[dict]:
     """The repository's numbered worktrees (path, `slot`, head)."""
     out = []
-    for w in mtm_scan.worktrees(main, heads=True):
+    for w in mtm_scan.field_worktrees(main, heads=True):
         name = Path(w["path"]).name
         if NUMBERED.fullmatch(name):
             head = w["head"] if "head" in w else git(w["path"], "rev-parse", "HEAD")

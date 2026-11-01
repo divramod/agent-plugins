@@ -2,19 +2,24 @@
 their message or wake done at once by the frame's `tick.execute` (stamped with an ack id, logged under its key, so
 no round sends it again), wakes handed to the session's wake.json as a round's (`wake.hand_over`).
 
-  tollman.py order <field>|main --why <text> [--run <url>] [--smuggle] [--post <train>] [--repo <dir>]
-  tollman.py fixed <field>|main <sha> [--repo <dir>]
+  tollman.py order <field>|main --why <text> [--run <url>] [--job <gate job>]... [--smuggle] [--post <train>]
+                   [--repo <dir>]
+  tollman.py fixed <field>|main <sha> [--proof <the answer's green lines>] [--unproven <why>] [--repo <dir>]
   tollman.py fixed <field> --redundant [--repo <dir>]    its fix is in the train already (L56)
 
 `main` with no train standing is own_fix.py's: the fix becomes the first car of the next train (plan 0360 step 8).
 `--smuggle`: the field is a smuggle's, no car (a resume conflict or a smuggled red, smuggled.py, plan 0360 step 18).
 `--post <train>`: a car of that landed train is red after its merge; the order rides the train that stands, never
 holds it (post_merge.py, plan 0383 step 6).
+`--job`: a gate job the fix must turn green (else those the `--why` or the train's red names); `fixed` takes the sha
+only proven green: a light job run here on it, a heavy one by its `gate: <job> green at <sha>` line in `--proof`;
+`--unproven <why>` is the session's word without proof (fix_proof.py, plan 0522 D5).
 """
 
 import datetime as dt
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import foreman_wake
 import mtm_scan
 import orders
 import roletime
@@ -32,17 +37,21 @@ def add_parser(sub) -> None:
     o.add_argument("--run")
     o.add_argument("--smuggle", action="store_true", help="the field smuggled; it rides no car (plan 0360 step 18)")
     o.add_argument("--post", help="the landed train whose run is red after its merge (plan 0383 step 6)")
+    o.add_argument("--job", action="append", default=[], help="a gate job the fix must turn green (plan 0522 D5)")
     f = sub.add_parser("fixed")
     f.add_argument("field")
     f.add_argument("sha", nargs="?")
+    f.add_argument("--proof", default="", help="the answer's text: its `gate: <job> green at <sha>` lines")
+    f.add_argument("--unproven", default="", help="the session's why for taking the fix without proof")
     f.add_argument("--redundant", action="store_true",
                    help="its fix is in the train already: closed on the carrier's head (L56)")
 
 
 def deliver(top: str, main: str, actions: list[dict], ctx: dict, wiring) -> None:
-    """The verb's actions done as a round does them (chain.link's way)."""
+    """The verb's actions done as a round does them (chain.link's way); an order to a field without a session
+    starts it first, a paused field's goes to the farmer (foreman_wake.py, plan 0522 D21)."""
     out: dict = {}
-    for a in tick.fresh(actions, ctx["log"], ctx["now"], wiring.role):
+    for a in tick.fresh(foreman_wake.gate(actions, ctx), ctx["log"], ctx["now"], wiring.role):
         tick.execute(a, top, main, out, wiring)
     if any(out.get(k) for k in wake.KINDS):
         wake.hand_over(top, main, out, ctx["now"], wiring)
@@ -57,13 +66,14 @@ def main(args, wiring) -> int:
     if args.cmd == "order":
         code, text, actions = (own_fix.order(top, args.why, args.run) if own else
                                orders.order(carrier, args.field, args.why, args.run, ctx["panes"],
-                                                 smuggle=args.smuggle, post=args.post))
+                                                 smuggle=args.smuggle, post=args.post, jobs=args.job))
     else:
         if not (args.sha or args.redundant):
             print("fixed needs <sha> or --redundant")
             return 2
         code, text, actions = (own_fix.fixed(top, args.sha) if own else
-                               orders.fixed(carrier, args.field, args.sha, ctx["panes"], redundant=args.redundant))
+                               orders.fixed(carrier, args.field, args.sha, ctx["panes"], proof=args.proof,
+                                            unproven=args.unproven, redundant=args.redundant))
     deliver(top, main_dir, actions, ctx, wiring)
     print(text)
     return code

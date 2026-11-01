@@ -197,7 +197,13 @@ class PostMergeRed(Trains):
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["03"], "a later hitch waits for the next train")
         sha = self.fix()
         ack = msg.split("]")[0].removeprefix("tollman [")
-        self.assertEqual(acks.main(["ack", ack, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]), 0)
+        argv = ["ack", ack, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]
+        self.assertEqual(acks.main(argv), 0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            (line,) = next_train.merge_posts(str(self.cw), str(self.main), self.train())
+        self.assertIn("carries no `gate: <job> green at", line, "plan 0522 D5: the landing takes no unproven fix")
+        green = f"{sha}: gate: rust-test green at {sha[:12]}".split()  # the heavy job's line (plan 0522 D5)
+        self.assertEqual(acks.main([*argv[:4], *green, *argv[5:]]), 0)
         code, text = self.call("fixed", "20", sha)
         self.assertEqual(code, 1)
         self.assertIn("the landing merges it before its run starts", text)

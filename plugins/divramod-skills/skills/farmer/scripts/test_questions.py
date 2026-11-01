@@ -38,13 +38,14 @@ class Base(unittest.TestCase):
         self.state = self.dir / "state"
         self.folder = self.state / "hal2"
         self.main = self.dir / "hal2"
+        self.fields = self.dir / ".hal" / "git" / "worktree" / "hal2"  # the field root: only fields count (0539)
         git_seed.guard(self)
         git_seed.grow(self.dir, "test_questions.Base", self.grow)
         old, mtm_scan.DATA = mtm_scan.DATA, self.state
         self.addCleanup(setattr, mtm_scan, "DATA", old)
 
     def slot(self, name, text=None):
-        path = self.dir / "slots" / name
+        path = self.fields / name
         git(self.main, "worktree", "add", "-q", "-b", name, str(path))
         if text is not None:
             (path / "QUESTIONS.md").write_text(text)
@@ -183,7 +184,7 @@ class Joined(Base):
         self.assertIn("Answer (", out)
         _, out, _ = self.call("questions", "l")
         self.assertTrue(out.startswith("6 questions in 5 worktrees, 5 open\n"), out)
-        (self.dir / "slots" / "05" / "QUESTIONS.md").unlink()
+        (self.fields / "05" / "QUESTIONS.md").unlink()
         (self.main / "QUESTIONS.md").unlink()
         (self.folder / "log.jsonl").unlink()
         questions.close(self.folder, 2, "dropped")
@@ -191,7 +192,7 @@ class Joined(Base):
         self.assertEqual(self.call("questions", "a")[1].split("\n")[0], "1 answered question in 1 worktree")
 
     def test_json_and_an_unreadable_store_is_named(self):
-        (self.dir / "slots" / "02" / "QUESTIONS.md").write_text("## Q1 broken\n")
+        (self.fields / "02" / "QUESTIONS.md").write_text("## Q1 broken\n")
         _, out, _ = self.call("questions", "--json")
         data = json.loads(out)
         self.assertEqual((data["mode"], data["open"], data["slots"]), ("open", 6, 5))

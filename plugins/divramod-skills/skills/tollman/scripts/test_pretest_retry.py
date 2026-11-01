@@ -12,7 +12,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import pretest
 import pretest_jobs
-from pretest_stub import FieldCase, config
+from pretest_stub import EventClock, FieldCase, config
 
 VITEST = """ FAIL  src/sync.test.ts > sync > merges
 Error: Test timed out in 5000ms.
@@ -52,10 +52,13 @@ class Timeouts(FieldCase):
         self.assertEqual((r["result"], r["jobs"][0]["why"]), ("red", "exit 1"))
         self.assertEqual(self.stub.ran().count("python-lint"), 1)
 
-    def test_a_rerun_the_budget_does_not_reach_is_skipped_never_red(self):
-        self.stub.job("python-lint", once_then("seen", f"sleep 1; cat <<'X'\n{VITEST}X\ncode=1", "sleep 30"))
-        r = self.run_it(["python-lint"], budget=2.5)
-        self.assertEqual((r["result"], self.states(r)), ("skipped", [("python-lint", "skipped", None)]))
+    def test_a_rerun_the_budget_does_not_reach_is_incomplete_never_red(self):
+        self.stub.job("python-lint", once_then("seen", f"cat <<'X'\n{VITEST}X\ncode=1", "sleep 300"))
+        # The budget ends once the rerun runs (its second call), however slow the machine (plan 0532 step 16).
+        clock = EventClock(lambda: self.stub.ran().count("python-lint") >= 2)
+        with mock.patch.object(pretest, "time", clock), mock.patch.object(pretest_jobs, "time", clock):
+            r = self.run_it(["python-lint"], budget=300)  # cut by the budget: not green, the push waits (plan 0522 D7)
+        self.assertEqual((r["result"], self.states(r)), ("incomplete", [("python-lint", "skipped", None)]))
         self.assertEqual(r["jobs"][0]["why"], "the budget ended while it ran")
 
     def test_timeout_only_by_its_lines(self):

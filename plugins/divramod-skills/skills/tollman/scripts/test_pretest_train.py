@@ -43,6 +43,7 @@ class Landing(Farm):
         self.stub = Stub(self.tmp / "gate")
         for p in (mock.patch.object(pretest, "GATE", str(self.stub.main)),
                   mock.patch.object(pretest, "salt", return_value="s"),
+                  mock.patch.object(pretest, "installed_cli", return_value=""),
                   mock.patch.object(local_load, "probe", side_effect=lambda: next(self.probes)),
                   mock.patch.object(engine, "LAND", [sys.executable, "-c", "open(__import__('sys').argv[1], 'w')",
                                                      str(self.tmp / "landed")])):
@@ -76,7 +77,7 @@ class Landing(Farm):
     def red(self):
         """A red pretest of python-lint, whose range is car 07's: the landing's result, settled as a red train."""
         config(self.cw / pretest.CONFIG, ["python-lint", "bash-lint"])
-        self.stub.job("python-lint", "echo 'E501 line too long'; code=1")
+        self.stub.job("python-lint", "echo 'x.py:3:1: E501 line too long'; code=1")
         self.stub.selects(["python-lint"], head=self.gate.of("07")["ready"]["head"])
         self.stub.selects(["bash-lint"], head=self.gate.of("09")["ready"]["head"])
         code, out = self.land()
@@ -89,8 +90,10 @@ class Landing(Farm):
     def test_a_red_pretest_stops_the_push_and_names_the_car(self):
         result, r = self.red()
         log = str(self.wm_state / pretest_train.LOG)
-        self.assertEqual(result, {"status": "pretest_red", "red": [{"name": "python-lint", "log": log}],
-                                  "suspects": ["07"], "message": "pretest: python-lint red, car 07"})
+        self.assertEqual(result, {"status": "pretest_red", "red": [{"name": "python-lint", "log": log,
+                                                                    "line": "x.py:3:1: E501 line too long",
+                                                                    "suspects": ["07"]}],
+                                  "suspects": ["07"], "message": "pretest: python-lint red (car 07)"})
         self.assertIn("E501 line too long", Path(log).read_text())
         (line,) = self.pretests()
         self.assertEqual((line["slot"], line["result"], [j["job"] for j in line["jobs"]]),
@@ -98,7 +101,7 @@ class Landing(Farm):
         self.assertEqual(self.roles_check(), [], "the pretest line, its log and its markers as the manifest declares")
         self.assertEqual(self.last, [("red", "run", "-"), ("train-failed", "wake", "-")])
         (wake,) = r["wake"]
-        self.assertIn("did not land (pretest_red): python-lint, suspects: 07.", wake["text"])
+        self.assertIn("did not land (pretest_red): python-lint (car 07).", wake["text"])
         self.round()
         self.assertEqual((self.last, self.train()["state"]), ([], "red"), "pretest_red never restarts by itself")
 
@@ -108,6 +111,26 @@ class Landing(Farm):
         code, out = self.land()
         self.assertEqual((code, [e["result"] for e in self.pretests()]), (0, ["red", "green"]))
         self.assertTrue((self.tmp / "landed").exists())
+
+    def test_two_reds_of_two_cars_are_named_at_once_each_with_its_line_and_car(self):
+        # plan 0522 D14: the pretest stopped at its first red; the second came only with the next pretest
+        config(self.cw / pretest.CONFIG, ["python-lint", "bash-lint"])
+        self.stub.job("python-lint", "echo 'x.py:3:1: E501 line too long'; code=1")
+        self.stub.job("bash-lint", "echo 'x.sh:3:5: note: Double quote to prevent globbing [SC2086]'; code=1")
+        self.stub.selects(["python-lint"], head=self.gate.of("07")["ready"]["head"])
+        self.stub.selects(["bash-lint"], head=self.gate.of("09")["ready"]["head"])
+        code, out = self.land()
+        result = json.loads(out.splitlines()[-1])
+        self.assertEqual(code, 1)
+        self.assertEqual([(j["name"], j.get("line"), j["suspects"]) for j in result["red"]],
+                         [("python-lint", "x.py:3:1: E501 line too long", ["07"]),
+                          ("bash-lint", "x.sh:3:5: note: Double quote to prevent globbing [SC2086]", ["09"])])
+        self.assertEqual((result["suspects"], result["message"]),
+                         (["07", "09"], "pretest: python-lint red (car 07), bash-lint red (car 09)"))
+        self.ends(result)
+        r = self.round()
+        (wake,) = r["wake"]
+        self.assertIn("did not land (pretest_red): python-lint (car 07), bash-lint (car 09).", wake["text"])
 
     def test_retry_skip_pretest_lands_a_train_whose_red_is_the_macs(self):
         self.red()
@@ -150,6 +173,55 @@ class Landing(Farm):
         self.assertEqual(self.land()[0], 0, "a restart of the same train adopts its landing")
         self.assertEqual((len(self.pretests()), self.stub.calls()), (1, []))
 
+    def fix(self, name="fix.txt"):
+        """A fix merged into the carrier after the pretest (a fix order's merge): a new tree."""
+        (self.cw / name).write_text("fixed\n")
+        sh = lambda *a: subprocess.run(["git", *a], cwd=self.cw, check=True, capture_output=True)  # noqa: E731
+        sh("add", name)
+        sh("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "fix")
+
+    def test_a_fix_merged_after_the_pretest_is_pretested_again(self):
+        # plan 0522 gap: train 32 was pretested once (15:46) and started eight more times with its fixes, untested
+        config(self.cw / pretest.CONFIG, ["python-lint"])
+        self.assertEqual(self.land()[0], 0)
+        self.assertEqual(self.land()[0], 0, "the same tree: the restart adopts")
+        self.assertEqual([e["result"] for e in self.pretests()], ["green"])
+        self.assertTrue(self.pretests()[0]["tree"])
+        self.fix()
+        self.stub.job("python-lint", "code=1")
+        self.stub.entries([{"job": "python-lint", "key": "k2", "packages": "*", "targets": "*", "timeout": 10}])
+        code, out = self.land()
+        self.assertEqual((code, [e["result"] for e in self.pretests()]), (1, ["green", "red"]))
+        self.assertEqual(json.loads(out.splitlines()[-1])["status"], "pretest_red")
+        self.assertEqual(self.roles_check(), [], "the `tree` key as the manifest's schema declares it")
+
+    def test_a_skipped_pretest_covers_only_its_tree(self):
+        self.red()
+        self.call("retry", "--skip-pretest", "--why", "fails on this Mac only")
+        self.round()
+        self.assertEqual(self.land()[0], 0, "the session's skip: this tree lands without a pretest")
+        self.fix()
+        self.assertEqual(self.land()[0], 1, "a new tree is pretested: python-lint is still red")
+        self.assertEqual([e["result"] for e in self.pretests()], ["red", "skipped", "red"])
+
+    def test_an_incomplete_pretest_holds_the_push_and_starts_again_then_wakes(self):
+        # plan 0522 D7 gap: a cut job or a gate that did not answer was `skipped` and the push went
+        config(self.cw / pretest.CONFIG, ["python-lint"])
+        (self.stub.dir / "list-fails").touch()
+        for n in range(pretest_train.WAITS + 1):
+            code, out = self.land()
+            self.assertEqual(code, 1)
+            self.assertFalse((self.tmp / "landed").exists(), "nothing pushed")
+            result = json.loads(out.splitlines()[-1])
+            self.assertEqual(result["status"], pretest_train.INCOMPLETE)
+            self.ends(result)
+            self.round()
+            if n < pretest_train.WAITS:
+                self.assertEqual(self.last, [("restart", "run", "-")], f"wait {n + 1}: started again")
+        self.assertEqual(self.last, [("red", "run", "-"), ("train-failed", "wake", "-")], "then the session decides")
+        self.assertEqual(self.train()["state"], "red")
+        self.assertEqual(self.roles_check(), [])
+
     def test_the_pretest_line_carries_what_the_local_phase_cost(self):
         self.assertEqual(self.land()[0], 0)
         (line,) = self.pretests()
@@ -171,6 +243,18 @@ class Blame(unittest.TestCase):
     def blame(self, **patch):
         with mock.patch.object(pretest, "git", return_value="base"), mock.patch.object(pretest, "plan", **patch):
             return pretest_train.blame("/nowhere", self.TRAIN, "python-lint", "origin/main", yard="c0ffee")
+
+    def test_every_red_gets_its_own_cars_from_one_gate_plan_per_car(self):
+        plans = []
+
+        def plan(top, gate, start, head, left):
+            plans.append(head)
+            return {"python-lint": {}} if head == "a" else {"bash-lint": {}, "python-lint": {}}
+
+        with mock.patch.object(pretest, "git", return_value="base"), mock.patch.object(pretest, "plan", plan):
+            named = pretest_train.blame_all("/nowhere", self.TRAIN, ["python-lint", "bash-lint", "lua-test"], "main")
+        self.assertEqual(named, {"python-lint": ["07", "09"], "bash-lint": ["09"], "lua-test": ["07", "09"]})
+        self.assertEqual(plans, ["a", "b"], "one plan per car, not one per red")
 
     def test_the_cars_whose_range_selects_the_job(self):
         self.assertEqual(self.blame(side_effect=lambda top, gate, start, head, left: {"python-lint": {}}

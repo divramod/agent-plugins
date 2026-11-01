@@ -11,7 +11,8 @@ returns each round for a live landing, which it left alone before.
    train.jsonl (`watch.py run <url>`, an action), and later rounds read it from there (train_state.land_run).
    After a smuggle's pause (pause.py) the run is looked for again among those created since the pause began.
 2. Its jobs (`gh run view <id> --json jobs`, the round's shared fetch, gh_runs); the red ones by mtm_ci.red_jobs
-   (fail-fast cancels, ship, build and stop jobs left out). At the first red job: triage (triage.py); a runner fault
+   (fail-fast cancels, ship, build and stop jobs left out). Each red job: triage (triage.py; each on its own log, once
+   per run, plan 0522 D16, D17: early_order.py); a runner fault
    wakes nobody (trains.settle retries it once the landing has ended red), nor does a pause's cancel or a smuggle's
    red (settle orders the smuggling field, plan 0360 step 18); a car's red whose triage names exactly one car is
    that car's fix order by code while the run runs (early_order.py, plan 0383 step 5, D5), the barn's red or an

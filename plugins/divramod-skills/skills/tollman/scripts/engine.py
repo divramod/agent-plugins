@@ -17,9 +17,9 @@ its `run` actions; none waits for CI.
       generated files takes the barn's side, and the train's last commit writes them again (generated.py, plan 0313
       step 8; a command that fails undoes the forming too)
   engine.py restart [--repo <field>]
-      under the hold (hold.py, read again: L88) nothing; else mark the train (`queue train`), start its landing
-      detached (`land` stamps its pid on the mark, D2; output train-landing.log); also after an interrupted landing,
-      the session's `retry` (one empty commit: a fresh run) and a train never started (frozen.complete first)
+      under the hold (hold.py, L88) nothing; else mark the train (`queue train`), start its landing detached (`land`
+      stamps its pid, D2); also after an interrupted landing, a `retry` (one empty commit) and a train never started
+      (frozen.complete first); 75 while the last start's process lives after its red was taken (plan 0522 D17)
   engine.py land [--land-ref <train-...>] [--repo <field>]
       the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
       `pretest_red` and no landing starts), then the wait until the land run before has finished and the answered
@@ -38,7 +38,7 @@ its `run` actions; none waits for CI.
       holds released, the field back on the head it had before the cars, and its remote branch too (carrier.py)
   engine.py unhitch <field> ... | retry ...      a car, a red train (engine_car.py)
 
-Exit 0 done (also nothing to do), 1 the change was refused or failed (the tick wakes the session).
+Exit 0 done (also nothing to do), 1 the change was refused or failed (the tick wakes the session), 75 waits (OFFLINE).
 """
 
 import argparse
@@ -65,7 +65,7 @@ import train_wt
 import workqueue_hold
 from carrier import Done, git, push_base
 from engine_yard import load_yard, settle_yard
-from tick import default_ref
+from tick import OFFLINE, default_ref
 from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
 
 planread = load("plan", "planread", __file__)  # the plan store's sync trigger (hal2 plan 0409 step 9)
@@ -155,8 +155,9 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
     main, field, train, top = here(top)
     if not train or (gone := train_wt.astray(top, train)):
         return 1, gone if train else "no train stands: nothing to land"
-    if train["state"] == "landing" and train_state.alive(train["pid"]):
-        return 0, f"train {train['train']}: its landing runs (pid {train['pid']})"
+    if train_state.alive(pid := train["pid"]):  # its landing runs, or still ends after a red taken from its run (D17)
+        return (0, f"train {train['train']}: its landing runs (pid {pid})") if train["state"] == "landing" else (
+            OFFLINE, f"train {train['train']}: its last landing (pid {pid}) still ends: never a second one beside it")
     if held := hold.of(main):  # L88: read again right before the start, never the round's earlier reading
         return 0, f"train {train['train']} not started: {hold.text(held)}"
     code, commit = fresh(top, train) if train["state"] == "retry" and not train["fixed"] else (0, None)  # a fix merged

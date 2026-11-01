@@ -11,8 +11,8 @@ import train_state
 
 LONG_AGO = roletime.parse("1970-01-01T00:00:00Z")
 
-STATE = {"formed": "formed", "started": "landing", "red": "red", "order": "fixing", "fixed": "fixing",
-         "pause": "paused by a smuggle", "resumed": "landing", "retry": "lands again", "landed": "in the barn", "cleared": "broken up"}
+STATE = {"formed": "formed", "resolving": "resolving", "resolved": "formed", "started": "landing", "red": "red",
+         "order": "fixing", "fixed": "fixing", "pause": "paused by a smuggle", "resumed": "landing", "retry": "lands again", "landed": "in the barn", "cleared": "broken up"}
 
 
 def of(main: str, r: dict, since: str, wiring) -> list[str]:

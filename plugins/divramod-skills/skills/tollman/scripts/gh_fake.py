@@ -16,10 +16,12 @@ class FakeGh:
     one runs read of a round) answers in the API's shape and `gh run list` as they are; `jobs`: {run id: its jobs};
     `logs`: {run id: its failed log}; `parents`: {commit: [its parents]}; `runners`: the rows of `gh api
     .../actions/runners` (None: GitHub does not answer); `api_jobs`: {run id: its jobs as `gh api .../runs/<id>/jobs`
-    lists them (id, name, status, labels, created_at)}. `calls`: every gh command asked."""
+    lists them (id, name, status, labels, created_at)}; `job_logs`: {job id: its whole log as `gh api
+    .../actions/jobs/<id>/logs` gives it, also while its run runs}. `calls`: every gh command asked."""
 
-    def __init__(self, runs=(), jobs=None, logs=None, parents=None, runners=None, api_jobs=None):
+    def __init__(self, runs=(), jobs=None, logs=None, parents=None, runners=None, api_jobs=None, job_logs=None):
         self.runs, self.jobs, self.logs = list(runs), dict(jobs or {}), dict(logs or {})
+        self.job_logs = dict(job_logs or {})
         self.runners, self.api_jobs = runners, dict(api_jobs or {})
         self.parents, self.calls = dict(parents or {}), []
         self._run = mtm_scan.run
@@ -59,6 +61,8 @@ class FakeGh:
             return self._run(args, cwd)
         self.calls.append(list(args))
         pass_timing.count_gh(args)
+        if args[1] == "api" and "/actions/jobs/" in args[2]:
+            return self.job_logs.get(args[2].split("/actions/jobs/")[1].split("/")[0], "")
         return self.logs.get(str(args[3]), "") if args[-1] == "--log-failed" else ""
 
     def start(self, case):

@@ -49,6 +49,7 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
              "docker-publish-github-runner-image",
              # Plan 0349's jobs after the merge (its graph's column 04).
              "git-pull-main", "rust-install-apps-mac", "ts-install-desktop-mac", "git-deliver-record",
+             "install-mac",  # plan 0544 D7: the pull and the two installs as one job's steps
              "agents-publish", "tmux-publish-mac", "tmux-publish-linux", "nvim-publish",
              "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host",
              "hub-deploy"}  # the hub's deploy on mac-host-b (plan 0349 step 35)

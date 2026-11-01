@@ -166,18 +166,17 @@ class Proof(unittest.TestCase):
         for name in ("train.jsonl", "board.jsonl", "log.jsonl"):
             self.assertFalse((self.wm / "roles/tollman" / name).exists(), name)
 
-    def test_3_a_crop_that_conflicts_with_a_car_is_unhitched_in_the_dry_run_with_its_reason(self):
+    def test_3_a_crop_that_conflicts_with_a_car_rides_in_the_dry_run_with_its_files(self):
+        # Plan 0522 D18: every hitched wagon rides; its foreman resolves the conflict in the train.
         self.cli(self.fields["11"], "worktree", "queue", "ready")
         self.addCleanup(self.cli, self.yard, "worktree", "queue", "ready", "11", "--clear")
         before = self.farm()
         d = self.dry_run("--json")
-        self.assertEqual([c["field"] for c in d["cars"]], ["07", "09"], "the rest rides")
-        self.assertEqual(len(d["unhitched"]), 1, d["unhitched"])
-        gone = d["unhitched"][0]
-        self.assertEqual((gone["field"], gone["head"], gone["tell"], gone["files"], gone["ahead"]),
-                         ("11", self.heads["11"], "conflict", ["seven.txt"], ["07", "09"]), "clean on the barn alone")
-        self.assertEqual(gone["why"], "conflicts with the cars ahead in seven.txt")
-        self.assertIn("unhitched: 11: conflicts with the cars ahead in seven.txt", self.dry_run())
+        self.assertEqual(([c["field"] for c in d["cars"]], d["unhitched"]), (["07", "09", "11"], []), "all ride")
+        eleven = d["cars"][2]
+        self.assertEqual((eleven["head"], eleven["conflict"], eleven["ahead"]),
+                         (self.heads["11"], ["seven.txt"], ["07", "09"]), "clean on the barn alone")
+        self.assertIn(f"11 (11, {self.heads['11'][:12]}, to resolve in the train: seven.txt)", self.dry_run())
         self.assertEqual(self.farm(), before, "the dry run only names it")
         self.assertEqual([(t["slot"], bool(t["ready"])) for t in self.queue()],
                          [("07", True), ("09", True), ("11", True)], "its ticket is still marked ready")
@@ -209,8 +208,9 @@ class Proof(unittest.TestCase):
         self.cli(self.fields["11"], "worktree", "queue", "ready")  # the hitch, at the reserved place
         self.addCleanup(self.cli, self.yard, "worktree", "queue", "ready", "11", "--clear")
         d = self.dry_run("--json")
-        self.assertEqual(([c["field"] for c in d["cars"]], [u["field"] for u in d["unhitched"]], d["waiting"]),
-                         (["11", "09"], ["07"], []), "11 rides first, and now 07 is the one that conflicts")
+        self.assertEqual(([c["field"] for c in d["cars"]], d["unhitched"], d["waiting"]),
+                         (["11", "07", "09"], [], []), "11 rides first, and now 07 is the one that conflicts")
+        self.assertEqual(d["cars"][1]["conflict"], ["seven.txt"], "07 rides in its place, to resolve in the train (D18)")
 
 
 if __name__ == "__main__":

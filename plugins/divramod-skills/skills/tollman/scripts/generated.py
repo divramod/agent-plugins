@@ -57,7 +57,7 @@ def generates(found: list[dict], path: str) -> bool:
 
 def in_blocks(text: str) -> bool:
     """Every conflict of a merged file lies in a generated block (`<!-- generated: <name> -->` to `<!-- /generated
-    -->`: INTENT.md's log, AGENTS.md's Rules); a file without such a block is generated whole. A conflict in the
+    -->`: INTENT.md's log, the Rules block of RULES.md or AGENTS.md); a file without such a block is generated whole. A conflict in the
     hand-written part of such a file is a person's, never taken from the barn."""
     lines = text.splitlines()
     if not any(line.strip().startswith("<!-- generated:") for line in lines):

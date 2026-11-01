@@ -182,7 +182,7 @@ def slot_entries(main: str, mode: str) -> tuple[list[dict], list[str]]:
     qm = sibling("q_skill", Q_SCRIPTS, "q.py")
     if qm is None or getattr(qm, "questions", None) is None:
         return [], []
-    slots = [(Path(w["path"]).name, Path(w["path"])) for w in mtm_scan.worktrees(main) if not Path(w["path"]).name.startswith(".")]
+    slots = [(Path(w["path"]).name, Path(w["path"])) for w in mtm_scan.field_worktrees(main) if not Path(w["path"]).name.startswith(".")]
     out, problems = [], []
     for name, root in slots + [("main", Path(main))]:
         path = qm.store_of(root)

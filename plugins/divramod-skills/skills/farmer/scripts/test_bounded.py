@@ -1,7 +1,11 @@
 """bounded.run: a time limit and one retry on every git/gh call of a tick (hal2 plan 0480 step 06.01, L63).
 
 Fake `git`, `gh` and `hal2-cli-git` programs sit first on PATH in a scratch folder; every limit is a tiny one, so no
-test sleeps for real. A stalled fake leaves a `sleep` child behind that the test proves dead."""
+test sleeps for real. A stalled fake leaves a `sleep` child behind that the test proves dead.
+
+No test depends on the machine's speed (plan 0532 step 16, stall_fake.py): a stalled fake's tiny limit starts only
+once it stalls, a fake that answers gets GUARD, a bound it never meets, and a cut stall is proven by its end never
+reached, not by the wall time. `FAKE_SLOW=<s>` delays every fake's start: a loaded machine without the load."""
 
 import os
 import subprocess
@@ -14,9 +18,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bounded  # noqa: E402
+from stall_fake import GUARD, STALL, cut, fake, install  # noqa: E402
 
 TINY = 0.4
-STALL = 'echo x >> "$COUNT"\nsleep 300 &\necho $! > "$CHILD"\nwait\n'
 
 
 class Fakes(unittest.TestCase):
@@ -26,7 +30,7 @@ class Fakes(unittest.TestCase):
         self.dir = Path(tmp.name)
         (self.dir / "bin").mkdir()
         env = {"PATH": f"{self.dir / 'bin'}:/usr/bin:/bin", "COUNT": str(self.dir / "count"),
-               "CHILD": str(self.dir / "child"), "SEEN": str(self.dir / "env")}
+               "SEEN": str(self.dir / "env"), **install(self, self.dir)}
         patcher = mock.patch.dict(os.environ, env)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -34,16 +38,17 @@ class Fakes(unittest.TestCase):
             os.environ.pop(k, None)
 
     def fake(self, name, body):
-        f = self.dir / "bin" / name
-        f.write_text(f"#!/bin/sh\n{body}")
-        f.chmod(0o755)
+        fake(self.dir / "bin" / name, body)
+
+    def cut(self):
+        cut(self, self.dir)
 
     def calls(self):
         f = self.dir / "count"
         return len(f.read_text().split()) if f.exists() else 0
 
 
-def gone(pid: int, wait: float = 2.0) -> bool:
+def gone(pid: int, wait: float = GUARD) -> bool:
     """The process is dead: no such pid, or a zombie nobody reaps (a CI container without an init, hz01)."""
     end = time.monotonic() + wait
     while True:
@@ -62,17 +67,16 @@ def gone(pid: int, wait: float = 2.0) -> bool:
 class Bounded(Fakes):
     def test_a_stalled_git_ends_within_the_limit_is_retried_once_and_leaves_no_child(self):
         self.fake("git", STALL)
-        t0 = time.monotonic()
         with self.assertRaises(subprocess.TimeoutExpired):
             bounded.run(["git", "rev-parse", "HEAD"], timeout=TINY)
-        self.assertLess(time.monotonic() - t0, 10, "two limits plus the kills, no 300 s sleep")
+        self.cut()  # two limits plus the kills, no 300 s sleep
         self.assertEqual(self.calls(), 2, "one try and exactly one retry")
         child = int((self.dir / "child").read_text())
         self.assertTrue(gone(child), "the group was killed, not only the shell")
 
     def test_a_real_error_exit_is_not_retried(self):
         self.fake("git", 'echo x >> "$COUNT"\necho "fatal: not a git repository" >&2\nexit 128\n')
-        p = bounded.run(["git", "status"], timeout=TINY)
+        p = bounded.run(["git", "status"], timeout=GUARD)
         self.assertEqual((p.returncode, self.calls()), (128, 1))
         self.assertIn("not a git repository", p.stderr)
 
@@ -80,12 +84,12 @@ class Bounded(Fakes):
         self.fake("git", 'echo x >> "$COUNT"\nif [ "$(wc -w < "$COUNT")" -lt 2 ]; then\n'
                          '  echo "fatal: unable to access \'https://github.com/x/y/\': Could not resolve host: github.com" >&2\n'
                          '  exit 128\nfi\necho fine\n')
-        p = bounded.run(["git", "fetch", "origin"], timeout=TINY)
+        p = bounded.run(["git", "fetch", "origin"], timeout=GUARD)
         self.assertEqual((p.returncode, p.stdout.strip(), self.calls()), (0, "fine", 2))
 
     def test_a_fault_that_stays_is_retried_once_not_forever(self):
         self.fake("gh", 'echo x >> "$COUNT"\necho "dial tcp: i/o timeout" >&2\nexit 1\n')
-        p = bounded.run(["gh", "run", "list"], timeout=TINY)
+        p = bounded.run(["gh", "run", "list"], timeout=GUARD)
         self.assertEqual((p.returncode, self.calls()), (1, 2))
 
     def test_each_transient_wording_counts(self):
@@ -103,12 +107,14 @@ class Bounded(Fakes):
         self.fake("git", STALL)
         with self.assertRaises(subprocess.TimeoutExpired):
             bounded.run(["git", "-C", str(self.dir), "merge", "origin/main"], timeout=TINY)
+        self.cut()
         self.assertEqual(self.calls(), 1)
 
     def test_retry_false_asks_for_none(self):
         self.fake("gh", STALL)
         with self.assertRaises(subprocess.TimeoutExpired):
             bounded.run(["gh", "pr", "list"], timeout=TINY, retry=False)
+        self.cut()
         self.assertEqual(self.calls(), 1)
 
     def test_the_happy_path_runs_once_and_returns_text(self):
@@ -118,7 +124,7 @@ class Bounded(Fakes):
 
     def test_a_missing_program_is_an_oserror_and_input_reaches_stdin(self):
         with self.assertRaises(OSError):
-            bounded.run(["no-such-program-hal2"], timeout=TINY)
+            bounded.run(["no-such-program-hal2"], timeout=GUARD)
         self.fake("git", "cat\n")
         self.assertEqual(bounded.run(["git", "hash-object"], input="abc").stdout, "abc")
 
@@ -160,9 +166,8 @@ class Sites(Fakes):
     def stalled(self, name, limit_name, *call):
         self.fake(name, STALL)
         with mock.patch.object(bounded, limit_name, TINY):
-            t0 = time.monotonic()
             result = call[0](*call[1:])
-        self.assertLess(time.monotonic() - t0, 10)
+        self.cut()
         self.assertEqual(self.calls(), 2, f"{name}: one try and one retry")
         return result
 

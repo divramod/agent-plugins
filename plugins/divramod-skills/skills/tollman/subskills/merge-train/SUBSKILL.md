@@ -22,10 +22,12 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    kind: ALONE first, a gate train of every further ALONE car (the others wait for the next train); otherwise a
    normal train, and the ALONE cars wait for the next, a gate train.
 3. **Trial merge** (`git merge-tree --write-tree`: nothing checked out, no ref moves): each head merged onto the
-   barn's head in queue order. A wagon that conflicts, in any file (lockfiles too), is unhitched
-   (`queue ready <field> --clear`) and its foreman told the files and the cause by a template, unless every file of
+   barn's head in queue order. Every hitched wagon rides (plan 0522 D18): one that conflicts, in any file (lockfiles
+   too), is a car with `conflict` (its files) and `ahead` (the cars it conflicts with, none: the barn), and the
+   trial goes on without its head; the train forms by `tollman.py resolve-form` and resolves it in the train (step
+   4). No wagon is unhitched for a conflict; a wagon leaves only on the user's own word. Unless every file of
    the conflict is generated (`.github/hal2-versions.toml`'s `[[generated]]` paths: `plans/uats.md`, the code maps,
-   the record index, INTENT.md's log, AGENTS.md's Rules): that wagon rides, the merge in the field takes the barn's
+   the record index, INTENT.md's log, the Rules in RULES.md or AGENTS.md): that wagon rides, the merge in the field takes the barn's
    side and the train's last commit writes those files again by the map's commands (plan 0313 step 8). The rest
    rides. No maximum. A clean wagon rides only with its proof (`proof.py`, plan 0333 step 4): the light gate checks
    (names; records for `plans/`, `.adr/`, `docs/`, `*.md`) green on its hitched head in its own field; red is
@@ -34,13 +36,20 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    merge commit per car, the `CURRENT_PLAN` pointer filled (the cars' plan names joined by ` + `: hal2-git reads the landing's descriptive subject and its `Plan:` trailers from it; the `Worktree:` trailer lists the cars' fields, `02, 03`, the yard as `main`), the
    train marked (`worktree queue train <own field> <car>... --train <n> --attempt <a>`, a car's ticket then names its carrier as `rides_with`),
    and `hal2-cli-git worktree merge-to-main --json` started detached (`engine.py land` stays its parent; its output
-   in `train-landing.log`). The tick never waits for CI.
+   in `train-landing.log`). The tick never waits for CI. With a conflicting car (`resolve_train.py`): the cars merge
+   in queue order; at the conflict the merge is undone, the carrier's head pushed to its remote branch and the train
+   waits `resolving` (frozen, not marked, nothing starts). The round sends the car's foreman one acked resolve order
+   `<NN>-resolve-<n>` (never a second for the same conflict): resolve on `<NN>-train-resolve` from `origin/<carrier>`,
+   both sides' intent kept, answer `done resolved <sha>`; the ack runs `tollman.py resolved` by code (checked: on the
+   branch, from the base, the car's head in it, no conflict marker left; refused: the foreman told why, the order
+   open), the carrier fast-forwarded to it, the cars behind merged (a new conflict: a new order), then marked and
+   landed; the landing's pretest (the light checks) runs before the push.
 5. **Frozen** (plan 0360 D3, D7; `frozen.py`): from its `formed` line on nothing leaves the train. A wagon that
    hitches meanwhile rides the next one; a train formed but never started is started as it is (the cars the field
    lacks merged first); a queue mark naming other cars is marked again at the next start; no wait limit ends a
    waiting or red train. The session's `unhitch` of a car and `engine.py breakup` are refused; only the user's own
    command (`--by-user`) takes a car out or gives the train up.
-6. **State**: every change of the train is a line of `train.jsonl` (`formed`, `started`, `run`, `red`, `order`, `fixed`, `pause`, `resumed`, `retry`, `unhitched`,
+6. **State**: every change of the train is a line of `train.jsonl` (`formed`, `resolving`, `resolved`, `started`, `run`, `red`, `order`, `fixed`, `pause`, `resumed`, `retry`, `unhitched`,
    `landed`, `cleared`) and of the message board. A train that stands is no waiter for the boss and its field holds
    the cars' commits; between trains the field equals the barn.
 7. **Landed** (green): each car's foreman gets "in the barn" (the cars' tickets go with the landing), the field is
@@ -62,7 +71,9 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    carrier's head, published first) and answer `fixed <sha>`; `order main` is the barn's red, fixed by the tollman's
    own hand on `tollman-train-fix`. The train is `fixing` (frozen as red) while an order is open; `tollman.py fixed
    <field> <sha>` (the round runs it from the foreman's ack) checks the sha is on the branch and descends from the
-   order's base, merges it into the carrier and, after the last order, the same cars land again on that merge.
+   order's base, proves it green (`fix_proof.py`, plan 0522 D5: a light job run by the tollman on the sha, a heavy
+   one by the gate's `gate: <job> green at <sha>` line in the ack), merges it into the carrier and, after the last
+   order, the same cars land again on that merge.
    **A smuggle** (plan 0360 step 18, D58 to D62; `pause.py`, `smuggled.py`): hal2-git pauses the carrier's landing
    (`paused_by` on its ticket); the train is `paused` and frozen, one tick.log line per pause, no wake. A run the
    pause cancelled is no red (started again), a run whose merge succeeded lands. Resumed by hal2-git on the new main,

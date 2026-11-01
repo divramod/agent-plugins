@@ -48,7 +48,7 @@ class Yard(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.yard = self.tmp / "hal2"
-        self.field, self.seven = self.tmp / "fields/tollman-hal2", self.tmp / "fields/07"
+        self.field, self.seven = self.tmp / ".hal/git/worktree/hal2/tollman-hal2", self.tmp / ".hal/git/worktree/hal2/07"
         git_seed.guard(self)
         git_seed.grow(self.tmp, tuple(c for c in type(self).__mro__ if "grow" in vars(c)), self.grow)
 
@@ -98,6 +98,16 @@ class Yard(unittest.TestCase):
     def state(self, cwd=None):
         cwd = cwd or self.yard
         return git(cwd, "status", "--porcelain", "-uall"), git(cwd, "rev-parse", "HEAD")
+
+
+class Fields(Yard):
+    def test_a_scratch_worktree_named_like_a_field_is_no_field(self):
+        """Plan 0539 step 4: `<tmp>/scratchpad/resolve/07` (a twin) and `.../09` count for nothing."""
+        for name in ("07", "09"):
+            git(self.yard, "worktree", "add", "-q", "-b", f"scratch-{name}", str(self.tmp / "scratchpad/resolve" / name))
+        got = yard.fields(str(self.yard))
+        self.assertEqual(sorted(got), ["07", "tollman-hal2"])
+        self.assertEqual(got["07"], git(self.seven, "rev-parse", "HEAD"))
 
 
 class Sorting(Yard):

@@ -159,3 +159,12 @@ class FolderLeft(fake_clis.Farm):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Scratch(fake_clis.Farm):
+    def test_a_scratch_worktree_named_like_a_field_is_no_left_folder(self):
+        """Plan 0539 step 4: `<tmp>/scratchpad/resolve/09` (no field 09) is never a folder left by a removal."""
+        scratch = self.tmp / "scratchpad/resolve/09"
+        git(self.main, "worktree", "add", "-q", "-b", "scratch-09", str(scratch), "origin/main")
+        self.assertEqual(halfway.detect(str(self.main), [], None), [])
+        self.assertNotIn(scratch.parent, halfway.bases(str(self.main), [], {}))

@@ -5,6 +5,7 @@ faked; `moved_by` runs over a real temporary repository."""
 
 import datetime as dt
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -61,8 +62,12 @@ def check(head_wf: str, gh=(1, ""), runners=RUNNERS):
 class Lanes(unittest.TestCase):
     def test_hal2s_own_workflow_parses_by_stage(self):
         root = next(p for p in Path(__file__).resolve().parents if (p / ".github/workflows").is_dir())
-        got = pl.lanes((root / WF).read_text())
-        for stage in ("a1", "b1", "c2", "c3", "d1", "e4", "f1"):
+        text = (root / WF).read_text()
+        got = pl.lanes(text)
+        # The stages are the workflow's own job ids (`<stage>-<runner>`), never a copied list: plan 0532 renamed them.
+        stages = set(re.findall(r"^  ([a-z][0-9]+)-[A-Za-z0-9-]+:$", text, re.M))
+        self.assertGreaterEqual(len(stages), 3)
+        for stage in sorted(stages):
             self.assertIn(stage, got)
             self.assertTrue(all("self-hosted" in s for s in got[stage]), stage)
 

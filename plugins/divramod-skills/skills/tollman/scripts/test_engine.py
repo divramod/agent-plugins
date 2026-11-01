@@ -110,25 +110,15 @@ class Forming(Farm):
         self.assertEqual((d["standing"]["state"], d["cars"]), ("landing", []), "its cars are not the next train's")
         self.assertEqual((self.spawned, len(self.gate.calls)), ([self.carrier()], 1))
 
-    def test_a_conflicting_wagon_is_unhitched_and_told_and_the_other_rides(self):
+    def test_a_conflicting_wagon_rides_and_the_train_waits_for_its_resolve(self):
+        # Plan 0522 D18: no unhitch; the whole replay is test_resolve.py's.
         self.commit(self.main, "shared.txt", "base\n", push=True)
         git(self.wm, "merge", "-q", "--ff-only", "main")
         self.crop("07", {"shared.txt": "seven\n"})
         self.crop("09", {"shared.txt": "nine\n"})
-        self.crop("11", {"eleven.txt": "11"})
-        self.panes = {"09": "%9"}
         self.round()
-        self.assertEqual(self.last, [("unhitch", "run", "09"), ("unhitched", "send", "09"), ("form", "run", "-")])
-        self.assertEqual(self.gate.calls, [["worktree", "queue", "ready", "09", "--clear"],
-                                           ["worktree", "queue", "train", self.carrier(), "07", "11", "--train", "1", "--attempt", "1"]])
-        self.assertIsNone(self.gate.of("09"))
-        ((pane, text),) = self.typed
-        self.assertEqual(pane, "%9")
-        self.assertRegex(text, r"^tollman \[09-1\] \(wagon train\): field 09 is unhitched: its crop conflicts "
-                               r"with the cars ahead \(07\) in shared.txt. Restock \(/merge-from-main\) once the train of 07 is in "
-                               r"the barn, resolve it, push and report it ready again")
-        self.assertEqual(self.state(), [("unhitched", "09"), ("formed", self.carrier()), ("started", self.carrier())])
-        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "11"])
+        self.assertEqual((self.last, self.gate.calls, self.spawned), ([("form", "run", "-")], [], []))
+        self.assertEqual((self.train()["state"], [c["field"] for c in self.train()["cars"]]), ("resolving", ["07", "09"]))
 
     def test_the_alone_rule_and_what_never_rides(self):
         self.crop("07", {".github/workflows/merge-to-main.yml": "on: push\n"})
@@ -406,7 +396,7 @@ def check_problems(case, p):
 class Files(Farm):
     def test_the_state_is_of_the_kinds_the_manifest_declares(self):
         self.crop("07", {"seven.txt": "7"})
-        self.crop("09", {"seven.txt": "nine"})
+        self.crop("09", {"nine.txt": "9"})  # a conflict no longer unhitches (plan 0522 D18): test_resolve.py's lines
         self.round()
         self.ends({"status": "gate_failed", "run": "https://github.com/x/runs/9"})
         self.round()
@@ -415,7 +405,7 @@ class Files(Farm):
         self.ends({"status": "landed", "commit": "c0ffee"}, land=True)
         self.round()
         lines = train_state.lines(str(self.main))
-        self.assertEqual([e["kind"] for e in lines], ["unhitched", "formed", "started", "red", "retry", "started", "landed"])
+        self.assertEqual([e["kind"] for e in lines], ["formed", "started", "red", "retry", "started", "landed"])
         for e in lines:
             self.assertEqual((e["schema"], bool(e["slot"])), (1, True), e)
             self.assertRegex(e["at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -439,7 +429,7 @@ class Files(Farm):
         # a check with problems exits 1 and carries the report in the error document (plan 0318 step 10)
         found = check_problems(self, p)
         self.assertEqual((p.returncode, [(x["path"].rsplit("/", 1)[-1], x["line"]) for x in found]),
-                         (1, [(train_state.FILE, 8)]), p.stderr)
+                         (1, [(train_state.FILE, 7)]), p.stderr)
         self.assertRaises(ValueError, train_state.append, str(self.main), "derailed", self.carrier())
 
     def test_the_landing_is_a_child_of_a_process_that_stays(self):

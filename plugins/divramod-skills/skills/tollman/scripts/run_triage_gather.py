@@ -92,7 +92,7 @@ def owners(main: str, sha: str, units: list[dict]) -> tuple[list[str], dict]:
 def plans(main: str) -> dict:
     """{field: its current plan} of the repository's fields (worktrees `00`-`99`, plans/CURRENT_PLAN)."""
     out = {}
-    for w in mtm_scan.worktrees(main):
+    for w in mtm_scan.field_worktrees(main):
         if not Path(w["path"]).name.isdigit():
             continue
         f = Path(w["path"]) / "plans" / "CURRENT_PLAN"

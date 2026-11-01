@@ -15,9 +15,10 @@ the round (steps 5 and 6) acts on. `new` returns only the events not seen before
 
 The run is the standing landing train's (watch.find: its branch `land/train-<plans>`, train_branch.py); once noted it
 stays watched until its `finished` event, also after the train left the state `landing`, so the end of a run is never
-missed between two minutes. `watch-events.json` in the tollman's state folder keeps the run and the keys told
-(`job:<run>:<job>`, `merge:<run>`, `done:<run>`; `state`, and `merged`: the landing train's merge job told green, for
-minute.py's next train); a quiet pass writes nothing and returns []. Read-only against GitHub.
+missed between two minutes. `watch-events.json` in the tollman's state folder keeps the run, the start it is of
+(`train`, `started` and the start number `start`: `of`) and the keys told (`job:<run>:<job>`, `merge:<run>`, `done:<run>`; `state`, and `merged`: the landing train's merge job told green, for
+minute.py's next train) and the finished run's `conclusion` (landing_end.py: a red run ends the landing at once, plan
+0522 D17); a quiet pass writes nothing and returns []. Read-only against GitHub.
 
   watch_events.py [--repo <dir>] [--dry-run]   print the new events (without --dry-run they count as told)
 """
@@ -47,13 +48,21 @@ def target(main: str, rows: list[dict], state: dict) -> dict | None:
     one noted that has not finished."""
     train = train_state.standing(rows)
     if train and train.get("state") == "landing":
-        started = train.get("started")
-        if state.get("train") == train["train"] and state.get("started") == started and not state.get("closed"):
+        if of(state, train) and not state.get("closed"):
             return state
         url, _ = watch.find(main, train, rows)
         if rid := stack_red.run_id(url):
-            return {"run": rid, "url": url, "train": train["train"], "started": started, "seen": [], "closed": False}
+            return {"run": rid, "url": url, "train": train["train"], "started": train.get("started"),
+                    "start": train.get("starts"), "seen": [], "closed": False}
     return state if state.get("run") and not state.get("closed") else None
+
+
+def of(state: dict, train: dict | None) -> bool:
+    """Whether the watched run `state` is `train`'s current start: the same train and start number (`start`, the
+    train's `starts`; plan 0522 step 7), never the start time alone, whose whole seconds two starts can share (a
+    state written before it has no `start`: its `started` decides)."""
+    return bool(train) and (state.get("train"), state.get("started")) == (train["train"], train.get("started")) \
+        and state.get("start") in (None, train.get("starts"))
 
 
 def collect(main: str, tgt: dict) -> list[dict]:
@@ -76,7 +85,7 @@ def collect(main: str, tgt: dict) -> list[dict]:
         name = next(j["name"] for j in jobs if mtm_ci.job_part(j.get("name", "")) in mtm_ci.MERGE_JOBS)
         out.append({"key": f"merge:{rid}", "kind": "merge-green", "text": f"merge job green: {name} ({url})"})
     if row and row.get("status") == "completed":
-        out.append({"key": f"done:{rid}", "kind": "finished",
+        out.append({"key": f"done:{rid}", "kind": "finished", "conclusion": row.get("conclusion") or "unknown",
                     "text": f"workflow finished: {row.get('conclusion') or 'unknown'} ({url})"})
     return out
 
@@ -90,29 +99,30 @@ def new(main: str, rows: list[dict], dry: bool = False) -> list[dict]:
     if "base" not in tgt:  # once per run: its jobs' medians in the last green runs (L127)
         import slow_jobs
         tgt = {**tgt, "base": slow_jobs.base(main, tgt["run"], dt.datetime.now(dt.timezone.utc))}
-    told = set(tgt.get("seen") or [])
+    seen = list(tgt.get("seen") or [])  # in the order told (landing_end names the reds so)
+    told = set(seen)
     fresh = [e for e in collect(main, tgt) if e["key"] not in told]
     for e in fresh:
         e["text"] = e["text"].replace("\n", " ")
     if not dry and (fresh or tgt is not state):
-        done = any(e["kind"] == "finished" for e in fresh)
-        leavers.write(main, FILE, {**{k: tgt.get(k) for k in ("run", "url", "train", "started", "base")},
-                                   "schema": SCHEMA,
-                                   "seen": (list(told) + [e["key"] for e in fresh])[-KEEP:],
-                                   "closed": bool(tgt.get("closed")) or done})
+        done = next((e["conclusion"] for e in fresh if e["kind"] == "finished"), None)
+        leavers.write(main, FILE, {**{k: tgt.get(k) for k in ("run", "url", "train", "started", "start", "base")},
+                                   "schema": SCHEMA, "seen": (seen + [e["key"] for e in fresh])[-KEEP:],
+                                   "closed": bool(tgt.get("closed")) or bool(done),
+                                   "conclusion": done or tgt.get("conclusion")})
     return fresh
 
 
 def state(main: str) -> dict:
-    """The watched run as `watch-events.json` keeps it: {run, url, train, started, base, seen, closed}, or {}."""
+    """The watched run as `watch-events.json` keeps it: {run, url, train, started, start, base, seen, closed,
+    conclusion}, or {}."""
     return leavers.read(main, FILE, {})
 
 
 def merged(main: str, train: dict) -> bool:
     """Whether the merge job of `train`'s current start is told green (plan 0383 step 6: the next train forms)."""
     s = state(main)
-    return (s.get("train"), s.get("started")) == (train.get("train"), train.get("started")) and \
-        f"merge:{s.get('run')}" in (s.get("seen") or [])
+    return of(s, train) and f"merge:{s.get('run')}" in (s.get("seen") or [])
 
 
 def main(argv: list[str]) -> int:

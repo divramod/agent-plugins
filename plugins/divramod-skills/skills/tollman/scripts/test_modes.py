@@ -75,7 +75,8 @@ class Asleep(unittest.TestCase):
 
     def test_a_running_train_is_never_cut_but_wakes_nobody_while_asleep(self):
         awake = plan([FORMED, STARTED], mode=None)
-        self.assertEqual(kinds(awake), [("train-run", "run"), ("train-red", "wake")])
+        # plan 0522 D17: awake, the red job is recorded (`early-red`) while the run runs, then the one wake
+        self.assertEqual(kinds(awake), [("train-run", "run"), ("early-red", "record"), ("train-red", "wake")])
         asleep = plan([FORMED, STARTED])
         self.assertEqual(kinds(asleep), [("asleep", "record"), ("train-run", "run")], "watched, no wake, no fix order")
         car = {**HITCHED, "slot": "07", "rides_with": "tollman-hal2"}

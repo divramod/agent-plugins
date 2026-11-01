@@ -196,10 +196,10 @@ class Launcher(Base):
         port = self.server.server_address[1]
         serve.stop(self.server)
         proc = mock.Mock(**{"poll.return_value": 1})
-        start = time.monotonic()
+        # A long wait that a dead child ends at its first look: seen by the looks, not timed (plan 0532 step 16).
         with mock.patch.object(serve_launch, "spawn", return_value=proc):
-            self.assertIsNone(serve_launch.ensure(port))
-        self.assertLess(time.monotonic() - start, 2)
+            self.assertIsNone(serve_launch.ensure(port, wait=300))
+        self.assertEqual(proc.poll.call_count, 1)
 
     def test_the_page_url(self):
         self.assertEqual(serve_launch.page_url(47369, "/a b/c", "farmer"), "http://127.0.0.1:47369/?repo=%2Fa+b%2Fc&role=farmer")

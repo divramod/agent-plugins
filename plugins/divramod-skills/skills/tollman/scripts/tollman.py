@@ -36,16 +36,22 @@
   tollman.py triage [<run>] [--json] [--repo <dir>]
       the triage of a land run (the standing train's by default): runner, main (the barn's red) or car, with the
       evidence its wake carries: red jobs, failing tests, each car's files, the log's tail (plan 0360 step 5)
-  tollman.py order <field>|main --why <text> [--run <url>] [--post <train>] [--repo <dir>]
+  tollman.py order <field>|main --why <text> [--run <url>] [--job <gate job>]... [--post <train>] [--repo <dir>]
       a fix order for the red train's car (or the barn's red, `main`: the tollman's own hand) after the session's
       triage: fix on `<NN>-train-fix` from the carrier's head, push, answer `fixed <sha>` (orders.py, plan 0360 D6);
+      `--job`: a red job the fix must turn green (else those `--why` or the train's red names; plan 0522 D5);
       `main` with no train standing: the fix is the first car of the next train (own_fix.py, plan 0360 step 8);
       `--post`: a car of that landed train is red after its merge, its fix rides the train that stands (plan 0383 D6)
-  tollman.py fixed <field>|main <sha> [--repo <dir>]
-      the answer checked and merged into the carrier; the last one: the same cars land again (the round does it by
-      code too, from the foreman's ack `done fixed <sha>`); a refused one keeps the order open, the foreman told why
+  tollman.py fixed <field>|main <sha> [--proof <green lines>] [--unproven <why>] [--repo <dir>]
+      the answer checked, proven green (a light job run here on the sha, a heavy one by its `gate: <job> green at
+      <sha>` line in `--proof`; fix_proof.py, plan 0522 D5) and merged into the carrier; the last one: the same cars
+      land again (the round does it by code too, from the foreman's ack `done fixed <sha>[: <lines>]`, the proof
+      started detached first); a refused one keeps the order open, the foreman told why
   tollman.py fixed <field> --redundant [--repo <dir>]
       an order whose fix is in the train already, closed on the carrier's head (L56)
+  tollman.py resolve-form --cars <json> | resolved <field> <sha> | resolve-publish [--repo <dir>]
+      every wagon rides (resolve.py, plan 0522 D18): a train with a conflicting car forms and waits `resolving`, its
+      foreman resolves on `<NN>-train-resolve` from the train's branch; the round runs `resolved` from the ack
   tollman.py sleep|wake [--by <who>] [--why <text>] [--repo <dir>]
       the tollman's sleep flag (switch.py; plan 0365 D3, 0375): `hal2-cli-roles sleep tollman on|off`, `--by user` by
       default; asleep no train forms, every wagon lands alone in its turn, the hitched told so once
@@ -143,6 +149,7 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     import hold
     import modes
     import orders_cli
+    import resolve
     import triage_cli
     for name in ("start-check", "tick", "status", "act", "timer"):
         sub.add_parser(name).add_argument("--json", action="store_true")
@@ -170,6 +177,7 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     orders_cli.add_parser(sub)  # plan 0360 step 6
     modes.add_parser(sub)  # plan 0360 step 25, the switch: plan 0375
     hold.add_parser(sub)  # plan 0383 step 7
+    resolve.add_parser(sub)  # plan 0522 D18
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())
     checks_cli.add_parser(sub)  # its commands take their own --repo
@@ -209,6 +217,9 @@ def command(args, rest: list[str]) -> int:
     if args.cmd in ("order", "fixed"):
         import orders_cli
         return orders_cli.main(args, WIRING)
+    if args.cmd.startswith("resolve"):
+        import resolve
+        return resolve.main(args, WIRING)
     if args.cmd == "train":
         import trains_dry
         d = trains_dry.dry_run(args.repo)

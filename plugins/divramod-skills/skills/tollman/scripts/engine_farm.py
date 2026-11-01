@@ -1,7 +1,9 @@
 """The train engine's test farm (hal2 plan 0294 step 6; test_engine.py runs on it): test_tollman's temporary
 repository (the yard `hal2`, its origin, the tollman's field) in timer mode with the duty `trains` alone, the
 foremen's fields hitched by `crop`, and `Gate`, a fake `hal2-cli-git` that holds the merge queue as data. No
-landing is ever started: `engine.spawn` only counts, a test writes what the landing would have printed (`ends`).
+landing is ever started: `engine.spawn` only counts, a test writes what the landing would have printed (`ends`); no
+session either: a foreman's start (foreman_wake.py start, plan 0522 D21) runs in this process, its start argv only
+recorded in `started` (the farm's yard is named `hal2`: a real `worktree run` would reach the user's own fields).
 Every train forms in its own worktree beside the tollman's field (train_wt.py, plan 0375 D5): `carrier` names the
 last one formed, `cw` is its folder; a car's branch is on origin, as a foreman pushes before the hitch."""
 
@@ -16,6 +18,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import chain
 import engine
+import foreman_wake
 import mtm_scan
 import tick
 import train_state
@@ -104,19 +107,27 @@ class Farm(Field):
     def setUp(self):
         super().setUp()
         self.gate, self.spawned, self.alive, self.typed, self.panes = Gate(), [], set(), [], {}
+        self.started = []
         self.fields, self.detached = {}, []
         real = tick.sh
 
         def sh(argv, cwd, timeout=900):
             if argv[0] == "hal2-cli-git":  # the frame's merge-from-main
                 return 0, json.dumps({"status": "ok"})
-            verbs = {str(trains.ENGINE): engine.main, str(chain.CLI): tollman.main}  # in this process
+            verbs = {str(trains.ENGINE): engine.main, str(chain.CLI): tollman.main,  # in this process
+                     str(Path(foreman_wake.__file__).resolve()): wake_start}
             if argv[0] != sys.executable or argv[1] not in verbs:
                 return real(argv, cwd, timeout)
             text = io.StringIO()
             with contextlib.redirect_stdout(text):
                 code = verbs[argv[1]](argv[2:])
             return code, text.getvalue().strip()
+
+        def wake_start(argv):  # `start ... -- <argv>`: the guard recorded, never a real session (plan 0522 D21)
+            def guard(args):
+                self.started.append(args[args.index("--") + 1:])
+                return 0
+            return foreman_wake.start(argv[1:], guard=guard)
 
         def spawn(top, log, ref):  # ref: the train's own branch (train_branch.py, plan 0383)
             log.write_text("")

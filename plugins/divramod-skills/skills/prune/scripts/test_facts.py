@@ -127,6 +127,15 @@ class Fields(Farm):
         self.assertEqual((kinds["03"], kinds["13"], kinds["31"]), ("keeper", "foreman", "servant"))
         self.assertTrue(all(len(f["head"]) == 40 and f["path"].endswith("/" + f["slot"]) for f in fs))
 
+    def test_a_scratch_worktree_named_like_a_field_is_no_field(self):
+        """Plan 0539 step 4: `<tmp>/scratchpad/resolve/09` (a twin of 03 and a 09 with no field) counts for nothing."""
+        before = facts.fields(str(self.main))
+        for slot in ("03", "09"):
+            git(self.main, "worktree", "add", "-q", "-b", f"scratch-{slot}", str(self.tmp / "scratchpad/resolve" / slot), "origin/main")
+        after = facts.fields(str(self.main))
+        self.assertEqual([f["slot"] for f in after], [f["slot"] for f in before])
+        self.assertEqual(Path({f["slot"]: f["path"] for f in after}["03"]).resolve(), (self.base / "03").resolve())
+
     def test_a_failed_git_listing_is_an_error_never_no_fields(self):
         with mock.patch.object(mtm_scan, "run", return_value=""):
             with self.assertRaises(facts.FactsError):

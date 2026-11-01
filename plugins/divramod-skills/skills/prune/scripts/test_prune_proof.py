@@ -2,6 +2,7 @@
 tollman's plan and disk report stay with the tollman's tests. No real session, removal or hal2-cli-agents."""
 
 import subprocess
+from pathlib import Path
 import unittest
 from unittest import mock
 
@@ -36,6 +37,14 @@ class Scan(Slots):
         self.assertIn("CURRENT_PLAN pointer names 0001-x", why["05"])
         self.assertIn("1 commit(s) not on origin/main", why["06"])
         self.assertIn("side branch 07-ui", why["07"])
+
+    def test_a_scratch_worktree_named_like_a_field_is_no_field(self):
+        """Plan 0539 step 4: a twin of 03 and a 09 with no field, in a scratchpad, are never scanned."""
+        for slot in ("03", "09"):
+            git(self.main, "worktree", "add", "-q", "-b", f"scratch-{slot}", str(self.tmp / "scratchpad/resolve" / slot), "origin/main")
+        found = {w["slot"]: w["path"] for w in prune_proof.slots(str(self.main))}
+        self.assertEqual(sorted(found), ["03", "04", "05", "06", "07", "13", "14"])
+        self.assertEqual(Path(found["03"]).resolve(), (self.base / "03").resolve())
 
     def test_the_heads_are_the_worktree_list_s_and_the_base_is_asked_once_per_scan(self):
         git(self.main, "worktree", "add", "-q", "--orphan", "-b", "15", str(self.base / "15"))  # an unborn branch

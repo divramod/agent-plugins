@@ -1,6 +1,10 @@
 """The pretest's test fixtures (hal2 plan 0349 step 28; test_pretest*.py): a stub gate in a folder of its own (`list`,
 `plan` and the jobs as small shell files) and a temporary field with two commits and a tracked file. No real gate
-job ever runs."""
+job ever runs.
+
+No test depends on the machine's speed (plan 0532 step 16): a budget ends by `EventClock` when the test's event came
+(not after its seconds), jobs that must overlap meet (`meet`), a hang is proven cut by its end never reached
+(`finished`), and a wait for a process's end has GUARD only as the outer guard."""
 
 import json
 import os
@@ -14,26 +18,32 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import pretest
 
+GUARD = 120  # seconds: the outer guard of a wait for an event; only a hang meets it
+
 STUB = r"""#!/usr/bin/env bash
 here=$(cd "$(dirname "$0")" && pwd)
 case "$1" in
   list) [[ ! -f "$here/list-fails" ]] || exit 3; cat "$here/list" ;;
   plan) shift; head=
     while [[ $# -gt 0 ]]; do [[ $1 != --head ]] || head=$2; shift 2; done
-    echo "plan $head" >>"$here/calls"
+    echo "plan $head" >>"$here/calls"; echo "${HAL2_CLI_GIT:-}" >"$here/cli-plan"
+    [[ ! -f "$here/plan-slow" ]] || sleep "$(cat "$here/plan-slow")"
     if [[ -f "$here/plan-builds" ]]; then  # a range that needs the checkout's hal2-cli-git: a cold build
       [[ -z ${HAL2_GATE_NO_BUILD-} ]] || { echo "gate: hal2-cli-git: the checkout's build is needed (the range changes the detection), not built (HAL2_GATE_NO_BUILD)" >&2; exit 3; }
-      sleep 30 & echo $! >"$here/plan-child"; wait
+      sleep 300 & echo $! >"$here/plan-child"; [[ -z ${READY-} ]] || echo x >>"$READY"; wait; touch "$here/plan-finished"
     fi
-    if [[ -f "$here/plan-hangs" ]]; then sleep 30 & echo $! >"$here/plan-child"; wait; fi
+    if [[ -f "$here/plan-hangs" ]]; then
+      sleep 300 & echo $! >"$here/plan-child"; [[ -z ${READY-} ]] || echo x >>"$READY"; wait; touch "$here/plan-finished"
+    fi
     f="$here/plan-$head"; [[ -f $f ]] || f="$here/plan"
     printf 'linux=%s\nlinux-a=[]\nstack=[]\nmacos=[]\n' "$(cat "$f")" ;;
   *) job=$1; echo "run $job" >>"$here/calls"; echo $$ >"$here/pid-$job"
     mkdir -p "$here/running"; touch "$here/running/$job"; ls "$here/running" | wc -l >>"$here/counts"
     echo "$HAL_CHANGED_PACKAGES|$HAL_GATE_BASE|$HAL_GATE_HEAD|$HAL2_GATE_NO_INSTALL" >"$here/env-$job"
+    echo "${HAL2_CLI_GIT:-}" >"$here/cli-$job"
     echo "${CI-}|${GITHUB_ACTIONS-}|${CARGO_INCREMENTAL-}" >"$here/ci-$job"
     code=0; [[ ! -f "$here/job-$job" ]] || source "$here/job-$job"
-    rm -f "$here/running/$job"; echo "$job done"; exit "$code" ;;
+    rm -f "$here/running/$job"; echo "$job" >>"$here/finished"; echo "$job done"; exit "$code" ;;
 esac
 """
 
@@ -42,7 +52,7 @@ def sh(cwd, *args):
     return subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
-def gone(pid: int, within: float = 3.0) -> bool:
+def gone(pid: int, within: float = GUARD) -> bool:
     """The process `pid` has ended (reaped) within `within` seconds."""
     end = time.monotonic() + within
     while time.monotonic() < end:
@@ -52,6 +62,28 @@ def gone(pid: int, within: float = 3.0) -> bool:
             return True
         time.sleep(0.05)
     return False
+
+
+def meet(n: int) -> str:
+    """A job body's wait until n jobs run at once (GUARD at most): overlapping jobs are seen, not timed. The first to
+    see them meet leaves `met-<n>`, so one whose partners have ended meanwhile stops waiting too."""
+    return (f'for _ in $(seq {GUARD * 10}); do [ -f "$here/met-{n}" ] && break; '
+            f'[ "$(ls "$here/running" | wc -l)" -ge {n} ] && {{ touch "$here/met-{n}"; break; }}; sleep 0.1; done')
+
+
+class EventClock:
+    """The pretest's `time` with a clock that runs as the real one until `event()` holds, then jumps far past any
+    budget: a budget ends when the test's moment came (a job runs), never because the machine was slow before it."""
+
+    def __init__(self, event):
+        self.event, self.jumped = event, False
+
+    def monotonic(self) -> float:
+        self.jumped = self.jumped or bool(self.event())
+        return time.monotonic() + (10 * GUARD if self.jumped else 0)
+
+    def __getattr__(self, name):
+        return getattr(time, name)
 
 
 class Stub:
@@ -67,7 +99,11 @@ class Stub:
         self.selects(jobs)
 
     def selects(self, jobs, head=None, packages="*"):
-        entries = [{"job": j, "key": f"k-{j}", "packages": packages, "targets": "*", "timeout": 10} for j in jobs]
+        self.entries([{"job": j, "key": f"k-{j}", "packages": packages, "targets": "*", "timeout": 10} for j in jobs],
+                     head)
+
+    def entries(self, entries, head=None):
+        """`plan`'s linux list as given (the folded `lint` entry of gate/lib/lint.sh, say)."""
         (self.dir / (f"plan-{head}" if head else "plan")).write_text(json.dumps(entries))
 
     def job(self, name, body):
@@ -79,6 +115,11 @@ class Stub:
 
     def ran(self):
         return [c.split()[1] for c in self.calls() if c.startswith("run ")]
+
+    def finished(self):
+        """The jobs whose body ran to its end."""
+        f = self.dir / "finished"
+        return f.read_text().split() if f.exists() else []
 
 
 def config(path: Path, jobs, budget=60, parallel=4, groups=None, plain=()):
@@ -105,6 +146,7 @@ class FieldCase(unittest.TestCase):
                message)
         self.stub, self.state, self.log = Stub(self.tmp / "gate"), self.tmp / "state", self.tmp / "pretest.log"
         mock.patch.object(pretest, "salt", return_value="s").start()
+        mock.patch.object(pretest, "installed_cli", return_value="").start()  # never the Mac's own hal2-cli-git
         self.addCleanup(mock.patch.stopall)
 
     def run_it(self, jobs, **kw):

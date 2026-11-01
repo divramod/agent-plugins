@@ -137,6 +137,17 @@ class Tick(Folder):
             learn.stamp(self.dir, TODAY, {"state": "none"})
             self.assertEqual(learn.handler({"name": "duty:learn"}, self.ctx(dt.datetime(2026, 10, 14, 13, 0))), [])
 
+    def test_no_learn_run_while_a_train_lands(self):
+        """Plan 0522 D16: the learn run held tick.lock 192 s while run 41167356202 went red; the day's run waits."""
+        import train_state
+        rows = [{"kind": "formed", "train": "t", "slot": "c", "cars": []}, {"kind": "started", "train": "t", "at": "x"}]
+        item, ctx = {"name": "duty:learn"}, self.ctx(dt.datetime(2026, 10, 14, 12, 0))
+        with mock.patch.object(learn.mtm_scan, "state_dir", return_value=self.dir), \
+                mock.patch.object(train_state, "lines", return_value=rows):
+            self.assertEqual(learn.handler(item, ctx), [], "the train lands: no learn run")
+            rows.append({"kind": "red", "train": "t", "status": "gate_failed"})
+            self.assertEqual([a["key"] for a in learn.handler(item, ctx)], [f"learn:{TODAY}"], "red: the run goes")
+
     def test_the_cli_run_places_the_brief_through_the_farmer_s_delegation_at_the_role_s_settings(self):
         field = self.dir.parents[1]
         (self.dir / "ROLE.md").write_text(ROLE.format(learn='  learn: "17 6 * * *"\n').replace("high", "max"))

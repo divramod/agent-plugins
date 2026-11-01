@@ -31,7 +31,8 @@ what the code cannot.
 ## Rules
 
 - Never stop a landing that runs.
-- Never edit another field's crop: a wagon that conflicts or breaks a train goes back to its foreman with the reason.
+- Never edit another field's crop: a wagon that conflicts rides and its foreman resolves it in the train (a resolve
+  order), one that breaks a train gets a fix order; a wagon leaves only on the user's own word (plan 0522 D18).
 - Never land for a field that did not hitch (`hal2-cli-git worktree queue ready`); a `/smuggle` is
   not the tollman's to run.
 - A crop that changes the landing workflow, a gate job list or the runner setup rides only with its kind, in one gate train.

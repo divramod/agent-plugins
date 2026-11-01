@@ -153,6 +153,13 @@ def worktrees(main: str, heads: bool = False) -> list[dict]:
     return [w for w in items if not nested_hand(w["path"], [main] + [x["path"] for x in items])]
 
 
+def field_worktrees(main: str, heads: bool = False) -> list[dict]:
+    """`worktrees` but only the fields (`field_root.is_field`): a scratch worktree named like a field (`.../resolve/09`)
+    is none (hal2 plan 0539 step 4, D4, D6)."""
+    import field_root
+    return [w for w in worktrees(main, heads) if field_root.is_field(w, main)]
+
+
 def nested_hand(path: str, all_paths: list[str]) -> bool:
     """A hand's isolated worktree (the Agent tool's `<field>/.claude/worktrees/<name>`) lies inside another worktree: it
     has no session of its own and is no field, so no scan counts it."""

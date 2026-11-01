@@ -16,17 +16,22 @@ def run(rid, branch, status="completed", conclusion="failure", at="2026-10-05T06
 
 
 class Fake:
-    """gh as `run_json(args, cwd)`: counts the calls, answers a list and each run's jobs."""
+    """gh as `run_json(args, cwd)`: counts the calls, answers a list and each run's jobs. `together=n` holds each
+    `gh run view` until n of them run at once (120 s at most): parallel fetches are seen, not timed (plan 0532 step 16)."""
 
-    def __init__(self, runs, delay=0.0):
+    def __init__(self, runs, delay=0.0, together=0):
         self.runs, self.delay, self.calls, self.lock = runs, delay, [], threading.Lock()
         self.running = self.most = 0
+        self.together, self.met = together, threading.Condition(self.lock)
 
     def __call__(self, args, cwd):
-        with self.lock:
+        with self.met:
             self.calls.append(args[:3])
             self.running += 1
             self.most = max(self.most, self.running)
+            self.met.notify_all()
+            if self.together and args[:3] == ["gh", "run", "view"]:
+                self.met.wait_for(lambda: self.most >= self.together, 120)
         time.sleep(self.delay)
         with self.lock:
             self.running -= 1
@@ -78,12 +83,10 @@ class GhRunsTest(unittest.TestCase):
 
     def test_uncached_runs_are_fetched_in_parallel(self):
         runs = [run(i, f"land/{i:02}") for i in range(1, 7)]
-        gh = Fake(runs, delay=0.2)
-        start = time.monotonic()
+        gh = Fake(runs, together=gh_runs.POOL)
         with gh_runs.round(None):
             mtm_ci.landings(gh, "/m", 0)
-        self.assertGreater(gh.most, 1)
-        self.assertLess(time.monotonic() - start, 0.2 * 6)
+        self.assertEqual(gh.most, gh_runs.POOL, "the six views ran at once, not one after another")
 
     def test_outside_a_round_every_call_fetches_and_nothing_is_written(self):
         gh = Fake(self.RUNS)

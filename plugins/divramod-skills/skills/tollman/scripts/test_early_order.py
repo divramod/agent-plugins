@@ -88,7 +88,9 @@ class Train20(Farm):
         self.assertEqual((out(self.cw, "rev-parse", "HEAD"), len(self.typed)), (self.head, 1),
                          "not merged, the foreman not told it was refused (L34)")
         ack = msg.split("]")[0].removeprefix("tollman [")
-        self.assertEqual(acks.main(["ack", ack, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]), 0)
+        green = f"{sha}: gate: rust-test green at {sha[:12]}".split()  # the heavy job's proof (plan 0522 D5)
+        self.assertEqual(acks.main(["ack", ack, "done", "fixed", *green, "--repo", str(self.wm), "--role", "tollman"]),
+                         0)
         self.round()
         self.assertNotIn(("fixed", "run", "20"), self.last, "the answer waits for the run's end")
 
@@ -104,6 +106,19 @@ class Train20(Farm):
         self.round()
         self.assertEqual(self.last, [("restart", "run", "-")])
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["20", "02"], "the same cars, never broken up")
+
+    def test_a_second_red_job_of_the_car_is_added_to_its_open_order_and_told(self):
+        self.round()  # the first red: the early order 20-fix-1 (rust-test)
+        self.assertEqual(self.call("order", "20", "--why", "d1-02-ts-test: FAIL x", "--job", "ts-test")[0], 0)
+        ((_, first), (pane, msg)) = self.typed
+        self.assertEqual(pane, "%20")
+        for part in ("fix order 20-fix-1 for field 20 also: d1-02-ts-test: FAIL x", "20-train-fix", "done fixed"):
+            self.assertIn(part, msg)
+        (o,) = self.train()["orders"]
+        self.assertEqual((o["id"], o["jobs"]), ("20-fix-1", ["ts-test"]), "one order, the new job on it (D16; "
+                         "this farm has no gate, so the first order named no job)")
+        self.assertEqual(self.call("order", "20", "--why", "d1-02-ts-test: again", "--job", "ts-test")[0], 0)
+        self.assertEqual(len(self.typed), 2, "a job the order has already: no message")
 
     def test_a_red_that_names_both_cars_wakes_the_session_and_orders_nobody(self):
         self.gh.logs["720"] = ERROR + "\nd1-01-rust-test\ttest\terror: two.txt is wrong too"
@@ -153,7 +168,7 @@ class MinutePass(Pass):
         self.assertTrue(lines[1].startswith(f"train {NAME}: fix order to 07 while its run runs"), lines)
         self.assertEqual([o[:6] for o in orders], [["07", "--why", "d1-01-rust-test: test hub::tenant_rls ... FAILED",
                                                     "--run", URL, "--repo"]])
-        self.assertIn("early-order:501", [e["key"] for e in self.wm_log()])
+        self.assertIn("early-order:501:d1-01-rust-test", [e["key"] for e in self.wm_log()])  # one per red job (0522 D16)
 
     def test_smuggle_mode_orders_nobody(self):
         gh = self.gh.run_json
