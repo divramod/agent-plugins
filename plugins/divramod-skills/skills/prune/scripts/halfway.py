@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import field_root
 import prune_act  # the hands; prune_act never imports this module (the executor journals around a removal)
 import prune_proof
 import store
@@ -79,9 +80,11 @@ def detect(main: str, fields: list[dict], only: set[str] | None = None) -> list[
 
 
 def bases(main: str, fields: list[dict], j: dict) -> set[Path]:
-    """The folders the farm's worktrees live in (every worktree git knows but main, the fields, the journal's)."""
+    """The folders the farm's worktrees live in (every field git knows, the fields, the journal's): never an agent's
+    scratch folder elsewhere (field_root.is_field; hal2 plan 0534 step 5)."""
     known = [x[9:] for x in prune_proof.git(main, "worktree", "list", "--porcelain").splitlines()
              if x.startswith("worktree ")][1:]
+    known = [p for p in known if field_root.is_field({"path": p}, main)]
     return {Path(p).parent for p in [*known, *(f["path"] for f in fields), *(e["path"] for e in j.values())]}
 
 

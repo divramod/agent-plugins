@@ -14,7 +14,7 @@ import responses
 import facts
 import mtm_scan
 import worktree_farm
-from test_farmer import NOW
+from test_farmer import NOW, git
 from worktree_farm import NOW_MS
 
 
@@ -92,7 +92,8 @@ class Disk(unittest.TestCase):
 
 
 class Farm(worktree_farm.MarkedSlots):
-    """The scratch farm behind fake CLIs: `worktree list --json`, `agents list --json`, `worktree queue --json`."""
+    """The scratch farm behind fake CLIs: `agents list --json`, `worktree queue --json`; the fields come from git itself
+    (`hal2-cli-git worktree list` is an unexpected call: plan 0534 step 5)."""
 
     def setUp(self):
         super().setUp()
@@ -110,15 +111,7 @@ class Farm(worktree_farm.MarkedSlots):
         self.addCleanup(patcher.stop)
         self.sizes = lambda main, fs: {f["slot"]: {"bytes": 1000, "files": 1, "lower_bound": False} for f in fs}
 
-    def worktrees(self):
-        rows = [{"name": "main", "path": str(self.main), "main": True, "branch": "main"}]
-        for w in mtm_scan.worktrees(str(self.main)):
-            rows.append({"name": Path(w["path"]).name, "path": w["path"], "main": False, "branch": w.get("branch")})
-        return {"worktrees": rows}
-
     def cli(self, argv, cwd=None, timeout=120):
-        if argv[:3] == ["hal2-cli-git", "worktree", "list"]:
-            return json.dumps(self.worktrees())
         if argv[:3] == ["hal2-cli-git", "worktree", "queue"]:
             return json.dumps(self.queue)
         if argv[:2] == ["hal2-cli-agents", "list"]:
@@ -134,10 +127,25 @@ class Fields(Farm):
         self.assertEqual((kinds["03"], kinds["13"], kinds["31"]), ("keeper", "foreman", "servant"))
         self.assertTrue(all(len(f["head"]) == 40 and f["path"].endswith("/" + f["slot"]) for f in fs))
 
-    def test_no_json_is_an_error(self):
-        with mock.patch.object(facts, "call", return_value="not json"):
+    def test_a_failed_git_listing_is_an_error_never_no_fields(self):
+        with mock.patch.object(mtm_scan, "run", return_value=""):
             with self.assertRaises(facts.FactsError):
                 facts.fields(str(self.main))
+
+    def test_a_scratch_worktree_named_like_a_field_is_none(self):
+        """The tollman's `<scratchpad>/resolve/13` was a second field 13: its pointer clear hit the scratch folder."""
+        scratch = self.tmp / "scratchpad/resolve/13"
+        git(self.main, "worktree", "add", "-q", "-b", "resolve-13", str(scratch), "origin/main")
+        fs = [f for f in facts.fields(str(self.main)) if f["slot"] == "13"]
+        self.assertEqual([(Path(f["path"]).resolve(), f["twins"]) for f in fs], [((self.base / "13").resolve(), [])])
+
+    def test_a_name_listed_twice_in_the_farm_is_refused(self):
+        beside = self.main.parent / "13"  # beside the main checkout: a field too (the older layout)
+        git(self.main, "worktree", "add", "-q", "-b", "beside-13", str(beside), "origin/main")
+        (f,) = [f for f in facts.fields(str(self.main.resolve())) if f["slot"] == "13"]  # git prints real paths
+        self.assertEqual(len(f["twins"]), 1)
+        why = facts.proofs([f], {}, [], NOW_MS, lambda path: False)
+        self.assertIn("more than one worktree named 13", why["13"])
 
     def test_agents_as_a_list_or_under_agents_and_their_sessions_per_field(self):
         rows = [{"pane_id": "%1", "checkout": str(self.base / "13"), "state": "idle", "since": 5},

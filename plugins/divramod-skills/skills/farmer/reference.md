@@ -30,7 +30,11 @@ every round. A change counts from the next round, without waiting for a landing.
   `loop_cron`).
 - **Prose:** the repository's priorities and rules for the farmer.
 - **`## Tasks`**: one `### <name>` per task, each with **Cron** (required), **Check**, **Act** and **Done when**.
-  Tasks run after the duties.
+  Tasks run after the duties. An optional `- **Limit**: <n> s` (whole seconds > 0, default 120) is the Check's own
+  time limit (`due.py check` names a malformed one). Up to 120 s the Check runs inline in the tick; over 120 s it runs
+  **detached** (`task_detach.py`): the tick starts it in its own process group and goes on, the next tick reads its
+  result file (`tasks/<slug>.json`), never two runs at once, killed past its Limit; a timeout notifies like a failed
+  Check (hal2 plan 0534).
 - **Offline is not an outage.** When a machine-run task's Check fails, `tasks.py` probes this machine's own network
   (a name resolves and a TCP connect succeeds). Offline, the round only records "check skipped: this machine is
   offline": no Act (no production deploy), no notify, no delegation; the next round checks again, and `farmer

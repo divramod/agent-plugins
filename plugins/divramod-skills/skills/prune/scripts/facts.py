@@ -1,6 +1,6 @@
 """Prune's facts (hal2 plan 0377 step 3; contract: design/prune-run/sequence/v1/contract.md): what /prune decides on.
 
-The farm's numbered fields (`hal2-cli-git worktree list --json`), the live sessions (`hal2-cli-agents list --json`),
+The farm's numbered fields (`git worktree list --porcelain`, only the farm's own), the live sessions (`hal2-cli-agents list --json`),
 the proof per field (prune_proof.py, the global record never-delete-unsaved-work), the disk, the sizes (sizes.py) and
 the config `.hal/prune.toml` (D4, D15, D16). Nothing here changes anything. Every outside call goes through `call`, so
 a test replaces it with a fake CLI.
@@ -16,7 +16,9 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import field_facts
+import field_root
 import live_sessions
+import mtm_scan
 import logstate
 import batch
 import busy
@@ -27,7 +29,7 @@ import sizes
 
 NUMBERED = prune_proof.NUMBERED
 KEEPER_BELOW, SERVANT_FROM = 10, prune_proof.SUBSERVANTS_FROM
-TOOLS = ("git", "hal2-cli-git", "hal2-cli-agents", "hal2-cli-plans")
+TOOLS = ("git", "hal2-cli-git", "hal2-cli-agents", "hal2-cli-plans")  # hal2-cli-git: queue, remove
 CONFIG = ".hal/prune.toml"
 DEFAULTS = {
     "threshold": {"free_gb": 150, "used_pct": 90},
@@ -75,19 +77,31 @@ def kind(slot: str) -> str:
 
 
 def fields(main: str) -> list[dict]:
-    """The farm's numbered fields `{slot, path, branch, kind, head}` in field order (names-ok: the key `slot`; never main, a role field or a
-    name that is not two digits)."""
-    data = call_json(["hal2-cli-git", "worktree", "list", "--json"], main)
-    if not isinstance(data, dict) or not isinstance(data.get("worktrees"), list):
-        raise FactsError("hal2-cli-git worktree list --json gave no worktrees")
-    out = []
-    for w in data["worktrees"]:
-        name = str(w.get("name", ""))
-        if w.get("main") or not NUMBERED.fullmatch(name) or not w.get("path"):
+    """The farm's numbered fields `{slot, path, branch, kind, head}` in field order, from one `git worktree list
+    --porcelain` (heads included; hal2 plan 0534 step 5: `hal2-cli-git worktree list --json` took 30 s under load).
+    Only the farm's own fields (field_root.is_field: in `~/.hal/git/worktree/<repo>/` or beside main, no train), never
+    an agent's scratch worktree named like one (the tollman's `<scratchpad>/resolve/26` was a second field 26); a name
+    still listed twice keeps its first entry with the other folders in `twins`, which the proof refuses (names-ok: the
+    key `slot`)."""
+    if not mtm_scan.run(["git", "worktree", "list", "--porcelain"], main).startswith("worktree "):
+        raise FactsError("git worktree list --porcelain gave no worktrees")  # never "no fields" from a failed git
+    out: dict[str, dict] = {}
+    for w in mtm_scan.worktrees(main, heads=True):
+        name = Path(w["path"]).name
+        if not NUMBERED.fullmatch(name) or not field_root.is_field(w, main) or not Path(w["path"]).is_dir():
             continue
-        out.append({"slot": name, "path": w["path"], "branch": w.get("branch"), "kind": kind(name),
-                    "head": prune_proof.git(w["path"], "rev-parse", "HEAD")})
-    return sorted(out, key=lambda f: f["slot"])
+        if name in out:
+            out[name]["twins"].append(w["path"])
+            continue
+        out[name] = {"slot": name, "path": w["path"], "branch": w.get("branch"), "kind": kind(name),
+                     "head": w.get("head", ""), "twins": []}
+    return [out[k] for k in sorted(out)]
+
+
+def twin_refusal(f: dict) -> str | None:
+    """A field name git lists for more than one folder: never acted on, the folders are said."""
+    return f"git lists more than one worktree named {f['slot']}: {', '.join([f['path'], *f['twins']])}" \
+        if f.get("twins") else None
 
 
 def agents(main: str) -> list[dict] | None:
@@ -123,7 +137,7 @@ def proofs(fs: list[dict], ctx: dict, rows: list[dict] | None, now_ms: float | N
     """{slot: None when the field is free, else why not}, one field after the other (D14: only measuring runs in
     parallel). `refs`: batch.Refs, the commit counts of every branch read once."""
     now_ms = now_ms if now_ms is not None else time.time() * 1000
-    return {f["slot"]: prune_proof.refusal(f, ctx, rows, now_ms, build, refs=refs) for f in fs}
+    return {f["slot"]: twin_refusal(f) or prune_proof.refusal(f, ctx, rows, now_ms, build, refs=refs) for f in fs}
 
 
 def disk(main: str) -> dict:
@@ -201,10 +215,11 @@ def goal_met(d: dict, cfg: dict) -> bool:
 
 
 def collect(main: str, now: dt.datetime | None = None, build=None, measure=sizes.measure_all,
-            only: set[str] | None = None, lookup=None, cached_sizes: bool = False) -> dict:
+            only: set[str] | None = None, lookup=None, cached_sizes: bool = False, answers: bool = True) -> dict:
     """The facts: the disk, the config, the last train's cars and per field its kind, sessions, proof, size and what
     field_facts adds (`only`: those fields;
-    `cached_sizes`: sizes from the cache only, a miss is unknown). `now_ms` is the clock the proof used.
+    `cached_sizes`: sizes from the cache only, a miss is unknown; `answers` False: no disk responses, as the executor's
+    re-check of one field asks, which never walks a cache, hal2 plan 0534 step 5). `now_ms` is the clock the proof used.
 
     One `ps -A`, one `git for-each-ref` with ahead-behind and one `hal2-cli-plans list --json` serve all fields
     (batch.py, field_facts.PlanIndex; plan 0480 D5), each read on first use. `build`, `lookup` replace them in tests."""
@@ -221,9 +236,9 @@ def collect(main: str, now: dt.datetime | None = None, build=None, measure=sizes
     wait = busy.reason(main)  # a train builds: no size walk (plan 0472 D1), the cache only
     size = measure(main, fs, cached_only=True) if cached_sizes or wait else measure(main, fs)
     now_disk = disk(main)
-    answers = responses.candidates(main, cfg, [main] + [f["path"] for f in every],
-                                   measured=not (cached_sizes or wait) and short_of_space(now_disk, cfg))
+    walk = not (cached_sizes or wait) and short_of_space(now_disk, cfg)
+    found = responses.candidates(main, cfg, [main] + [f["path"] for f in every], measured=walk) if answers else []
     more = field_facts.extra(fs, ctx, main, {s: w is None for s, w in why.items()}, lookup, build, refs)
-    return {"main": main, "now_ms": now_ms, "busy": wait, "responses": answers, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
+    return {"main": main, "now_ms": now_ms, "busy": wait, "responses": found, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
             "fields": [{**f, "sessions": session(f, rows), "free": why[f["slot"]] is None, "proof": why[f["slot"]],
                         "size": size.get(f["slot"]), **more[f["slot"]]} for f in fs]}

@@ -16,6 +16,10 @@
   farmer.py check task <name> | flaky | orphans [--repo <dir>]
       a task's Check (machine form, see tasks.py), or a built-in check for roles/farmer/ROLE.md tasks: flaky ledger
       entries whose foreman runs no plan, worktrees with work and no session; exit 0 fine, 1 with what is wrong
+  farmer.py prune-round [--repo <dir>]
+      the prune round as code (prune_round.py, hal2 plan 0534): the disk step (idle fields' Rust build targets while
+      the disk has under 150 GB free), then `/prune run` for the farm; exit 0 both ran, 1 with the failed or timed-out
+      step; the farmer task whose Check is `farmer prune-round` (and its Limit) runs it
   farmer.py wake [--done <seq>] [--repo <dir>] [--json]
       what the tick handed to the farmer session (wake.json: items that need judgment, relays, notices, failed
       delegations, each with the file to read for it); prints handoff.md's `## DO FIRST` first and closes the items
@@ -73,6 +77,7 @@ import roles
 import roletime
 import silence
 import migrate
+import prune_round
 import questions
 import queue_mode
 import tasks
@@ -158,6 +163,7 @@ def parser() -> argparse.ArgumentParser:
     ck = sub.add_parser("check")
     ck.add_argument("what", nargs="+")
     ck.add_argument("--repo", default=os.getcwd())
+    sub.add_parser("prune-round").add_argument("--repo", default=os.getcwd())
     w = sub.add_parser("wake")
     w.add_argument("--done", type=int)
     w.add_argument("--repo", default=os.getcwd())
@@ -217,6 +223,8 @@ def main(argv: list[str]) -> int:
         code, text = tasks.builtin(" ".join(args.what[1:]) if args.what[0] == "task" else what, args.repo)
         print(text or "ok")
         return code
+    if args.cmd == "prune-round":
+        return prune_round.run(args.repo)
     if args.cmd == "delegate":
         return run_delegate(args)
     if args.cmd == "wake":

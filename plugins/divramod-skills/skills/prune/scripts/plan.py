@@ -1,9 +1,10 @@
 """Prune's plan (hal2 plan 0377 step 4): the pure decision, no IO. It takes step 3's `facts.collect` result and returns
 the planned actions per job, in the brief's order (contract: design/prune-run/sequence/v1/contract.md; D5, D6, D15-D17).
 
-Jobs, in order: `stale-pointers` (a CURRENT_PLAN naming a finished or missing plan, cleared; the caller then re-collects
-those fields, so a cleared field is planned again, never in a phase on its old proof), `phase-1` (the free fields:
-10-99 removed, 00-09 mucked out, never removed; a servant whose commits are not in its foreman's branch is an `ask`),
+Jobs, in order: `phase-1` (the free fields: 10-99 removed, 00-09 mucked out, never removed; a servant whose commits are
+not in its foreman's branch is an `ask`), `stale-pointers` (a CURRENT_PLAN naming a finished or missing plan, cleared,
+one action per field; the caller then re-collects that field, and one its clear made free gets its phase-1 action
+right after, never on its old proof: hal2 plan 0534 D13, a pointer never holds a removal back),
 `phase-2` (session-less fields not free, and free 00-09 ones after their muck out, D24: trimmed) and `phase-3` (idle
 live fields, trimmed), the last two only while the disk is short (D15) and then until the goal: the executor reads the disk before each action and stops at the goal.
 `responses` follows them on the same terms (short disk, no train building): `tart prune --entries caches` and the
@@ -18,7 +19,7 @@ import sizes
 
 STALE, PHASE1, PHASE2, PHASE3 = "stale-pointers", "phase-1", "phase-2", "phase-3"
 RESPONSES = "responses"  # after the trims, still above the goal: Tart's OCI cache, the listed caches (plan 0472 D2)
-JOBS = (STALE, PHASE1, PHASE2, PHASE3, RESPONSES)
+JOBS = (PHASE1, STALE, PHASE2, PHASE3, RESPONSES)  # removals first (plan 0534 D13)
 FINISHED_STATES = ("finished", "missing")
 
 
@@ -41,7 +42,8 @@ def ordered(fs: list[dict], cars: list[str]) -> list[dict]:
 def stale(f: dict) -> bool:
     """D5: CURRENT_PLAN names a finished or missing plan, nothing off main, nothing uncommitted, no live session."""
     ptr = f.get("pointer")
-    return bool(ptr and ptr["state"] in FINISHED_STATES and f.get("unsaved") == [] and not f["sessions"])
+    return bool(ptr and ptr["state"] in FINISHED_STATES and f.get("unsaved") == [] and not f["sessions"]
+                and not f.get("twins"))  # a name git lists twice: no folder is known to be the field
 
 
 def idle(f: dict, now_ms: float) -> bool:
@@ -101,11 +103,11 @@ def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None)
     wait = facts.get("busy")  # a train builds (busy.py): no trim, no muck out
     cleared = [f for f in fs if stale(f)]
     rest = [f for f in fs if f not in cleared]
-    jobs = {STALE: {"skipped": None if cleared else "no stale pointer", "actions": [
-        action(f, "clear-pointer", f"CURRENT_PLAN {f['pointer']['plan']} cleared: {f['pointer']['state']}",
-               plan=f["pointer"]["plan"], recheck=True) for f in ordered(cleared, cars)]}}
     one = phase1(rest, cars, now_ms, wait)
-    jobs[PHASE1] = {"skipped": None if one else "no free field", "actions": one}
+    jobs = {PHASE1: {"skipped": None if one else "no free field", "actions": one},
+            STALE: {"skipped": None if cleared else "no stale pointer", "actions": [
+                action(f, "clear-pointer", f"CURRENT_PLAN {f['pointer']['plan']} cleared: {f['pointer']['state']}",
+                       plan=f["pointer"]["plan"], recheck=True) for f in ordered(cleared, cars)]}}
     done = {a["field"] for a in one if a["action"] == "remove"}
     p2 = [f for f in rest if f["slot"] not in done and (not f["free"] or f["kind"] == "keeper") and not f["sessions"]
           and not f.get("hold") and not f.get("building")]  # D24: a free 00-09's trim paths outlive its muck out

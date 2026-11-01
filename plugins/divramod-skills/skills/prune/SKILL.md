@@ -24,14 +24,16 @@ tool it needs is missing (`bash $S/check-prerequisites.sh` names it): report whi
 Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../../.adr/prune-order.md), guide
 [docs/prune.md](../../../../../../../docs/prune.md)):
 
-1. `facts` (disk, config, per field kind, session, proof, size) and `stale-pointers` (a `CURRENT_PLAN` naming a
-   finished or missing plan on a field with nothing unsaved and no session is cleared) run on every run. A plan
+1. `facts` (disk, config, per field kind, session, proof, size; the farm's own fields from `git worktree list
+   --porcelain`, never a scratch worktree named like one) runs on every run. A plan
    reads the farm's facts in batches, each on first use: one `ps -A` (cleanup's `busy`), one `git for-each-ref` with
    `%(ahead-behind:origin/<default>)` and one `hal2-cli-plans list --json` serve all fields; a case a batch cannot
    answer (a HEAD that is no branch tip, a plan only the field knows) is asked per field as before, and every
-   action's proof re-reads its one field.
+   action's proof re-reads its one field (no sizes, no responses).
 2. `phase-1`: fields the proof calls free: 10-99 removed (an idle session stopped by signal first), 00-09 only mucked
-   out, the last train's cars first, then the biggest.
+   out, the last train's cars first, then the biggest. Then `stale-pointers`: a `CURRENT_PLAN` naming a finished or
+   missing plan on a field with nothing unsaved and no session is cleared, one step per field, and a field that
+   leaves free is removed or mucked out in the next step (hal2 plan 0534 D13: removals first).
 3. `phase-2` (session-less fields not free, free 00-09 included) and `phase-3` (idle live fields) trim the `trim`
    paths, only while the disk is under the threshold (default under 150 GB free or over 90% used) and then until the
    goal (250 GB free, at most 85% used).
@@ -47,8 +49,10 @@ Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../
 
 ## Run
 
+The farmer runs `/prune run` each round through `farmer prune-round` (its ROLE.md task, a disk step first; hal2 plan 0534).
+
 1. Run the call. It prints `run <id>` first on stderr: tell the user the id and that `hal2-cli-runs show <id>` or the
-   CI Runs page shows its jobs (`facts`, `stale-pointers`, `phase-1`, `phase-2`, `phase-3`, `report`) and a step
+   CI Runs page shows its jobs (`facts`, `phase-1`, `stale-pointers`, `phase-2`, `phase-3`, `responses`, `report`) and a step
    `field <NN>` per action. A real run may take minutes (size walks, removals): run it in the background when the
    harness allows and say so.
 2. Read the `report` job's last lines: the table field, action, bytes, why; free space before and after; the last line

@@ -11,7 +11,8 @@
       every opted-in duty and task with its cron, last run and whether it is due
 
 Nothing is implicit: only the duties under the front matter's `duties:` (name → cron) and the
-tasks under `## Tasks` (each `### <name>` with its `- **Cron**: <cron>` line) run, and the
+tasks under `## Tasks` (each `### <name>` with its `- **Cron**: <cron>` line, and optionally `- **Limit**: <n> s`, the
+time its Check may take: default 120 s, a longer one runs detached, tasks.py) run, and the
 setting `notify` is required, `servant_limit` (`auto` or a number) defaults to `auto`, `servant_model` (an alias
 such as `opus` or a model id) to `opus` and `servant_effort` (low|medium|high|xhigh|max) to `medium`: the values a
 foreman's coordinator session starts at (skills plan 0016); `session_effort` (same levels, default `high`) is the
@@ -161,6 +162,32 @@ def tasks(text: str) -> dict[str, str | None]:
     return out
 
 
+DEFAULT_LIMIT = 120  # seconds a task's Check may take inline; a longer `**Limit**` runs it detached (tasks.py)
+LIMIT_LINE = re.compile(r"^\s*-\s*\*\*Limit\*\*:\s*(.*?)\s*$", re.M)
+LIMIT_VALUE = re.compile(r"`?(\d+)\s*s`?\.?")
+
+
+def parse_limit(block: str) -> tuple[int, str | None]:
+    """A task block's `- **Limit**: <n> s` → (seconds, problem): DEFAULT_LIMIT without the line, and the problem
+    text (the limit stays DEFAULT_LIMIT) when it is not whole seconds above 0."""
+    m = LIMIT_LINE.search(block)
+    if not m:
+        return DEFAULT_LIMIT, None
+    v = LIMIT_VALUE.fullmatch(m.group(1))
+    if not v or int(v.group(1)) <= 0:
+        return DEFAULT_LIMIT, f"`**Limit**: {m.group(1)}` is not whole seconds above 0, e.g. `- **Limit**: 2700 s`"
+    return int(v.group(1)), None
+
+
+def task_blocks(text: str) -> dict[str, str]:
+    """`### <name>` under `## Tasks` → its block's text."""
+    body = text.split("\n## Tasks", 1)
+    if len(body) < 2:
+        return {}
+    section = re.split(r"\n## (?!#)", body[1], maxsplit=1)[0]
+    return {b.splitlines()[0].strip(): b for b in re.split(r"\n### ", "\n" + section)[1:]}
+
+
 def schedule(role_text: str, known: tuple[str, ...] = DUTIES) -> tuple[dict[str, str], dict, list[str]]:
     """(name → cron of every opted-in duty and task, settings, problems); `known`: the role's duty names."""
     fm, problems = front_matter(role_text), []
@@ -178,6 +205,9 @@ def schedule(role_text: str, known: tuple[str, ...] = DUTIES) -> tuple[dict[str,
             problems.append(f"task {name!r} has no `- **Cron**:` line")
         else:
             items[f"task:{name}"] = cron
+    for name, block in task_blocks(role_text).items():
+        if (bad := parse_limit(block)[1]):
+            problems.append(f"task {name!r}: {bad}")
     for name, cron in items.items():
         try:
             parse_cron(cron)

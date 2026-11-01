@@ -3,11 +3,14 @@ the plan carried out, one field at a time, as workflow commands `hal2-cli-runs e
 steps.
 
 Under the farm lock (D14; a second run prints "already running: ..." and exits 0): `facts` (collect, the half-removed
-fields), `stale-pointers` (each cleared, the field re-collected), `phase-1` (the half-removed first, halfway.py, then
-the free fields), `phase-2` and `phase-3` (only while the disk is short when they start, then on to the goal, the disk
-read before each action, D15) and `report`. Before each action the field is collected again and planned alone: the
-action stands only when the plan still has it (the proof again, PR21). `--dry-run` takes no lock, prints the same jobs
-with "would ..." and changes nothing. Exit 0 done or locked, 1 an action failed (later jobs still run, RN7).
+fields), `phase-1` (the half-removed first, halfway.py, then the free fields), `stale-pointers` (each cleared, the field
+re-collected; one the clear made free gets its phase-1 action as the next step: hal2 plan 0534 D13, removals first),
+`phase-2` and `phase-3` (only while the disk is short when they start, then on to the goal, the disk read before each
+action, D15) and `report`. Before each action the field is collected again and planned alone: the action stands only
+when the plan still has it (the proof again, PR21); that re-collect reads git and the CLIs for the proof, never the
+sizes or the disk responses again (plan 0534 step 5: a pointer step took minutes). `--dry-run` takes no lock, prints
+the same jobs with "would ..." and changes nothing. Exit 0 done or locked, 1 an action failed (later jobs still run,
+RN7).
 """
 
 import shutil
@@ -44,8 +47,9 @@ class Run:
         if self.responses_only:
             self.plan = planner.plan(self.found, self.only)
         else:
-            self.stale_job()
             self.phase1_job()
+            self.stale_job()
+            self.plan = planner.plan(self.found, self.only)  # the trims see the cleared pointers
             for name in (planner.PHASE2, planner.PHASE3):
                 self.trim_job(name)
         self.responses_job()
@@ -55,7 +59,7 @@ class Run:
     def collect(self, only: set[str] | None, sized: bool = True) -> dict:
         keep = {f["slot"]: f.get("size") for f in self.found["fields"]} if not sized else None
         measure = sizes.measure_all if keep is None else (lambda main, fs, **kw: {f["slot"]: keep.get(f["slot"]) for f in fs})
-        return facts.collect(self.main, only=only, measure=measure)
+        return facts.collect(self.main, only=only, measure=measure, answers=sized)  # a re-check: no responses walk
 
     def facts_job(self) -> None:
         self.out.job("facts")
@@ -105,6 +109,17 @@ class Run:
             self.out.line(f"skipped: {job['skipped']}")
         for a in job["actions"]:
             self.act(a, planner.STALE)
+            self.freed(a["field"])
+
+    def freed(self, slot: str) -> None:
+        """A field its pointer's clear made free: its phase-1 action (removal, muck out) now, as its own step, the proof
+        again before it, so a landed field never waits a round for its pointer (plan 0534 D13)."""
+        f = next((x for x in self.found["fields"] if x["slot"] == slot), None)
+        if self.dry or slot in self.gone or not f or not f["free"]:
+            return
+        p = planner.plan({**self.found, "fields": [f]}, {slot})
+        for b in (x for x in p["jobs"][planner.PHASE1]["actions"] if x["field"] == slot):
+            self.act(b, planner.PHASE1)
 
     def phase1_job(self) -> None:
         self.out.job(planner.PHASE1)

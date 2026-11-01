@@ -56,6 +56,11 @@ kind = "snapshot"
 description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, disk.json."
 
 [[files]]
+path = "tasks/*.json"
+kind = "snapshot"
+description = "A detached task's result, one file per task, overwritten by its next run (retention: count 1), written atomically by the run's own process (scripts/task_detach.py, plan 0534): `{schema 1, task, state starting|running|done, pid, started, ended, limit, cmds, exit, output, consumed}`; the next tick evaluates a done one once."
+
+[[files]]
 path = "summaries/**"
 kind = "record"
 type = "Round Summary"

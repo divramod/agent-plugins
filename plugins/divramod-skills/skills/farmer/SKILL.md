@@ -33,7 +33,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
 | `watch` | `duties.plan_watch` (sanity-watch's scan) | [instructions/watch.md](instructions/watch.md) | sanity-watch's |
 | `autoclear` | `duties.plan_autoclear` (fix-autoclear's doctor) | [instructions/autoclear.md](instructions/autoclear.md) | fix-autoclear's |
-| tasks | `tasks.py` (machine form) | [instructions/task.md](instructions/task.md) | |
+| tasks | `tasks.py` (machine form; a Check with `**Limit**` over 120 s runs detached, `task_detach.py`) | [instructions/task.md](instructions/task.md) | |
 
 Landings, the merge queue and the wagon trains are the [tollman](../tollman/SKILL.md)'s (hal2 plan 0294):
 its duties, its `roles/tollman/ROLE.md`, its state. So is pruning the landed fields (its duty `prune`, hal2 plan 0360
@@ -65,6 +65,7 @@ and itself, so the worktree's `git status` stays clean ([reference](reference.md
 | `/farmer questions [a\|l]`, `/farmer q` | the open (`a` answered, `l` all) questions of the farmer, the log's open asks and every worktree, one list: `python3 $S/farmer.py questions [a\|l]`; print its output and nothing else (the same list as `/q` in this worktree) |
 | `/s` | the state of every worktree as one table: the skill `s`, for every session |
 | `/farmer status [<hours>]` | `farmer.py timer status`, `mtm_scan.py status`, the log's last hours (default 6), delegations, `latest.md` |
+| `farmer prune-round` | the prune round as code, a task's Check: the disk step, then `/prune run` for the farm; exit 1 names the failed step (`python3 $S/farmer.py prune-round`, `prune_round.py`) |
 | `/farmer duties` | the effective duties: `python3 $S/role_duties.py farmer --repo .` ([Duties](#duties)) |
 | `/farmer h`, `/farmer help` | print this table and stop |
 

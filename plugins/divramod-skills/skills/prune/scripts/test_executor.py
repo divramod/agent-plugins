@@ -21,7 +21,7 @@ import store
 from fake_clis import jobs, parse
 from test_farmer import git
 
-SIX = ["facts", "stale-pointers", "phase-1", "phase-2", "phase-3", "responses", "report"]
+SIX = ["facts", "phase-1", "stale-pointers", "phase-2", "phase-3", "responses", "report"]  # removals first (0534 D13)
 SHORT = {"free_gb": 100.0, "used_pct": 91.0, "total_gb": 1000.0}
 GOAL = {"free_gb": 300.0, "used_pct": 70.0, "total_gb": 1000.0}
 
@@ -204,7 +204,7 @@ class Trim(fake_clis.Farm):
 
 
 class Stale(fake_clis.Farm):
-    def test_pr4_a_stale_pointer_is_cleared_logged_and_the_field_removed_in_phase_1(self):
+    def test_pr4_a_stale_pointer_is_cleared_logged_and_the_field_removed_right_after(self):
         path = self.add("13")
         (path / "plans").mkdir()
         (path / "plans/CURRENT_PLAN").write_text("0149-x\n")
@@ -212,11 +212,13 @@ class Stale(fake_clis.Farm):
         code, lines = self.prune()
         self.assertEqual(code, 0, lines)
         out = parse(lines)
-        (step,) = out["stale-pointers"]
+        step, removal = out["stale-pointers"]  # the clear, then the removal its new proof allows (plan 0534 D13)
         self.assertEqual((step[0], step[1]), ("field 13", "success"))
         self.assertEqual(step[2][0], "cleared CURRENT_PLAN 0149-x (finished)")
         self.assertEqual(step[2][1], "new proof: free")
-        self.assertEqual([(s[0], s[1]) for s in out["phase-1"]], [("field 13", "success")])
+        self.assertEqual((removal[0], removal[1]), ("field 13", "success"))
+        self.assertTrue(removal[2][-1].startswith("removed 13: "), removal)
+        self.assertEqual(out["phase-1"], [])
         self.assertFalse(path.exists())
 
 

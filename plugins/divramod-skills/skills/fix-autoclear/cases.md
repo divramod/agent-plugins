@@ -3,6 +3,21 @@
 Newest first. One case per root cause; a recurrence adds a line under its case. The **signature** is what
 `evidence.py show` prints that identifies the case.
 
+## 2026-10-18 · the guard counted a 1M session against 200k: hard stops at 65-71% while 11-14% were used (hal2 wt 47)
+
+- **Signature**: guard markers (`autoclear/<session>.guard`) stage `hard` at 65-71% (threshold 35) while the real use
+  was 11-14% of 1M; no `<session>.window` or `.context` for the session (the statusline never ran); settings.json
+  `model` `opus`; the guard.log says "over the threshold since its start".
+- **Cause**: `session_window` fell through to settings.json's model, a 200k default. The 2026-10-18 fix `1922792bde`
+  (transcript `requestedModel` ending `[1m]`) was defeated by Claude Code 2.1.303+, which writes `claude-opus-5-5`
+  without `[1m]` for an `opus[1m]` session.
+- **Fix**: hal2 plan 0535 step 2, `a7892e5d42`: a launch-model source right after `.window` (the agent process's
+  `--model` via the hook record's pid, `session_window/launch.rs`), and the settings fallback gives 1M for a 5.x Opus
+  or Sonnet (`context::model_window`). Tests `tests/it/incident_47.rs` (fixture `incident_47_window.jsonl`, 117,064
+  tokens: 70.1% on 200k, 14.0% on 1M; 200k control). Left open: playback's own `session_window`, unpruned `.window` files.
+- **Would have caught it sooner**: a test that replays a real transcript with the model id as the newest Claude Code
+  writes it, not as the fix's day wrote it; the guard.log line naming which source gave the window.
+
 ## 2026-10-10 · a `SubagentStop` record ended the turn early: `/clear` queued, `clear-unconfirmed` (hal2 wt 03)
 
 - **Signature**: job `failed` `clear-unconfirmed` at 11:17; its log shows the turn taken as over although the session

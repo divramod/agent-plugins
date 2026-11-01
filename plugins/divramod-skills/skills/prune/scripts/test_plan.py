@@ -252,7 +252,7 @@ class IdleLive(unittest.TestCase):
 class Order(unittest.TestCase):
     def test_pr16_the_jobs_come_in_the_briefs_order(self):
         p = planner.plan(farm(field("13", size=GB), free_gb=100))
-        self.assertEqual(list(p["jobs"]), ["stale-pointers", "phase-1", "phase-2", "phase-3", "responses"])
+        self.assertEqual(list(p["jobs"]), ["phase-1", "stale-pointers", "phase-2", "phase-3", "responses"])  # plan 0534 D13
         self.assertEqual(list(p["jobs"]), list(planner.JOBS))
 
     def test_pr16_the_last_trains_cars_first_then_the_biggest_then_by_slot(self):

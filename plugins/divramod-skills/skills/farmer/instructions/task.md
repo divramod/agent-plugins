@@ -7,6 +7,8 @@ the user's word and may widen or narrow your authority for that task only. Log e
   (`python3 $S/mtm_scan.py record task - "<name>: <what>" --note "<why>"`). Offer the user the machine form
   (Check: backticked commands only; Act: commands and `notify|delegate|wake`) in the notification, as a proposal:
   only the user edits roles/farmer/ROLE.md.
+- **its Check is detached** (`**Limit**` over 120 s): its record in `tasks/<slug>.json` says `running` (nothing to do, the next
+  tick reads it) or `timed out` (killed past its Limit: handle it as a failed Check, raise the Limit only if the run is healthy).
 - **its Check fails while this machine is offline** (exit 75, "check skipped: this machine is offline"): nothing to
   do; production cannot be judged from here, the next round checks again.
 - **its Check still fails after the Act** (`wake` in its Still failing): find out why from the Check's output;
