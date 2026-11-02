@@ -1,4 +1,5 @@
 """plan_number.py: numbers stay unique across worktrees, branches, remotes and concurrent calls."""
+import json
 import os
 import shutil
 import subprocess
@@ -8,7 +9,22 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+try:  # not in a copy of the skill outside the skills unit (test_field_independent): then the lock names no holder
+    sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+    import farm_lock
+except (StopIteration, ImportError):
+    farm_lock = None
+
 SCRIPT = Path(__file__).resolve().parent / "plan_number.py"
+HOLDER = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+import plan_number
+with plan_number.locked(Path(sys.argv[2])):
+    print("held", flush=True)
+    sys.stdin.readline()
+"""
 ENV = {
     **os.environ,
     "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -122,6 +138,45 @@ class PlanNumberTest(unittest.TestCase):
         number = self.next("--slug", "real")
         self.add_plan(self.main, f"{number:04d}-real.md")
         self.assertEqual(self.run_number("check").returncode, 0)
+
+    def hold_the_lock(self):
+        """A process inside `plan_number.locked` (the incident's `plan.py new` in a frozen field) until its stdin gets a line."""
+        child = subprocess.Popen([sys.executable, "-c", HOLDER, str(SCRIPT.parent), str(self.main)], env=ENV,
+                                 text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+        def end():
+            child.kill()
+            child.wait()
+            child.stdin.close()
+            child.stdout.close()
+
+        self.addCleanup(end)
+        self.assertEqual(child.stdout.readline().strip(), "held")
+        return child
+
+    @unittest.skipIf(farm_lock is None, "the skill is outside the skills unit: no farm_lock helper")
+    def test_a_held_plan_numbers_lock_names_its_holder(self):
+        lock = self.main / ".git" / "plan-numbers.json.lock"
+        child = self.hold_the_lock()
+        record = json.loads(lock.read_text())
+        self.assertEqual((record["schema"], record["pid"]), (1, child.pid))
+        self.assertTrue(farm_lock.probe(lock).held)
+        self.assertEqual(farm_lock.probe(lock).record["pid"], child.pid)
+
+    @unittest.skipIf(farm_lock is None, "the skill is outside the skills unit: no farm_lock helper")
+    def test_a_second_taker_waits_for_the_holder_without_wiping_its_record_and_gets_the_number_after(self):
+        lock = self.main / ".git" / "plan-numbers.json.lock"
+        child = self.hold_the_lock()
+        waiter = subprocess.Popen([sys.executable, str(SCRIPT), "next", "--slug", "later"], cwd=self.main, env=ENV,
+                                  text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(lambda: (waiter.kill(), waiter.wait(), waiter.stdout.close(), waiter.stderr.close()))
+        with self.assertRaises(subprocess.TimeoutExpired):
+            waiter.wait(timeout=0.5)
+        self.assertEqual(json.loads(lock.read_text())["pid"], child.pid)  # the waiter did not truncate it
+        child.stdin.write("\n")
+        child.stdin.flush()
+        out, err = waiter.communicate(timeout=30)
+        self.assertEqual((waiter.returncode, int(out)), (0, 2), err)
 
 
 if __name__ == "__main__":

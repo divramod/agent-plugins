@@ -1,6 +1,7 @@
 """git_seed: the tree grown once and shared across processes, the hang guard, the child reaper; in a scratch root,
 nothing left behind (tests-leave-nothing)."""
 import importlib.util
+import json
 import os
 import shutil
 import signal
@@ -130,6 +131,22 @@ class Seed(unittest.TestCase):
         self.assertEqual(proc.stdout.readline().strip(), "built")
         self.assertEqual(proc.wait(timeout=30), 0)
         self.assertFalse(self.root.exists())
+
+    def test_a_held_seed_lock_names_its_holder_and_a_waiter_does_not_wipe_it(self):
+        """Plan 0561 row 16: the lock a seed's peers wait behind names the process that holds it."""
+        import farm_lock
+        root = git_seed._join()
+        with git_seed._locked(root / "mutex"):
+            held = (root / "mutex").read_text()
+            self.assertEqual(json.loads(held)["pid"], os.getpid())
+            self.assertTrue(farm_lock.probe(root / "mutex").held)
+            self.assertTrue(os.path.exists(farm_lock.intent_path(root / "mutex")), "the take stays announced (D16)")
+            fd = farm_lock.open_lock(root / "mutex")  # a waiter opens it: no truncation
+            os.close(fd)
+            self.assertEqual((root / "mutex").read_text(), held)
+        self.assertFalse(farm_lock.probe(root / "mutex").held)
+        self.assertEqual((root / "mutex").read_text(), "", "the release empties the record (D15)")
+        self.assertFalse(os.path.exists(farm_lock.intent_path(root / "mutex")), "withdrawn after the release")
 
     def test_a_killed_process_drops_its_hold_and_the_next_one_clears_the_root(self):
         (self.scratch / "a").mkdir()

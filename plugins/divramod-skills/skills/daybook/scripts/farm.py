@@ -11,6 +11,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
+
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+import farm_lock  # noqa: E402  (the skills unit's scripts/: the lock names its holder, plan 0561)
 
 LOCK_WAIT, LOCK_STALE = 5.0, 60.0
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -98,24 +102,29 @@ def make_folder(root, folder):
 
 
 class Lock:
-    """`<folder>/.daybook.lock` by O_CREAT|O_EXCL; a lock older than 60 s is stale."""
+    """`<folder>/.daybook.lock` by O_CREAT|O_EXCL, held while the file exists, the holder's record written into it
+    (a farm lock, plan 0561 row 15: `farm_lock.create_exclusive`, the same line the Rust daybook lock writes, plan 0561 step 5).
+    A lock with a record is stale when its holder is gone (no such pid, or a pid that started after `taken`),
+    never by age: a holder a freeze stopped keeps it and its late write is not lost. One without a record (a holder
+    from before the contract, or one that has not written yet) is stale after 60 s."""
 
     def __init__(self, folder):
         self.path = os.path.join(folder, ".daybook.lock")
 
     def __enter__(self):
         end = time.monotonic() + LOCK_WAIT
+        again = 0.0  # the staleness check reads a pid's start with `ps`: at most twice a second
         while True:
-            try:
-                os.close(os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            if farm_lock.create_exclusive(self.path):
                 return self
-            except FileExistsError:
+            if time.monotonic() >= again and farm_lock.exclusive_stale(self.path, LOCK_STALE):
                 try:
-                    if time.time() - os.path.getmtime(self.path) > LOCK_STALE:
-                        os.remove(self.path)
-                        continue
+                    os.remove(self.path)
                 except OSError:
-                    continue
+                    pass
+                continue
+            if time.monotonic() >= again:
+                again = time.monotonic() + 0.5
             if time.monotonic() > end:
                 raise LockError(f"the lock {self.path} was not taken in {LOCK_WAIT:.0f} s")
             time.sleep(0.05)

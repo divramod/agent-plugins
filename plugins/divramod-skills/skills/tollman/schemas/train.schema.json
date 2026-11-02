@@ -6,7 +6,7 @@
   "required": ["schema", "at", "kind", "slot"],
   "properties": {
     "schema": {"type": "integer", "minimum": 1, "maximum": 1},
-    "kind": {"enum": ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke"]},
+    "kind": {"enum": ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke"]},
     "train": {"type": "string", "minLength": 1, "description": "The train's name, `<car>+<car>@<formed at>`."},
     "number": {"type": "integer", "minimum": 1, "description": "A formed line: the train's number (hal2 plan 0398 D4, train_state.next_number), which names its land branch `land/train-<number>-<start>`; none on a train formed before it."},
     "cars": {

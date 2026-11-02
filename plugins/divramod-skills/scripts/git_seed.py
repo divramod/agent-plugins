@@ -28,6 +28,9 @@ import tempfile
 import threading
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # farm_lock.py, beside this file
+import farm_lock  # noqa: E402
+
 TREE, PATHS = "tree", "paths.json"
 _DIGESTS = {}  # (key, build's code) -> the seed's name, read once per process
 _STATE = {}  # root, use (the shared lock held while this process uses the root)
@@ -43,7 +46,7 @@ def grow(tmp, key, build):
     name = _digest(key, build)
     seed = root / name
     if not seed.exists():
-        with _locked(root / f"{name}.lock", fcntl.LOCK_EX):
+        with _locked(root / f"{name}.lock"):
             if not seed.exists():
                 build()
                 part = root / f"{name}.part-{os.getpid()}"
@@ -188,7 +191,7 @@ def _join():
     while True:
         try:
             root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            with _locked(root / "mutex", fcntl.LOCK_EX):
+            with _locked(root / "mutex"):
                 use = os.open(root / "use", os.O_RDWR | os.O_CREAT, 0o600)
                 fcntl.flock(use, fcntl.LOCK_SH)
             break
@@ -209,7 +212,7 @@ def _leave():
     os.close(use)
     gone = root.with_name(f"{root.name}.gone-{os.getpid()}")
     try:
-        with _locked(root / "mutex", fcntl.LOCK_EX):
+        with _locked(root / "mutex"):
             fd = os.open(root / "use", os.O_RDWR)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -225,26 +228,35 @@ def _leave():
 
 
 class _locked:
-    """`with _locked(path, mode)`: an flock on `path` (created), checked to still be the file at `path`: the last
-    process out removes the root with its lock files."""
+    """`with _locked(path)`: an exclusive flock on `path` (created), checked to still be the file at `path`: the
+    last process out removes the root with its lock files. It names its holder in the file (a farm lock, plan 0561
+    row 16: a freeze spares the process that holds the seed's lock, whose peers wait behind it)."""
 
-    def __init__(self, path, mode):
-        self.path, self.mode = path, mode
+    def __init__(self, path):
+        self.path = path
 
     def __enter__(self):
         while True:
-            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
-            fcntl.flock(fd, self.mode)
+            intent = farm_lock.intend(self.path)  # announced before the take (D16); a root removed under us: FileNotFoundError
             try:
-                if os.fstat(fd).st_ino == os.stat(self.path).st_ino:
-                    self.fd = fd
-                    return self
-            except FileNotFoundError:
-                pass
-            os.close(fd)
+                fd = farm_lock.open_lock(self.path, parents=False)
+                farm_lock.lock(fd)
+                try:
+                    if os.fstat(fd).st_ino == os.stat(self.path).st_ino:
+                        farm_lock.name(fd)
+                        self.fd, self.intent = fd, intent
+                        return self
+                except FileNotFoundError:
+                    pass
+                os.close(fd)
+            except BaseException:
+                farm_lock.unintend(intent)
+                raise
+            farm_lock.unintend(intent)
 
     def __exit__(self, *exc):
-        os.close(self.fd)  # closing releases the flock
+        farm_lock.release(self.fd)  # empties the record, unlocks and closes (D15)
+        farm_lock.unintend(self.intent)
 
 
 def _relocate(top, moves):

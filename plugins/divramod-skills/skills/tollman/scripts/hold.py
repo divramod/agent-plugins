@@ -47,11 +47,14 @@ def line(held: dict) -> dict:
 
 
 def keep(actions: list[dict], held: dict | None) -> list[dict]:
-    """A settling landing's actions under the hold `held` (L107): its restart dropped for the hold's line (an
-    interrupted landing starts again only after `unhold`); landed, red and their messages go on."""
-    if not held or not any(a.get("kind") == "restart" for a in actions):
+    """A settling landing's actions under the hold `held` (L107): its restart, and the red of a landing that died
+    with a fix order open (`died`, plan 0560: that red takes the restart's place, so `fixed` still writes it, L108),
+    dropped for the hold's line (an interrupted landing starts again only after `unhold`); landed, red and their
+    messages go on."""
+    again = [a for a in actions if a.get("kind") == "restart" or a.get("died")]
+    if not held or not again:
         return actions
-    return [a for a in actions if a.get("kind") != "restart"] + [line(held)]
+    return [a for a in actions if a not in again] + [line(held)]
 
 
 def stops(top: str) -> int:

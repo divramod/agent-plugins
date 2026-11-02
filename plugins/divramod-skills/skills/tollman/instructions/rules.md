@@ -58,6 +58,11 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
    `fixed <sha>`; the tollman proves it green on that sha (a light job run itself, a heavy one by the gate's green
    line in the answer, plan 0522 D5), merges the fix into the same train branch, pushes, and triggers the next run
    once the workflow is completely finished. Nothing leaves the train.
+   Three guards keep a red train from landing again on an unchanged head (plan 0560, L200): a landing that died with
+   an open fix order is red, never restarted (`train_red.died`); a died landing whose run still runs is only watched,
+   and the train's own earlier runs (`train_branch.ours`) are never "the run before" (`next_train.others`);
+   `engine.land` refuses a candidate whose head is its last red run's (`head_guard.py`, the line `tollman: refused: ...`).
+   Under the hold (`tollman.py hold`) a died landing's restart or red is held back like a start, `fixed` writes the red.
 6. **A red post-merge job** (after the merge: stack-test, a deploy, e*/f* jobs) of a landed train holds the next train
    (the user, 2026-10-20, L37): a train is done only when its post-merge jobs are green. Its owner is ordered by code
    (`order --post`): a car's red at once, while the run runs; a repeat of an earlier run's red, a build-phase timeout

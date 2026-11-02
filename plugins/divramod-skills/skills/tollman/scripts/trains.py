@@ -36,7 +36,9 @@ a fresh run by code; the barn's or a car's red is one wake, then nothing until t
 waits for its fix. An incomplete pretest (`pretest_incomplete`: the budget cut a job or the gate did not answer, plan
 0522 D7): the same landing again, up to PRETEST_WAITS in a row, then red as above.
 Interrupted (the process gone without a result): the same
-landing again, it adopts the run; after MAX_STARTS the train is red and the session woken instead. Formed and never
+landing again, it adopts the run, but while its land run still runs it is only watched, settled at the run's end
+(plan 0560 step 2, watch.running); after MAX_STARTS the train is red and the session woken instead. With a fix order
+open it is never started again (plan 0560 D2): its red is recorded from the last run, the order answers it. Formed and never
 started (its form died): the same train started (`restart` merges the cars it lacks first). The queue's mark naming
 other cars: the next `restart` marks the train's own again. Only a car the user's own command unhitched (`by:
 user`) splits it: broken up, and the rest forms again in the same call. A mark without a train of ours (a dead
@@ -206,6 +208,8 @@ def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) 
     if status == PRETEST_WAIT and train.get("pretest_waits", 0) <= PRETEST_WAITS:  # not green: the push waits (D7)
         return [run("restart", "-", f"pretest-wait:{name}:{train['starts']}", "restart", top,
                     text=f"train {name}: {result.get('message') or 'its pretest is incomplete'}, started again")]
+    if status in AGAIN and train.get("orders"):  # plan 0560 D2, D3: an open fix order, the candidate is unchanged
+        return train_red.died(top, train, result, run, tickets)  # recorded red from the last run, never pushed again
     if status in AGAIN and train["starts"] < MAX_STARTS:
         return [run("restart", "-", f"restart:{name}:{train['starts']}", "restart", top,
                     text=f"train {name}: its landing ended {status or 'without a result'}, started again")]
@@ -248,7 +252,8 @@ def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict
     pre, train, stop = pause.step(top, main, standing, mine, landing, result)  # a smuggle's pause
     if stop:
         return pre  # paused: frozen, one line per pause (plan 0360 step 18, D58)
-    if train and train["state"] == "landing" and landing(train["pid"]):
+    if train and train["state"] == "landing" and (landing(train["pid"]) or (result(main) or {}).get("status") in AGAIN
+                                                  and watch.running(main, train, rows)):  # died, its run runs: plan 0560
         return pre + watch.actions(top, main, train, rows, tickets)  # its land run read, a red job wakes once
     if train and train["state"] == "landing":  # frozen (D3): a mark that names other cars is marked again
         return pre + hold.keep(settle(top, train, result(main), panes, tickets), held)  # held: no restart (L107)

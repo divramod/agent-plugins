@@ -142,6 +142,20 @@ class Shapes(Board):
         self.assertEqual(len(text.splitlines()), len(ids), "every kept line whole")
         self.assertFalse((self.wm_state / (board.FILE + ".tmp")).exists())
 
+    def test_the_board_lock_names_its_holder_and_a_waiter_does_not_wipe_it(self):
+        """Plan 0561: a freeze spares the process the lock names, so the lock file holds its pid while it is held."""
+        lock = self.wm_state / board.LOCK
+        with board.locked(self.main_dir()):
+            held = lock.read_text()
+            self.assertEqual(json.loads(held)["pid"], os.getpid())
+            self.assertTrue(board.farm_lock.probe(lock).held)
+            with self.assertRaises(TimeoutError):  # another taker waits; opening it never truncates the record
+                board.farm_lock.hold(lock, wait=0.05)
+            self.assertEqual(lock.read_text(), held)
+        self.assertFalse(board.farm_lock.probe(lock).held)
+        self.post("train", OWN, "-", cars=["07"])  # a post takes it as before
+        self.assertEqual(self.kinds(), [("train", OWN, "-")])
+
     def test_no_state_folder_is_a_failed_post_not_a_created_folder(self):
         with mock.patch.object(board.mtm_scan.roles, "state_dir", return_value=self.wm_state / "gone"):
             with self.assertRaises(FileNotFoundError):

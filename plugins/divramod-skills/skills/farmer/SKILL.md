@@ -33,6 +33,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
 | `watch` | `duties.plan_watch` (sanity-watch's scan) | [instructions/watch.md](instructions/watch.md) | sanity-watch's |
 | `autoclear` | `duties.plan_autoclear` (fix-autoclear's doctor) | [instructions/autoclear.md](instructions/autoclear.md) | fix-autoclear's |
+| `queue` | `queue_watch.plan_queue` (the merge queue's front read, never changed: IDLE-RESERVATION, DEAD-HOLDER, STALLED-GATE, NOT-MOVING; a new one woken for once, one lasting >30 min `alarm.py` once: STALLED-GATE rings and pushes as `runner-down`, the others only push; first-seen times in `queue-watch.json`; hal2 plan 0570 step 5) | [instructions/queue.md](instructions/queue.md) | |
 | tasks | `tasks.py` (machine form; a Check with `**Limit**` over 120 s runs detached, `task_detach.py`) | [instructions/task.md](instructions/task.md) | |
 
 Landings, the merge queue and the wagon trains are the [tollman](../tollman/SKILL.md)'s (hal2 plan 0294):
@@ -100,6 +101,12 @@ Abnormally stopped sessions resumed (`duties.plan_watch`, sanity-watch's scan). 
 Autoclear failures found and fixed (`duties.plan_autoclear`, fix-autoclear's doctor). Woken for:
 [instructions/autoclear.md](instructions/autoclear.md).
 
+### queue
+The merge queue's front watched, read-only (`queue_watch.plan_queue`, `python3 $S/queue_watch.py --repo-dir .` by
+hand): a reserved or dead holder while others wait over 15 min, a gate step over 45 min, a landing over 60 min with
+others waiting. A new finding wakes, one lasting over 30 min reaches the user once (`alarm.py`). Woken for:
+[instructions/queue.md](instructions/queue.md).
+
 ### tasks
 The `## Tasks` of the repository's ROLE.md, each on its cron (`tasks.py`, machine form or prose). Woken for:
 [instructions/task.md](instructions/task.md).
@@ -118,6 +125,17 @@ Where the user stops work by hand (`hal2-cli-workqueue freeze <session>|all`, pl
 the user says so: `hal2-cli-workqueue thaw all` (every session), `hal2-cli-workqueue thaw hal2/25` (one), and
 `hal2-cli-workqueue frozen` shows what is frozen, by whom and why. A frozen session is told by its own hook; a thaw
 ends manual freezes only, never a landing's or a train's hold.
+
+## Ringing the user
+
+Four stuck cases ring the user's iPhone (hal2 plan 0570, D7, D13): a dialog no rule lets anyone approve, a runner
+down >30 min, `main` red >30 min (the tollman's `mainred` did not get it green), a question only the user can answer
+blocking a field. `python3 $S/alarm.py <dialog|runner-down|main-red|question-blocks> "<what is stuck, what to do>"
+[--slot <NN>] [--json]` runs `hal2-cli-ring ring --from farmer-<repo>` (60 s at most, the reason on the phone); a
+stuck case always also pushes the reason to the desktop (D15), whatever the ring's exit (0 rung, 3 held back by the
+one ring per 30 min, 4 login needed, 1 failed, a timeout, no CLI; the push then names the cause). Any other notice to the user is a push only (`python3 $S/alarm.py <case>
+"<text>"`). Each call is one `alarm` line in `log.jsonl`; never a secret in the reason. The duty `queue` calls it by itself for a
+merge-queue finding lasting >30 min ([queue](#queue)).
 
 ## Silent
 

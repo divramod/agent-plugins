@@ -27,10 +27,13 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   started    the landing's process: `pid`, `log`, `land_ref` (the train's own branch, landed on `land/<land_ref>`:
              `train-<number>-<start>`, the mark's `--train/--attempt`, plan 0398; `train-<plan>-...` before it); written again by every restart; after a `retry` also
              `commit`, the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
+  push       the landing's push (engine.land, plan 0560 step 3, D5): `head`, the carrier's HEAD it lands, after the wait and
+             the post-merge fixes (head_guard.py: never pushed again once its run is red)
   run        the landing's land run, found by watch.py while it lands (plan 0360 step 5): `run` (its address); the
              latest after the last `started` is this start's (`land_run`); the train's first one also has
              `local_phase_seconds` (formed → the run's creation, plan 0467 D21, D23)
-  red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`
+  red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`; `head` when this
+             start pushed (its `push` line's): the head of a red run
   order      a fix order (orders.py, plan 0360 step 6, D6, D29): `field` (a car's, or `main`: the tollman's own),
              `branch` (`<NN>-train-fix`, `tollman-train-fix`), `base` (the carrier's head it branches from), `why`,
              `run`, `id`, `jobs` (the gate jobs its fix must turn green: fix_proof.py, plan 0522 D5); open until its
@@ -69,7 +72,9 @@ session's retry), `fixing` (red with fix orders open, `orders`: frozen as red; t
 count), `retry` (also once the last order is
 `fixed`: `fixed` true, the merge is the new candidate), `paused` (a smuggle paused its landing, `pauses`: frozen,
 pause.py), or `split` (the user unhitched a car after red: the rest
-forms again). The landing's own output is the text log `train-landing.log`, rewritten by every start; `result` is its last JSON line.
+forms again). `push` is the train's last push, kept across its starts: `head`, `run` (its land run), `red` (a `red`
+line named its head; head_guard.py). The landing's own output is the text log `train-landing.log`, rewritten by every
+start; `result` is its last JSON line.
 """
 
 import datetime as dt
@@ -87,7 +92,7 @@ ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
 YARD = "yard"  # the yard as a car: no field, never in the queue's mark
-KINDS = ("formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "run",
+KINDS = ("formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run",
          "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke")
 ORDER_KEYS = ("id", "field", "branch", "base", "why", "run", "at", "jobs")  # an open order's, as its line has them
 RUNNER = "runner"  # a retry's `why` that starts so is the code's after a runner fault (triage.py)
@@ -181,10 +186,16 @@ def standing(rows: list[dict]) -> dict | None:
             train.update(pretest=e.get("result"), pretest_tree=e.get("tree"), pretest_waits=waits)
         elif kind == "started":
             train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"),
-                         land_run=None, fixed=False, since=None, land_ref=e.get("land_ref"))
+                         land_run=None, fixed=False, since=None, land_ref=e.get("land_ref"), head=None)
+        elif kind == "push":  # plan 0560 step 3: the head this start lands, kept as the train's last push
+            train.update(head=e.get("head"), push={"head": e.get("head"), "run": None, "red": False})
         elif kind == "run":
             train["land_run"] = e.get("run")
+            if train.get("push"):
+                train["push"]["run"] = e.get("run")
         elif kind == "red":  # an early order answers the red: the train is `fixing` at once (plan 0383 D5)
+            if e.get("head") and e["head"] == (train.get("push") or {}).get("head"):  # its run is red (head_guard)
+                train["push"].update(red=True, run=e.get("run") or train["push"]["run"])
             train.update(state="fixing" if any(o.get("early") for o in train["orders"]) else "red",
                          status=e.get("status"), run=e.get("run"), why=e.get("why", ""))
         elif kind in ("order", "fixed"):

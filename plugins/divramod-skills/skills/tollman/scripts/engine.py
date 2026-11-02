@@ -26,7 +26,9 @@ its `run` actions; none waits for CI.
       post-merge fixes merged (next_train.py, plan 0383 step 6), then `hal2-cli-git worktree merge-to-main --json
       --land-ref <name>` as its child, on the train's own branch `land/<name>` (train_branch.py, plan 0383 D2;
       `restart` names it). It stays that landing's parent until it ends, because a merge-to-main whose starter is
-      gone ends `interrupted`
+      gone ends `interrupted`. Right before it the unchanged-head guard (head_guard.py, plan 0560 D5): the head of
+      the last red run of the train is refused (`tollman: refused`, the result `refused`, exit 1), any other is
+      written as the `push` line
   engine.py landed [--run <url>] [--commit <sha>] [--repo <field>]
       the train is in the barn: the field fast-forwarded, CURRENT_PLAN gone (its worktree dropped later, L135); the
       yard's carried files dropped where still the same, the yard fast-forwarded; a store farm's `sync --if-due landing`
@@ -53,6 +55,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import bounded
 import frozen
 import generated
+import head_guard
 import hold
 import mirror
 import mtm_scan
@@ -206,7 +209,8 @@ def land(top: str, ref: str | None = None) -> int:
         if pretest_train.before_landing(top):
             return 1
     next_train.before_push(top)
-    return hold.stops(top) or subprocess.run(argv, cwd=top).returncode  # L88: the hold's last look
+    # L88: the hold's last look; plan 0560 D5: never the head of the train's last red run again (head_guard.py)
+    return hold.stops(top) or head_guard.refuses(top) or subprocess.run(argv, cwd=top).returncode
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
@@ -234,7 +238,8 @@ def red(top: str, status: str, run: str | None = None, why: str = "", now: dt.da
     main, field, train, _ = here(top)
     if not train or train["state"] != "landing":  # `fixed` wrote it already (L108): never a second red line
         return 0, f"no landing train stands ({(train or {}).get('state', 'none')})"
-    train_state.append(main, "red", field, now, train=train["train"], status=status, run=run, why=why)
+    train_state.append(main, "red", field, now, train=train["train"], status=status, run=run, why=why,
+                       head=train.get("head"))  # this start's push: the head of a red run (head_guard.py)
     return 0, f"train {train['train']} is red ({status}): frozen, it waits for its fix or `retry` (plan 0360 D3, D7)"
 
 

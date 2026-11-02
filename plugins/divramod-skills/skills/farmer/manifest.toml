@@ -36,9 +36,14 @@ values = ["on"]
 description = "Present while the rounds are silenced (`farmer.py silence`, scripts/silence.py): a round prints one table line."
 
 [[files]]
+path = "board.lock.*"
+kind = "foreign"
+description = "A board writer's announced take of board.lock, `board.lock.<pid>` (a farm lock's intent, hal2 plan 0561 D16): written before the take, removed after the release; a dead pid's is removed by the workqueue's sweep."
+
+[[files]]
 path = "*.lock"
 kind = "lock"
-description = "tick.lock (the round) and board.lock (the board's writers), held with flock."
+description = "tick.lock (the round) and board.lock (the board's writers take turns on it), held with flock; empty, or while held one farm-lock record {schema, pid, taken} naming the holder (hal2 plan 0561): a freeze spares that process until the lock is released."
 
 [[files]]
 path = "tick.log*"
@@ -53,7 +58,7 @@ description = "The failing streak of the farmer's timer rounds (hal2 plan 0530 D
 [[files]]
 path = "*.json"
 kind = "snapshot"
-description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, disk.json."
+description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, disk.json, queue-watch.json (the queue duty's findings with their first-seen and alarmed times, `{schema 1, at, findings}`, replaced each real round: scripts/queue_watch.py)."
 
 [[files]]
 path = "tasks/*.json"

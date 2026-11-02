@@ -100,7 +100,8 @@ class Ended(Train20):
         sha = self.ordered()
         self.held()
         self.ends(None)  # stopped by signal: no result
-        self.round()
+        self.gh.runs[0] = dict(self.run, status="completed", conclusion="failure")  # its run ended too (plan 0560
+        self.round()  # step 2: while it runs, the round only watches it)
         self.assertNotIn(("restart", "run", "-"), self.last, "L107: the hold before settle's restart")
         self.assertIn(("held", "record", "-"), self.last)
         self.assertIn(("fixed", "run", "20"), self.last, "L108: the answered order taken while held")

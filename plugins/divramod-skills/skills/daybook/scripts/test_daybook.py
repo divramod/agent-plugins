@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -197,6 +198,38 @@ class Edits(Base):
         farm.LOCK_WAIT = 0.2
         self.addCleanup(setattr, farm, "LOCK_WAIT", old)
         self.run_cli("--date", "2026-10-12", "jot", "x", code=5)
+
+    def test_a_held_lock_names_its_holder_and_is_released_with_its_file(self):
+        """Plan 0561 row 15: the O_EXCL lock holds the holder's record, so a freeze can spare it."""
+        path = self.farm / "daybook" / ".daybook.lock"
+        with farm.Lock(str(self.farm / "daybook")):
+            record = json.loads(path.read_text())
+            self.assertEqual((record["schema"], record["pid"]), (1, os.getpid()))
+        self.assertFalse(path.exists())
+
+    def test_a_lock_of_a_live_holder_is_not_stolen_however_old_a_dead_ones_is_at_once(self):
+        """The old rule took a lock over after 60 s, losing a stopped holder's late write; a record names the holder."""
+        path = self.farm / "daybook" / ".daybook.lock"
+        old = farm.LOCK_WAIT
+        farm.LOCK_WAIT = 0.2
+        self.addCleanup(setattr, farm, "LOCK_WAIT", old)
+        farm_lock = farm.farm_lock
+        self.assertTrue(farm_lock.create_exclusive(str(path)))  # this process: alive
+        past = time.time() - 3600
+        os.utime(path, (past, past))
+        with self.assertRaises(farm.LockError):
+            farm.Lock(str(self.farm / "daybook")).__enter__()
+        path.write_text(farm_lock.line(pid=2 ** 22 + 4242))  # no such process: taken over at once
+        with farm.Lock(str(self.farm / "daybook")):
+            self.assertEqual(json.loads(path.read_text())["pid"], os.getpid())
+
+    def test_a_lock_without_a_record_is_still_taken_over_after_60_seconds(self):
+        path = self.farm / "daybook" / ".daybook.lock"
+        path.touch()
+        past = time.time() - 61
+        os.utime(path, (past, past))
+        with farm.Lock(str(self.farm / "daybook")):
+            self.assertEqual(json.loads(path.read_text())["pid"], os.getpid())
 
 
 class Folder(Base):

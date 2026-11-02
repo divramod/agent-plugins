@@ -91,6 +91,10 @@ class Asleep(unittest.TestCase):
                                                          "red": [{"name": "d1-01-rust-test"}]})
         self.assertEqual(kinds(red), [("asleep", "record")], "no red line, no wake, no order: settled in production")
         again = plan([FORMED, STARTED], alive=(), result={"status": "interrupted"})
+        self.assertEqual(kinds(again), [("asleep", "record"), ("train-run", "run")],
+                         "no land run started: its run still runs, watched (plan 0560 step 2)")
+        self.gh.runs[0] = dict(OURS, status="completed", conclusion="failure")
+        again = plan([FORMED, STARTED], alive=(), result={"status": "interrupted"})
         self.assertEqual(kinds(again), [("asleep", "record")], "no land run started")
         flagged = plan([FORMED, STARTED], alive=(), mode=None, flag=FLAG,
                        result={"status": "landed", "commit": "c1", "run": OURS["url"]})

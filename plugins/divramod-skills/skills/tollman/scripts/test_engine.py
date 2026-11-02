@@ -380,6 +380,77 @@ class Frozen(Farm):
         self.assertTrue(self.gate.of("11")["ready"], "11 rides the next train")
 
 
+class UnchangedHead(Farm):
+    """Hal2 plan 0560 step 3 (D5, tollman learning L200): train 37's landing died, its restart pushed the unchanged
+    candidate on a new land branch and the same 8 reds came again. `engine.land`, the last point before every push,
+    refuses the head of the train's last red run; a new head (a retry's empty commit, a fix's merge) lands."""
+
+    RUN = "https://github.com/x/actions/runs/9"
+
+    def setUp(self):
+        super().setUp()
+        self.crop("07", {"seven.txt": "7"}, plan="0294-tollman-role")
+        self.round()
+        self.alive.add(40001)
+        self.mark = self.wm.parent / "landed.txt"  # the landing's fake: one line per landing it ran
+        land = [sys.executable, "-c", f"open({str(self.mark)!r}, 'a').write('landed\\n')"]
+        for p in (mock.patch.object(engine, "LAND", land), mock.patch.object(engine.next_train, "before_push"),
+                  mock.patch.object(engine.pretest_train, "before_landing", return_value=False),
+                  mock.patch.object(engine.hold, "stops", return_value=0)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def land(self):
+        """engine.land in the carrier: (its exit, what it printed, how many landings ran so far)."""
+        text = io.StringIO()
+        with contextlib.redirect_stdout(text):
+            code = engine.land(str(self.cw))
+        runs = len(self.mark.read_text().splitlines()) if self.mark.exists() else 0
+        return code, [line for line in text.getvalue().splitlines() if line], runs
+
+    def test_the_head_of_the_last_red_run_is_refused_a_new_head_lands(self):
+        head = out(self.cw, "rev-parse", "HEAD")
+        self.assertEqual(self.land()[0::2], (0, 1))
+        push = train_state.lines(str(self.main))[-1]
+        self.assertEqual((push["kind"], push["slot"], push["train"], push["head"]),
+                         ("push", self.carrier(), self.train()["train"], head))
+        self.ends({"status": "gate_failed", "run": self.RUN, "red": [{"name": "linux / rust-test"}]})
+        self.round()
+        red = train_state.lines(str(self.main))[-1]
+        self.assertEqual((red["kind"], red["head"], self.train()["push"]),
+                         ("red", head, {"head": head, "run": self.RUN, "red": True}))
+        code, lines, runs = self.land()  # a path into the push that does not change the candidate (L200's restart)
+        self.assertEqual((code, runs), (1, 1), "refused: no landing ran")
+        self.assertEqual(lines[0], f"tollman: refused: train 1's candidate {head[:12]} is the head of its last red run "
+                                   f"{self.RUN}; waiting for a fix")
+        self.assertEqual(json.loads(lines[1])["status"], "refused", "its result: the round records the red at once")
+        self.assertEqual(train_state.lines(str(self.main))[-1]["kind"], "red", "no push line")
+        git(self.cw, "commit", "-q", "--allow-empty", "-m", "a fix")  # a new head: a retry's empty commit, a fix
+        self.assertEqual(self.land()[0::2], (0, 2))
+        self.assertEqual(self.train()["push"], {"head": out(self.cw, "rev-parse", "HEAD"), "run": None, "red": False})
+
+    def test_a_died_landing_s_red_run_on_github_is_refused_too(self):
+        """L200: no `red` line, the landing died; its run (noted by watch.py) ended red on GitHub. A cancelled run
+        (a smuggle's pause) is no red: the same head lands again."""
+        main, name = str(self.main), self.train()["train"]
+        self.assertEqual(self.land()[0::2], (0, 1))
+        train_state.append(main, "run", self.carrier(), train=name, run=self.RUN)  # watch.py noted it, then it died
+        cancelled = [{"databaseId": 9, "status": "completed", "conclusion": "cancelled"}]
+        with mock.patch.object(engine.head_guard.mtm_ci, "runs_of", return_value=cancelled):
+            self.assertEqual(self.land()[0::2], (0, 2), "a cancelled run is no red")
+        train_state.append(main, "run", self.carrier(), train=name, run=self.RUN)
+        failed = [{"databaseId": 9, "status": "completed", "conclusion": "failure"}]
+        with mock.patch.object(engine.head_guard.mtm_ci, "runs_of", return_value=failed):
+            code, lines, runs = self.land()
+        self.assertEqual((code, runs, lines[0].split(" is the head")[0]),
+                         (1, 2, f"tollman: refused: train 1's candidate {out(self.cw, 'rev-parse', 'HEAD')[:12]}"))
+        self.ends(json.loads(lines[1]))  # its result: the round records the red at once, never a restart
+        self.round()
+        red = train_state.lines(str(self.main))[-1]
+        self.assertEqual((self.last[0], red["kind"], red["status"], red["run"], self.train()["starts"]),
+                         (("red", "run", "-"), "red", "refused", self.RUN, 1))
+
+
 def check_problems(case, p):
     """The problems of a failed `hal2-cli-roles check`: the error document's details on stderr (plan 0318 step 10), else
     the report on stdout; an installed CLI that predates that contract (CI's) skips the test with the reason."""
@@ -458,6 +529,7 @@ class Files(Farm):
               mock.patch.object(engine.pretest_train, "before_landing", pretest),
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
               mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88's look: its own test)
+              mock.patch.object(engine.head_guard, "refuses", return_value=0),  # its own test: UnchangedHead
               mock.patch.object(workqueue_hold, "cloud_train", lambda top: cloud),
               mock.patch("sys.stdout"), mock.patch.dict(os.environ)):
             os.environ.pop("HAL2_WORKQUEUE_HOLD", None)

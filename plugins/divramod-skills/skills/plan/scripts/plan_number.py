@@ -29,6 +29,12 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+try:  # the skills unit's scripts/: the lock names its holder (plan 0561); the plan skill copied out of the unit has none
+    sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+    import farm_lock
+except (StopIteration, ImportError):
+    farm_lock = None
+
 PLAN_DIRS = ("plans", "docs/plans")  # docs/plans: legacy location, still counted
 ENTRY_RE = re.compile(r"^(\d{4})-(.+?)(\.md)?$")
 RESERVATIONS = "plan-numbers.json"
@@ -107,7 +113,11 @@ def locked(root: Path, file: str = RESERVATIONS):
     folder = common_dir(root)
     if folder is None:
         raise NumberError(f"not a git repository: {root}")
-    with open(folder / (file + ".lock"), "w") as lock:
+    if farm_lock is not None:  # opened without truncation, the holder's pid written (plan 0561)
+        with farm_lock.hold(folder / (file + ".lock")):
+            yield folder / file
+        return
+    with open(folder / (file + ".lock"), "a") as lock:  # a copy of this skill outside the unit: the lock without a name
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield folder / file
 

@@ -33,6 +33,8 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
     stdin touch, the skills unit's check of a smuggle (hal2's `.hal/smuggle.toml`).
   - [skillpath.py](scripts/skillpath.py), [skillpath.sh](scripts/skillpath.sh): how a script finds a sibling skill,
     flat or in a category (`sibling(name)`, `skill_dir name`).
+  - [farm_lock.py](scripts/farm_lock.py), [test_farm_lock.py](scripts/test_farm_lock.py): the farm-wide lock helper (`hold`,
+    `probe`, `intend`; the record of `hal2_core::farm_lock`, plan 0561) used by the plan, farmer, daybook and git-seed scripts.
   - [git_seed.py](scripts/git_seed.py): the tests' shared git seed (`grow(tmp, key, build)`): a tree grown once per
     run, kept on disk under a lock in the temp dir and copied per test; the last process out removes it. Also the
     tests' 60 s hang guard (`guard`), a child killed by process group (`spawn`) and, on macOS, the real git first on

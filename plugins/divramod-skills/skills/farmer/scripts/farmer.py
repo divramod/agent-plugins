@@ -80,6 +80,7 @@ import migrate
 import prune_round
 import questions
 import queue_mode
+import queue_watch
 import tasks
 import tick
 
@@ -92,6 +93,7 @@ HANDLERS: dict = {  # "duty:<name>" / "task:<name>" → (item, ctx) → planned 
     "duty:sync": role_sync.plan_sync,
     "duty:watch": duties.plan_watch,
     "duty:autoclear": duties.plan_autoclear,
+    "duty:queue": queue_watch.plan_queue,  # the merge-queue watch, hal2 plan 0570 step 5
     "task:*": tasks.plan_task,
 }
 

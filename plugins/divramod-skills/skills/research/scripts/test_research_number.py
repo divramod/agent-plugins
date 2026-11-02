@@ -68,6 +68,15 @@ class ResearchNumberTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return int(result.stdout)
 
+    def test_a_held_research_numbers_lock_names_its_holder(self):
+        """Plan 0561: the research numbers share plan_number's lock, which writes its holder's pid, never truncated."""
+        import farm_lock
+        lock = self.main / ".git" / "research-numbers.json.lock"
+        with research_number.plan_number.locked(self.main, research_number.RESERVATIONS):
+            self.assertEqual(json.loads(lock.read_text())["pid"], os.getpid())
+            self.assertTrue(farm_lock.probe(lock).held)
+        self.assertFalse(farm_lock.probe(lock).held)
+
     def test_sees_other_worktrees_branches_and_remotes(self):
         tree = self.base / "wt"
         git(self.main, "worktree", "add", "-q", "-b", "wt", str(tree))

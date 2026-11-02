@@ -16,12 +16,13 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import git_seed
 import chain
 import gate_car
+import hold
 import proof
 import tick
 import train_state
 import trains
 import trial
-from gh_fake import FakeGh
+from gh_fake import FakeGh, run
 
 import sys
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
@@ -372,6 +373,28 @@ class Settle(unittest.TestCase):
         self.assertEqual(shape(stuck), [("red", "run", "-"), ("train-failed", "wake", "-")])
         self.assertIn(f"its landing ended without a result {trains.MAX_STARTS} times", stuck[1]["text"])
 
+    def test_a_died_landing_with_an_open_fix_order_is_red_not_started_again(self):
+        """Plan 0560 step 1 (L200, train 37): the candidate is unchanged, a restart only repeats the same reds."""
+        order = {"id": "07-fix-1", "field": "07", "early": True}
+        train = dict(TRAIN, orders=[order], land_run="https://x/runs/9")
+        for result in (None, {"status": "interrupted", "message": "its parent is gone"}, {"status": "testing"}):
+            out = trains.settle("/f", train, result, {})
+            self.assertEqual(shape(out), [("red", "run", "-")], result)
+            self.assertEqual(out[0]["argv"][2:], ["red", "--status", "gate_failed", "--run", "https://x/runs/9",
+                                                  "--why", out[0]["argv"][8], "--repo", "/f"])
+            self.assertIn("fix order 07-fix-1 is open", out[0]["argv"][8])
+        own = trains.settle("/f", train, {"status": "interrupted", "run": "https://x/runs/10"}, {})
+        self.assertEqual(own[0]["argv"][6], "https://x/runs/10", "the result's run wins over the watched one")
+        self.assertEqual(shape(trains.settle("/f", dict(train, starts=trains.MAX_STARTS), None, {})),
+                         [("red", "run", "-")], "past MAX_STARTS the same: recorded, not woken")
+        self.assertEqual(shape(trains.settle("/f", dict(train, orders=[]), None, {})), [("restart", "run", "-")],
+                         "without an open order the old restart")
+        held = {"why": "the user's hold", "at": AT}
+        self.assertEqual(shape(hold.keep(trains.settle("/f", train, None, {}), held)), [("held", "record", "-")],
+                         "under the hold the died landing's red waits for `fixed` (L108), as its restart did (L107)")
+        landed = trains.settle("/f", train, {"status": "landed"}, {})
+        self.assertEqual(shape(landed)[0], ("landed", "run", "-"), "a landed result is the barn's, orders or not")
+
 
 class Plan(unittest.TestCase):
     """The state machine over data: the field `/f/tollman-hal2` does not exist, so nothing is drafted."""
@@ -396,6 +419,25 @@ class Plan(unittest.TestCase):
         self.assertEqual(self.plan([self.FORMED, self.STARTED], alive={4711}), [], "its run not found yet: only watched")
         mine = {"slot": "tollman-hal2", "position": 0, "pid": 99, "state": "active"}
         self.assertEqual(self.plan([], [mine], alive={99}), [], "a landing of the field that is no train of ours")
+
+    def test_a_died_landing_whose_run_still_runs_is_watched_never_started_again(self):
+        """Plan 0560 step 2 (L200, train 37): its run goes on after the landing's process died; a restart pushed the
+        same candidate a second time. The round watches the run and settles at its end."""
+        def runs(status):
+            FakeGh(runs=[run(41, "land/tollman-hal2", AT, status=status)]).start(self)
+        rows, died = [self.FORMED, self.STARTED], {"status": "interrupted"}
+        runs("in_progress")
+        for result in (None, died, {"status": "testing"}):
+            self.assertEqual(shape(self.plan(rows, result=result)), [("train-run", "run", "-")], result)
+        noted = rows + [self.line("run", run="https://github.com/x/actions/runs/41")]
+        self.assertEqual(self.plan(noted, result=died), [], "noted: only watched, no restart")
+        order = self.line("order", field="07", id="07-fix-1", early=True)
+        self.assertEqual(self.plan(noted + [order], result=died), [], "an open order: watched too, red at its end")
+        self.assertEqual(shape(self.plan(noted, result={"status": "landed"}))[0], ("landed", "run", "-"),
+                         "a landed result is the barn's while its jobs after the merge run")
+        runs("completed")
+        self.assertEqual(shape(self.plan(noted, result=died)), [("restart", "run", "-")], "ended: settled as before")
+        self.assertEqual(shape(self.plan(noted + [order], result=died)), [("red", "run", "-")], "step 1's red")
 
     def test_a_red_train_waits_for_the_session_s_word(self):
         red = self.line("red", status="gate_failed")
@@ -563,7 +605,7 @@ class State(unittest.TestCase):
         self.assertRegex(train_state.utc(naive), r"^2026-10-1[234]T\d\d:\d\d:05Z$")
         aware = tick.dt.datetime(2026, 10, 13, 12, 0, 5, tzinfo=tick.dt.timezone(tick.dt.timedelta(hours=2)))
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
-        kinds = ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started",
+        kinds = ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push",
                  "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared",
                  "woke"]
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)), kinds)

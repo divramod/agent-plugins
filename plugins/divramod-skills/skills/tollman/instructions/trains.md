@@ -37,6 +37,11 @@ apply their rules. After you handled a red train, an error or a by-hand fix, wri
 | `train-failed`, the yard as the cause | The train's `Worktree:` trailer names `main` (the yard) and the failing task's files are the yard's commit (`train.jsonl`'s `yard` line names them; the dry run's `yard: placed:` lines show what rides next): the train waits for the yard's fix: leave the farmer a board note (`board.py post --kind note --from tollman-<repo> --to farmer-<repo> --text ...`; it reads it when it asks) naming the files that fail. Only the user's own `tollman.py unhitch yard --why "<job and cause>" --by-user` takes the yard's car out (its files stay in the yard, out of every train until they change). Never edit the yard's files |
 | `train-stuck` | An engine verb failed (the item names the verb and the command). Run the command to see why, then `python3 $S/tollman.py train --dry-run`. A leftover mark without a train of ours: `python3 $S/engine.py breakup --why "<why>"` clears it; a train that stands is frozen, the breakup refuses it (only the user's `--by-user`): fix what the command names (a car the field lacks merges at the next restart). Not fixable here (a git or `hal2-cli-git` fault): notify the user |
 
+**A refused or unchanged push** (plan 0560, L200): the three guards ([rules.md](rules.md), priority 5) mean a red train
+never lands twice on the same head. A `refused` landing result (`head_guard.py`) is the red of the run it names: read
+that run, order the fix as for `train-failed`; never `retry` to get round it. A died landing with an open fix order waits
+for its `fixed` line, a died landing whose run runs is watched; neither wakes you.
+
 **Reading a red** (rules from the learnings; check each before you name a car or order main):
 
 - **Mac green, Linux red around git repos** (L42): name the default branch in the order's why (`git init --initial-branch=main`,

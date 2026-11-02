@@ -40,7 +40,7 @@ notify: every-round
 """
 # Without `mtm` and `trains` since step 5: the merge-to-main boss and the trains are the tollman's; without `prune`
 # since plan 0360 step 7 (D30, D67): the prune duty is the tollman's after-the-barn duty.
-FARMER_DUTIES = ("lead", "ci", "prs", "sync", "watch", "autoclear")
+FARMER_DUTIES = ("lead", "ci", "prs", "sync", "watch", "autoclear", "queue")  # + queue: plan 0570 step 5
 FARMER_SUBSKILLS = {"lead": "development-lead", "ci": "ci", "watch": "sanity-watch", "autoclear": "fix-autoclear"}
 SNAP = {"now": NOW.timestamp(), "queue": [], "findings": [], "landings": [], "worktrees": [],
         "load": {"load1": 1.0, "cores": 8}}

@@ -81,7 +81,7 @@ class Wiring:
 FARMER = Wiring(
     role=ROLE, cli=Path(__file__).resolve().parent / "farmer.py", skill=Path(__file__).resolve().parents[1],
     act="/farmer act", handoff="/farmer handoff",
-    duties=("lead", "ci", "prs", "sync", "watch", "autoclear"),
+    duties=("lead", "ci", "prs", "sync", "watch", "autoclear", "queue"),
     subskills={"lead": "development-lead", "ci": "ci", "watch": "sanity-watch", "autoclear": "fix-autoclear"},
     delegates=True)
 

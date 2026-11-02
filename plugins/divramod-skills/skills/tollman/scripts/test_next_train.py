@@ -147,6 +147,7 @@ class MergeGreen(Trains):
         with (mock.patch.object(engine.pretest_train, "before_landing", lambda top: calls.append("pretest") or False),
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
               mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88: test_orders_ended)
+              mock.patch.object(engine.head_guard, "refuses", return_value=0),  # its own test: UnchangedHead
               mock.patch.object(engine.subprocess, "run",
                                 lambda argv, cwd: calls.append(argv) or types.SimpleNamespace(returncode=0))):
             self.assertEqual(engine.land("/x", "train-0382"), 0)
@@ -166,6 +167,41 @@ class OpenWait(unittest.TestCase):
             lines = next_train.wait("/m", "land/x", sleep=lambda s: calls.append("sleep"),
                                     join=lambda: calls.append("join") or ["04 joined"])
         self.assertEqual((calls, lines[1:]), (["join", "sleep", "join", "sleep"], ["04 joined", "04 joined"]))
+
+
+class OwnRuns(unittest.TestCase):
+    """Plan 0560 step 2 (D4, L200, train 37): attempt 1's run on `land/train-37-1` went on after its landing died; the
+    restart's wait counted it as "the run before" and pushed the same candidate after its red end."""
+
+    TRAIN = {"train": "37", "number": 37, "starts": 2, "land_ref": "train-37-2", "carrier": "tollman-train-x",
+             "cars": [{"field": "07", "plan": "0383-a"}]}
+
+    def runs(self, *branches):
+        FakeGh(runs=[run(700 + i, b, "2026-11-01T05:00:00Z", status="in_progress")
+                     for i, b in enumerate(branches)]).start(self)
+
+    def test_the_train_s_own_earlier_start_is_never_the_run_before_another_train_s_still_is(self):
+        self.runs("land/train-37-1", "land/train-37-2", "land/train-36-1", "land/train-371-1")
+        self.assertEqual([r["headBranch"] for r in next_train.others("/m", self.TRAIN)],
+                         ["land/train-36-1", "land/train-371-1"], "37's starts are its own, 36 and 371 another's")
+        self.assertEqual(len(next_train.others("/m", "land/train-37-2")), 3, "one branch: as before")
+        legacy = dict(self.TRAIN, number=None, land_ref="train-0383")
+        self.runs("land/train-0383", "land/train-0383-0384")
+        self.assertEqual([r["headBranch"] for r in next_train.others("/m", legacy)], ["land/train-0383-0384"],
+                         "a train without a number: its plan-named ref only")
+
+    def test_before_push_never_waits_for_its_own_earlier_start(self):
+        self.runs("land/train-37-1")
+        with (mock.patch.object(next_train.mtm_scan, "main_checkout", return_value="/m"),
+              mock.patch.object(next_train.train_state, "lines", return_value=[]),
+              mock.patch.object(next_train.train_state, "standing", return_value=self.TRAIN),
+              mock.patch.object(next_train.fix_wait, "fixes", return_value=[]),
+              mock.patch.object(next_train, "merge_posts", return_value=[])):
+            self.assertEqual(next_train.before_push("/x", sleep=self.fail), [], "attempt 1's run: no wait")
+            self.runs("land/train-36-1")
+            with contextlib.redirect_stdout(io.StringIO()):
+                lines = next_train.wait("/m", self.TRAIN, sleep=lambda s: self.runs())
+            self.assertEqual(lines, ["next train: its land run waits for run 700 to finish (one land run at a time)"])
 
 
 class PostMergeRed(Trains):

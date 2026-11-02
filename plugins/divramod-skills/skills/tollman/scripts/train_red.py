@@ -11,6 +11,7 @@
   landing is started again (`restart`), as a landing that ended without a result
 - `smuggled`: the red touches a covered smuggle's files (D61, step 18): the red line and a fix order to the smuggling
   field by code (smuggled.py), no wake; a `conflict` while smuggles stand is the resumed landing's (D62): the same
+- a landing that died with a fix order open (`died`, plan 0560): red `gate_failed` from its last run, no restart
 - an early fix order stands (early_order.py, plan 0383 step 5, D5): the red line only; the train is `fixing` at once
   and waits for that order's `fixed` (a `runner`, `main` or `car` verdict changes nothing)
 - no run to read (a red pretest, a conflict, a landing that ended without a result too often): one wake
@@ -67,6 +68,18 @@ def text(verdict: dict, train: dict, state: str, why: str, run: str | None) -> s
         train=train["train"], state=state, why=why, run=run or "none", cars=cars_of(train), **triage.words(verdict))
 
 
+def died(top: str, train: dict, result: dict | None, run, tickets=()) -> list[dict]:
+    """A landing that died (no result, or a rerun-able one) while a fix order of the train is open (plan 0560 D2,
+    D3): never started again, the candidate is unchanged and would only repeat the same reds. Its red is recorded as
+    `gate_failed` from the last run (the result's, else the one watch.py saw: `land_run`); the order answers it and the
+    `fixed` line starts the next landing. Same path as any red: `actions`."""
+    link = (result or {}).get("run") or train.get("land_run")
+    ids = ", ".join(str(o.get("id")) for o in train.get("orders") or [])
+    why = f"its landing ended without a result; fix order {ids} is open, so it is not started again"
+    out = actions(top, train, {**(result or {}), **({"run": link} if link else {})}, "gate_failed", why, run, tickets)
+    return [{**a, "died": True} for a in out]  # hold.keep: under the hold the same as its dropped restart (L107)
+
+
 def actions(top: str, train: dict, result: dict | None, status: str, why: str, run, tickets=()) -> list[dict]:
     """The red train's actions; `run` is trains.run (an engine verb as a `run` action); `tickets` the queue's."""
     name, starts, link = train["train"], train["starts"], (result or {}).get("run")
@@ -79,6 +92,8 @@ def actions(top: str, train: dict, result: dict | None, status: str, why: str, r
     names = [j.get("name", "") for j in (result or {}).get("red") or []]
     verdict = triage.of(top, train, link, names, list(tickets)) if status != "interrupted" else None
     verdict = verdict or no_run(result, status, why)
+    if not verdict and any(o.get("early") for o in train.get("orders") or []):
+        return [red]  # an open early fix order answers it (plan 0560 D3): the red line only, no wake
     if not verdict:
         return [red, act("trains", "train-failed", "wake", key=f"train-red:{name}:{starts}", after=key,
                          text=TEXT["failed"].format(train=name, state=f"did not land ({status})", why=why,

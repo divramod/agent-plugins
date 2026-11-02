@@ -72,9 +72,14 @@ values = ["on"]
 description = "Present while the rounds are silenced (`tollman.py silence`, farmer/scripts/silence.py): a round prints one table line per train with a joined column."
 
 [[files]]
+path = "board.lock.*"
+kind = "foreign"
+description = "A board writer's announced take of board.lock, `board.lock.<pid>` (a farm lock's intent, hal2 plan 0561 D16): written before the take, removed after the release; a dead pid's is removed by the workqueue's sweep."
+
+[[files]]
 path = "*.lock"
 kind = "lock"
-description = "tick.lock (the round), board.lock (the board's writers) and train-drop.lock (one drop run of the train worktrees at a time), held with flock."
+description = "tick.lock (the round), board.lock (the board's writers take turns on it) and train-drop.lock (one drop run of the train worktrees at a time), held with flock; empty, or while held one farm-lock record {schema, pid, taken} naming the holder (hal2 plan 0561): a freeze spares that process until the lock is released."
 
 [[files]]
 path = "tick.log*"

@@ -3,8 +3,8 @@
 on the green merge job of the train before (minute.py) and is pretested at once; its land run waits here.
 
 1. One land run at a time (L34; the role's Train flow: "workflow finished: only now does the next run start"):
-   while a run of the landing workflow on another `land/` branch has not completed (the train before, its jobs
-   after the merge still running), the landing waits, polling every POLL seconds, at most MAX_WAIT, one line when
+   while a run of the landing workflow on another train's `land/` branch has not completed (the train before, its jobs
+   after the merge still running; a run of this train's own earlier start never, plan 0560 D4), the landing waits, polling every POLL seconds, at most MAX_WAIT, one line when
    the runs it waits for change. hal2-git itself waits only while a run's merge job runs (ci/ship.rs). gh failing:
    no run known, no wait. All that wait the train is open (open_train.py, plan 0490 step 20, D21, D23): each poll a
    newly hitched clean, proven wagon joins it; once the run before has concluded as a whole its cars freeze and the
@@ -36,13 +36,15 @@ POLL = 30
 MAX_WAIT = 6 * 3600  # the ship jobs' own limits are shorter; past it the landing goes on (hal2-git's own wait stands)
 
 
-def others(main: str, own: str) -> list[dict]:
-    """The landing workflow's runs not completed on a `land/` branch other than `own` (this train's)."""
+def others(main: str, own: str | dict) -> list[dict]:
+    """The landing workflow's runs not completed on a `land/` branch that is not this train's: `own` the train (each
+    of its starts' branches is its own, train_branch.ours, plan 0560 D4) or one branch."""
+    mine = functools.partial(train_branch.ours, own) if isinstance(own, dict) else own.__eq__
     return [r for r in mtm_ci.runs_of(mtm_scan.run_json, main) if r.get("status") != "completed"
-            and str(r.get("headBranch") or "").startswith("land/") and r.get("headBranch") != own]
+            and str(r.get("headBranch") or "").startswith("land/") and not mine(str(r.get("headBranch")))]
 
 
-def wait(main: str, own: str, sleep=time.sleep, clock=time.monotonic, join=None) -> list[str]:
+def wait(main: str, own: str | dict, sleep=time.sleep, clock=time.monotonic, join=None) -> list[str]:
     """1.: wait while another land run runs; the lines it printed. `join()`: the open train's round each poll while
     it runs (its lines), never after it ended."""
     deadline, told, lines = clock() + MAX_WAIT, "", []
@@ -83,7 +85,7 @@ def before_push(top: str, sleep=time.sleep, clock=time.monotonic) -> list[str]:
     if not train:
         return []
     joins = functools.partial(open_train.take, top, main)  # the open train (plan 0490 step 20)
-    lines = wait(main, train_branch.land(train), sleep, join=joins)
+    lines = wait(main, train, sleep, join=joins)  # never its own earlier start's run (plan 0560 D4, L200)
     lines += fix_wait.fixes(main, train["train"], lambda: merge_posts(top, main, current(main) or train), joins, sleep,
                             clock)
     return lines + merge_posts(top, main, current(main) or train)

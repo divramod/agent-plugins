@@ -20,6 +20,9 @@ returns each round for a live landing, which it left alone before.
    rounds and settle's own wake). A red after the merge job is green is post_merge.py's (plan 0383 step 6): its
    car's fix order rides the next train.
 
+3. A landing whose process died while its run still runs (`running`): `trains.plan` watches it as a live one and
+   settles only after the run's end (plan 0560 step 2, L200: a restart pushed the same candidate a second time).
+
   watch.py run <url> [--repo <dir>]   note the standing train's land run (the action of step 1)
 
 The first `run` line of a train also carries `local_phase_seconds` (plan 0467 D21, D23): the train's local phase,
@@ -73,6 +76,14 @@ def find(main: str, train: dict | None, rows: list[dict]) -> tuple[str | None, b
             and mtm_ci.started(r) >= since and r.get("conclusion") != "skipped"]
     hit = next(iter(of_setting(main, ours)), None)
     return (hit.get("url") or str(hit.get("databaseId")), True) if hit else (None, False)
+
+
+def running(main: str, train: dict, rows: list[dict]) -> bool:
+    """The train's current land run (`find`) is listed and not completed: a landing whose process died while its run
+    goes on is watched by `actions`, never started again to push the same candidate (plan 0560 step 2, L200)."""
+    rid = stack_red.run_id(find(main, train, rows)[0])
+    return bool(rid) and any(str(r.get("databaseId")) == rid and r.get("status") != "completed"
+                             for r in mtm_ci.runs_of(mtm_scan.run_json, main))
 
 
 def record(top: str, name: str, url: str, rid: str) -> dict:

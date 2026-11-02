@@ -37,13 +37,14 @@ A post that fails never fails a round: `safely` logs it to the frame's log (`boa
 import argparse
 import contextlib
 import datetime as dt
-import fcntl
 import json
 import os
 import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+import farm_lock  # noqa: E402  (the skills unit's scripts/: the lock names its holder, plan 0561)
 import mtm_scan  # the tollman's scripts reach this folder through its farmer_frame
 import roletime
 
@@ -86,12 +87,12 @@ def path(main: str, role: str = ROLE) -> Path:
 
 @contextlib.contextmanager
 def locked(main: str, role: str = ROLE):
-    """Writers and the prune take turns (flock on board.lock); the folder must exist: the board is the field's."""
+    """Writers and the prune take turns (flock on board.lock, naming its holder: a freeze spares it, plan 0561); the
+    folder must exist: the board is the field's."""
     folder = path(main, role).parent
     if not folder.is_dir():
         raise FileNotFoundError(f"no state folder {folder}: the {role}'s field does not exist here")
-    with (folder / LOCK).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with farm_lock.hold(folder / LOCK):
         yield folder / FILE
 
 

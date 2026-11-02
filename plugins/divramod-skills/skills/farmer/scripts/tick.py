@@ -235,8 +235,8 @@ def waiting_noise(actions: list[dict], waiting: set[str]) -> list[dict]:
 def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wiring: roles.Wiring = roles.FARMER,
             paused: dict | None = None) -> dict:
     """What every duty's planner reads: the log, the opted-in duties, the agents by pane, each worktree's pane and the
-    worktrees whose landing runs or holds the queue (never touched), the paused fields (field_pause) and the role's
-    wiring."""
+    worktrees whose landing runs or holds the queue (never touched), the queue's document (`queue_doc`, None when
+    unreadable: the queue duty's, queue_watch.py), the paused fields (field_pause) and the role's wiring."""
     import deliver
     import field_pause
     import live_sessions
@@ -247,12 +247,12 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
         data = None
     rows = (data.get("agents", []) if isinstance(data, dict) else data) or []
     strict = live_sessions.read(lambda _: data if code == 0 else None)  # None: unreadable, never "empty"
-    queue = mtm_scan.run_json(["hal2-cli-git", "worktree", "queue", "--json"], main) or {}
-    tickets = queue.get("queue", [])
+    queue_doc = mtm_scan.run_json(["hal2-cli-git", "worktree", "queue", "--json"], main)  # None: unreadable
+    tickets = (queue_doc or {}).get("queue", [])
     landing = {t.get("slot") for t in tickets if t.get("state") == "active"
                or (t.get("hold") or {}).get("reason") == "reserved"}
     log = read_log(main, wiring.role)
-    return {"top": top, "main": main, "now": now, "dry": dry, "log": log, "wiring": wiring,
+    return {"top": top, "main": main, "now": now, "dry": dry, "log": log, "wiring": wiring, "queue_doc": queue_doc,
             "paused_fields": paused if paused is not None else field_pause.load(main),
             "duties": {n.split(":", 1)[1] for n in items if n.startswith("duty:")},
             "agents": strict, "agent_rows": rows,

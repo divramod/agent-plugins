@@ -11,6 +11,9 @@ Its part per car in train order: its plan's number (`0383` of `0383-train-rules`
 and digits only); a part twice is named once. hal2-cli-git refuses a branch over 200 characters and one holding
 `probe` (the workflow's replays): a train too long keeps the parts that fit and `plus<n>` for the rest, and a part
 never holds `probe`.
+
+`ours` names every branch of the train itself (plan 0560 D4, L200): each start lands on a new `land/train-<n>-<a>`,
+so an earlier attempt's run is the train's own, never "the run before" (next_train.others).
 """
 
 import re
@@ -63,3 +66,13 @@ def land(train: dict) -> str:
     train started before plan 0383) the carrier's `land/<carrier>`."""
     ref = train.get("land_ref")
     return f"{LAND}{ref}" if ref else f"{LAND}{train.get('carrier')}"
+
+
+def ours(train: dict, branch: str) -> bool:
+    """`branch` is one of the train's own land branches: its current start's (`land`), any start's
+    `land/train-<n>-*` of a numbered train, the plan-named `land/<name>` of a train without a number (plan 0560 D4)."""
+    if branch == land(train):
+        return True
+    if numbered(train):
+        return branch.startswith(f"{LAND}{TRAIN}{train['number']}-")
+    return branch == LAND + name(train.get("cars") or [])
