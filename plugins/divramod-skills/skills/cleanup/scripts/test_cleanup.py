@@ -303,6 +303,79 @@ class Cases:
             self.assertEqual((named.returncode, paths(named.stdout)), (0, sorted(case["named"])), named.stdout)
 
 
+# hal2's own git-ignored paths as the checkouts of 2026-11-02 held them (plan 0567): each must match a line of the
+# repository's `.hal/cleanup`, never come out `unknown`, and an artifact must say how it comes back.
+HAL2_IGNORED = {
+    "artifact": [
+        "code/typescript/apps/hal9k-mobile/ios", "code/typescript/apps/hal9k-mobile/android",
+        "code/typescript/apps/hal9k-mobile/.expo",
+        "code/typescript/apps/hal9k-mobile/page", "code/typescript/apps/hal9k-mobile/.tsbuild",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-device-key/android/build",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-node-link/android/build",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-node-link/android/src/main/jniLibs",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-node-link/android/src/main/java/uniffi",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-node-link/ios/Frameworks",
+        "code/swift/libs/Hal2Mobile/Frameworks", "code/swift/libs/Hal2Mobile/Sources/Hal2Mobile/hal2_mobile.swift",
+        "code/typescript/apps/hal2-web/.next", "code/typescript/apps/hal2-web/core-plugins",
+        "code/typescript/apps/hal2-web/tsconfig.tsbuildinfo",
+        "code/typescript/apps/hal2-web/test-results",
+        "code/typescript/apps/hal2-web/lighthouse-report.html",
+        "code/typescript/apps/hal9k-desktop/dist-electron", "code/typescript/apps/hal9k-desktop/plugins",
+        "code/typescript/apps/hal9k-desktop/build", "code/typescript/apps/hal9k-desktop/release",
+        "code/typescript/apps/hal9k-plugin-crm/.tsbuild", "code/typescript/libs/hal9k-ui/.tsbuild",
+        "code/typescript/libs/hal9k-node-web/pkg", "code/typescript/libs/hal9k-node-web/e2e/.dist",
+        "code/typescript/scripts/tsconfig.tsbuildinfo", "code/typescript/libs/hal9k-node-web/test-results",
+        "code/rust/apps/hal2-plugin-example/target", "code/rust/libs/hal2-cellar/tests/fixtures/maker/.cache",
+        "code/agents/apps/skills/scripts/__pycache__", "code/jsonschema/role-folder/__pycache__",
+        "code/agents/apps/skills/skills/roles/farmer/scripts/.pytest_cache",
+        "code/python/scripts/ci-analyzer/.ruff_cache", ".pytest_cache", ".ruff_cache", "research/.DS_Store",
+        "research/0092-hal9k-shortcuts/spike/target", "research/0106-translation-tool/bench/.cache",
+        "research/0110-agent-summary-cost/__pycache__", ".playwright-mcp",
+    ],
+    "kept": [
+        "code/typescript/libs/hal9k-proto/src/gen", "code/typescript/libs/hal9k-tokens/src/generated",
+        "code/typescript/apps/hal2-web/src/gen", "code/typescript/apps/hal2-web/next-env.d.ts",
+        "code/typescript/apps/hal9k-mobile/expo-env.d.ts",
+        "code/typescript/apps/hal9k-mobile/modules/hal9k-node-link/ios/Generated",
+        "code/rust/target", "code/typescript/node_modules", "code/typescript/apps/node_modules",
+        "code/typescript/scripts/node_modules", "code/typescript/apps/hal9k-mobile/node_modules",
+        "code/typescript/libs/hal9k-ui/node_modules", "code/swift/libs/Hal2Kit/Frameworks",
+        "code/python/scripts/x/.venv", "HANDOFF.md", "QUESTIONS.md", ".claude", ".gate",
+        ".gitsecret/keys/random_seed", "roles/farmer/board.jsonl", "roles/tollman/cache",
+        "research/0106-translation-tool/bench/models",
+        "utils/docker-compose/hal2-hub/local/.zitadel", "utils/docker-compose/vault/local/.vault",
+    ],
+}
+
+
+class Hal2RulesTest(unittest.TestCase):
+    """The repository's own `.hal/cleanup` covers the paths hal2's checkouts really hold."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("cleanup", SCRIPT)
+        cls.cleanup = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.cleanup)
+        top = next(p for p in SCRIPT.parents if (p / ".hal" / "cleanup").is_file())
+        cls.rules = cls.cleanup.rules(top)
+
+    def test_no_known_ignored_path_is_unknown(self):
+        for kind, paths in HAL2_IGNORED.items():
+            for rel in paths:
+                with self.subTest(rel):
+                    self.assertEqual(self.cleanup.classify(rel, self.rules)[0], kind, rel)
+
+    def test_a_path_below_a_known_one_follows_it(self):
+        for rel, kind in (("code/typescript/apps/hal9k-mobile/ios/Pods/x", "artifact"),
+                          ("code/typescript/apps/hal9k-mobile/.expo/dev-loop/log", "artifact"),
+                          ("roles/farmer/briefs/x/y", "kept")):
+            self.assertEqual(self.cleanup.classify(rel, self.rules)[0], kind, rel)
+
+    def test_every_artifact_line_says_how_it_comes_back(self):
+        bare = [glob for glob, kind, how in self.rules if kind == "artifact" and not how]
+        self.assertEqual(bare, [])
+
+
 class PythonTest(Cases, unittest.TestCase):
     """HAL_CLEANUP_CLI="": the Python rule alone."""
 
