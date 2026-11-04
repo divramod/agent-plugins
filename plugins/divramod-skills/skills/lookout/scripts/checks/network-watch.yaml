@@ -1,0 +1,15 @@
+# The network watch's lookout record (hal2 plan 0581 D3, D10), in the farm file's `watches:` format: Telegram for a
+# red stretch of `hal2-cli-machine net check` whose hal9k notification nobody saw. Recorded only through lookout's CLI
+# (one home for the record), on each machine whose lookout runs:
+#   /lookout add network-watch --farm ~/a/hal2 --title "Network watch: DNS or GitHub red while away" \
+#     --cron "*/5 * * * *" --check "{python} {checks}/network.py" --notify telegram --by "hal2 plan 0581"
+watches:
+- active: true
+  by: hal2 plan 0581
+  check: '{python} {checks}/network.py'
+  cron: '*/5 * * * *'
+  every: every 5 minutes
+  farm: ~/a/hal2
+  id: network-watch
+  notify: telegram
+  title: 'Network watch: DNS or GitHub red while away'

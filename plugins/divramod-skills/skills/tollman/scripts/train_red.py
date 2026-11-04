@@ -36,7 +36,9 @@ TEXT = {
     "main_red": HEAD + "Triage: the barn is red, not a car: {jobs} is red the same way in field {slot}'s land run "
                        "{other} on the same barn head {main}, so the train waits and the barn is fixed in this same "
                        "train (plan 0360 D29): `tollman.py order main --why <why>`, a hand of yours fixes it on "
-                       "tollman-train-fix. `tollman.py triage {rid}` shows the evidence.",
+                       "the order's `tollman-train-<n>-<a>-fix` in your kept fix worktree `tollman-fix` "
+                       "(run_names.py). "
+                       "`tollman.py triage {rid}` shows the evidence.",
     "car_red": HEAD + "Triage: a car's red: {jobs}; failing tests: {tests}. The cars' files against the train's base:"
                       "\n{files}\nJudge which car broke it and give its foreman the fix order: `tollman.py order <car "
                       "field> --why <why>` (plan 0360 D6); the train waits for its fix. `tollman.py triage "

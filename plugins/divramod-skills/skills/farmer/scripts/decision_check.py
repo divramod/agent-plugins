@@ -1,7 +1,7 @@
 """A foreman's decision check after its clear (skills plan 0008): which of the user's decisions in the farmer's log
 did it forget?
 
-A foreman continuing with `/handoff c` sends the farmer `decision check <slot>: I have these decisions: <list>. Did I
+A foreman continuing with `/continue` sends the farmer `decision check <slot>: I have these decisions: <list>. Did I
 forget one?`. The farmer session runs `farmer.py decision-check --message "<the message>"` and sends the output back
 verbatim: every `decision` entry of the log for that worktree (and repo-wide ones naming it) that the list lacks, each with
 its date and the user's words quoted, or "none missing". The comparison is code; the answer is data for the foreman,

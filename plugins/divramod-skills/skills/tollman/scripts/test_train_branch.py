@@ -104,7 +104,7 @@ class Engine(unittest.TestCase):
         written = []
         train = train_state.standing([FORMED])
         with (mock.patch.object(engine, "here", return_value=(MAIN, "tollman-hal2", train, "/farm/tollman-hal2")),
-              mock.patch.object(engine.frozen, "complete", return_value=(0, "")),
+              mock.patch.object(engine.frozen, "lacking", return_value=[]),
               mock.patch.object(engine, "cli", return_value=(0, "")),
               mock.patch.object(engine.train_state, "folder", return_value=state),
               mock.patch.object(engine.train_state, "append", side_effect=lambda *a, **kw: written.append(kw)),
@@ -118,13 +118,16 @@ class Engine(unittest.TestCase):
         written, calls = [], []
         train = train_state.standing(rows)
         with (mock.patch.object(engine, "here", return_value=(MAIN, "tollman-hal2", train, "/farm/tollman-hal2")),
-              mock.patch.object(engine.frozen, "complete", return_value=(0, "")),
+              mock.patch.object(engine.frozen, "lacking", return_value=[]),
               mock.patch.object(engine, "fresh", return_value=(0, "c" * 40)),
               mock.patch.object(engine, "cli", side_effect=lambda argv, cwd: calls.append(argv) or (0, "")),
               mock.patch.object(engine.train_state, "folder", return_value=Path(tempfile.mkdtemp())),
               mock.patch.object(engine.train_state, "append", side_effect=lambda *a, **kw: written.append(kw)),
+              mock.patch.object(engine.train_wt, "to_run", return_value=(0, "")) as named,  # no carrier here (D18)
               mock.patch.object(engine, "spawn", return_value=4711) as spawn):
             self.assertEqual(engine.restart("/farm/tollman-hal2")[0], 0)
+        if train.get("number"):  # the carrier's branch renamed to this start's run first (plan 0610 D18)
+            named.assert_called_once_with("/farm/tollman-hal2", train["number"], train["starts"] + 1)
         return calls[0], spawn.call_args.args[2], written[-1]["land_ref"]
 
     def test_a_numbered_train_s_second_start_is_marked_train_n_attempt_2_and_lands_on_train_n_2(self):

@@ -19,8 +19,9 @@ def of(t: dict, mode: dict | None) -> str:
 
 
 def split(tickets: list[dict], own: str, mode: dict | None = None) -> tuple[list[dict], list[dict]]:
-    """(the tickets a train may take its cars from, the hitched that wait: [{field, why}]) in queue order. A smuggle
-    entry (head and own field aside) behind a hitched production wagon cuts the rest off."""
+    """(the tickets a train may take its cars from, the hitched that wait: [{field, why, reason}]) in queue order. A
+    smuggle entry (head and own field aside) behind a hitched production wagon cuts the rest off; `reason` is the
+    draft's EXCEPTIONS key (trains_draft.py): `smuggle` for the smuggler, `smuggler-ahead` for the ones it cuts off."""
     rides, waiting, cut = [], [], None
     for t in sorted(tickets, key=lambda t: t.get("position", 0)):
         waits = t.get("state", "waiting") == "waiting" and t.get("slot") != own and not t.get("rides_with")
@@ -28,13 +29,14 @@ def split(tickets: list[dict], own: str, mode: dict | None = None) -> tuple[list
             rides.append(t)  # the head, a running car, the tollman's own ticket: sort_out skips or keeps them
         elif of(t, mode) == SMUGGLE:
             if t.get("ready"):
-                waiting.append({"field": t["slot"], "why": "its entry's mode is smuggle: it smuggles itself"})
+                waiting.append({"field": t["slot"], "why": "its entry's mode is smuggle: it smuggles itself",
+                                "reason": "smuggle"})
             if cut is None and any(r.get("ready") and r.get("state", "waiting") == "waiting" and r.get("slot") != own
                                    for r in rides):
                 cut = t["slot"]
         elif cut and t.get("ready"):
             waiting.append({"field": t["slot"], "why": f"rides in the next train: the smuggler {cut} passes alone "
-                                                       "before it, so it is not adjacent"})
+                                                       "before it, so it is not adjacent", "reason": "smuggler-ahead"})
         else:
             rides.append(t)
     return rides, waiting

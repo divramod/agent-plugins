@@ -144,7 +144,7 @@ class KeepTest(unittest.TestCase):
         self.two_plans()
         self.plan("use", "1")
         (self.plans / "LEAD").write_text(f"09 {MASTER} 1\n")
-        error = self.refused("leave")
+        error = self.refused("leave", cli=self.servant_cli)
         self.assertIn(f"a servant of the foreman in field 09 (plan {MASTER} row 1)", error)
         self.assertIn("`leave` is the foreman's", error)
         self.assertEqual(self.pointer(), MASTER + "\n")
@@ -185,7 +185,7 @@ class KeepTest(unittest.TestCase):
 
         (self.plans / "CURRENT_PLAN").write_text(MASTER + "\n")
         (self.plans / "LEAD").write_text(f"09 {MASTER} 1\n")
-        self.assertIn("`leave` is the foreman's", self.refused("leave", "--release"))
+        self.assertIn("`leave` is the foreman's", self.refused("leave", "--release", cli=self.servant_cli))
         self.assertEqual(self.pointer(), MASTER + "\n")
 
     def test_leave_names_no_row_where_the_masterplan_has_none_for_the_plan(self):

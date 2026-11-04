@@ -31,25 +31,25 @@ class NextFirst(Farm):
         self.alive.add(40001)
         self.old = self.wm.parent / self.carrier()
 
-    def test_l135_the_next_train_forms_before_the_landed_train_s_worktree_is_dropped(self):
+    def test_l135_the_next_train_forms_in_the_kept_worktree_and_nothing_is_removed(self):
+        """Plan 0610 D18: the carrier's worktree `tollman-train` is kept (warm cache): the next train checks out its
+        own branch there in the same round, no worktree is removed and no drop run starts; the landed branch goes."""
         self.ends({"status": "landed", "commit": "c0ffee", "run": "https://github.com/x/runs/9"}, land=True)
         self.crop("11", {"eleven.txt": "11"})  # hitched while the train of 07 and 09 landed
         seen, run = [], self.detach
 
-        def detach(argv, **kw):  # the drop run's start: what stands by then
-            seen.append((self.state()[-3:], self.old.is_dir()))
+        def detach(argv, **kw):
+            seen.append(argv)
             run(argv, **kw)
         with mock.patch.object(train_wt, "DETACH", detach):
             self.round()
-        new = self.carrier()
         self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "relay", "07"),
                                      ("in-the-barn", "relay", "09"), ("chain", "run", "-")])
-        self.assertEqual(seen, [([("landed", self.old.name), ("formed", new), ("started", new)], True)],
-                         "the drop starts once the next train formed and started, the landed one's worktree still there")
-        self.assertFalse(self.old.exists(), "then it is dropped, through the proof")
-        self.assertTrue((self.wm.parent / new).is_dir(), "the standing train's worktree is never dropped")
-        log = (self.wm_state / train_wt.DROP_LOG).read_text()
-        self.assertIn(f"worktree {self.old.name} dropped", log)
+        self.assertEqual((seen, self.carrier(), self.old.name, self.branch()), ([], "tollman-train", "tollman-train",
+                                                                              "train-2-1"))
+        self.assertEqual(self.state()[-3:], [("landed", "tollman-train"), ("formed", "tollman-train"),
+                                             ("started", "tollman-train")])
+        self.assertEqual(engine.git(str(self.main), "branch", "--list", "train-1-1")[1], "", "the landed branch gone")
 
     def test_landed_itself_drops_nothing_and_later_never_waits_for_the_drop(self):
         self.ends({"status": "landed", "commit": "c0ffee"}, land=True)
@@ -57,6 +57,9 @@ class NextFirst(Farm):
             code, text = engine.landed(str(self.old))
         self.assertEqual(code, 0, text)
         self.assertTrue(self.old.is_dir(), "landed leaves the worktree to the drop run")
+        self.assertEqual(train_wt.later(str(self.wm)), "", "the kept carrier is never a leftover (plan 0610 D18)")
+        self.old = self.wm.parent / train_wt.name([{"field": "77", "plan": ""}])  # a plan-named one left from before
+        self.assertEqual(train_wt.add(str(self.wm), [{"field": "77", "plan": ""}])[0], 0)
         popen = mock.Mock()  # a slow drop: the process is started, never waited for
         with mock.patch.object(train_wt, "DETACH", popen), \
                 mock.patch.object(train_wt, "drop", side_effect=AssertionError("never in later's process")):
@@ -84,7 +87,9 @@ class NextFirst(Farm):
         self.assertEqual(train_wt.retry(top, main), [], "only the standing train's worktree")
         train_wt.add(top, [{"field": "77", "plan": ""}])
         ctx = {"main": main, "top": top, "now": None, "log": []}
-        with mock.patch.object(prune, "plan", return_value=[]):
+        import prune_disk  # the disk phase reads the host's free space: none due here, whatever the runner's disk
+        with mock.patch.object(prune, "plan", return_value=[]), \
+                mock.patch.object(prune_disk, "actions", return_value=[]):
             (a,) = prune.handler({}, ctx)
         self.assertEqual((a["duty"], a["kind"], a["do"], a["key"], a["window"]),
                          ("prune", "train-drop", "run", "train-drop:tollman-train-f77", train_wt.RETRY))

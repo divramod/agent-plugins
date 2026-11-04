@@ -2,7 +2,7 @@
 """Start an agent session in the repository's first free and clean worktree.
 
   create.py [--repo DIR] [--agent claude|codex|opencode] [--model ID] [--effort LEVEL] [--tmux] [--prompt TEXT] [--exact]
-            [--role foreman|servant] [--from NN] [--to NN] [--min-free-gb 50] [--lead "<field> <plan> <step|NN-slug>"]
+            [--role foreman|servant] [--no-overlap] [--from NN] [--to NN] [--min-free-gb 50] [--lead "<field> <plan> <step|NN-slug>"]
 
 The worktree, counting from 01: no agent session runs in it (no live agent of the repository, no live terminal host
 of its worktree, no window of tmux session hal-<repo>), and its worktree is clean or missing and not paused (`hal2-cli-git worktree paused`, plan 0458: a paused field is
@@ -15,6 +15,10 @@ given prompt (`--exact`: the prompt as given, without /merge-from-main). `--mode
 agent's default) and the worktrees skipped for their work. Exit 2 when a hal2 CLI is missing, 3 when no free and clean
 worktree is left in the range, 1 for any other failure.
 
+A `--prompt` (not a servant's `--lead`) is checked first by `hal2-cli-plans overlap` (plan 0593 D16): the hits go into
+the first prompt and the JSON's `overlap`; a missing CLI prints "overlap unchecked" and never blocks. `--no-overlap`
+skips it (the farmer's delegation, whose brief carries the check).
+
 `--role foreman|servant` (hal2 plan 0383, D15): the session loads its role skill first, `/foreman` or `/servant` (its duties
 and the repository's roles/<role>/ROLE.md), before the given prompt, also with `--exact`: pass it for every session that
 runs a plan (a foreman) or a foreman's step (a servant, in a field holding `plans/LEAD`).
@@ -25,8 +29,8 @@ not the number, D16). A field holding `plans/LEAD` is a servant's and is skipped
 created by hal2's `worktree run` from main; it needs `--min-free-gb` free disk (default 50).
 
 `--lead "<foreman's field> <plan> <step|NN-slug>"` (plan 0376 D6; only with `--from 30` or more) makes the session a
-servant: `plans/LEAD` and the `CURRENT_PLAN` pointer (the plan) are written into its worktree (before the start when the
-worktree exists, else right after hal2 created it) and the first prompt merges the foreman's pushed branch
+servant: `hal2-cli-plans servant assign` writes `plans/LEAD` and the `CURRENT_PLAN` pointer (the plan) into its
+worktree (before the start when the worktree exists, else right after hal2 created it; create.py writes neither) and the first prompt merges the foreman's pushed branch
 (`git merge origin/<field>`) and runs `/servant`. The third word is a legacy step or row (digits) or a sub-plan
 `NN-slug`, as `plan.py ready` prints the line. It is a servant start (`--role servant` implied: it may take a field
 holding `plans/LEAD`; `--role foreman` is refused).
@@ -42,7 +46,16 @@ from pathlib import Path
 from typing import NoReturn
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
-from skillpath import pointers  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+from skillpath import pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+
+import importlib.util  # noqa: E402
+# the start paths' overlap check (plan 0593 D16), loaded by path: the plan skill's scripts never go on sys.path,
+# where its test_plan.py and plan.py would shadow a caller's own (prune's tests, train 51)
+overlap = sys.modules.get("overlap")
+if overlap is None:
+    _spec = importlib.util.spec_from_file_location("overlap", sibling("plan") / "scripts" / "overlap.py")
+    overlap = sys.modules["overlap"] = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(overlap)
 
 GONE = {"ended", "failed"}
 # What hal2-agents' spawn drops, so the agent is no child of this tmux pane, terminal host or Claude session.
@@ -205,7 +218,8 @@ def arg(argv: list[str], flag: str) -> str | None:
     return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
 
 
-LEAD = re.compile(r"^(\d{2}) (\d{4}-[a-z0-9-]+) (\d+|\d{2}-[a-z0-9-]+)$")
+STEP = r"(?:\d+|\d{2}-[a-z0-9-]+)"
+LEAD = re.compile(rf"^(\d{{2}}) (\d{{4}}-[a-z0-9-]+) ({STEP}(?:,{STEP})*)$")
 
 
 def lead_of(argv: list[str], first: int) -> str | None:
@@ -217,22 +231,34 @@ def lead_of(argv: list[str], first: int) -> str | None:
     if first < 30:
         die("--lead needs --from 30 or more: a servant works only in a worktree from 30 to 99")
     if not LEAD.match(line):
-        die(f"--lead needs \"<field> <plan> <step or NN-slug>\" (07 0376-one-plan-shape 02-readers), not '{line}'")
+        die(f"--lead needs \"<field> <plan> <step or NN-slug list>\" (07 0376-one-plan-shape 02-readers; steps 3,4), not '{line}'")
     return line
 
 
-def write_lead(folder: Path, line: str) -> None:
-    """The servant's marker and current plan (neither committed): in the git dir's hal/ in a store-home farm, else
-    plans/LEAD and the CURRENT_PLAN pointer (hal2 plan 0409 step 12)."""
-    pointers(__file__).write(folder, "LEAD", line)
-    pointers(__file__).write(folder, "CURRENT_PLAN", line.split()[1])
+def write_lead(folder: Path, line: str, cwd: Path | None = None) -> None:
+    """The servant's marker and current plan, written by the one writer `hal2-cli-plans servant assign` (plan 0594,
+    D3), run from the foreman's field; a failing call stops the start with its message, no hand-written fallback (D6)."""
+    field, plan, steps = line.split()
+    foreman = folder.parent / field
+    foreman = foreman if foreman.is_dir() else (cwd or Path.cwd())
+    cmd = ["hal2-cli-plans", "servant", "assign", folder.name, "--plan", plan, "--steps", steps,
+           "--repo", str(foreman), "--json"]
+    try:
+        r = subprocess.run(cmd, cwd=foreman, capture_output=True, text=True)
+    except FileNotFoundError:
+        die("hal2-cli-plans is not on PATH: it writes the servant's LEAD (no hand-written fallback)")
+    if r.returncode != 0:
+        die(f"servant assign failed: {(r.stderr or r.stdout).strip()}")
 
 
 def lead_prompt(line: str, prompt: str | None) -> str:
     field, plan, part = line.split()
-    task = (f"You are the servant of field {field} for sub-plan or step {part} of plan {plan} (plans/LEAD and "
-            f"the CURRENT_PLAN pointer are written). Merge the foreman's pushed branch first (`git fetch origin && git "
-            f"merge origin/{field}`), then run /servant.")
+    many = "," in part
+    task = (f"You are the servant of field {field} for {'steps' if many else 'sub-plan or step'} {part} of plan "
+            f"{plan} (plans/LEAD and the CURRENT_PLAN pointer are written). Merge the foreman's pushed branch first "
+            f"(`git fetch origin && git merge origin/{field}`), then run /servant. Mark each of your steps with "
+            f"`hal2-cli-plans servant status <step> \"in progress\"` when you start it and `... done` when it is "
+            f"done (a schema 2 sub-plan keeps `plan.py status <ref>`).")
     return f"{task}\n\n{prompt}" if prompt else task
 
 
@@ -258,6 +284,14 @@ def main(argv: list[str]) -> int:
     slot, skipped, entry = choose(repo, int(first), int(last), role == "servant" or bool(lead))
     prepare(repo, entry, float(arg(argv, "--min-free-gb") or 50))
     prompt = lead_prompt(lead, arg(argv, "--prompt")) if lead else arg(argv, "--prompt")
+    found = None
+    checked = bool(prompt) and not lead and "--no-overlap" not in argv and not overlap.off()
+    if checked:  # plan 0593 D16: the new session settles the hits first
+        found = overlap.scan(repo, prompt)
+        if found is None or overlap.hits(found):
+            prompt += ("\n\nOverlap with unfinished work (hal2-cli-plans overlap): " + "; ".join(overlap.lines(found))
+                       + ("\nSettle each hit before writing a plan: build on it, wait for it, or merge into it; "
+                          "record a ledger entry with a link; a tie goes to the farmer." if found else ""))
     if lead and entry and entry.get("path"):
         write_lead(Path(entry["path"]), lead)
     report = start(repo, slot, argv, first_prompt(prompt, "--exact" in argv and not lead, None if lead else role))
@@ -274,6 +308,7 @@ def main(argv: list[str]) -> int:
         "effort": arg(argv, "--effort"),
         "skipped": skipped,
         **({"lead": lead} if lead else {}),
+        **({"overlap": overlap.lines(found)} if checked else {}),
     }
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0

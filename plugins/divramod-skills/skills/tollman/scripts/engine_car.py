@@ -2,7 +2,8 @@
 by plan 0375 step 4): `engine.py unhitch` and `engine.py retry`, also `tollman.py unhitch|retry`.
 
   engine.py unhitch <field> --why <text> [--by-user] [--repo <dir>]
-      take a field's ready mark (`worktree queue ready <field> --clear`) of a wagon that rides no train. A car of
+      only the user's own command (`--by-user`; the user, 2026-11-04: "when a car has hitched, it will never leave the
+      queue again"): take a field's ready mark (`worktree queue ready <field> --clear`). A car of
       a train that stands is refused (D3); a running landing is never stopped. Only the user's own `--by-user`
       takes a car of a red train out: the rest forms again (`tollman.py unhitch` at once, chain.py).
       `unhitch yard --by-user`: the yard's car of a red train; its files stay out of every train until they change
@@ -33,6 +34,9 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
                    "unhitch it once the train is red")
     if car and not user:
         return 1, frozen.refused(train, f"unhitching {field}")
+    if not user:  # the user, 2026-11-04: "when a car has hitched, it will never leave the queue again"
+        return 1, (f"{field} is not unhitched: a hitched wagon never leaves the queue (the user, 2026-11-04: \"when a "
+                   "car has hitched, it will never leave the queue again\"); only the user's own `--by-user` does it")
     code, out = (0, "") if its else engine.cli(["worktree", "queue", "ready", field, "--clear", "--json"], main)
     if code:
         return 1, f"{field} was not unhitched: {out[-300:]}"

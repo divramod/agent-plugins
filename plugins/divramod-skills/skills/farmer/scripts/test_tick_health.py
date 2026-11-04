@@ -26,7 +26,7 @@ import tick_health
 
 SKILLS = Path(__file__).resolve().parents[2]  # skills/roles/
 TOLLMAN = roles.Wiring(role="tollman", cli=SKILLS / "tollman/scripts/tollman.py", skill=SKILLS / "tollman",
-                       act="/tollman act", handoff="/tollman handoff", duties=("trains",), subskills={})
+                       act="/continue", handoff="/tollman handoff", duties=("trains",), subskills={})
 GOOD = {"dry": False, "planned": [], "due": []}
 Z = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 

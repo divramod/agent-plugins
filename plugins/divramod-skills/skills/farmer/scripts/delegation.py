@@ -38,6 +38,14 @@ import transplants
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+import importlib.util  # noqa: E402
+# the start paths' overlap check (plan 0593 D16), loaded by path: the plan skill's scripts never go on sys.path,
+# where its test_plan.py and plan.py would shadow a caller's own (prune's tests, train 51)
+overlap = sys.modules.get("overlap")
+if overlap is None:
+    _spec = importlib.util.spec_from_file_location("overlap", sibling("plan") / "scripts" / "overlap.py")
+    overlap = sys.modules["overlap"] = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(overlap)
 FREE = [sys.executable, str(sibling("list-free-worktrees") / "scripts/free.py")]
 CREATE = [sys.executable, str(sibling("create-worktree-session") / "scripts/create.py")]
 STOP = [sys.executable, str(sibling("delete-field") / "scripts/stop.py"), "stop"]
@@ -117,6 +125,19 @@ def write_brief(a: dict, main: str, now: dt.datetime) -> Path:
                     f"instructions)\n\n```json\n{evidence}\n```\n\n## Done when\n\n{done}\n\n## Urgency\n\n"
                     f"{'urgent: it blocks landings' if a['duty'] == 'mtm' else 'normal'}\n")
     return path
+
+
+def overlap_note(a: dict, main: str, brief: Path) -> None:
+    """Plan 0593 D16: the overlap check of a delegated task, before its foreman starts: the hits beside the brief
+    (`<brief>.overlap.json`) and in its text, so the foreman settles each (build on it, wait, merge into it) before it
+    writes its plan; a tie goes back to the farmer. A missing CLI never blocks (the brief says unchecked)."""
+    found = overlap.scan(Path(main), f"{a['text']}\n{a.get('task') or ''}")
+    overlap.write(brief.parent, found, brief.name + ".overlap.json")
+    note = "\n".join(f"- {l}" for l in overlap.lines(found)) if found is None or overlap.hits(found) else "- none"
+    with brief.open("a") as f:
+        f.write(f"\n## Overlap with unfinished work\n\n{note}\n" + (
+            "\nSettle each hit before writing the plan: build on it, wait for it, or merge into it; record a ledger "
+            "entry with a link; a tie goes to the farmer.\n" if found is not None and overlap.hits(found) else ""))
 
 
 def write_role(main: str, brief: Path, title: str, now: dt.datetime, task: str | None = None) -> Path:
@@ -206,7 +227,7 @@ def start(prompt: str, main: str, dry: bool, values: dict | None = None) -> dict
                 return {"slot": w.get("slot"), "how": "switch", **values}
         elif not deliver.send(pane, prompt):
             return {"slot": w.get("slot"), "how": "free", **values}
-    argv = CREATE + ["--repo", main, "--from", f"{FROM:02d}", "--to", f"{TO:02d}"] + flags + ["--prompt", prompt]
+    argv = CREATE + ["--repo", main, "--from", f"{FROM:02d}", "--to", f"{TO:02d}", "--no-overlap"] + flags + ["--prompt", prompt]  # --no-overlap: the brief carries the check
     if dry:
         return {"slot": None, "how": "new", **values, "calls": [FREE + ["--repo", main], argv]}
     code, out = call(argv, main)
@@ -250,6 +271,8 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
     running = [e for e in held.values() if e.get("state") == "running"]
     given = (a.get("brief") or {}).get("brief_file")
     brief = Path(given) if given else write_brief(a, main, now) if not dry else Path("<brief>")
+    if not given and not dry:
+        overlap_note(a, main, brief)
     # A direct instruction (`prompt`, `role_task`) instead of a plan; kept on a waiting entry for its later start.
     own = {k: a[k] for k in ("prompt", "role_task") if a.get(k)}
     if not has_room(limit, len(running)):

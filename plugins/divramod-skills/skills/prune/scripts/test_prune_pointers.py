@@ -13,6 +13,7 @@ import git_seed
 import field_facts
 import lead_marker
 import prune_proof
+import servant_testkit
 
 
 class GitDirPointers(unittest.TestCase):
@@ -21,6 +22,7 @@ class GitDirPointers(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.field = Path(tmp.name).resolve() / "34"
         git_seed.guard(self)
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads the marker (plan 0594)
         git_seed.grow(self.field.parent, "test_prune_pointers.GitDirPointers", lambda: (
             self.field.mkdir(), subprocess.run(["git", "init", "-q", "-b", "34"], cwd=self.field, check=True)))
         self.hal = self.field / ".git" / "hal"

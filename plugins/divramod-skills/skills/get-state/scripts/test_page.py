@@ -192,7 +192,7 @@ class Views(unittest.TestCase):
     def test_the_fallback_is_today_s_table(self):
         title, sections = views.build("unknown", self.DATA, {"repo": "hal2", "checkout": "10"})
         self.assertEqual(title, "hal2 · state 10")
-        self.assertEqual(sections[0]["columns"], ["WT", "Plan", "Steps", "State", "Waits for"])
+        self.assertEqual(sections[0]["columns"], ["WT", "Plan", "Steps", "State", "Waits for", "Depends on", "Dependents"])
         self.assertEqual(sections[0]["rows"][0][0], "10")
         self.assertEqual(sections[0]["rows"][1][0], "↳ 31")
         self.assertEqual(sections[0]["marked"], [0])

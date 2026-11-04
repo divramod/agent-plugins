@@ -1,17 +1,19 @@
 """Hal2 plan 0383 step 5 (D5, L32, L34, L35): a red job of a train's live land run whose triage names exactly one car
-is that car's fix order by code while the run still runs, on `<NN>-train-fix` from `origin/<carrier>`; an unclear
+is that car's fix order by code while the run still runs, on `<NN>-train-<n>-<a>-fix` from `origin/train-<n>-<a>`; an unclear
 culprit wakes the session; the fix is merged only after the run has ended. The regression replays train 20 of
 2026-10-18 (L35): its early order went out by hand on the field's own branch 20 and `tollman.py fixed` refused the
 fix. On engine_farm.py's farm (a bare origin, no landing), gh is gh_fake.py's."""
 # enforces .adr/deterministic-first.md and .adr/tollman.md
 
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import acks
 import early_order
 import mtm_scan
+import run_names
 import tick
 import train_state
 import wake
@@ -36,6 +38,7 @@ class Train20(Farm):
         self.assertEqual(self.train()["state"], "landing")
         self.alive.add(self.train()["pid"])
         self.c = self.carrier()  # the train's own worktree and branch (plan 0375 D5)
+        self.base = run_names.base_ref(self.train(), self.c)  # its run on origin, where a fix starts (plan 0610 D18)
         self.head = out(self.cw, "rev-parse", "HEAD")
         self.run = run(720, "land/" + self.train()["land_ref"], "2099-01-01T00:00:00Z", status="in_progress")
         self.url = self.run["url"]
@@ -50,14 +53,19 @@ class Train20(Farm):
     def wakes(self):
         return [i["kind"] for i in wake.read(str(self.main), tollman.WIRING).get("items", [])]
 
+    def order_of(self, field="20"):
+        """The field's last order's branch and the carrier's run it starts from (plan 0610 D18: run_names.py)."""
+        o = [e for e in train_state.lines(str(self.main)) if e["kind"] == "order" and e.get("field") == field][-1]
+        return o["branch"], run_names.base_of(o["branch"])
+
     def fix(self):
         """20's foreman, as the order says: the side branch from the carrier's remote head, one commit, pushed."""
-        path = self.fields["20"]
-        git(path, "fetch", "-q", "origin", self.c)
-        git(path, "switch", "-q", "-C", "20-train-fix", f"origin/{self.c}")
+        path, (branch, base) = self.fields["20"], self.order_of()
+        git(path, "fetch", "-q", "origin", base)
+        git(path, "switch", "-q", "-C", branch, f"origin/{base}")
         (path / "code/x/twenty.py").write_text("20, fixed")
         git(path, "commit", "-qam", "fix 20")
-        git(path, "push", "-q", "origin", "20-train-fix")
+        git(path, "push", "-q", "origin", branch)
         return out(path, "rev-parse", "HEAD")
 
     def test_train_20_s_early_order_names_its_fix_branch_from_the_carrier_and_the_fix_waits_for_the_run_s_end(self):
@@ -65,13 +73,14 @@ class Train20(Farm):
         self.assertIn(("early-order", "run", "20"), self.last)
         order = train_state.lines(str(self.main))[-1]
         self.assertEqual((order["kind"], order["field"], order["branch"], order["base"], order["run"]),
-                         ("order", "20", "20-train-fix", self.head, self.url))
+                         ("order", "20", f"20-{self.base}-fix", self.head, self.url))
         self.assertTrue(order["why"].startswith("d1-01-rust-test: error: assertion failed"), order["why"])
         self.assertEqual(self.train()["state"], "landing", "the run goes on")
-        self.assertEqual(out(self.main, "ls-remote", "origin", f"refs/heads/{self.c}").split("\t")[0], self.head)
+        self.assertEqual(out(self.main, "ls-remote", "origin", f"refs/heads/{self.base}").split("\t")[0], self.head)
         ((pane, msg),) = self.typed
         self.assertEqual(pane, "%20")
-        for part in (f"git switch -C 20-train-fix origin/{self.c}", "git push origin 20-train-fix", "done fixed <sha>",
+        for part in (f"checkout -B 20-{self.base}-fix origin/{self.base}", f"git push origin 20-{self.base}-fix",
+                     "done fixed <sha>",
                      "The run still runs", "fix order 20-fix-1"):
             self.assertIn(part, msg)
         self.assertNotIn("switch -C 20 ", msg, "never the field's own branch (L35)")
@@ -112,7 +121,7 @@ class Train20(Farm):
         self.assertEqual(self.call("order", "20", "--why", "d1-02-ts-test: FAIL x", "--job", "ts-test")[0], 0)
         ((_, first), (pane, msg)) = self.typed
         self.assertEqual(pane, "%20")
-        for part in ("fix order 20-fix-1 for field 20 also: d1-02-ts-test: FAIL x", "20-train-fix", "done fixed"):
+        for part in ("fix order 20-fix-1 for field 20 also: d1-02-ts-test: FAIL x", f"20-{self.base}-fix", "done fixed"):
             self.assertIn(part, msg)
         (o,) = self.train()["orders"]
         self.assertEqual((o["id"], o["jobs"]), ("20-fix-1", ["ts-test"]), "one order, the new job on it (D16; "
@@ -120,8 +129,17 @@ class Train20(Farm):
         self.assertEqual(self.call("order", "20", "--why", "d1-02-ts-test: again", "--job", "ts-test")[0], 0)
         self.assertEqual(len(self.typed), 2, "a job the order has already: no message")
 
-    def test_a_red_that_names_both_cars_wakes_the_session_and_orders_nobody(self):
-        self.gh.logs["720"] = ERROR + "\nd1-01-rust-test\ttest\terror: two.txt is wrong too"
+    def test_separate_failures_of_both_cars_order_each_car_and_wake_nobody(self):
+        self.gh.logs["720"] = ERROR + "\nd1-01-rust-test\ttest\terror: two.txt is wrong too"  # plan 0608 D4
+        self.round()
+        self.assertIn(("early-order", "run", "20"), self.last)
+        self.assertIn(("early-order", "run", "02"), self.last)
+        self.assertNotIn(("train-red", "wake", "-"), self.last)
+        self.assertEqual(sorted(p for p, _ in self.typed), ["%2", "%20"])
+        self.assertEqual(sorted(o["field"] for o in self.train()["orders"]), ["02", "20"])
+
+    def test_one_failure_that_names_both_cars_wakes_the_session_and_orders_nobody(self):
+        self.gh.logs["720"] = "d1-01-rust-test\ttest\terror: two.txt and code/x/twenty.py disagree"
         self.round()
         self.assertNotIn(("early-order", "run", "20"), self.last)
         self.assertIn(("train-red", "wake", "-"), self.last)
@@ -168,7 +186,7 @@ class MinutePass(Pass):
         self.assertTrue(lines[1].startswith(f"train {NAME}: fix order to 07 while its run runs"), lines)
         self.assertEqual([o[:6] for o in orders], [["07", "--why", "d1-01-rust-test: test hub::tenant_rls ... FAILED",
                                                     "--run", URL, "--repo"]])
-        self.assertIn("early-order:501:d1-01-rust-test", [e["key"] for e in self.wm_log()])  # one per red job (0522 D16)
+        self.assertIn("early-order:501:d1-01-rust-test:07", [e["key"] for e in self.wm_log()])  # per job, car (0608 D4)
 
     def test_smuggle_mode_orders_nobody(self):
         gh = self.gh.run_json
@@ -207,6 +225,60 @@ class Culprit(unittest.TestCase):
         record = {"kind": "job-failed", "key": "job:720:x"}
         self.assertEqual(early_order.once(ctx, [a]), [a])
         self.assertEqual(early_order.once(ctx, [record, dict(a)]), [record])
+
+
+class Run41851365404(unittest.TestCase):
+    """Plan 0608 (L240): train 51's run 2, its c3-01 red (fixtures/job-126650244054.txt, the failed tests of its
+    GitHub job log) has separate failures of cars 38, 22 and 03 and two no car's; it ordered nobody."""
+    LOG = (Path(__file__).parent / "fixtures" / "job-126650244054.txt").read_text()
+    CARS = [{"field": "38", "files": ["code/rust/libs/hal2-agents-node/tests/it/unit_autopilot.rs"]},
+            {"field": "22", "files": ["code/rust/libs/hal2-remarkable-node/tests/it/remarkable/wifi_ssh.rs"]},
+            {"field": "03", "files": ["code/rust/apps/hal2-cli-tmux/tests/it/list.rs"]},
+            {"field": "47", "files": [".github/workflows/merge-to-main-cloud.yml"]}]
+    TRAIN = {"train": "51", "cars": [{"field": c["field"], "plan": "p" + c["field"]} for c in CARS]}
+
+    def verdict(self):
+        return {"kind": "car", "evidence": {"cars": self.CARS, "tail": "", "tests": mtm_scan.failing_tests(self.LOG)}}
+
+    def test_each_car_named_by_its_own_failures_is_its_order_and_the_rest_the_session_s(self):
+        cars, rest = early_order.split(self.TRAIN, self.verdict(), self.LOG)
+        self.assertEqual(sorted(cars), ["03", "22", "38"])
+        self.assertEqual(cars["38"], ["hal2-agents-node::it "
+                                      "unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused"])
+        self.assertEqual(len(cars["22"]), 2)
+        self.assertEqual([t.split("::it ")[1].split("::")[0] for t in cars["03"]], ["list"] * 3)
+        self.assertTrue(rest, "hal2-roles' and hal2-cli-tmux serve:: failures name no car: the session's")
+
+    def test_the_actions_order_each_car_once_with_its_tests_and_wake_the_session(self):
+        jobs = [{**job("c3-01-rust-build-test-linux"), "databaseId": 126650244054}]
+        rid, url = "41851365404", "https://github.com/divramod/hal2/actions/runs/41851365404"
+        data = ({"id": rid, "url": url, "cancelled": False}, [], "", {"cars": self.CARS})
+        with mock.patch.object(early_order, "read_log", return_value=[]), \
+                mock.patch.object(train_state, "lines", return_value=[]), \
+                mock.patch.object(early_order.triage, "gather", return_value=data), \
+                mock.patch.object(early_order.job_error, "job_log", return_value=self.LOG):
+            out = early_order.actions("top", "main", self.TRAIN, url, rid, jobs)
+        orders = {a["slot"]: a for a in out if a["kind"] == "early-order"}
+        self.assertEqual(sorted(orders), ["03", "22", "38"])
+        self.assertEqual(orders["38"]["key"], f"early-order:{rid}:c3-01-rust-build-test-linux:38")
+        why = orders["38"]["argv"][orders["38"]["argv"].index("--why") + 1]
+        self.assertEqual(why, "c3-01-rust-build-test-linux: hal2-agents-node::it "
+                              "unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused")
+        self.assertEqual(orders["38"]["argv"][-2:], ["--unit", why.split(": ", 1)[1]], "one red, one foreman: its unit")
+        self.assertEqual(orders["22"]["argv"].count("--unit"), 2)
+        self.assertEqual([a["key"] for a in out if a["kind"] == "train-red"], [f"train-red:{rid}"])
+        self.assertIn("c3-01-rust-build-test-linux: ordered to 38, 03, 22; yours.", out[-1]["text"])
+
+    def test_an_order_placed_by_hand_with_the_bare_run_id_counts_as_handled(self):
+        url, rid = "https://github.com/divramod/hal2/actions/runs/41851365404", "41851365404"
+        rows = [{"kind": "order", "train": "51", "run": rid, "jobs": ["rust-build-test-linux"],
+                 "why": "c3-01-rust-build-test-linux: by hand"}]
+        log = [{"key": f"early-order:{rid}:c2-02-lint:05"}, {"key": f"early-order:{rid}:c2-03-agents-build-test-linux"}]
+        with mock.patch.object(train_state, "lines", return_value=rows):
+            done = early_order.handled("main", self.TRAIN, url, rid, log)
+        for name in ("c3-01-rust-build-test-linux", "*rust-build-test-linux", "c2-02-lint",
+                     "c2-03-agents-build-test-linux"):
+            self.assertIn(name, done, "the old key form and the new per-car one, the bare id and the URL (D5)")
 
 
 if __name__ == "__main__":

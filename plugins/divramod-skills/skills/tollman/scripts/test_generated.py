@@ -105,7 +105,8 @@ class GeneratedConflicts(Farm):
         self.assertEqual((self.last, self.train()["state"]), ([("form", "run", "-")], "resolving"))
         self.assertFalse(generated.only(str(self.main), "HEAD", ["plans/0001/uat-results.jsonl"]))
 
-    def test_a_failing_regenerator_breaks_the_train_up_and_wakes_the_session_no_car_is_unhitched(self):
+    def test_a_failing_regenerator_leaves_the_train_standing_and_wakes_the_session_no_car_is_unhitched(self):
+        # plan 0610 E25: never cleared; the train stands `formed`, the next round's restart lands it (frozen.complete)
         self.plan_crop("07", "0007")
         self.barn("0009")
         why = ValueError("python3 gen.py: code/a/libs/x/README.md: missing")
@@ -115,9 +116,10 @@ class GeneratedConflicts(Farm):
         self.assertEqual((self.last, [w["kind"] for w in r["wake"]], form["exit"]),
                          ([("form", "run", "-")], ["train-stuck"], 1))
         self.assertIn("not written again: python3 gen.py: code/a/libs/x/README.md: missing", form["output"])
-        self.assertEqual(self.state(), [("formed", self.carrier()), ("regenerated", self.carrier()), ("cleared", self.carrier())])
-        self.assertEqual((self.train(), self.spawned, self.gate.of("07")["ready"] is not None), (None, [], True))
-        self.assertFalse(self.cw.exists(), "back on its base and dropped (plan 0375 D5)")
+        self.assertEqual(self.state(), [("formed", self.carrier()), ("regenerated", self.carrier())])
+        self.assertEqual((self.train()["state"], self.spawned, self.gate.of("07")["ready"] is not None),
+                         ("formed", [], True))
+        self.assertTrue(self.cw.exists(), "the train's worktree stands with it")
 
     def test_without_a_map_nothing_is_generated_and_a_glob_stays_in_its_segment(self):
         git(self.main, "rm", "-q", ".github/hal2-versions.toml")

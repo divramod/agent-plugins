@@ -86,6 +86,8 @@ def plan(item: dict, ctx: dict, doc: dict | None = None) -> list[dict]:
 
 
 def plan_lead(item: dict, ctx: dict, doc: dict | None = None, scan: dict | None = None) -> list[dict]:
-    """duty:lead: the development foreman's round (duties.plan_lead), then the smuggle mode's word (`plan`)."""
+    """The farmer's duty for foremen: the development foreman's round (duties.plan_lead), then the smuggle mode's word (`plan`), then the
+    word to a field whose dependency was reached (lead_depends.plan, plan 0595)."""
     import duties
-    return duties.plan_lead(item, ctx, scan) + plan(item, ctx, doc)
+    import lead_depends
+    return duties.plan_lead(item, ctx, scan) + plan(item, ctx, doc) + lead_depends.plan(item, ctx)

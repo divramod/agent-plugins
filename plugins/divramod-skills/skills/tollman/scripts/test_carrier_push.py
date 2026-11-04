@@ -2,8 +2,8 @@
 2026-10-14 (the tollman's train.jsonl, UTC): train 06@07:04 was split at 08:27:07, train 07 formed on the base
 at 08:27:22, and its landing's push to origin/tollman-hal2 was refused at 08:32:42 as not a fast-forward,
 because the remote branch still held the dead train. On engine_farm's farm (a bare origin, no landing, D5). Since
-plan 0375 D5 every train rides in its own worktree and branch `tollman-train-<plan>-...`: the same cars form the same
-name again, so a dead train of that name is put back the same way."""
+plan 0610 D18 every train rides in the kept worktree `tollman-train` on its own branch `train-<n>-<a>`; a dead
+train left on a branch of that name is put back the same way."""
 
 import os
 import unittest
@@ -21,7 +21,7 @@ class CarrierPush(Farm):
         self.origin = self.tmp / "hal2.git"
 
     def ref(self):
-        return f"refs/heads/{self.carrier()}"
+        return f"refs/heads/{self.branch()}"  # train-<n>-<a> in the kept tollman-train (plan 0610 D18)
 
     def landing_push(self):
         """What the landing does with the carrier first: its head pushed to its remote branch, without force."""
@@ -53,7 +53,7 @@ class CarrierPush(Farm):
         self.assertIsNone(self.remote(ref), "the dead train is gone from origin: put back on the base, which is in "
                           "the barn, then deleted with the dropped worktree's branch (L55)")
         self.assertEqual(self.cleared()["pushed"], f"origin's {ref} back on {base[:12]} (was {dead[:12]})")
-        self.assertEqual((self.train()["base"], self.carrier()), (base, "tollman-train-0301"))
+        self.assertEqual((self.train()["base"], self.carrier(), self.branch()), (base, "tollman-train", "train-2-1"))
         code, text = self.landing_push()
         self.assertEqual(code, 0, f"the next train's push fast-forwards: {text}")
         self.assertEqual(self.remote(self.ref()), out(self.cw, "rev-parse", "HEAD"))
@@ -65,7 +65,8 @@ class CarrierPush(Farm):
         self.alive.clear()
         code, text = engine.breakup(str(self.wm), "its landing never started", user=True)
         self.assertEqual((code, text), (0, "train " + self.cleared()["train"] + " broken up: its landing never started; "
-                                           "worktree tollman-train-f07 dropped"))
+                                           "worktree tollman-train kept for the next train, its branch "
+                                           "train-1-1 dropped"))
         self.assertNotIn("pushed", self.cleared())
         self.assertIsNone(self.remote(self.ref()), "no remote branch made")
 
@@ -84,22 +85,25 @@ class CarrierPush(Farm):
         self.assertIn(f"origin's {ref} still holds the dead train {dead[:12]}, not pushed", text)
         self.assertIn("pre-receive hook declined", self.cleared()["pushed"])
         self.assertEqual((out(self.wm, "rev-parse", "HEAD"), self.remote(ref), self.train(), self.cw.exists()),
-                         (base, dead, None, False), "the local reset stands: nothing of the worktree is lost")
+                         (base, dead, None, True), "the local reset stands: nothing of the worktree is lost (its "
+                         "folder kept for the next train, plan 0610 D18)")
 
     def test_a_car_that_does_not_merge_puts_a_dead_train_left_on_the_remote_back_too(self):
+        # plan 0610 E25: the car that does not merge waits `resolving` with its resolve order, never a cleared train
         self.crop("07", {"seven.txt": "7"})
-        base, ref = out(self.wm, "rev-parse", "HEAD"), "refs/heads/tollman-train-f07"
+        base, ref = out(self.wm, "rev-parse", "HEAD"), "refs/heads/train-1-1"
         self.commit(self.wm, "dead.txt", "a dead train's commit")
         git(self.wm, "push", "-q", "origin", f"HEAD:{ref}")  # an earlier train of the same name left it there
         git(self.wm, "reset", "-q", "--hard", base)
         car = {"field": "07", "branch": "07", "head": "0" * 40, "plan": ""}
         code, text = engine.form(str(self.wm), [car])
-        self.assertEqual(code, 1, text)
+        self.assertEqual(code, 0, text)
         self.assertIn(f"origin's {ref} back on {base[:12]}", text)
-        self.assertIsNone(self.remote(ref), "back on the base, in the barn: deleted with the dropped branch (L55)")
+        self.assertIn("resolve order 07-resolve-1", text)
         formed = [e for e in train_state.lines(str(self.main)) if e["kind"] == "formed"][-1]
         self.assertTrue(formed["pushed"].startswith(f"origin's {ref} back on"), "the form put it back (step 14)")
-        self.assertNotIn("pushed", self.cleared(), "the breakup found it on the base already")
+        self.assertEqual((self.remote(ref), [e["kind"] for e in train_state.lines(str(self.main))]),
+                         (base, ["formed", "resolving"]), "the resolve's base published on it, nothing cleared")
 
 
 if __name__ == "__main__":

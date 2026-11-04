@@ -1,6 +1,6 @@
 ---
 name: transplant
-description: Transplant a foreman — move it with everything it has grown (its branch, plan, handoff, servants) from one field to another, so it carries on there and the old field is reset to the barn and free (hal2 plan 0286). `/transplant 09` in a foreman's field moves that foreman to field 09; `/transplant 34 09` (the farmer's or the steward's session) moves the foreman of a field that has no live session; `--dry-run` shows every check and changes nothing; `/transplant cancel` ends a prepared one; `/transplant history` lists the earlier ones. It runs the checks, prepares and reserves the target, frees the target of a resting session, has the foreman hand off and commit, drives `hal2-cli-git worktree transplant`, pushes, tells the servants and the farmer and starts the foreman in the target with `/handoff c`. Only the user starts it. Use when the user says /transplant, "transplant 34 to 09", "umpflanzen", "move this foreman to field 09" or "move the foreman to another worktree". `/transplant h` shows help.
+description: Transplant a foreman — move it with everything it has grown (its branch, plan, handoff, servants) from one field to another, so it carries on there and the old field is reset to the barn and free (hal2 plan 0286). `/transplant 09` in a foreman's field moves that foreman to field 09; `/transplant 34 09` (the farmer's or the steward's session) moves the foreman of a field that has no live session; `--dry-run` shows every check and changes nothing; `/transplant cancel` ends a prepared one; `/transplant history` lists the earlier ones. It runs the checks, prepares and reserves the target, frees the target of a resting session, has the foreman hand off and commit, drives `hal2-cli-git worktree transplant`, pushes, tells the servants and the farmer and starts the foreman in the target with `/continue`. Only the user starts it. Use when the user says /transplant, "transplant 34 to 09", "umpflanzen", "move this foreman to field 09" or "move the foreman to another worktree". `/transplant h` shows help.
 ---
 
 # transplant
@@ -37,6 +37,8 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    - `live-session`: send the user's order to that session (SendMessage; in the farmer's session with an ack id from
      `acks.py instruct`): `the user decided: "<their words>"`, it runs `/transplant <to>`. End.
    - `disk`: the target must be created and the disk is short; prune a field, run the same command again.
+   - `dependents`: the plans waiting for the plan being moved (`notes` says each follows it to `<to>`); a transplant
+     moves `plan.md` with its `depends_on`, so it is told, never stopped.
    - `refused`: `reason`, the `files` and `advice` (also `$T advice <reason> <from> <to>`).
    - `call` (name the source), `error` (the message). Exit 2: a tool is missing: `bash $S/install-prerequisites.sh`.
 2. **Prepare.** `$H worktree transplant <from> <to> --prepare --json`: `status` ok means the checks held, the record
@@ -62,7 +64,7 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    the same command again) or is cancelled as the JSON says; **never reset a field by hand**: a drive whose process
    died halfway is adopted by running the same command again, and `/transplant cancel` ends a prepared one.
    While a transplant is open (`prepared` or `driven`) the tollman never takes its two fields for orphans, however
-   old it is, and never starts `/handoff c` in the source of a `driven` one; one open for over 60 minutes it reports
+   old it is, and never starts `/continue` in the source of a `driven` one; one open for over 60 minutes it reports
    to the farmer once, who finishes it by the same command or ends it with `/transplant cancel <from>` (plan 0294).
 7. **Push the target.** `$T push <from> <to>`: the target's branch (`git push -u origin HEAD` in it); and, only from
    the old field's own session, once origin's `<to>` holds the tip origin's `<from>` holds, origin's `<from>` made the
@@ -76,7 +78,7 @@ session as a relayed decision and it runs `/transplant <to>` itself.
    `transplanted <from> to <to>, tip <tip7>, plan <plan>; field <from> is reset to the barn and free: remove it once
    its session has stopped`.
 9. **Start the foreman.** `$T start <to>`: refuses unless the drive happened; leaves a session that runs in the
-   target already and names it; else starts `/handoff c` there through `hal2-cli-git worktree run` at the model and
+   target already and names it; else starts `/continue` there through `hal2-cli-git worktree run` at the model and
    effort of the plan's `run` ([create-worktree-session](../create-worktree-session/SKILL.md)'s `start`). Never
    `claude` itself, never `/exit`.
 10. **End the turn** with three lines and start nothing new: `Transplanted field <from> to field <to>, tip <tip7>,

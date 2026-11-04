@@ -10,19 +10,27 @@ and not the tall man"): one round as code, never deferred, run as the farmer tas
       2. prune: `/prune run` for the farm (landed fields 10-99 removed, 00-09 mucked out, stale pointers cleared).
       Prints one line per step and per deletion. Exit 0 when both ran, 1 with `prune round failed: <step> ...`
       naming each failed or timed-out step, so the task notifies (no silent duty).
+      Before both, the farm's autopilot (`hal2-cli-agents autopilot show --json`, hal2 plan 0543 step 27, D97) says
+      whether the round is due: a "Prune now" asked (`prune_due`) always, else only with `auto_prune` on and
+      `prune_interval_s` passed since the last passed round (`pruned_at`); not due: exit 0, one line why. A passed
+      round is recorded by `autopilot set --pruned <its start>`, which clears a Prune now asked before it. An
+      unreadable autopilot runs the round by the task's cron, as before the switch.
 
 The fields are the farm's worktrees (`git worktree list`, field_root.is_field: no train worktree); the main checkout
 by mtm_scan; the sibling skills by skillpath, never a literal home path.
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+import bounded
 import field_root
 import mtm_scan
 
@@ -35,6 +43,8 @@ DISK_LIMIT = 900  # seconds per step (the stopgap's; plan 0534 D11: sized from a
 PRUNE_LIMIT = 1500
 PROBE_LIMIT = 240  # one du, git or busy call
 TAIL = 400
+AUTOPILOT = ["hal2-cli-agents", "autopilot"]
+AUTOPILOT_LIMIT = 60
 
 
 class StepTimeout(Exception):
@@ -127,17 +137,67 @@ def run_prune(main: str, limit: int = PRUNE_LIMIT) -> str | None:
     return None if p.returncode == 0 else f"prune exit {p.returncode}: {(p.stderr or p.stdout)[-300:]}"
 
 
+def autopilot(main: str) -> dict | None:
+    """The farm's autopilot part (`farm` of `autopilot show --json`, run in the main checkout: its repository's
+    name), None when it cannot be read."""
+    try:
+        p = bounded.run(AUTOPILOT + ["show", "--json"], cwd=main, other=AUTOPILOT_LIMIT)
+        farm = json.loads(p.stdout).get("farm") if p.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+        return None
+    return farm if isinstance(farm, dict) else None
+
+
+def stamp(at: datetime) -> str:
+    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def due(farm: dict, now: datetime) -> tuple[bool, str]:
+    """Whether the round runs now, and why (or why not)."""
+    if farm.get("prune_due"):
+        return True, f"Prune now asked at {farm['prune_due']}"
+    if farm.get("auto_prune") is False:
+        return False, "auto prune off, no Prune now asked"
+    interval, last = int(farm.get("prune_interval_s") or 0), farm.get("pruned_at")
+    try:
+        ago = (now - datetime.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() if last else None
+    except (AttributeError, ValueError):
+        ago = None  # an unreadable last run: run
+    if ago is not None and 0 <= ago < interval:
+        return False, f"last round {last}, every {interval} s"
+    return True, f"auto prune every {interval} s, last round {last or 'never'}"
+
+
+def record(main: str, started: str) -> str | None:
+    """`autopilot set --pruned <started>`; the failure it names, else None."""
+    try:
+        p = bounded.run(AUTOPILOT + ["set", "--pruned", started, "--json"], cwd=main, other=AUTOPILOT_LIMIT)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"record failed: {e}"
+    return None if p.returncode == 0 else f"record exit {p.returncode}: {(p.stderr or p.stdout)[-300:]}"
+
+
 def is_checkout(folder: str) -> bool:
     return subprocess.run(["git", "-C", folder, "rev-parse", "--git-dir"], capture_output=True,
                           timeout=PROBE_LIMIT).returncode == 0
 
 
-def run(repo: str) -> int:
+def run(repo: str, now=lambda: datetime.now(timezone.utc)) -> int:
     if not is_checkout(repo):  # the cause of plan 0534 step 6: a --repo outside git showed up as "no worktrees"
         print(f"prune round failed: {repo} is no git checkout (the round needs the farm's repository)")
         return 1
     main = mtm_scan.main_checkout(repo)
+    started, farm = now(), autopilot(main)
+    if farm is None:
+        print("autopilot: unreadable, the round runs by the task's cron")
+    else:
+        go, why = due(farm, started)
+        print(f"autopilot: {why}" + ("" if go else ": not due"))
+        if not go:
+            return 0
     bad = [b for b in (run_disk(main), run_prune(main)) if b]
+    if not bad and farm is not None:
+        bad = [b for b in [record(main, stamp(started))] if b]
     if bad:
         print("prune round failed: " + "; ".join(bad))
         return 1

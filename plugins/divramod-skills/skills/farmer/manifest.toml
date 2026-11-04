@@ -1,7 +1,7 @@
 # The farmer's role folder (roles/farmer/ of the field farmer-<repo>), every file of the round frame by its kind
 # (hal2's .adr/role-folder-formats.md): `hal2-cli-roles check <folder> --manifest <this file>`. The message board is
 # written by scripts/board.py (plan 0290 D23: the same script and form as the tollman's, `--role farmer`); the other
-# files are the frame's (this skill's scripts): the log.jsonl lines are legacy ones (no `schema`, local time without an
+# files are the frame's (this skill's scripts): the log.jsonl lines carry `schema: 1` since hal2 plan 0593 (the store `skill.farmer/log`; legacy lines without `schema`, local time without an
 # offset; new lines carry `at` in UTC with Z since hal2 plan 0530), declared as the record allows for legacy files
 # (rule 3): they pass counted, are never rewritten and leave by rotation and retention. One-off notes the user or the
 # farmer leave in the folder are findings, as the record says.
@@ -17,7 +17,7 @@ description = "The message board: one line per instruction the farmer sent (an `
 [[files]]
 path = "log.jsonl"
 kind = "event-log"
-description = "The frame's round log, the farmer's journal (this skill's scripts): lines without schema; `at` in RFC 3339 UTC with Z since hal2 plan 0530 (roletime.py), older lines legacy local time without an offset, read as local. Read by scripts/board.py alone; hal2 never parses it."
+description = "The frame's round log, the farmer's journal (this skill's scripts): lines with `schema: 1` since plan 0593 (store `skill.farmer/log`), older ones legacy without it; `at` in RFC 3339 UTC with Z since hal2 plan 0530 (roletime.py), older lines legacy local time without an offset, read as local. Read by scripts/board.py alone; hal2 never parses it."
 
 [[files]]
 path = "runs.jsonl"
@@ -58,7 +58,7 @@ description = "The failing streak of the farmer's timer rounds (hal2 plan 0530 D
 [[files]]
 path = "*.json"
 kind = "snapshot"
-description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, disk.json, queue-watch.json (the queue duty's findings with their first-seen and alarmed times, `{schema 1, at, findings}`, replaced each real round: scripts/queue_watch.py)."
+description = "The frame's snapshots: wake.json (what the tick handed to the session), timer.json, last-scan.json, priority.json, disk.json, queue-watch.json (the queue duty's findings with their first-seen and alarmed times, `{schema 1, at, findings}`, replaced each real round: scripts/queue_watch.py); duty-health.json, each duty's last good run and count and the bad status it was reported with `{schema, duties: {<duty>: {good, last_good, status, why, bad, last_bad, seen, reported}}, busy_checked}` (scripts/duty_health.py, hal2 plan 0514 D17), written atomically under duty-health.lock, an entry of a duty no longer opted in kept 30 days."
 
 [[files]]
 path = "tasks/*.json"
@@ -116,3 +116,10 @@ path = "questions.jsonl"
 kind = "keyed-log"
 key = "n"
 description = "The farmer's own question store (scripts/questions.py): the last line per question number is its state."
+
+[[files]]
+path = "depends-told.jsonl"
+kind = "keyed-log"
+key = "key"
+schema = "schemas/depends-told.schema.json"
+description = "The plan dependencies the lead duty told a field about (scripts/lead_depends.py record, hal2 plan 0595 step 11): `{schema 1, at, key, plan, dependent, slot, state, until}`, the last line per key is the state; an edge (`depends:<dependency>:<dependent>:<field>`) is told once."

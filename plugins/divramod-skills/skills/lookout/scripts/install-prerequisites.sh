@@ -9,7 +9,7 @@ if [ "$(uname -s)" = Darwin ] && ! command -v terminal-notifier >/dev/null 2>&1 
   brew install terminal-notifier
 fi
 if ! command -v hal2-cli-secrets >/dev/null 2>&1 && [ -d "$HOME/a/hal2/code/rust" ]; then
-  (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-secrets)
+  (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-secrets && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed hal2-cli-secrets)
 fi
 "$here/checks/install-prerequisites.sh" >/dev/null || true
 exec "$here/check-prerequisites.sh"

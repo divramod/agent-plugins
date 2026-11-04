@@ -72,11 +72,11 @@ def guarded_start(slot: str, w: dict, ctx: dict) -> list[str]:
     action is carried out and the start runs only into a field with no live session, a terminal host's included."""
     return [sys.executable, str(Path(__file__).resolve().parent / "orphan_start.py"), "--path", w.get("path", ""),
             "--slot", slot, "--main", ctx["main"], "--role", role_of(ctx), "--", "hal2-cli-git", "worktree", "run",
-            slot, "--agent", "claude", "--detach", "--prompt", "/handoff c"]
+            slot, "--agent", "claude", "--detach", "--prompt", "/continue"]
 
 
 def has_handoff(checkout: Path, plan: str) -> bool:
-    """Is there a handoff `/handoff c` can continue from: the current plan's own, or the checkout's root file?"""
+    """Is there a handoff `/continue` can continue from: the current plan's own, or the checkout's root file?"""
     own = planread.plan_dir(checkout, plan) / "handoff.md" if plan and "/" not in plan else None
     return bool(own and own.is_file()) or (checkout / "HANDOFF.md").is_file()
 
@@ -132,7 +132,7 @@ class Planner:
             return
         self.add(f["kind"], "notify", slot, dt.timedelta(hours=6), key=f"red-holder-gone:{slot}:{seq}",
                  text=f"{role_of(self.ctx)}: {slot}'s red {f.get('what')} holds the merge queue and has no session "
-                      f"({f['why']}): start one (/handoff c) to fix and rerun; only you or the user release it "
+                      f"({f['why']}): start one (/continue) to fix and rerun; only you or the user release it "
                       f"(`hal2-cli-git worktree release {slot} --by farmer`)")
 
     def held(self, f: dict) -> None:
@@ -216,12 +216,12 @@ class Planner:
 
     def orphan(self, f: dict) -> None:
         """Orphaned work with a handoff (the plan's plans/<plan>/handoff.md, hal2 plan 0206, or the root HANDOFF.md)
-        gets a session with /handoff c, else the tollman is woken. A servant's
-        (plans/LEAD) restart is the same /handoff c, which continues its one step; never /merge-to-main. A servant whose work
+        gets a session with /continue, else the tollman is woken. A servant's
+        (plans/LEAD) restart is the same /continue, which continues its one step; never /merge-to-main. A servant whose work
         is all in its foreman's branch (no `missing`) is done: never restarted. One with a broken marker wakes the
         tollman: its foreman is unknown. A field in an open transplant (hal2 plan 0286: the source or the target of
         one `prepared` or `driven`, D29) is no orphan however old the transplant: it drives the field, so never a
-        `/handoff c` or a wake (a driven source's work has moved). One older than an hour is a note for the farmer
+        `/continue` or a wake (a driven source's work has moved). One older than an hour is a note for the farmer
         once instead (`stale_transplant`)."""
         slot, w = f["slot"], self.wt.get(f["slot"], {})
         lead = w.get("lead") or f.get("lead")
@@ -236,7 +236,7 @@ class Planner:
                      evidence=f)
         elif (w.get("plan") or lead) and has_handoff(Path(w.get("path", "")), w.get("plan") or ""):
             self.add("orphan", "run", slot, ORPHAN, key=f"orphan:{slot}", argv=guarded_start(slot, w, self.ctx),
-                     text=f"started a session in {slot} with /handoff c")
+                     text=f"started a session in {slot} with /continue")
         else:
             self.add("orphan", "wake", slot, REWAKE, key=f"orphan:{slot}", text=f"orphaned work: {f['why']}",
                      evidence=f)

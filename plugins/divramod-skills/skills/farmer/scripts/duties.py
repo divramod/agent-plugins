@@ -12,10 +12,13 @@ from pathlib import Path
 
 import ci_scan
 import delegation
+import lead_actions
+import lead_depends
+import lead_fields
 import lead_marker
 import lead_scan
 import pr_scan
-from tick import act
+from tick import act, read_log
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
@@ -64,12 +67,17 @@ REWAKE = {"asks", "idle-in-plan"}
 
 
 def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
-    scan = scan if scan is not None else lead_scan.scan(ctx["top"], False)
-    out = []
+    scan = scan if scan is not None else lead_scan.scan(ctx["top"], False, ctx.get("queue_doc"))
+    out = lead_actions.acts([n for n in scan.get("needs_help", []) if n["kind"] in lead_fields.KINDS],
+                            ctx.get("told", set()))  # a field's plan class (plan 0514 D8, D11)
     for n in scan.get("needs_help", []):
+        if n["kind"] in lead_fields.KINDS:
+            continue
         kind, slot, pane = n["kind"], n.get("slot") or "-", n.get("pane")
         if slot in ctx.get("told", set()):
             continue
+        if kind == "idle-in-plan" and lead_depends.wait_of_need(n, ctx):
+            continue  # its plan waits for an open dependency (plan 0595): nobody forgot it, the summary says so
         key, done = f"lead:{n['session']}:{n['since']}", [sys.executable, str(HERE / "lead_scan.py"), "record",
                                                            n["session"], str(n["since"])]
         said = (n.get("said") or "").strip().split("\n\n")[-1]
@@ -219,3 +227,93 @@ def plan_prs(item: dict, ctx: dict, scan: dict | None = None, held: dict | None 
             out.append(act("prs", kind, "notify", "-", key=f"prs:other:{f['number']}",
                            text=f"open PR {f['why']}: {f['url']}"))
     return out
+
+
+# The farmer's foreman limit (hal2 plan 0543 step 24, D33, D96, D101): Rust's `hal2-cli-agents autopilot tick` decides
+# and freezes; this duty only feeds it the tollman's orders, runs it when it has a freeze or thaw, and turns its starts
+# and its train order into the frame's acts (a key per start: its 15-min cool-down; per hitched set: told once).
+AUTOPILOT = ["hal2-cli-agents", "autopilot", "tick", "--json"]
+ORDER_KINDS = {"unhitched", "fix-order", "stack-red-fix", "early-order", "triage-order", "post-order"}
+ORDER_AGE = dt.timedelta(hours=6)  # a tollman order this young overrides the limit (field 44, 2026-10-31)
+START_WINDOW = 15 * 60
+_UNSET = object()
+
+
+def tollman_orders(log: list[dict], now: dt.datetime) -> list[str]:
+    """The fields with a tollman order (unhitched, a fix order) in the tollman's log within ORDER_AGE of `now`."""
+    import roletime
+    cut, out = roletime.aware(now) - ORDER_AGE, set()
+    for e in log:
+        at, slot = roletime.parse(e.get("at")), str(e.get("slot", ""))
+        if e.get("kind") in ORDER_KINDS and at and at >= cut and slot.isdigit():
+            out.add(slot)
+    return sorted(out)
+
+
+def autopilot_argv(main: str, orders: list[str], dry: bool) -> list[str]:
+    spare = [w for f in orders for w in ("--spare", f)]
+    return AUTOPILOT + ["--repo-dir", main] + spare + (["--dry-run"] if dry else [])
+
+
+def plan_autopilot(item: dict, ctx: dict, report=_UNSET, orders: list[str] | None = None) -> list[dict]:
+    """The limit's acts from a dry tick: the real tick as a `run` when it freezes or thaws, a `run` per start, the
+    train order sent to the tollman (relayed when it is busy). An unreadable tick plans nothing (duty_health sees
+    no failed run; the next round asks again)."""
+    import bounded
+    import json
+    import subprocess
+    main = ctx["main"]
+    orders = orders if orders is not None else tollman_orders(read_log(main, "tollman"), ctx["now"])
+    if report is _UNSET:
+        try:
+            p = bounded.run(autopilot_argv(main, orders, True), cwd=main, other=120)
+            report = json.loads(p.stdout) if p.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            report = None
+    if not isinstance(report, dict) or report.get("schema") != 1:
+        return []
+    changes, out = report.get("changes", []), []
+    moves = [c for c in changes if c.get("action") in ("freeze", "thaw")]
+    if moves:
+        what = ", ".join(f"{c['action']} {c['field']}" for c in moves)
+        out.append(act("autopilot", "limit", "run", "-", argv=autopilot_argv(main, orders, False),
+                       text=f"foreman limit ({report.get('mode')}): {what}"))
+    for c in (c for c in changes if c.get("action") == "start" and c.get("argv")):
+        out.append(act("autopilot", "start", "run", c["field"], argv=c["argv"], key=f"autopilot:start:{c['field']}",
+                       window=START_WINDOW, text=f"start foreman {c['field']}: {c.get('why', '')}"))
+    tell = report.get("tell_tollman")
+    if isinstance(tell, dict) and tell.get("key"):
+        toll = f"tollman-{report.get('repo') or Path(main).name}"
+        out.append(act("autopilot", "train", "send", toll, pane=ctx.get("panes", {}).get(toll), to=toll,
+                       key=tell["key"], text=tell.get("text", "")))
+    return out
+
+
+# The runner health (hal2 plan 0543 step 26, D38): Rust's `hal2-cli-ci runner health` looks and repairs (host runners
+# up, the daemon kicked at most once per 30 min, then STUCK; hz01 only reported); this duty runs it, with `--repair`
+# while the farm's autopilot switch `runner_repair` is on. A failed repair exits 1: a failed run, which duty_health
+# reports (no silent duty, plan 0514 D17).
+RUNNERS = ["hal2-cli-ci", "runner", "health", "--json"]
+
+
+def runner_repair(main: str) -> bool:
+    """The farm's `runner_repair` switch from `hal2-cli-agents autopilot show --json`; on when it cannot be read
+    (the store's default)."""
+    import bounded
+    import json
+    import subprocess
+    try:
+        p = bounded.run(["hal2-cli-agents", "autopilot", "show", "--json"], cwd=main, other=60)
+        farm = json.loads(p.stdout).get("farm", {}) if p.returncode == 0 else {}
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        farm = {}
+    return farm.get("runner_repair", True) is not False
+
+
+def plan_runners(item: dict, ctx: dict, repair: bool | None = None) -> list[dict]:
+    """One `run` of the runner health per round, `--repair` when the switch is on."""
+    main = ctx["main"]
+    repair = runner_repair(main) if repair is None else repair
+    argv = RUNNERS + (["--repair"] if repair else [])
+    what = "look and repair" if repair else "look"
+    return [act("runners", "health", "run", "-", argv=argv, text=f"runner health: {what}")]

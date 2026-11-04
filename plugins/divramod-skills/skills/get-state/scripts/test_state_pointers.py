@@ -8,12 +8,13 @@ from pathlib import Path
 
 import farmer_link
 import role
+import servant_testkit as kit
 import state
-import view_foreman
 
 
 class GitDirPointers(unittest.TestCase):
     def setUp(self):
+        kit.install(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.field = Path(tmp.name).resolve() / "34"
@@ -29,10 +30,15 @@ class GitDirPointers(unittest.TestCase):
 
     def test_lead_in_the_git_dir_makes_a_servant_of_a_field(self):
         self.assertEqual(role.field_role("34", str(self.field)), "foreman")
-        (self.hal / "LEAD").write_text("09 0409-plan-store 3\n")
+        (self.hal / "LEAD").write_text("marker\n")
         self.assertEqual(role.field_role("34", str(self.field)), "servant")
+        kit.write(self.field, "09", "0409-plan-store", [("3", "", "")])
         self.assertEqual(farmer_link.foreman_of(self.field), "09")
-        self.assertEqual(view_foreman.lead(str(self.field)), ("09", "0409-plan-store", "3"))
+        self.assertEqual(farmer_link.servant_of(self.field)["plan"], "0409-plan-store")
+
+    def test_a_field_without_a_lead_pointer_starts_no_process(self):
+        kit.write(self.field, "09", "0409-plan-store", [("3", "", "")])  # the fake would answer, the pointer does not exist
+        self.assertIsNone(farmer_link.servant_of(self.field))
 
 
 if __name__ == "__main__":

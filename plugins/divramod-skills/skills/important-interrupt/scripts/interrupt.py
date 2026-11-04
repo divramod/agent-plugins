@@ -6,24 +6,25 @@ Usage: interrupt.py [stop] [--dry-run] [--idle 80] [--timeout 300] [--reply-wait
        interrupt.py stats [--json] [--last N]       (resume.py: the log's rows, median and max to quiet)
 
 stop, in this order: the stop record (stop-all-agent-work's stopall.py, "kind": "important-interrupt"; a session in
-an active stop or with an older pause record is an earlier hold and is left as it is); every other live session told
-to pause (messenger.py, Claude Code's inbox socket, else hal2-cli-agents send); hal2-daemon frozen, every tart VM
-stopped; quiet.py apply --runner with every CONFIRM row confirmed (no safety question); every build and test process
-frozen (freeze.py); the workqueue's quiet mode on (wq_quiet.py, its undo recorded); then every 5 s a re-scan freezes what is new, until the CPU is at least --idle % idle and nothing
-was new, or --timeout seconds passed; then the replies (a newer pause record or an idle state) until --reply-wait
-seconds after the start. Every action goes into the stop record with its undo. A row per run goes to
-<root>/log.jsonl, <root> being $IMPORTANT_INTERRUPT_ROOT or ~/skills/important-interrupt.
+an active stop or with an older pause record is an earlier hold and is left as it is); every other live session of
+the machine told to pause (source 5, the farmers of other farms among them; messenger.py, Claude Code's inbox socket,
+else hal2-cli-agents send); hal2-daemon's pollers held (source 3, pollers_quiet.py: `hal2-cli-machine quiet hold pollers`, its release recorded;
+without the CLI hal2-daemon frozen), every tart VM stopped (source 2); the workqueue's `freeze
+all` and its holders (source 1, sources.py); every repo's host runners (source 4, runners.py); quiet.py apply with
+every CONFIRM row confirmed (no safety question); every build and test process frozen (freeze.py); the workqueue's
+quiet mode on (wq_quiet.py); then every 5 s a re-scan freezes what is new, until the CPU is at least --idle % idle
+and nothing was new, or --timeout seconds passed; then the replies (a newer pause record or an idle state) until
+--reply-wait seconds after the start. Each pass is measured (seconds, CPU idle after: passes.py). Every action goes
+into the stop record with its undo. A row per run goes to <root>/log.jsonl, <root> being $IMPORTANT_INTERRUPT_ROOT
+or ~/skills/important-interrupt.
 --dry-run prints every action it would take and changes nothing: no record, no log row, no message, no signal.
 Exit 0 quiet (or dry run), 4 not quiet within --timeout; done: 0, 1 when no important interrupt is active.
 """
 import argparse
-import io
 import json
 import os
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
 
@@ -32,9 +33,9 @@ sys.path.insert(0, str(HERE.parent.parent / "stop-all-agent-work" / "scripts"))
 sys.path.insert(0, str(HERE))
 import freeze  # noqa: E402
 import messenger  # noqa: E402
+import passes  # noqa: E402
 import quiet  # noqa: E402
 import stopall  # noqa: E402
-import wq_quiet  # noqa: E402
 
 KIND = "important-interrupt"
 STOP_TEXT = (
@@ -46,7 +47,6 @@ STOP_TEXT = (
     "Do not start builds, tests or anything else. Then stay idle until a message from important-interrupt says all "
     "agents may continue; then run the continue skill and, for a landing, run the merge to main again: it adopts "
     "the interrupted landing.")
-RESCAN = 5
 BUSY = ("working", "starting", "blocked")
 
 
@@ -54,9 +54,10 @@ class Deps:
     """Everything stop touches, passed in so tests fake the machine, the sessions and the clock."""
 
     def __init__(self, sys_=None, msg=messenger, qt=quiet, rec=stopall, clock=time.time, sleep=time.sleep,
-                 out=print, getpid=os.getpid):
+                 out=print, getpid=os.getpid, idle=None):
         self.sys, self.msg, self.quiet, self.rec = sys_ or freeze.Sys(), msg, qt, rec
         self.clock, self.sleep, self.out, self.getpid = clock, sleep, out, getpid
+        self.idle = idle or (lambda: freeze.cpu_idle(self.sys))
 
 
 def root() -> Path:
@@ -67,16 +68,7 @@ def iso(t: float | None) -> str | None:
     return None if t is None else datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds")
 
 
-def classify(text: str) -> str:
-    """The kind of a recorded or printed action, from its text (quiet.py's actions carry no kind)."""
-    text = text.removeprefix("would ")
-    for prefix, kind in (("freeze build", "build"), ("freeze hal2-daemon", "daemon"), ("stop tart VM", "vm"),
-                         ("freeze ", "session"), ("set workqueue quiet", "quiet"), ("terminate orphan", "orphan"), ("terminate Ollama", "ollama"),
-                         ("shut down", "simulator"), ("pause container", "docker"),
-                         ("unload LaunchAgent actions.runner.", "runner"), ("unload ", "agent")):
-        if text.startswith(prefix):
-            return kind
-    return "other"
+classify = passes.classify
 
 
 def last_continue(d: Deps) -> float:
@@ -133,79 +125,6 @@ def before(d: Deps, names: list, held: list, note: str) -> dict:
             "held": [{"name": r["name"], "why": w} for r, w in held]}
 
 
-def tell_all(d: Deps, rows: list, note: str, mode: str, dry: bool) -> list:
-    text = STOP_TEXT.format(note=f": {note}" if note else "")
-    with ThreadPoolExecutor(max_workers=16) as pool:
-        res = list(pool.map(lambda r: d.msg.send(r, text, from_mode=mode, dry_run=dry), rows))
-    ok = sum(r["status"] in ("delivered", "dry-run") for r in res)
-    d.out(f"{'would tell' if dry else 'told'} {len(rows)} sessions to pause ({ok} {'planned' if dry else 'delivered'})")
-    for r in res:
-        if r["status"] == "failed":
-            d.out(f"  not delivered to {r['name']}: {r['reason']}")
-    return res
-
-
-def quiet_pass(d: Deps, keep: list, dry: bool, first: bool) -> list:
-    """quiet.py apply --runner with every CONFIRM row confirmed; returns the kinds of what it did."""
-    yes = [d.quiet.key(r) for r in d.quiet.scan(keep, True) if r.get("confirm")]
-    buf = io.StringIO()
-    with redirect_stdout(buf):
-        d.quiet.apply(keep, True, dry, yes)
-    kinds = []
-    for line in buf.getvalue().splitlines():
-        if line.startswith(("left alone", "CONFIRM")):
-            if first:
-                d.out(line)
-        elif not line.endswith("(failed)"):
-            kinds.append(classify(line))
-            d.out(line)
-        elif first:
-            d.out(line)
-    return kinds
-
-
-def freeze_pass(d: Deps, rows: list, dry: bool) -> list:
-    done = freeze.apply(rows, d.sys, dry, d.out)
-    if done:
-        d.rec.add_actions(done)
-    return [r["kind"] for r in rows] if dry else [a["kind"] for a in done]
-
-
-def builds_pass(d: Deps, keep_dirs: list, dry: bool) -> list:
-    table = freeze.proc_table(d.sys)
-    return freeze_pass(d, freeze.builds(table, freeze.caller_tree(table, d.getpid()), keep_dirs, d.sys), dry)
-
-
-def settle(d: Deps, a, keep: list, t0: float, kinds: list) -> tuple:
-    """Re-scan every 5 s until idle >= a.idle with nothing new, or the timeout: (quiet_at or None, idle)."""
-    new = len(kinds)
-    while True:
-        idle = freeze.cpu_idle(d.sys)
-        if not new and idle is not None and idle >= a.idle:
-            return d.clock(), idle
-        if d.clock() - t0 >= a.timeout:
-            return None, idle
-        d.sleep(RESCAN)
-        found = quiet_pass(d, keep, False, False) + builds_pass(d, keep, False)
-        kinds.extend(found)
-        new = len(found)
-
-
-def replies(d: Deps, results: list, rows: list, t0: float, wait: float) -> dict:
-    """{name: why} of the told sessions that paused since t0, polled until t0 + wait (at least once)."""
-    told = [r for r, res in zip(rows, results) if res["status"] == "delivered"]
-    paused = {}
-    while True:
-        for r in told:
-            if r["name"] not in paused:
-                ok, why = d.msg.paused_since(r, t0)
-                if ok:
-                    paused[r["name"]] = why
-        if len(paused) == len(told) or d.clock() >= t0 + wait:
-            return paused
-        d.sleep(RESCAN)
-
-
 def checkout(d: Deps) -> str:
     code, out, _ = d.sys.run(["git", "rev-parse", "--show-toplevel"])
     return out.strip() if code == 0 and out.strip() else os.getcwd()
@@ -227,22 +146,29 @@ def stop(a, d: Deps) -> int:
     rows, held = holds(d, d.msg.sessions(me if me is not None else -1), t0)
     if not dry:
         update_record(d, start=iso(t0), caller=keep[0], **before(d, [r["name"] for r in rows], held, a.note))
-    results = tell_all(d, rows, a.note, d.msg.caller_mode(me), dry)
-    tbl = freeze.proc_table(d.sys)
-    kinds = freeze_pass(d, freeze.daemon(tbl), dry) + freeze_pass(d, freeze.vms(d.sys), dry)
-    kinds += quiet_pass(d, keep, dry, True) + builds_pass(d, keep, dry)
-    wq_kinds, wq_note = wq_quiet.turn_on(d, dry)
-    kinds += wq_kinds
-    if wq_note and not dry:
-        update_record(d, workqueue_quiet=wq_note)
+    run = passes.Run(d, keep, dry, f"important interrupt{': ' + a.note if a.note else ''}")
+    text, mode, results = STOP_TEXT.format(note=f": {a.note}" if a.note else ""), d.msg.caller_mode(me), []
+
+    def tell() -> list:
+        results.extend(passes.tell_all(d, rows, text, mode, dry))
+        return [r for r in results if r["status"] in ("delivered", "dry-run")]
+    run.step("sessions", tell)
+    kinds = run.machine()
+    if not dry:
+        notes = dict(run.notes)
+        wq, pq = notes.pop("workqueue quiet", None), notes.pop("pollers quiet", None)
+        update_record(d, sources=notes, **({"workqueue_quiet": wq} if wq else {}),
+                      **({"pollers_quiet": pq} if pq else {}))
     if dry:
         idle = freeze.cpu_idle(d.sys)
-        d.out(f"would re-scan every {RESCAN} s until CPU idle >= {a.idle}% (now {idle}%) and nothing new, "
+        d.out(f"would re-scan every {passes.RESCAN} s until CPU idle >= {a.idle}% (now {idle}%) and nothing new, "
               f"at most {a.timeout} s; would wait up to {a.reply_wait} s for the sessions to pause")
+        run.leftovers()
         table(d, rows, results, {}, held, True)
         return 0
-    quiet_at, idle = settle(d, a, keep, t0, kinds)
-    paused = replies(d, results, rows, t0, a.reply_wait)
+    quiet_at, idle = run.settle(a, t0, kinds)
+    run.leftovers()
+    paused = passes.replies(d, results, rows, t0, a.reply_wait)
     table(d, rows, results, paused, held, False)
     secs = (quiet_at or d.clock()) - t0
     if quiet_at:
@@ -253,10 +179,11 @@ def stop(a, d: Deps) -> int:
     delivered = sum(r["status"] == "delivered" for r in results)
     sessions = [{"name": r["name"], "via": res["via"], "status": res["status"], "paused": r["name"] in paused}
                 for r, res in zip(rows, results)]
-    update_record(d, quiet_at=iso(quiet_at), seconds=round(secs, 1), idle=idle, sessions=sessions)
+    update_record(d, quiet_at=iso(quiet_at), seconds=round(secs, 1), idle=idle, sessions=sessions, steps=run.steps,
+                  leftovers=run.left)
     log(kind="stop", start=iso(t0), quiet_at=iso(quiet_at), seconds=round(secs, 1), idle=idle, counts=counts,
         told=len(rows), delivered=delivered, paused=len(paused), silent=delivered - len(paused), held=len(held),
-        dry=False, note=a.note)
+        steps=run.steps, dry=False, note=a.note)
     return 0 if quiet_at else 4
 
 

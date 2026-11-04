@@ -1,5 +1,5 @@
 """Hal2 plan 0458 step 3: the end-to-end proof that a paused field survives the tollman's tick. A field with a plan, a
-handoff and commits not in the barn, and no session, is the orphan the tollman starts with `/handoff c` (hal2 plan 0412);
+handoff and commits not in the barn, and no session, is the orphan the tollman starts with `/continue` (hal2 plan 0412);
 when hal2 says it is paused, the real `tollman.py tick` plans a record instead and `hal2-cli-git worktree run` is never
 called. The control without the pause does start it, so the proof can fail.
 
@@ -99,7 +99,7 @@ class Paused(Field):
         self.pause()
         self.tick()
         self.assertEqual([c[3] for c in self.starts()], ["07"], self.calls())
-        self.assertIn("/handoff c", self.starts()[0])
+        self.assertIn("/continue", self.starts()[0])
         self.assertIn("orphan", [e["kind"] for e in self.wm_log()])
 
     def test_a_paused_field_with_plan_and_handoff_survives_a_tick_with_no_session_started(self):

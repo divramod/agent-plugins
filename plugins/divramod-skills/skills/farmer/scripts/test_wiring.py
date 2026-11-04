@@ -40,7 +40,7 @@ notify: every-round
 """
 # Without `mtm` and `trains` since step 5: the merge-to-main boss and the trains are the tollman's; without `prune`
 # since plan 0360 step 7 (D30, D67): the prune duty is the tollman's after-the-barn duty.
-FARMER_DUTIES = ("lead", "ci", "prs", "sync", "watch", "autoclear", "queue")  # + queue: plan 0570 step 5
+FARMER_DUTIES = ("lead", "ci", "prs", "sync", "watch", "autoclear", "queue", "autopilot", "runners")  # + queue: 0570|5, autopilot: 0543|24, runners: 0543|26
 FARMER_SUBSKILLS = {"lead": "development-lead", "ci": "ci", "watch": "sanity-watch", "autoclear": "fix-autoclear"}
 SNAP = {"now": NOW.timestamp(), "queue": [], "findings": [], "landings": [], "worktrees": [],
         "load": {"load1": 1.0, "cores": 8}}
@@ -49,7 +49,7 @@ SNAP = {"now": NOW.timestamp(), "queue": [], "findings": [], "landings": [], "wo
 def wagon(skill: Path = Path("/skills/tollman")) -> roles.Wiring:
     """The wiring a tollman's CLI would build (step 5 builds the real one)."""
     return roles.Wiring(role="tollman", cli=skill / "scripts/tollman.py", skill=skill,
-                        act="/tollman act", handoff="/tollman handoff", duties=("trains", "yard"),
+                        act="/continue", handoff="/tollman handoff", duties=("trains", "yard"),
                         subskills={"trains": "wagon-train"})
 
 
@@ -62,7 +62,7 @@ class FarmerValues(unittest.TestCase):
     def test_the_farmer_s_wiring(self):
         f = roles.FARMER
         self.assertEqual((f.role, f.cli, f.skill), ("farmer", SCRIPTS / "farmer.py", SCRIPTS.parent))
-        self.assertEqual((f.act, f.handoff), ("/farmer act", "/farmer handoff"))
+        self.assertEqual((f.act, f.handoff), ("/continue", "/farmer handoff"))
         self.assertEqual((f.duties, dict(f.subskills), f.delegates), (FARMER_DUTIES, FARMER_SUBSKILLS, True))
         self.assertEqual((f.role_file, f.role_files),
                          ("roles/farmer/ROLE.md", ("roles/farmer/ROLE.md", "roles/farmer/.gitignore")))
@@ -73,7 +73,7 @@ class FarmerValues(unittest.TestCase):
 
     def test_the_old_names_still_hold_the_farmer_s_values(self):
         self.assertEqual(due.DUTIES, FARMER_DUTIES)
-        self.assertEqual((wake.ACT, wake.HANDOFF, wake.SKILL), ("/farmer act", "/farmer handoff", SCRIPTS.parent))
+        self.assertEqual((wake.ACT, wake.HANDOFF, wake.SKILL), ("/continue", "/farmer handoff", SCRIPTS.parent))
         self.assertEqual(wake.SUBSKILLS, FARMER_SUBSKILLS)
         self.assertEqual(timer.FARMER, SCRIPTS / "farmer.py")
         self.assertEqual((tick.ROLE, tick.ROLE_FILES),
@@ -333,14 +333,14 @@ class Wake(WagonRepo):
 
     def test_the_wake_types_the_role_s_act_command_and_keeps_its_own_file(self):
         r = self.over({"wake": [self.red()]})
-        self.assertEqual((r["woken"], self.sent), (True, [("%8", "/tollman act")]))
+        self.assertEqual((r["woken"], self.sent), (True, [("%8", "/continue")]))
         self.assertEqual(wake.wake_file(self.main, self.wiring), self.wm_state / "wake.json")
         items = wake.read(self.main, self.wiring)["items"]
         self.assertEqual([(i["kind"], i["instructions"]) for i in items],
                          [("red", str(self.skill / "instructions/trains.red.md"))])
         self.assertEqual((wake.read(self.main)["items"], wake.wake_file(self.main).exists()), ([], False))
         self.assertEqual([(e["kind"], e["slot"], e["what"]) for e in self.wm_log()],
-                         [("wake", "tollman", "/tollman act: 1 items")])
+                         [("wake", "tollman", "/continue: 1 items")])
         self.assertEqual(self.log(), [])
         self.assertEqual(wake.done(self.main, 1, self.wiring), 0)
         self.assertFalse(wake.wake_file(self.main, self.wiring).exists())
@@ -350,7 +350,7 @@ class Wake(WagonRepo):
         r = self.over({"wake": [self.red()]})
         self.assertEqual((r["woken"], r["why"], self.sent), (False, "handoff asked", [("%8", "/tollman handoff")]))
         self.over({}, 16)
-        self.assertEqual([t for _, t in self.sent], ["/tollman handoff", "/clear", "/tollman act"])
+        self.assertEqual([t for _, t in self.sent], ["/tollman handoff", "/clear", "/continue"])
         self.assertEqual([e["kind"] for e in self.wm_log()], ["handoff", "handoff-timeout", "wake"])
 
     def test_without_a_session_the_refusal_names_the_role(self):
@@ -405,7 +405,7 @@ class Round(WagonRepo):
         self.assertEqual(last.stdout.strip(), "chore(roles): apply the user's change to the tollman's role file")
         self.assertEqual(set(due.last_runs(str(self.wm), "tollman")), {"duty:trains", "duty:yard"})
         reply = "Reply `ack 07-1: started|done|refused <why>` by SendMessage to the tollman session."
-        self.assertEqual(self.sent, [("%7", f"tollman [07-1]: in the barn\n{reply}"), ("%8", "/tollman act")])
+        self.assertEqual(self.sent, [("%7", f"tollman [07-1]: in the barn\n{reply}"), ("%8", "/continue")])
         self.assertEqual([e["kind"] for e in self.wm_log()],
                          ["stay-current", "role-add", "role-commit", "ask-ack", "in-the-barn", "red", "fix", "wake"])
         self.assertTrue(Path(r["summary"]).is_relative_to(self.wm_state / "summaries"))
@@ -540,8 +540,8 @@ class Handoff(WagonRepo):
         now = dt.datetime.now()
         os.utime(f, (now.timestamp(), now.timestamp()))
         code, what = handoff.clear(str(self.wm), self.main, now, WAGON)
-        self.assertEqual((code, what), (0, "clear-and-continue started: /clear, then /tollman act"))
-        self.assertEqual(self.calls, [("clear-and-continue", "--pane", "%8", "--prompt", "/tollman act",
+        self.assertEqual((code, what), (0, "clear-and-continue started: /clear, then /continue"))
+        self.assertEqual(self.calls, [("clear-and-continue", "--pane", "%8", "--prompt", "/continue",
                                        "--without-plan", "--detach", "--json", "--session", "s8")])
         self.assertEqual([(e["kind"], e["slot"], e["by"]) for e in self.wm_log()],
                          [("handoff-clear", "tollman", "tollman")])

@@ -15,13 +15,15 @@ After acting: `python3 $S/lead_scan.py record <session> <since> "<what you did>"
 
 **Servants** (skills plan 0013): a worktree that holds `plans/LEAD` (the foreman's marker; the evidence's `lead`) runs one step
 of its foreman's plan and never lands. Stopped mid-step: tell it to continue its step `<n>` of plan `<plan>` and report
-to the foreman (or, after a clear, `/handoff c`); never tell it to land. It waits for its foreman: leave it to the foreman
+to the foreman (or, after a clear, `/continue`); never tell it to land. It waits for its foreman: leave it to the foreman
 (one line to the foreman's session when it waits long). Its step reported (the report on `origin/NN`, or merged into
 `origin/<foreman's branch>`): it is done; the scan leaves such a worktree out. A broken marker (`lead.bad`) still marks the worktree:
 never tell it to continue its plan or land; ask its foreman to rewrite `plans/LEAD`, else notify the user.
 The scan's `lead_state` says whether the marker is in use (`lead_marker.state`): it is **stale** only when the
 foreman's plan is done or gone, or the field has no session and no unmerged work; a running servant's marker is in
 use, never called stale and never deleted, and `unknown` (a fact unreadable) is not stale either.
+
+**Plan dependencies** (plan 0595): a foreman whose plan waits for an open dependency (`hal2-cli-plans depends list`) is not idle, so the tick neither nudges nor wakes you for it; the round's summary lists it as `waiting <slot>: waits for 0514 (open)`. When the dependency reaches its `until`, the tick tells the dependent field itself once (`plan 0514 is pushed (<commit>): merge origin/38 and go on with step 22`, or `... restock (/mfm) ...` for main), with an ack id, and remembers it in `depends-told.jsonl`: never relay it by hand.
 
 A worktree the boss paused (a `pause` entry in `log.jsonl` with no `go` after it) waits for that go, which the tick
 sends when the landing ends: leave it, record nothing. A worktree with an open `ask` still wakes you (hourly while it stays idle): when the user has answered, log it as

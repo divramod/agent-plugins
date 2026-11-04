@@ -34,24 +34,19 @@ session running this script is always left alone. Exit 2: a required tool is mis
 import argparse
 import json
 import os
-import plistlib
 import re
 import shutil
 import signal
-import subprocess
 import sys
-import urllib.request
-from pathlib import Path
 
 import runners
 import stopall
 from important import important
+from quiet_probe import (ACTION, LAUNCH_AGENTS, cwds, container_rows, ollama_running, procs, run, run_step,
+                         simulator_rows, timer_agents)
 
 AGENTS = ("claude", "codex", "opencode")
 SYSTEM = ("/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/usr/bin/", "/bin/")
-OLLAMA = "http://127.0.0.1:11434"
-LAUNCH_AGENTS = Path.home() / "Library" / "LaunchAgents"
-NEVER_BOOTOUT = ("local.hal2.daemon",)  # the kept session's tools may need it
 
 
 def need(tool: str):
@@ -60,33 +55,8 @@ def need(tool: str):
         sys.exit(2)
 
 
-def run(argv: list) -> str:
-    try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=30).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return ""
-
-
-def procs() -> dict:
-    table = {}
-    for line in run(["ps", "-Ao", "pid=,ppid=,pcpu=,rss=,stat=,command="]).splitlines():
-        m = re.match(r"\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.*)", line)
-        if m:
-            pid, ppid, cpu, rss, stat, cmd = m.groups()
-            table[int(pid)] = {"pid": int(pid), "ppid": int(ppid), "cpu": float(cpu), "rss_mb": int(rss) // 1024,
-                               "stat": stat, "cmd": cmd}
-    return table
-
-
 def is_agent(cmd: str) -> bool:
     return cmd.split(" ", 1)[0].rsplit("/", 1)[-1] in AGENTS
-
-
-def cwd(pid: int) -> str:
-    for line in run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"]).splitlines():
-        if line.startswith("n"):
-            return line[1:]
-    return ""
 
 
 def chain(table: dict, pid: int) -> list:
@@ -99,37 +69,6 @@ def chain(table: dict, pid: int) -> list:
 
 def under(path: str, dirs: list) -> bool:
     return any(path == d.rstrip("/") or path.startswith(d.rstrip("/") + "/") for d in dirs)
-
-
-def ollama_running() -> bool:
-    try:
-        urllib.request.urlopen(OLLAMA + "/api/ps", timeout=3)
-        return True
-    except OSError:
-        return False
-
-
-def timer_agents(runner: bool) -> list:
-    loaded = {}
-    for line in run(["launchctl", "list"]).splitlines()[1:]:
-        parts = line.split("\t")
-        if len(parts) == 3:
-            loaded[parts[2]] = parts[0]
-    found = []
-    for plist in sorted(LAUNCH_AGENTS.glob("*.plist")):
-        try:
-            data = plistlib.loads(plist.read_bytes())
-        except Exception:
-            continue
-        label = data.get("Label", "")
-        if label not in loaded or label in NEVER_BOOTOUT:
-            continue
-        if label.startswith("actions.runner."):
-            found.append(("runner" if runner else "report", label, str(plist), "self-hosted CI runner"))
-        elif "StartInterval" in data or "StartCalendarInterval" in data:
-            every = f"every {data['StartInterval']} s" if "StartInterval" in data else "on a calendar"
-            found.append(("agent", label, str(plist), every))
-    return found
 
 
 def runner_related(table: dict, pid: int) -> bool:
@@ -146,9 +85,11 @@ def key(row: dict) -> str:
     return str(row.get("pid") or row.get("label") or row.get("id") or row.get("udid") or "")
 
 
-def scan(keep: list, runner: bool) -> list:
-    table = procs()
-    agents = {pid: cwd(pid) for pid, p in table.items() if is_agent(p["cmd"])}
+def scan(keep: list, runner: bool, table: dict | None = None) -> list:
+    """Rows of what still costs CPU. `table` is a process table the caller already has (one ps per pass)."""
+    table = procs() if table is None else table
+    agents = {pid: "" for pid, p in table.items() if is_agent(p["cmd"])}
+    agents.update(cwds(list(agents)))
     me = next((a for a in chain(table, os.getpid()) if a in agents), None)
     keep_pids = {pid for pid, path in agents.items() if path and under(path, keep)}
     if me:
@@ -184,15 +125,9 @@ def scan(keep: list, runner: bool) -> list:
         rows.append({"kind": "report", "pid": "", "cpu": 0, "rss_mb": 0, "why": "ollama server not from the app",
                      "what": "ollama serve on :11434 (stop it how it was started)"})
     if shutil.which("xcrun"):
-        for line in run(["xcrun", "simctl", "list", "devices", "booted"]).splitlines():
-            m = re.match(r"\s+(.+?) \(([0-9A-F-]{36})\) \(Booted\)", line)
-            if m:
-                rows.append({"kind": "simulator", "udid": m.group(2), "what": f"simulator {m.group(1)}"})
+        rows.extend(simulator_rows(table))
     if shutil.which("docker"):
-        for line in run(["docker", "ps", "--format", "{{.ID}} {{.Names}}"]).splitlines():
-            if line.strip():
-                cid, name = line.split(" ", 1)
-                rows.append({"kind": "docker", "id": cid, "what": f"container {name}"})
+        rows.extend(container_rows())
     for kind, label, plist, why in timer_agents(runner):
         rows.append({"kind": kind, "label": label, "plist": plist, "what": f"LaunchAgent {label}", "why": why})
     for row in rows:
@@ -224,7 +159,7 @@ def action(row: dict):
     return None
 
 
-def perform(step) -> bool:
+def perform(step) -> bool | None:
     if isinstance(step, tuple):
         sig, pids = step
         ok = True
@@ -234,7 +169,11 @@ def perform(step) -> bool:
             except ProcessLookupError:
                 ok = False
         return ok
-    return subprocess.run(step, capture_output=True).returncode == 0
+    return run_step(step)  # None: timed out after ACTION seconds, the child killed
+
+
+def failed(ok) -> str:
+    return "" if ok else f"  (failed: timed out after {ACTION}s)" if ok is None else "  (failed)"
 
 
 def show(step) -> str:
@@ -243,11 +182,13 @@ def show(step) -> str:
     return " ".join(step)
 
 
-def apply(keep: list, runner: bool, dry: bool, yes: list) -> int:
-    """Exit 3 when rows wait for the user's confirmation (--yes <pid|label>); everything else is done."""
-    rows = scan(keep, runner)
+def apply(keep: list, runner: bool, dry: bool, yes: list, rows: list | None = None,
+          table: dict | None = None) -> int:
+    """Exit 3 when rows wait for the user's confirmation (--yes <pid|label>); everything else is done. `rows` and
+    `table` are the caller's scan, so one pass reads the machine once (plan 0585 D12)."""
+    table = procs() if table is None else table
+    rows = scan(keep, runner, table) if rows is None else rows
     done, waiting = [], []
-    table = procs()
     restarted = False
     for row in rows:
         act = action(row)
@@ -258,7 +199,7 @@ def apply(keep: list, runner: bool, dry: bool, yes: list) -> int:
             waiting.append(row)
             continue
         ok = True if dry else perform(do)
-        print(f"{'would ' if dry else ''}{text}: {show(do)}{'' if ok else '  (failed)'}")
+        print(f"{'would ' if dry else ''}{text}: {show(do)}{failed(ok)}")
         if ok and not dry:
             if row["kind"] in ("session", "orphan") and not restarted and runner_related(table, row["pid"]):
                 # before the freeze entry: the undo runs in reverse, so SIGCONT first, then the restart
@@ -289,7 +230,7 @@ def restore(dry: bool) -> int:
             continue
         step = tuple(undo) if undo[0] in ("STOP", "CONT", "TERM") else undo
         ok = True if dry else perform(step)
-        print(f"{'would undo' if dry else 'undo'} {a['text']}: {show(step)}{'' if ok else '  (gone or failed)'}")
+        print(f"{'would undo' if dry else 'undo'} {a['text']}: {show(step)}{'' if ok else '  (timed out)' if ok is None else '  (gone or failed)'}")
     return 0
 
 

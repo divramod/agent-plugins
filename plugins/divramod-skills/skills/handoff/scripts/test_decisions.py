@@ -2,11 +2,18 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import handoff_testkit as kit
+
+for _p in Path(__file__).resolve().parents:
+    if (_p / ".claude-plugin").is_dir():
+        sys.path.insert(0, str(_p / "scripts"))  # servant_testkit, the skills unit's
+        break
+import servant_testkit as servants  # noqa: E402
 
 SCRIPT = Path(__file__).resolve().parent / "decisions.py"
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
@@ -61,6 +68,7 @@ class DecisionsTest(unittest.TestCase):
         self.main.mkdir()
         git(self.main, "init", "-q", "-b", "main")
         git(self.main, "commit", "-q", "--allow-empty", "-m", "init")
+        self.env = {**ENV, "HAL2_CLI_PLANS": str(servants.install(self))}
         self.slot = Path(self.tmp.name) / "wt" / "04"
         git(self.main, "worktree", "add", "-q", "-b", "04", str(self.slot))
         (self.slot / "plans" / "0003-x").mkdir(parents=True)
@@ -69,8 +77,13 @@ class DecisionsTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def servant(self, foreman="02", plan="0003-x", steps=(("4", "four", ""),), finished=False, marker="marker\n"):
+        """A servant field: the LEAD pointer exists and the fake `hal2-cli-plans` shows the object (plan 0594)."""
+        (self.slot / "plans" / "LEAD").write_text(marker)
+        servants.write(self.slot, foreman, plan, list(steps), finished)
+
     def run_it(self, *args):
-        p = kit.run(["python3", str(SCRIPT), "--json", *args], cwd=self.slot, env=ENV)
+        p = kit.run(["python3", str(SCRIPT), "--json", *args], cwd=self.slot, env=self.env)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(p.stdout)
 
@@ -90,11 +103,26 @@ class DecisionsTest(unittest.TestCase):
 
     def test_a_subservant_slot_reports_its_lead(self):
         self.assertIsNone(self.run_it()["lead"])
-        (self.slot / "plans" / "LEAD").write_text("02 0003-x 4\n")
+        self.servant()
 
-        self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0003-x", "step": "4"})
-        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
-        self.assertIn("foreman: worktree 02, plan 0003-x, step 4: a servant, continue that one step only", text)
+        lead = self.run_it()["lead"]
+        self.assertEqual({k: lead[k] for k in ("slot", "plan", "step", "finished")},
+                         {"slot": "02", "plan": "0003-x", "step": "4", "finished": False})
+        self.assertEqual(lead["steps"], [{"n": "4", "title": "four", "status": ""}])
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("foreman: worktree 02, plan 0003-x, step 4 (open): a servant, continue that one step only", text)
+
+    def test_a_servant_with_two_steps_names_each_with_its_status(self):
+        self.servant(steps=(("3", "three", "done"), ("4", "four", "in progress")))
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("plan 0003-x, steps 3 (done), 4 (in progress): a servant, continue those steps only", text)
+        self.assertNotIn("finished", text)
+
+    def test_a_finished_servant_writes_nothing_more(self):
+        self.servant(steps=(("3", "three", "done"),), finished=True)
+        self.assertTrue(self.run_it()["lead"]["finished"])
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("finished: every step is done and merged, the foreman removes this field", text)
 
     def test_a_masterplans_servant_continues_the_plan_of_its_row(self):
         # hal2 plan 0275 D26: the marker names the masterplan and its row; the row is a whole plan, no step
@@ -103,36 +131,43 @@ class DecisionsTest(unittest.TestCase):
         master.write_text("---\ntype: Plan\nstatus: open\n---\n\n# Plan 0001\n\n| # | Step | Status |\n|---|---|---|\n"
                           "| 1 | [0002](../0002-tools/plan.md) tools | done |\n"
                           "| 2 | [0003](../0003-x/plan.md) x | running |\n")
-        (self.slot / "plans" / "LEAD").write_text("02 0001-masterplan-farm 2\n")
+        self.servant(plan="0001-masterplan-farm", steps=(("2", "x", ""),))
 
-        self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0001-masterplan-farm", "step": "2",
-                                                 "row_plan": "0003-x"})
-        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
-        self.assertIn("foreman: worktree 02, masterplan 0001-masterplan-farm, row 2: a servant, continue the plan of that "
+        lead = self.run_it()["lead"]
+        self.assertEqual((lead["slot"], lead["plan"], lead["step"], lead["row_plan"]), ("02", "0001-masterplan-farm", "2", "0003-x"))
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("foreman: worktree 02, masterplan 0001-masterplan-farm, row 2 (open): a servant, continue the plan of that "
                       "row, 0003-x, each of its steps in a hand", text)
         self.assertNotIn("that one step only", text)
         # a plan of a masterplan whose slug carries the word is a plan (D34): its marker names a step
         master.write_text(master.read_text().replace("status: open\n", "status: open\nparent: 274\n"))
-        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
-        self.assertIn("plan 0001-masterplan-farm, step 2: a servant, continue that one step only", text)
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("plan 0001-masterplan-farm, step 2 (open): a servant, continue that one step only", text)
 
     def test_the_pointers_in_the_git_dir_are_read(self):
-        hide(self.slot, "LEAD", "02 0003-x 4\n")
-        self.assertEqual(self.run_it()["lead"], {"slot": "02", "plan": "0003-x", "step": "4"})
+        hide(self.slot, "LEAD", "marker\n")
+        servants.write(self.slot, "02", "0003-x", [("4", "four", "")])
+        self.assertEqual(self.run_it()["lead"]["slot"], "02")
         hide(self.slot, "CURRENT_PLAN", "0003-x\n")
         self.assertEqual(self.run_it()["plan"], "plans/0003-x/plan.md")
         self.assertFalse((self.slot / "plans" / "CURRENT_PLAN").exists())
 
-    def test_a_broken_marker_still_marks_the_slot(self):
-        # review 1 finding 10: bad but marked, as the farmer reads it (prune refuses it, mtm_scan skips its landing)
-        for broken in ("02 0003-x\n", "lead 0003-x 4\n", "\n"):
-            (self.slot / "plans" / "LEAD").write_text(broken)
-            lead = self.run_it()["lead"]
-            self.assertTrue(lead["bad"], broken)
-            self.assertIn("plans/LEAD is not `<lead-slot> <plan> <step>`", lead["error"])
-        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=ENV).stdout
-        self.assertIn("foreman: broken marker (plans/LEAD is not", text)
+    def test_a_pointer_that_gives_no_servant_still_marks_the_slot(self):
+        # review 1 finding 10: bad but marked, as the farmer reads it (prune refuses it, mtm_scan skips its landing);
+        # the fake CLI shows nothing for this field, as the real one for a malformed pointer
+        (self.slot / "plans" / "LEAD").write_text("whatever\n")
+        lead = self.run_it()["lead"]
+        self.assertTrue(lead["bad"])
+        self.assertIn("gives no servant", lead["error"])
+        text = kit.run(["python3", str(SCRIPT)], cwd=self.slot, env=self.env).stdout
+        self.assertIn("foreman: broken marker (", text)
         self.assertIn("never the plan, never a landing", text)
+        self.assertIn("servant assign", text)
+
+    def test_no_cli_is_a_broken_marker_never_a_hand_parse(self):
+        self.servant()
+        self.env["HAL2_CLI_PLANS"] = str(Path(self.tmp.name) / "nowhere")
+        self.assertTrue(self.run_it()["lead"]["bad"])
 
     def test_current_plan_and_no_farmer_mean_this_repos_farmer(self):
         (self.slot / "plans" / "CURRENT_PLAN").write_text("0003-x\n")

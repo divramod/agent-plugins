@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+os.environ.setdefault("HAL2_OVERLAP", "off")  # the start paths' overlap scan (~25 s) has its own tests
 sys.path.insert(0, str(HERE))
 
 import spec  # noqa: E402

@@ -145,7 +145,7 @@ class TestStart(Scratch):
         self.assertEqual((result["started"], result["slot"], result["effort"]), (True, "09", "high"))
         (call,) = self.runs()
         self.assertEqual(call[1:], ["worktree", "run", "09", "--agent", "claude", "--detach", "--json", "--model",
-                                    "claude-opus-5-5[1m]", "--effort", "high", "--prompt", "/handoff c", "TMUX="])
+                                    "claude-opus-5-5[1m]", "--effort", "high", "--prompt", "/continue", "TMUX="])
 
     def test_a_model_alias_without_a_window_and_a_driven_record(self):
         self.plan("run: sonnet medium")

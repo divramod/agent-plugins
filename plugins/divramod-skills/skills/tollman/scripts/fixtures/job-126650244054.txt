@@ -1,0 +1,255 @@
+2026-11-04T15:10:47.0093236Z  Nextest run ID 0bf7256e-da81-4716-8374-ac428f8d05dd with nextest profile: default
+2026-11-04T15:10:47.0095473Z     Starting 14017 tests across 291 binaries (92 tests skipped)
+2026-11-04T15:11:22.0669307Z         FAIL [   0.052s] (  935/14017) hal2-agents-node::it unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused
+2026-11-04T15:11:22.0678387Z   stdout ───
+2026-11-04T15:11:22.0716038Z 
+2026-11-04T15:11:22.0716491Z     running 1 test
+2026-11-04T15:11:22.0717153Z     test unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused ... FAILED
+2026-11-04T15:11:22.0717547Z 
+2026-11-04T15:11:22.0717650Z     failures:
+2026-11-04T15:11:22.0717825Z 
+2026-11-04T15:11:22.0717918Z     failures:
+2026-11-04T15:11:22.0718259Z         unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused
+2026-11-04T15:11:22.0718568Z 
+2026-11-04T15:11:22.0718879Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 113 filtered out; finished in 0.03s
+2026-11-04T15:11:22.0719311Z 
+2026-11-04T15:11:22.0719664Z   stderr ───
+2026-11-04T15:11:22.0719823Z 
+2026-11-04T15:11:22.0720335Z     thread 'unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused' (84341) panicked at libs/hal2-agents-node/tests/it/unit_autopilot.rs:144:68:
+2026-11-04T15:11:22.0722603Z     called `Result::unwrap_err()` on an `Ok` value: Autopilot { repo: "gone", autonomy: Some(AutopilotAutonomy { farmer: false, tollman: false, no_more_money: true, prefer_free: true, decide_by: "quality, long-term robustness and speed of the tools over fastness and easiness (the user, 2026-10-31)", set_by: "", since: "", why: "" }), parallel: 5, interval_s: 60, hitch_threshold: 10, ci_answer_s: 600, auto_prune: true, prune_interval_s: 1200, prune_due: "", priorities: [], allows: [], runner_repair: true }
+2026-11-04T15:11:22.0725393Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:11:22.0725792Z 
+2026-11-04T15:15:18.6902800Z         FAIL [   0.541s] ( 3179/14017) hal2-cli-tmux::it list::the_project_table_holds_the_panes_project_and_no_integration_can_be_named
+2026-11-04T15:15:18.7015401Z   stdout ───
+2026-11-04T15:15:18.7046880Z 
+2026-11-04T15:15:18.7050625Z     running 1 test
+2026-11-04T15:15:18.7070204Z     test list::the_project_table_holds_the_panes_project_and_no_integration_can_be_named ... FAILED
+2026-11-04T15:15:18.7071184Z 
+2026-11-04T15:15:18.7164724Z     failures:
+2026-11-04T15:15:18.7207079Z 
+2026-11-04T15:15:18.7325375Z     failures:
+2026-11-04T15:15:18.7327316Z         list::the_project_table_holds_the_panes_project_and_no_integration_can_be_named
+2026-11-04T15:15:18.7358721Z 
+2026-11-04T15:15:18.7388824Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 0.52s
+2026-11-04T15:15:18.7389604Z 
+2026-11-04T15:15:18.7390169Z   stderr ───
+2026-11-04T15:15:18.7390460Z 
+2026-11-04T15:15:18.7391296Z     thread 'list::the_project_table_holds_the_panes_project_and_no_integration_can_be_named' (140029) panicked at apps/hal2-cli-tmux/tests/it/list.rs:230:5:
+2026-11-04T15:15:18.7392179Z     assertion `left == right` failed
+2026-11-04T15:15:18.7394028Z       left: "WORKTREE TOOL PLAN# PLAN STEP RUN AUTO main QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7406533Z      right: "WORKTREE TOOL PLAN# PLAN STEP RUN AUTO QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7408095Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:15:18.7409313Z 
+2026-11-04T15:15:18.7410026Z         FAIL [   0.562s] ( 3180/14017) hal2-cli-tmux::it list::the_sessions_table_has_no_cli_new_or_github_rows
+2026-11-04T15:15:18.7410866Z   stdout ───
+2026-11-04T15:15:18.7411150Z 
+2026-11-04T15:15:18.7411401Z     running 1 test
+2026-11-04T15:15:18.7411923Z     test list::the_sessions_table_has_no_cli_new_or_github_rows ... FAILED
+2026-11-04T15:15:18.7412389Z 
+2026-11-04T15:15:18.7412630Z     failures:
+2026-11-04T15:15:18.7412902Z 
+2026-11-04T15:15:18.7413163Z     failures:
+2026-11-04T15:15:18.7413769Z         list::the_sessions_table_has_no_cli_new_or_github_rows
+2026-11-04T15:15:18.7414200Z 
+2026-11-04T15:15:18.7414648Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 0.53s
+2026-11-04T15:15:18.7415222Z 
+2026-11-04T15:15:18.7415620Z   stderr ───
+2026-11-04T15:15:18.7415890Z 
+2026-11-04T15:15:18.7416500Z     thread 'list::the_sessions_table_has_no_cli_new_or_github_rows' (140035) panicked at apps/hal2-cli-tmux/tests/it/list.rs:155:5:
+2026-11-04T15:15:18.7417249Z     assertion `left == right` failed
+2026-11-04T15:15:18.7417850Z       left: "WORKTREE TOOL PLAN# PLAN STEP RUN AUTO main QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7418611Z      right: "WORKTREE TOOL PLAN# PLAN STEP RUN AUTO QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7419344Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:15:18.7419846Z 
+2026-11-04T15:15:18.7428673Z         FAIL [   0.592s] ( 3181/14017) hal2-cli-tmux::it list::with_the_hal2_clis_every_row_and_column_is_there_worktrees_first
+2026-11-04T15:15:18.7454462Z   stdout ───
+2026-11-04T15:15:18.7491921Z 
+2026-11-04T15:15:18.7524660Z     running 1 test
+2026-11-04T15:15:18.7539355Z     test list::with_the_hal2_clis_every_row_and_column_is_there_worktrees_first ... FAILED
+2026-11-04T15:15:18.7543086Z 
+2026-11-04T15:15:18.7544129Z     failures:
+2026-11-04T15:15:18.7544515Z 
+2026-11-04T15:15:18.7544779Z     failures:
+2026-11-04T15:15:18.7545517Z         list::with_the_hal2_clis_every_row_and_column_is_there_worktrees_first
+2026-11-04T15:15:18.7546041Z 
+2026-11-04T15:15:18.7546531Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 0.57s
+2026-11-04T15:15:18.7547127Z 
+2026-11-04T15:15:18.7547936Z   stderr ───
+2026-11-04T15:15:18.7559734Z 
+2026-11-04T15:15:18.7560669Z     thread 'list::with_the_hal2_clis_every_row_and_column_is_there_worktrees_first' (140040) panicked at apps/hal2-cli-tmux/tests/it/list.rs:108:5:
+2026-11-04T15:15:18.7561553Z     assertion `left == right` failed
+2026-11-04T15:15:18.7562349Z       left: "PROJECT ALIAS WORKTREE TOOL PLAN# PLAN STEP RUN AUTO main QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7563264Z      right: "PROJECT ALIAS WORKTREE TOOL PLAN# PLAN STEP RUN AUTO QUEUE TRAIN Q MODEL EFFORT CTX TMUX"
+2026-11-04T15:15:18.7564241Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:15:18.7564781Z 
+2026-11-04T15:16:10.4177699Z         FAIL [  30.299s] ( 3287/14017) hal2-cli-tmux::it serve::budget::a_key_via_the_daemon_stays_within_its_budget
+2026-11-04T15:16:10.4178818Z   stdout ───
+2026-11-04T15:16:10.4185845Z 
+2026-11-04T15:16:10.4186183Z     running 1 test
+2026-11-04T15:16:10.4186712Z     test serve::budget::a_key_via_the_daemon_stays_within_its_budget ... FAILED
+2026-11-04T15:16:10.4187109Z 
+2026-11-04T15:16:10.4187216Z     failures:
+2026-11-04T15:16:10.4187367Z 
+2026-11-04T15:16:10.4187463Z     failures:
+2026-11-04T15:16:10.4187800Z         serve::budget::a_key_via_the_daemon_stays_within_its_budget
+2026-11-04T15:16:10.4188473Z 
+2026-11-04T15:16:10.4188841Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 30.29s
+2026-11-04T15:16:10.4189326Z 
+2026-11-04T15:16:10.4189555Z   stderr ───
+2026-11-04T15:16:10.4189694Z 
+2026-11-04T15:16:10.4190251Z     thread 'serve::budget::a_key_via_the_daemon_stays_within_its_budget' (155347) panicked at apps/hal2-cli-tmux/tests/it/shim/world.rs:228:9:
+2026-11-04T15:16:10.4191065Z     never came: a client is attached (waited 30.225s)
+2026-11-04T15:16:10.4191607Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:16:10.4191994Z 
+2026-11-04T15:16:40.5915297Z         FAIL [  30.168s] ( 3572/14017) hal2-cli-tmux::it serve::focus::focus_changes_on_a_warm_daemon_are_recorded_by_it_without_a_process
+2026-11-04T15:16:40.5916625Z   stdout ───
+2026-11-04T15:16:40.5917183Z 
+2026-11-04T15:16:40.5917552Z     running 1 test
+2026-11-04T15:16:40.5920426Z     test serve::focus::focus_changes_on_a_warm_daemon_are_recorded_by_it_without_a_process ... FAILED
+2026-11-04T15:16:40.5935779Z 
+2026-11-04T15:16:40.5944721Z     failures:
+2026-11-04T15:16:40.5945261Z 
+2026-11-04T15:16:40.5945532Z     failures:
+2026-11-04T15:16:40.5946135Z         serve::focus::focus_changes_on_a_warm_daemon_are_recorded_by_it_without_a_process
+2026-11-04T15:16:40.5946644Z 
+2026-11-04T15:16:40.5947145Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 30.15s
+2026-11-04T15:16:40.5947714Z 
+2026-11-04T15:16:40.5948173Z   stderr ───
+2026-11-04T15:16:40.5948434Z 
+2026-11-04T15:16:40.5949126Z     thread 'serve::focus::focus_changes_on_a_warm_daemon_are_recorded_by_it_without_a_process' (159224) panicked at apps/hal2-cli-tmux/tests/it/shim/world.rs:228:9:
+2026-11-04T15:16:40.5950068Z     never came: a client is attached (waited 30s)
+2026-11-04T15:16:40.5950672Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:16:40.5951145Z 
+2026-11-04T15:16:41.2854430Z         FAIL [  30.114s] ( 3574/14017) hal2-cli-tmux::it serve::said::plugin_inits_notice_beside_a_warm_daemon_shows_on_the_users_terminal
+2026-11-04T15:16:41.2885253Z   stdout ───
+2026-11-04T15:16:41.2926415Z 
+2026-11-04T15:16:41.3005537Z     running 1 test
+2026-11-04T15:16:41.3075251Z     test serve::said::plugin_inits_notice_beside_a_warm_daemon_shows_on_the_users_terminal ... FAILED
+2026-11-04T15:16:41.3174349Z 
+2026-11-04T15:16:41.3195296Z     failures:
+2026-11-04T15:16:41.3236009Z 
+2026-11-04T15:16:41.3276104Z     failures:
+2026-11-04T15:16:41.3318593Z         serve::said::plugin_inits_notice_beside_a_warm_daemon_shows_on_the_users_terminal
+2026-11-04T15:16:41.3375859Z 
+2026-11-04T15:16:41.3394960Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 30.10s
+2026-11-04T15:16:41.3414008Z 
+2026-11-04T15:16:41.3444959Z   stderr ───
+2026-11-04T15:16:41.3483820Z 
+2026-11-04T15:16:41.3515363Z     thread 'serve::said::plugin_inits_notice_beside_a_warm_daemon_shows_on_the_users_terminal' (159911) panicked at apps/hal2-cli-tmux/tests/it/shim/world.rs:228:9:
+2026-11-04T15:16:41.3550010Z     never came: a client is attached (waited 30s)
+2026-11-04T15:16:41.3586352Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:16:41.3593915Z 
+2026-11-04T15:16:41.4299979Z         FAIL [  30.125s] ( 3575/14017) hal2-cli-tmux::it serve::spawns::a_second_key_on_a_warm_daemon_reads_no_config
+2026-11-04T15:16:41.4364912Z   stdout ───
+2026-11-04T15:16:41.4365241Z 
+2026-11-04T15:16:41.4444979Z     running 1 test
+2026-11-04T15:16:41.4512884Z     test serve::spawns::a_second_key_on_a_warm_daemon_reads_no_config ... FAILED
+2026-11-04T15:16:41.4574036Z 
+2026-11-04T15:16:41.4575840Z     failures:
+2026-11-04T15:16:41.4624091Z 
+2026-11-04T15:16:41.4685002Z     failures:
+2026-11-04T15:16:41.4765175Z         serve::spawns::a_second_key_on_a_warm_daemon_reads_no_config
+2026-11-04T15:16:41.4804048Z 
+2026-11-04T15:16:41.4834779Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 30.11s
+2026-11-04T15:16:41.4924077Z 
+2026-11-04T15:16:41.4984952Z   stderr ───
+2026-11-04T15:16:41.5003943Z 
+2026-11-04T15:16:41.5064963Z     thread 'serve::spawns::a_second_key_on_a_warm_daemon_reads_no_config' (159949) panicked at apps/hal2-cli-tmux/tests/it/shim/world.rs:228:9:
+2026-11-04T15:16:41.5104303Z     never came: a client is attached (waited 30s)
+2026-11-04T15:16:41.5158330Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:16:41.5159428Z 
+2026-11-04T15:16:41.7501593Z         FAIL [  30.107s] ( 3582/14017) hal2-cli-tmux::it serve::spawns::jump_back_cycle_and_hop_start_no_process_on_a_warm_daemon
+2026-11-04T15:16:41.7540130Z   stdout ───
+2026-11-04T15:16:41.7541081Z 
+2026-11-04T15:16:41.7541484Z     running 1 test
+2026-11-04T15:16:41.7542437Z     test serve::spawns::jump_back_cycle_and_hop_start_no_process_on_a_warm_daemon ... FAILED
+2026-11-04T15:16:41.7542838Z 
+2026-11-04T15:16:41.7543170Z     failures:
+2026-11-04T15:16:41.7543428Z 
+2026-11-04T15:16:41.7544039Z     failures:
+2026-11-04T15:16:41.7544800Z         serve::spawns::jump_back_cycle_and_hop_start_no_process_on_a_warm_daemon
+2026-11-04T15:16:41.7545641Z 
+2026-11-04T15:16:41.7546811Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 256 filtered out; finished in 30.10s
+2026-11-04T15:16:41.7547527Z 
+2026-11-04T15:16:41.7548952Z   stderr ───
+2026-11-04T15:16:41.7549178Z 
+2026-11-04T15:16:41.7549788Z     thread 'serve::spawns::jump_back_cycle_and_hop_start_no_process_on_a_warm_daemon' (160052) panicked at apps/hal2-cli-tmux/tests/it/shim/world.rs:228:9:
+2026-11-04T15:16:41.7550960Z     never came: a client is attached (waited 30s)
+2026-11-04T15:16:41.7551422Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:16:41.7551773Z 
+2026-11-04T15:27:07.0660308Z         FAIL [   0.046s] (11204/14017) hal2-remarkable-node::it remarkable::wifi_ssh::remarkable_the_device_says_when_the_wifi_host_refuses_ssh
+2026-11-04T15:27:07.0685429Z   stdout ───
+2026-11-04T15:27:07.0687762Z 
+2026-11-04T15:27:07.0692088Z     running 1 test
+2026-11-04T15:27:07.0693141Z     test remarkable::wifi_ssh::remarkable_the_device_says_when_the_wifi_host_refuses_ssh ... FAILED
+2026-11-04T15:27:07.0693880Z 
+2026-11-04T15:27:07.0694097Z     failures:
+2026-11-04T15:27:07.0694345Z 
+2026-11-04T15:27:07.0694598Z     failures:
+2026-11-04T15:27:07.0695087Z         remarkable::wifi_ssh::remarkable_the_device_says_when_the_wifi_host_refuses_ssh
+2026-11-04T15:27:07.0695580Z 
+2026-11-04T15:27:07.0696409Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 43 filtered out; finished in 0.03s
+2026-11-04T15:27:07.0699376Z 
+2026-11-04T15:27:07.0700107Z   stderr ───
+2026-11-04T15:27:07.0700432Z 
+2026-11-04T15:27:07.0701185Z     thread 'remarkable::wifi_ssh::remarkable_the_device_says_when_the_wifi_host_refuses_ssh' (449098) panicked at libs/hal2-remarkable-node/tests/it/remarkable/wifi_ssh.rs:83:5:
+2026-11-04T15:27:07.0703337Z     Device { connection: Usb, host: "127.0.0.1", software_version: "", free_bytes: 0, total_bytes: 0, paired: false, host_key_fingerprint: "SHA256:1Lt0B6m58n9i5yp9hABit7qhCJ/7aR7kRxt8QRziO8k", host_key_trusted: false, probed: Some(Timestamp { seconds: 1793806027, nanos: 58542824 }), documents: 0, wifi_ssh_off: false }
+2026-11-04T15:27:07.0711821Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:27:07.0712472Z 
+2026-11-04T15:27:07.0713046Z         FAIL [   0.050s] (11205/14017) hal2-remarkable-node::it remarkable::wifi_ssh::remarkable_a_refused_ssh_port_is_ssh_off_not_unreachable
+2026-11-04T15:27:07.0714098Z   stdout ───
+2026-11-04T15:27:07.0714356Z 
+2026-11-04T15:27:07.0714578Z     running 1 test
+2026-11-04T15:27:07.0715145Z     test remarkable::wifi_ssh::remarkable_a_refused_ssh_port_is_ssh_off_not_unreachable ... FAILED
+2026-11-04T15:27:07.0715708Z 
+2026-11-04T15:27:07.0715923Z     failures:
+2026-11-04T15:27:07.0716176Z 
+2026-11-04T15:27:07.0716378Z     failures:
+2026-11-04T15:27:07.0717206Z         remarkable::wifi_ssh::remarkable_a_refused_ssh_port_is_ssh_off_not_unreachable
+2026-11-04T15:27:07.0717740Z 
+2026-11-04T15:27:07.0718172Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 43 filtered out; finished in 0.03s
+2026-11-04T15:27:07.0718718Z 
+2026-11-04T15:27:07.0718980Z   stderr ───
+2026-11-04T15:27:07.0719217Z 
+2026-11-04T15:27:07.0720227Z     thread 'remarkable::wifi_ssh::remarkable_a_refused_ssh_port_is_ssh_off_not_unreachable' (449083) panicked at libs/hal2-remarkable-node/tests/it/remarkable/wifi_ssh.rs:56:5:
+2026-11-04T15:27:07.0723836Z     UNAVAILABLE: UNREACHABLE ssh: cannot reach localhost:38521: Network is unreachable (os error 101)
+2026-11-04T15:27:07.0724698Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:27:07.0725502Z 
+2026-11-04T15:27:07.9071716Z         FAIL [   0.017s] (11274/14017) hal2-roles::it duty::the_known_duties_are_the_skills_and_their_defaults_the_templates
+2026-11-04T15:27:07.9114074Z   stdout ───
+2026-11-04T15:27:07.9114807Z 
+2026-11-04T15:27:07.9125422Z     running 1 test
+2026-11-04T15:27:07.9126724Z     test duty::the_known_duties_are_the_skills_and_their_defaults_the_templates ... FAILED
+2026-11-04T15:27:07.9127262Z 
+2026-11-04T15:27:07.9127488Z     failures:
+2026-11-04T15:27:07.9127748Z 
+2026-11-04T15:27:07.9127958Z     failures:
+2026-11-04T15:27:07.9128473Z         duty::the_known_duties_are_the_skills_and_their_defaults_the_templates
+2026-11-04T15:27:07.9128947Z 
+2026-11-04T15:27:07.9129406Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s
+2026-11-04T15:27:07.9129956Z 
+2026-11-04T15:27:07.9130396Z   stderr ───
+2026-11-04T15:27:07.9130650Z 
+2026-11-04T15:27:07.9131290Z     thread 'duty::the_known_duties_are_the_skills_and_their_defaults_the_templates' (450935) panicked at libs/hal2-roles/tests/it/duty.rs:41:9:
+2026-11-04T15:27:07.9132144Z     assertion `left == right` failed: farmer
+2026-11-04T15:27:07.9132772Z       left: ["lead", "ci", "prs", "sync", "watch", "autoclear", "queue"]
+2026-11-04T15:27:07.9133471Z      right: ["lead", "ci", "prs", "sync", "watch", "autoclear", "queue", "autopilot", "runners"]
+2026-11-04T15:27:07.9134495Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-04T15:27:07.9135217Z 
+2026-11-04T15:29:01.8100251Z ────────────
+2026-11-04T15:29:01.8100819Z      Summary [1094.802s] 14017 tests run: 14005 passed (11 slow), 12 failed, 92 skipped
+2026-11-04T15:29:01.8101611Z         FAIL [   0.052s] (  935/14017) hal2-agents-node::it unit_autopilot::a_folder_of_no_farm_and_a_bad_value_are_refused
+2026-11-04T15:29:01.8102298Z         FAIL [   0.541s] ( 3179/14017) hal2-cli-tmux::it list::the_project_table_holds_the_panes_project_and_no_integration_can_be_named
+2026-11-04T15:29:01.8104733Z         FAIL [   0.562s] ( 3180/14017) hal2-cli-tmux::it list::the_sessions_table_has_no_cli_new_or_github_rows
+2026-11-04T15:29:01.8105646Z         FAIL [   0.592s] ( 3181/14017) hal2-cli-tmux::it list::with_the_hal2_clis_every_row_and_column_is_there_worktrees_first
+2026-11-04T15:29:01.8106461Z         FAIL [  30.299s] ( 3287/14017) hal2-cli-tmux::it serve::budget::a_key_via_the_daemon_stays_within_its_budget
+2026-11-04T15:29:01.8107742Z         FAIL [  30.168s] ( 3572/14017) hal2-cli-tmux::it serve::focus::focus_changes_on_a_warm_daemon_are_recorded_by_it_without_a_process
+2026-11-04T15:29:01.8108474Z         FAIL [  30.114s] ( 3574/14017) hal2-cli-tmux::it serve::said::plugin_inits_notice_beside_a_warm_daemon_shows_on_the_users_terminal
+2026-11-04T15:29:01.8109056Z         FAIL [  30.125s] ( 3575/14017) hal2-cli-tmux::it serve::spawns::a_second_key_on_a_warm_daemon_reads_no_config
+2026-11-04T15:29:01.8109581Z         FAIL [  30.107s] ( 3582/14017) hal2-cli-tmux::it serve::spawns::jump_back_cycle_and_hop_start_no_process_on_a_warm_daemon
+2026-11-04T15:29:01.8110158Z         FAIL [   0.046s] (11204/14017) hal2-remarkable-node::it remarkable::wifi_ssh::remarkable_the_device_says_when_the_wifi_host_refuses_ssh
+2026-11-04T15:29:01.8110964Z         FAIL [   0.050s] (11205/14017) hal2-remarkable-node::it remarkable::wifi_ssh::remarkable_a_refused_ssh_port_is_ssh_off_not_unreachable
+2026-11-04T15:29:01.8111526Z         FAIL [   0.017s] (11274/14017) hal2-roles::it duty::the_known_duties_are_the_skills_and_their_defaults_the_templates
+2026-11-04T15:29:01.8255080Z error: test run failed
+2026-11-04T15:29:01.8372937Z [15:29:01] phase nextest: failed after 1139s (exit 100)
+2026-11-04T15:29:01.9197617Z [15:29:01] phase doctests: start

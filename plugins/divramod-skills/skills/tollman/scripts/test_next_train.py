@@ -20,6 +20,7 @@ import post_merge
 import run_triage_wire
 import stack_red
 import tick
+import run_names
 import train_state
 import tollman
 from engine_farm import Farm, out
@@ -91,14 +92,19 @@ class Trains(Farm):
         git(self.cw, "push", "-q", "origin", "HEAD:main")
         self.gate.tickets = [t for t in self.gate.tickets if t["slot"] not in ("20", "02", self.carrier())]  # mark, cars
 
+    def order_of(self, field):
+        """The field's last order's branch and the carrier's run it starts from (plan 0610 D18: run_names.py)."""
+        o = [e for e in train_state.lines(str(self.main)) if e["kind"] == "order" and e.get("field") == field][-1]
+        return o["branch"], run_names.base_of(o["branch"])
+
     def fix(self):
         """20's foreman, as the order says: the side branch from the carrier's remote head, one commit, pushed."""
-        path = self.fields["20"]
-        git(path, "fetch", "-q", "origin", self.carrier())
-        git(path, "switch", "-q", "-C", "20-train-fix", f"origin/{self.carrier()}")
+        path, (branch, base) = self.fields["20"], self.order_of("20")
+        git(path, "fetch", "-q", "origin", base)
+        git(path, "switch", "-q", "-C", branch, f"origin/{base}")
         (path / "code/x/twenty.py").write_text("20, fixed")
         git(path, "commit", "-qam", "fix 20")
-        git(path, "push", "-q", "origin", "20-train-fix")
+        git(path, "push", "-q", "origin", branch)
         return out(path, "rev-parse", "HEAD")
 
 
@@ -148,13 +154,15 @@ class MergeGreen(Trains):
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
               mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88: test_orders_ended)
               mock.patch.object(engine.head_guard, "refuses", return_value=0),  # its own test: UnchangedHead
+              mock.patch.object(engine.land_name, "refuses", return_value=0),  # its own test: test_land_name
               mock.patch.object(engine.subprocess, "run",
                                 lambda argv, cwd: calls.append(argv) or types.SimpleNamespace(returncode=0))):
             self.assertEqual(engine.land("/x", "train-0382"), 0)
         self.assertEqual(calls, ["pretest", "wait", engine.LAND + ["--land-ref", "train-0382"]])
         calls.clear()
         with (mock.patch.object(engine.pretest_train, "before_landing", lambda top: calls.append("pretest") or True),
-              mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait"))):
+              mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
+              mock.patch.object(engine.land_name, "refuses", return_value=0)):  # its own test: test_land_name
             self.assertEqual(engine.land("/x", "train-0382"), 1)
         self.assertEqual(calls, ["pretest"], "a red pretest: no wait, no land run")
 
@@ -163,10 +171,19 @@ class OpenWait(unittest.TestCase):
     def test_the_open_train_joins_each_poll_while_the_run_before_runs_and_never_after(self):
         runs, calls = [[{"databaseId": 720}], [{"databaseId": 720}], []], []  # plan 0490 step 20 (D21, D23, D9)
         with mock.patch.object(next_train, "others", lambda main, own: runs.pop(0)), \
-                contextlib.redirect_stdout(io.StringIO()):
+                mock.patch.object(next_train, "lands", lambda main: True), contextlib.redirect_stdout(io.StringIO()):
             lines = next_train.wait("/m", "land/x", sleep=lambda s: calls.append("sleep"),
                                     join=lambda: calls.append("join") or ["04 joined"])
         self.assertEqual((calls, lines[1:]), (["join", "sleep", "join", "sleep"], ["04 joined", "04 joined"]))
+
+    def test_a_joiner_that_waits_for_its_resolve_ends_the_wait(self):
+        """Plan 0610 E5: a car joined with a conflict makes the train `resolving`: the wait ends, the push waits."""
+        calls = []
+        with mock.patch.object(next_train, "others", lambda main, own: [{"databaseId": 720}]), \
+                mock.patch.object(next_train, "lands", lambda main: False), contextlib.redirect_stdout(io.StringIO()):
+            lines = next_train.wait("/m", "land/x", sleep=lambda s: calls.append("sleep"),
+                                    join=lambda: calls.append("join") or ["04 joined with a conflict"])
+        self.assertEqual((calls, lines[1:]), (["join"], ["04 joined with a conflict"]))
 
 
 class OwnRuns(unittest.TestCase):
@@ -216,21 +233,22 @@ class PostMergeRed(Trains):
         self.assertEqual(lines[0], "job failed: d1-01-stack-test: error: assertion failed at code/x/twenty.py:3")
         self.assertTrue(lines[1].startswith(f"train {self.a['train']}: fix order to 20 for its red after the merge"))
         order = train_state.lines(str(self.main))[-1]
+        base = run_names.base_ref(b, self.carrier())  # the next train's run, where the fix starts (plan 0610 D18)
         self.assertEqual((order["kind"], order["field"], order["post"], order["train"], order["branch"]),
-                         ("order", "20", self.a["train"], b["train"], "20-train-fix"))
+                         ("order", "20", self.a["train"], b["train"], f"20-{base}-fix"))
         now = self.train()
         self.assertEqual((now["train"], now["state"], now["orders"], [c["field"] for c in now["cars"]]),
                          (b["train"], "landing", [], ["03"]), "never holds it, no wagon leaves it")
         ((pane, msg),) = self.typed[told:]
         self.assertEqual(pane, "%20")
-        for part in (f"git switch -C 20-train-fix origin/{self.carrier()}", f"the next train {b['train']}", "done fixed <sha>"):
+        for part in (f"checkout -B 20-{base}-fix origin/{base}", f"the next train {b['train']}", "done fixed <sha>"):
             self.assertIn(part, msg)
         self.assertEqual(self.minute(), "", "ordered once")
 
         self.crop("04", {"four.txt": "4"}, plan="0384-four")
         self.panes["04"] = "%4"
         self.round()
-        self.assertEqual([c["field"] for c in self.train()["cars"]], ["03"], "a later hitch waits for the next train")
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["03"], "a later hitch joins at the push, not here")
         sha = self.fix()
         ack = msg.split("]")[0].removeprefix("tollman [")
         argv = ["ack", ack, "done", "fixed", sha, "--repo", str(self.wm), "--role", "tollman"]
@@ -252,12 +270,14 @@ class PostMergeRed(Trains):
                "prefixes": []}  # its triage (plan 0490 step 21): the push waits for 20's fix car (D22)
         run_triage_wire.update(str(self.main), "720", lambda e: e.update(at="2099-01-01T01:00:00+00:00", reds=[red]))
         with contextlib.redirect_stdout(io.StringIO()):
-            line, goes = next_train.before_push(str(self.cw), sleep=self.fail)
+            line, goes, joined = next_train.before_push(str(self.cw), sleep=self.fail)
         self.assertTrue(line.startswith(f"fix order 20-fix-1: 20's fix {sha[:12]} merged into train {b['train']}"))
         self.assertEqual(goes, "next train: every red of run 720 has its fix car or a named reason: the push goes")
-        self.assertEqual(out(self.cw, "rev-parse", "HEAD^2"), sha, "it rides this train's run")
+        self.assertEqual(joined, f"open train {b['train']}: field 04 (0384-four) joined, pretest none",
+                         "the later hitch joins before the push (plan 0610 D17, E4)")
+        self.assertEqual(out(self.cw, "rev-parse", "HEAD^1^2"), sha, "it rides this train's run, before the joiner")
         now = self.train()
-        self.assertEqual((now["post"], now["state"], [c["field"] for c in now["cars"]]), ([], "landing", ["03"]))
+        self.assertEqual((now["post"], now["state"], [c["field"] for c in now["cars"]]), ([], "landing", ["03", "04"]))
 
     def test_with_no_train_standing_the_car_fixes_it_in_its_next_harvest(self):
         self.merged()

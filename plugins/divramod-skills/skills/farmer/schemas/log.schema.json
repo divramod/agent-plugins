@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The farmer's journal, one line of roles/farmer/log.jsonl",
+  "description": "Append-only JSON lines, written by scripts/mtm_scan.py `log` (the farmer's and the tollman's frame, hal2 plan 0593 step 7 declares it as the store skill.farmer/log). Read by the farmer's scripts and, read only, by `hal2-cli-plans since` (hal2-plans src/since/farmer.rs), which uses only the `decision` kind and tolerates three shapes of one: (1) `what` + `note`, the frame's own record; (2) `decision` + `text`, the farmer's decision log (decision_log.py); (3) `by` + `text`. The reader takes the entry's words from `what` or `text` and the rest from `note`, `decision`, `quote`. `slot` names the field(s), comma separated, or `-`, `all`, `*`, empty for the whole repository; `supersedes` (an `at` or a list of them) marks earlier decisions replaced. Lines written before `schema` existed have none and are legacy: readers accept them, nobody rewrites them. `at` is RFC 3339 UTC with Z since plan 0530; older lines are local time without an offset.",
+  "type": "object",
+  "required": ["at"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1, "description": "Written by every line since this schema; absent on legacy lines."},
+    "at": {"type": "string", "description": "The entry's time."},
+    "kind": {"type": "string", "description": "What the entry is: `decision`, `ask`, `answer`, `answered`, `ask-ack`, `ack`, `record`, `train`, ...; reads as empty when missing."},
+    "slot": {"type": "string", "description": "The field or fields (`69`, `12,69`) or a repository-wide marker."},
+    "what": {"type": "string", "description": "Shape 1: what happened, one line."},
+    "note": {"type": "string", "description": "Shape 1: more words."},
+    "decision": {"type": "string", "description": "Shape 2: the decision's words."},
+    "text": {"type": "string", "description": "Shapes 2 and 3: the entry's text."},
+    "by": {"type": "string", "description": "Shape 3: who decided."},
+    "quote": {"type": "string", "description": "The user's own words, when relayed."},
+    "key": {"type": "string", "description": "A `pause:<landing>:<slot>` or `go:...` marker of the merge boss."},
+    "supersedes": {"description": "An `at`, or a list of them, of decisions this one replaces.", "oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+  },
+  "additionalProperties": true
+}

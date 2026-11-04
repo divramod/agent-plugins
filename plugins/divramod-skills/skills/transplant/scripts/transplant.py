@@ -6,7 +6,7 @@
   transplant.py free <from> <to> [--repo DIR]     stop an idle session in <to> by signal; a refusal cancels the
                                                   prepared transplant itself (exit 3)
   transplant.py push <from> <to> [--repo DIR]     the target's branch, and from <from>'s own session origin's <from>
-  transplant.py start <to> [--repo DIR]           the foreman in <to> by `/handoff c` at the plan's model and effort
+  transplant.py start <to> [--repo DIR]           the foreman in <to> by `/continue` at the plan's model and effort
   transplant.py advice <reason> [<from> <to>]     what to do about a refusal's `reason` word
 
 Every call prints JSON (advice: a line). Exit 0 done, 1 a stop (`stop` is a code, `advice` the way out), 2 a missing
@@ -30,6 +30,7 @@ sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().p
 from skillpath import load, pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
 planread = load("plan", "planread", __file__)  # a plan's files in either home (hal2 plan 0409 step 9)
 STOP = sibling("delete-field") / "scripts/stop.py"
+dependents = load("delete-field", "dependents", __file__)  # plans that wait for a field's plan (hal2 plan 0595 step 13)
 CREATE = sibling("create-worktree-session") / "scripts/create.py"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 OPEN = ("driven", "arrived")
@@ -107,6 +108,18 @@ def create_module():
     return module
 
 
+def follows(main: Path, frm: str, to: str) -> tuple[list[str], list[str]]:
+    """(what waits for the plan in field `frm`, notes): a transplant moves the branch with its plan.md, so `depends_on`
+    goes along and the graph, read live from the fields, shows the dependents under `to` afterwards: they are named,
+    never a stop (hal2 plan 0595 step 13). An older or missing hal2-cli-plans gives only its advisory line."""
+    if dependents is None:
+        return [], []
+    plans, advice = dependents.graph(main)
+    waiting = dependents.by_field(plans).get(frm, [])
+    notes = [f"{w}: it follows the plan to field {to}" for w in waiting]
+    return waiting, notes + ([advice] if advice else [])
+
+
 def cmd_check(a) -> int:
     for tool in ("git", "hal2-cli-git", "hal2-cli-agents"):
         fieldgit.need(tool)
@@ -135,8 +148,10 @@ def cmd_check(a) -> int:
              files=refused.get("files", []), checks=dry.get("checks", []))
     if dry.get("status") != "ok" or code != 0:
         halt("error", dry.get("message") or f"the dry run exited {code}", advice("error"))
+    waiting, notes = follows(main, frm, to)
     emit({"ok": True, "from": frm, "to": to, "own": own, "creates": bool((dry.get("would") or {}).get("creates")),
-          "would": dry.get("would"), "checks": dry.get("checks", []), "notes": dry.get("notes", [])})
+          "would": dry.get("would"), "checks": dry.get("checks", []), "notes": dry.get("notes", []) + notes,
+          "dependents": waiting})
     return 0
 
 
@@ -196,7 +211,7 @@ def cmd_start(a) -> int:
         fieldgit.die(f"field {to} does not exist")
     model, effort = plan_run(target)
     argv = (["--model", model] if model else []) + (["--effort", effort] if effort else [])
-    report = create_module().start(main, to, argv, "/handoff c")
+    report = create_module().start(main, to, argv, "/continue")
     emit({"started": True, "slot": report.get("slot") or to, "pane": report.get("pane"), "mode": report.get("mode"),
           "worktree": report.get("worktree"), "model": model, "effort": effort,
           "attach": f"hal2-cli-agents attach {main.name}/{to}"})

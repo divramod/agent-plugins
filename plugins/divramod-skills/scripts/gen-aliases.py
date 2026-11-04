@@ -4,7 +4,7 @@
   python3 scripts/gen-aliases.py [--check]
 
 aliases.json maps a shortcut to a skill and the arguments it puts in front of the user's own:
-{"c": {"skill": "handoff", "args": "continue"}} makes `/c` run `/handoff continue`. Each shortcut becomes
+{"x": {"skill": "handoff", "args": "clear"}} makes `/x` run `/handoff clear`. Each shortcut becomes
 skills/<shortcut>/SKILL.md (flat tree), a stub that hands over to the target skill; it is model-invocation disabled, so only the
 user's typed `/<shortcut>` runs it. In a tree with categories (skills/actions/ exists) the stubs go to
 skills/shortcuts/<shortcut>/ (plan 0360, D55); the target is found flat or in any category, and the stub links it in

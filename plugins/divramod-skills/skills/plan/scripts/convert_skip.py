@@ -14,6 +14,7 @@ from pathlib import Path
 import masterplan
 import names
 import occupied
+import parallel
 import pointers
 import shape
 
@@ -75,9 +76,9 @@ class SkipSet:
                 if len(parts) > 2:
                     found.branches.setdefault(parts[1], set()).add(branch)
         for tree in worktrees(root):
-            for marker in ("CURRENT_PLAN", "LEAD"):
-                words = pointers.read(tree, marker).split()
-                slug = (words[1] if marker == "LEAD" and len(words) > 1 else words[0]) if words else ""
+            words = pointers.read(tree, "CURRENT_PLAN").split()
+            lead = parallel.read_marker(tree)  # the servant's plan, from `servant show` (plan 0594), never a split of LEAD
+            for marker, slug in (("CURRENT_PLAN", words[0] if words else ""), ("LEAD", (lead or {}).get("plan", ""))):
                 if slug:
                     found.held.setdefault(slug, set()).add(f"{tree.resolve()}:{marker}")
         return found

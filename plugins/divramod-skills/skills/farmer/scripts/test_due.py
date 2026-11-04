@@ -70,7 +70,7 @@ class Role(unittest.TestCase):
         self.assertEqual(items, {"duty:lead": "*/15 * * * *", "duty:ci": "0 * * * *",
                                  "task:n8n stays up": "*/15 * * * *", "task:Disabled tests come back": "7 9 * * *"})
         self.assertEqual(settings, {"servant_limit": 5, "notify": "every-round", "servant_model": "opus",
-                                    "servant_effort": "medium", "session_effort": "high"})
+                                    "servant_effort": "medium", "session_effort": "medium"})
 
     def test_nothing_implicit_missing_settings_and_crons_are_problems(self):
         _, _, problems = due.schedule("---\nduties:\n  boss: \"x\"\n---\n\n## Tasks\n\n### t\n\n- **Check**: a\n")
@@ -99,11 +99,12 @@ class Role(unittest.TestCase):
         self.assertIn("`servant_effort:` is one of low, medium, high, xhigh, max", text)
 
 
-    def test_the_role_s_own_session_effort_defaults_to_high_and_is_validated(self):
+    def test_the_role_s_own_session_effort_defaults_to_medium_and_is_validated(self):
+        # hal2 plan 0610 D19, the user 2026-10-20: "Make the effort of the tall man medium."
         # Hal2 plan 0333 (D4), record .adr/tollman-decides-trains.md: the tollman's session starts and restarts at effort high.
-        self.assertEqual(due.SESSION_EFFORT, "high")
+        self.assertEqual(due.SESSION_EFFORT, "medium")
         _, settings, problems = due.schedule(ROLE)
-        self.assertEqual((settings["session_effort"], problems), ("high", []))
+        self.assertEqual((settings["session_effort"], problems), ("medium", []))
         named = ROLE.replace("servant_limit: 5", "servant_limit: 5\nsession_effort: max")
         self.assertEqual(due.schedule(named)[1]["session_effort"], "max")
         bad = ROLE.replace("servant_limit: 5", "servant_limit: 5\nsession_effort: huge")

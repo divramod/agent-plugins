@@ -26,6 +26,9 @@ import prune_proof
 import responses
 import roles
 import sizes
+from skillpath import load
+
+dependents = load("delete-field", "dependents", __file__)  # open plan dependents of a field (hal2 plan 0595 step 13)
 
 NUMBERED = prune_proof.NUMBERED
 KEEPER_BELOW, SERVANT_FROM = 10, prune_proof.SUBSERVANTS_FROM
@@ -36,6 +39,7 @@ DEFAULTS = {
     "goal": {"free_gb": 250, "used_pct": 85},
     "phases": {"trim_session_less": True, "trim_idle_live": True, "trim": None},  # trim None: cleanup's own set
     "caches": {"paths": [], "tart_older_than_days": 7},  # the disk watermark may clear these (plan 0472 D2); no pattern
+    "disk": {"below_gb": 80, "until_gb": 150},  # the disk phase: idle fields' Rust build folders (plan 0514 D18)
 }
 
 
@@ -127,9 +131,20 @@ def context(main: str, now: dt.datetime | None = None) -> dict:
     tickets = queue.get("queue", []) if isinstance(queue, dict) else []
     landing = {t.get("slot") for t in tickets if t.get("state") == "active"
                or (t.get("hold") or {}).get("reason") == "reserved"}
+    done = settled(main)  # a hitch the tollman settled as landed keeps its ready mark (hal2 plan 0610 D21): no hold
+    waiting = {t.get("slot") for t in tickets if t.get("slot") in landing
+               or (t.get("slot"), (t.get("ready") or {}).get("head")) not in done}
     return {"main": main, "now": now, "landing": landing,
-            "waiting": {t.get("slot") for t in tickets} | logstate.paused_by_any_boss(main, now),
+            "waiting": waiting | logstate.paused_by_any_boss(main, now),
             "log": logstate.read_log(main, "tollman"), "farmer_log": logstate.read_log(main, roles.ROLE)}
+
+
+def settled(main: str) -> set[tuple[str, str]]:
+    """(field, head) of every hitch the tollman settled as landed: its train state's `barn` lines (hal2 plan 0610 D21,
+    the tollman's modes.barn). Such a ticket's head is in the barn; the proof's own git checks still see any commit
+    the field made after it."""
+    f = mtm_scan.state_dir(main, "tollman") / "train.jsonl"
+    return {(e.get("slot"), e.get("head")) for e in mtm_scan.entries(f) if e.get("kind") == "barn" and e.get("head")}
 
 
 def proofs(fs: list[dict], ctx: dict, rows: list[dict] | None, now_ms: float | None = None,
@@ -138,6 +153,19 @@ def proofs(fs: list[dict], ctx: dict, rows: list[dict] | None, now_ms: float | N
     parallel). `refs`: batch.Refs, the commit counts of every branch read once."""
     now_ms = now_ms if now_ms is not None else time.time() * 1000
     return {f["slot"]: twin_refusal(f) or prune_proof.refusal(f, ctx, rows, now_ms, build, refs=refs) for f in fs}
+
+
+def guard_dependents(main: str, fs: list[dict], why: dict[str, str | None]) -> list[str]:
+    """A free field whose plan other plans still wait for is not free (hal2 plan 0595 step 13): its reason names them.
+    The graph is read once per view; a missing or older CLI gives the advisory lines returned, never a refusal."""
+    if dependents is None or not any(w is None for w in why.values()):
+        return []
+    plans, advice = dependents.graph(main)
+    held = dependents.by_field(plans)
+    for f in fs:
+        if why[f["slot"]] is None and f["slot"] in held:
+            why[f["slot"]] = dependents.reason(held[f["slot"]])
+    return [advice] if advice else []
 
 
 def disk(main: str) -> dict:
@@ -174,6 +202,8 @@ def config(main: str) -> dict:
     t, g = cfg["threshold"], cfg["goal"]
     if g["free_gb"] < t["free_gb"] or g["used_pct"] > t["used_pct"]:
         problems.append("goal must be at least as strict as threshold (free_gb not lower, used_pct not higher)")
+    if cfg["disk"]["until_gb"] < cfg["disk"]["below_gb"]:
+        problems.append("disk.until_gb must not be lower than disk.below_gb")
     if problems:
         raise FactsError(f"{path}: " + "; ".join(problems))
     return {"source": "file", "path": str(path), **cfg}
@@ -233,12 +263,13 @@ def collect(main: str, now: dt.datetime | None = None, build=None, measure=sizes
     ctx = context(main, now)
     now_ms = time.time() * 1000
     why = proofs(fs, ctx, rows, now_ms, build, refs)
+    advice = guard_dependents(main, fs, why)
     wait = busy.reason(main)  # a train builds: no size walk (plan 0472 D1), the cache only
     size = measure(main, fs, cached_only=True) if cached_sizes or wait else measure(main, fs)
     now_disk = disk(main)
     walk = not (cached_sizes or wait) and short_of_space(now_disk, cfg)
     found = responses.candidates(main, cfg, [main] + [f["path"] for f in every], measured=walk) if answers else []
     more = field_facts.extra(fs, ctx, main, {s: w is None for s, w in why.items()}, lookup, build, refs)
-    return {"main": main, "now_ms": now_ms, "busy": wait, "responses": found, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
+    return {"main": main, "now_ms": now_ms, "advice": advice, "busy": wait, "responses": found, "disk": now_disk, "config": cfg, "cars": field_facts.last_cars(main),
             "fields": [{**f, "sessions": session(f, rows), "free": why[f["slot"]] is None, "proof": why[f["slot"]],
                         "size": size.get(f["slot"]), **more[f["slot"]]} for f in fs]}

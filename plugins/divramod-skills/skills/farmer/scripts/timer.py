@@ -14,6 +14,7 @@ own CLI's `tick` and its own state folder; without one every function is the far
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -127,6 +128,56 @@ def remove(name: str, state: Path, dry: bool = False, wiring: roles.Wiring = rol
     (state / "timer.json").unlink(missing_ok=True)
     (state / "mode").write_text("claude\n")
     return cmds
+
+
+def load(name: str, state: Path, wiring: roles.Wiring = roles.FARMER) -> list[list[str]]:
+    """Load the timer whose files are there (the standard `enable`): the mode back to `timer`. Returns the commands."""
+    unit = label(name, wiring)
+    if platform.system() == "Darwin":
+        domain = f"gui/{os.getuid()}"
+        cmds = [["launchctl", "bootout", f"{domain}/{unit}"],
+                ["launchctl", "bootstrap", domain, str(files(name, wiring)[0])]]
+    else:
+        cmds = [["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "enable", "--now", f"{unit}.timer"]]
+    for i, cmd in enumerate(cmds):
+        code, out = run(cmd)
+        if code and not (i == 0 and platform.system() == "Darwin"):  # bootout of a timer not loaded fails: fine
+            raise RuntimeError(f"{' '.join(cmd)}: {out}")
+    (state / "mode").write_text("timer\n")
+    return cmds
+
+
+def unload(name: str, state: Path, wiring: roles.Wiring = roles.FARMER) -> list[list[str]]:
+    """Stop the timer and keep its files (the standard `disable`): the mode back to `claude`. Returns the commands."""
+    unit = label(name, wiring)
+    if platform.system() == "Darwin":
+        cmds = [["launchctl", "bootout", f"gui/{os.getuid()}/{unit}"]]
+    else:
+        cmds = [["systemctl", "--user", "disable", "--now", f"{unit}.timer"]]
+    for cmd in cmds:
+        run(cmd)  # not loaded: nothing to stop
+    (state / "mode").write_text("claude\n")
+    return cmds
+
+
+def probe(name: str, wiring: roles.Wiring = roles.FARMER) -> dict:
+    """The system's view of the timer, read only: `loaded` and `last_exit` (the last run's exit code, None: no run
+    known). launchd: `launchctl print` (`last exit code = N`); systemd: the service's `ExecMainStatus`, read only
+    once it has started."""
+    unit = label(name, wiring)
+    if platform.system() == "Darwin":
+        code, out = run(["launchctl", "print", f"gui/{os.getuid()}/{unit}"])
+        found = re.search(r"last exit code = (-?\d+)", out)
+        return {"loaded": code == 0, "last_exit": int(found.group(1)) if code == 0 and found else None}
+    code, _ = run(["systemctl", "--user", "is-active", "--quiet", f"{unit}.timer"])
+    if code:
+        return {"loaded": False, "last_exit": None}
+    _, out = run(["systemctl", "--user", "show", f"{unit}.service", "-p", "ExecMainStatus", "-p",
+                  "ExecMainStartTimestamp"])
+    facts = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
+    status = facts.get("ExecMainStatus", "")
+    return {"loaded": True, "last_exit": int(status) if facts.get("ExecMainStartTimestamp") and status.isdigit()
+            else None}
 
 
 def installed(state: Path) -> dict:

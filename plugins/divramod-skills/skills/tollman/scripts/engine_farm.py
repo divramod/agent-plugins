@@ -20,6 +20,7 @@ import chain
 import engine
 import foreman_wake
 import mtm_scan
+import role_cars
 import tick
 import train_state
 import train_wt
@@ -66,8 +67,12 @@ class Gate:
 
     def queue(self):
         riding = {c["field"]: t["slot"] for t in self.tickets for c in (t["train"] or {}).get("cars", [])}
+        marks = [t["train"] for t in self.tickets if t["train"]]  # hal2-git's train rows: the mark's name (land_name)
         return {"queue": [{**t, "position": n, "rides_with": riding.get(t["slot"])}
-                          for n, t in enumerate(self.tickets)]}
+                          for n, t in enumerate(self.tickets)],
+                "trains": [{"number": m.get("number"), "attempt": m.get("attempt"), "carrier": m["carrier"],
+                            "name": f"train-{m['number']}-{m['attempt']}" if m.get("number") else None,
+                            "cars": [c["field"] for c in m["cars"]]} for m in marks]}
 
     def cli(self, args, cwd):
         if args[:2] == ["worktree", "queue"] and args[2:] == ["--json"]:
@@ -89,7 +94,9 @@ class Gate:
                 t["train"] = None if t["slot"] == fields[0] else t["train"]
         elif verb == ["queue", "train"]:
             mine = self.of(fields[0]) or self.ticket(fields[0], cwd)
-            mine["train"] = {"carrier": fields[0], "at": "2026-10-13T10:01:00Z", "by": "hal2/" + fields[0], "cars": [
+            num = {k: int(args[args.index(f"--{k}") + 1]) for k in ("train", "attempt") if f"--{k}" in args}
+            mine["train"] = {"carrier": fields[0], "at": "2026-10-13T10:01:00Z", "by": "hal2/" + fields[0],
+                             "number": num.get("train"), "attempt": num.get("attempt"), "cars": [
                 {"field": f, "branch": f, "head": ((self.of(f) or {}).get("ready") or {}).get("head")} for f in fields[1:]]}
         elif args[1] == "release":
             self.tickets = [t for t in self.tickets if t["slot"] != args[2]]
@@ -115,7 +122,7 @@ class Farm(Field):
             if argv[0] == "hal2-cli-git":  # the frame's merge-from-main
                 return 0, json.dumps({"status": "ok"})
             verbs = {str(trains.ENGINE): engine.main, str(chain.CLI): tollman.main,  # in this process
-                     str(Path(foreman_wake.__file__).resolve()): wake_start}
+                     str(Path(foreman_wake.__file__).resolve()): wake_start, str(trains.ROLE_CARS): role_cars.main}
             if argv[0] != sys.executable or argv[1] not in verbs:
                 return real(argv, cwd, timeout)
             text = io.StringIO()
@@ -200,6 +207,10 @@ class Farm(Field):
     @property
     def cw(self) -> Path:
         return self.wm.parent / self.carrier()
+
+    def branch(self) -> str:
+        """The carrier's branch: `train-<n>-<a>` in the kept `tollman-train` (plan 0610 D18), else its folder's name."""
+        return out(self.cw, "branch", "--show-current") if self.cw.is_dir() else self.carrier()
 
     def subjects(self, rev="HEAD"):
         """The commits beyond the barn of the carrier (the tollman's field once the train's worktree is gone)."""

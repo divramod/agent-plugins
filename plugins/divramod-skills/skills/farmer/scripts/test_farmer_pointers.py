@@ -11,6 +11,7 @@ import decision_check
 import delegation
 import lead_marker
 import git_seed
+import servant_testkit
 import mtm_scan
 from test_farmer import git
 
@@ -22,6 +23,7 @@ class GitDirPointers(unittest.TestCase):
         self.main = Path(self.tmp.name) / "hal2"
         self.field = Path(self.tmp.name) / "wt/34"
         git_seed.guard(self)
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
         git_seed.grow(self.tmp.name, "test_farmer_pointers.GitDirPointers", self.grow)
 
     def grow(self):
@@ -43,7 +45,8 @@ class GitDirPointers(unittest.TestCase):
     def test_a_worktrees_lead_in_its_admin_dir_marks_it_a_servant(self):
         self.assertIsNone(lead_marker.marker(self.field))
         self.put(self.field, "LEAD", "09 0275-masterplan 3")
-        self.assertEqual(lead_marker.marker(self.field), {"slot": "09", "plan": "0275-masterplan", "step": "3"})
+        self.assertEqual(lead_marker.marker(self.field), {"slot": "09", "plan": "0275-masterplan", "step": "3",
+                         "steps": [{"n": "3", "title": "", "status": ""}], "finished": False})
         self.assertFalse((self.field / "plans/LEAD").exists())
         self.assertFalse(delegation.servant_slot("34", str(self.field)))
         self.assertTrue(delegation.servant_slot("34", str(self.main)))

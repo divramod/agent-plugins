@@ -20,7 +20,7 @@ if ! command -v "$app" >/dev/null 2>&1; then
   if ! command -v cargo >/dev/null 2>&1; then
     echo "optional $app needs Rust (https://rustup.rs); q.py works without it" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/$app" ]; then
-    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$app")
+    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$app" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$app")
   else
     cargo install --git https://github.com/divramod/hal2 "$app"
   fi

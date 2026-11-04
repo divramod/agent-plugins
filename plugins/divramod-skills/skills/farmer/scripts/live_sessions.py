@@ -6,7 +6,7 @@ A live session is any `hal2-cli-agents list --json` entry of the checkout whose 
 whatever its kind and its host: a tmux pane (`%<n>`) or a terminal host (`t:<id>`, `session: terminal`), sleeping,
 idle, done and failed included, as `hal2-cli-git worktree run` refuses a field (occupied.rs). A list that cannot be
 read is no empty list: `read` gives None, and its callers fail closed (2026-10-20: a list read that failed under load
-made every field "no agent session", and the orphan rule started `/handoff c` into fields holding sessions). A list
+made every field "no agent session", and the orphan rule started `/continue` into fields holding sessions). A list
 with `warnings` (an unreadable terminal-host registry: tmux's rows only, exit 1; hal2 plan 0426 D4) is no complete
 list either: None too, also where the caller saw only its stdout (mtm_scan.run_json).
 """
@@ -17,7 +17,9 @@ import subprocess
 
 LIST = ["hal2-cli-agents", "list", "--json"]
 BUSY = {"working", "starting"}
+OCCUPIED = BUSY | {"blocked"}  # a dialog or permission prompt waits: the session is not free either (hal2 plan 0514 D7)
 GONE = "ended"
+ENDED = {"completed", "done", "failed", "killed", "stopped", "ended"}  # a background task's final statuses
 UNKNOWN = "unknown"  # a field's agent_state when the list could not be read: never "no session"
 TIMEOUT = 120  # seconds; the list takes 2 s on a quiet Mac, a loaded one has needed far more
 
@@ -50,6 +52,19 @@ def _ask():
 def live(agent: dict) -> bool:
     """The entry is a live session: any state but `ended`; an entry without a state counts (fail closed)."""
     return agent.get("state") != GONE
+
+
+def background(agent: dict) -> list[dict]:
+    """The session's live background tasks (hal2-cli-agents list --json `background_tasks`: subagents, shells,
+    monitors); an entry that says it ended does not count. Shared by the farmer's foreman scan and `/s` (plan 0514 D7)."""
+    return [t for t in agent.get("background_tasks") or [] if isinstance(t, dict) and t.get("alive") is not False
+            and str(t.get("status") or t.get("state") or "").lower() not in ENDED]
+
+
+def is_busy(agent: dict) -> bool:
+    """The session is not free: its state is working, starting or blocked, or it has live background work (its turn
+    says `done` while a shell, subagent or monitor runs; plan 0514 D7)."""
+    return agent.get("state") in OCCUPIED or bool(background(agent))
 
 
 def key(path: str) -> str:

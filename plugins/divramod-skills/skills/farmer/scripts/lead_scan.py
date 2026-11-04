@@ -26,7 +26,9 @@ import time
 from pathlib import Path
 
 import bounded
+import lead_fields
 import lead_marker
+import live_sessions
 import mtm_scan
 import roles
 import roletime
@@ -93,14 +95,7 @@ def last_assistant_text(path: Path, max_bytes: int = 400_000) -> str:
     return ""
 
 
-ENDED = {"completed", "done", "failed", "killed", "stopped", "ended"}
-
-
-def background(agent: dict) -> list[dict]:
-    """The session's live background tasks (hal2-cli-agents list --json `background_tasks`: subagents, shells,
-    monitors); an entry that says it ended does not count."""
-    return [t for t in agent.get("background_tasks") or [] if isinstance(t, dict) and t.get("alive") is not False
-            and str(t.get("status") or t.get("state") or "").lower() not in ENDED]
+background = live_sessions.background  # one definition, shared with `/s` (hal2 plan 0514 D7)
 
 
 def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
@@ -114,6 +109,8 @@ def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
     if state == "failed":
         return "failed", "its turn failed (API error, limit or crash)"
     if state in ("done", "idle", "sleeping"):
+        if (field := lead_fields.kind(agent)) and field[0] == "pushing":
+            return field  # never a nudge, also when its last words read as a question (plan 0514 D8)
         if agent.get("lead") and agent.get("step_done"):  # a servant done with its step waits for its foreman
             return None
         tail = said[-600:]
@@ -122,6 +119,8 @@ def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
         if (lead := agent.get("lead")) and age >= IDLE_IN_PLAN_AFTER:  # a servant: its one step, never a landing
             return "idle-in-plan", f"idle for {age // 60} min inside its step, {mtm_scan.subservant(lead)}"
         # A coordinator waiting on its subagents (skills plan 0016, D14) is not stopped.
+        if field:  # hitched, landed, waiting, blocked-plan, done-not-hitched: a question above wins; never idle-in-plan
+            return field
         if agent.get("plan") and age >= IDLE_IN_PLAN_AFTER and not background(agent):
             return "idle-in-plan", f"idle for {age // 60} min inside plan {agent['plan']}"
     if (agent.get("context_percent") or 0) >= CONTEXT_HIGH and not agent.get("autoclear"):
@@ -158,17 +157,21 @@ def with_marker(agent: dict, checkout: Path, agents: list[dict] | None = None, d
             "lead_state": lead_marker.state(checkout, lead, agents, default) if lead else None}
 
 
-def scan(repo: str, show_all: bool) -> dict:
+def scan(repo: str, show_all: bool, queue_doc: dict | None = None) -> dict:
+    """`queue_doc`: the round's `queue --json` (the tick's), read here when None; the workqueue is read once too."""
     now, main = time.time(), main_checkout(repo)
     agents = run_json(["hal2-cli-agents", "list", "--json"]) or []
     agents = agents.get("agents", []) if isinstance(agents, dict) else agents
     own, done = os.environ.get("CLAUDE_CODE_SESSION_ID"), handled(main, now)
-    default, out = lead_marker.default_ref(main), []
+    default, out, src = lead_marker.default_ref(main), [], None
     for a in agents:
         if a.get("project") != main or not a.get("session_id") or a.get("session_id") == own:
             continue
-        checkout = Path(a.get("checkout") or a.get("cwd") or "/nonexistent")
+        checkout = Path(a.get("checkout") or a.get("cwd") or "/nonexistent")  # the field by its path (D16)
         a = with_marker(a, checkout, agents, default)
+        if a.get("state") in ("done", "idle", "sleeping") and not a["lead"] and a.get("slot") not in (None, "main"):
+            src = src if src is not None else lead_fields.sources(main, queue_doc, run_json)
+            a["field"] = lead_fields.facts(a, checkout, src, default)
         said = last_assistant_text(transcript(a.get("cwd") or a.get("checkout") or "", a["session_id"]))
         hit = classify(a, said, now)
         if not hit:
@@ -176,14 +179,17 @@ def scan(repo: str, show_all: bool) -> dict:
         key = (a["session_id"], int(a.get("since") or 0))
         if key in done and not show_all:
             continue
+        progress = a.get("plan_progress") or {}  # hal2-cli-agents: {number, next: {number, ...}, ...} or null
         out.append({
+            "plan_number": progress.get("number"), "next_step": (progress.get("next") or {}).get("number"),
             "kind": hit[0], "why": hit[1], "slot": a.get("slot"), "pane": a.get("pane_id"),
             "session": a["session_id"], "since": int(a.get("since") or 0), "state": a.get("state"),
             "plan": a.get("plan"), "lead": a["lead"], "lead_state": a["lead_state"],
-            "context_percent": a.get("context_percent"),
+            "context_percent": a.get("context_percent"), "field": a.get("field"),
             "handled": key in done, "said": said[-1200:],
         })
-    order = {"blocked": 0, "asks": 1, "failed": 2, "idle-in-plan": 3, "context-high": 4, "no-plan": 5}
+    order = {"blocked": 0, "asks": 1, "failed": 2, "idle-in-plan": 3, "context-high": 4, "no-plan": 5,
+             **{k: 6 + i for i, k in enumerate(lead_fields.KINDS)}}
     out.sort(key=lambda x: (order[x["kind"]], x["slot"] or ""))
     return {"repo": main, "sessions": len(agents), "needs_help": out}
 

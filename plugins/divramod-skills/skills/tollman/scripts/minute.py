@@ -185,6 +185,8 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            import duty_health
+            duty_health.busy(repo, wiring, now)  # a round that does not end defers the duties: said (plan 0514 D17)
             pass_timing.abandon()
             return 0
         with gh_runs.round(gh_runs.cache_dir(mtm_scan.state_dir(main, wiring.role))):

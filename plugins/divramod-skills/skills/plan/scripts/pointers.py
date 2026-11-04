@@ -1,7 +1,8 @@
 """A checkout's plan pointers, in either home (hal2 plan 0409 step 12, design A9), for every skill's script.
 
-`CURRENT_PLAN` (what the checkout works on), `PREVIOUS_PLAN` (the plan a `--here` switch keeps) and `LEAD` (a
-servant's marker `<foreman's field> <plan> <step>`) live in the checkout's own git dir, `<git-dir>/hal/<name>` (what
+`CURRENT_PLAN` (what the checkout works on), `PREVIOUS_PLAN` (the plan a `--here` switch keeps), `LEAD` (a
+servant's marker `<foreman's field> <plan> <step>`) and `PLAN_STATE` (the plan's run state, runstate.py, hal2 plan
+0514) live in the checkout's own git dir, `<git-dir>/hal/<name>` (what
 `git rev-parse --git-path hal/<name>` names: per worktree, never committed, never in a `.gitignore`); the files home's
 old place `<root>/plans/<name>` is read when the git dir has none. A write goes to the git dir only when the farm keeps
 its plans in the store (`home = store`, planread.is_store), else to `plans/<name>` as before; either write removes the
@@ -29,7 +30,8 @@ from pathlib import Path
 CURRENT_PLAN = "CURRENT_PLAN"
 PREVIOUS_PLAN = "PREVIOUS_PLAN"
 LEAD = "LEAD"
-NAMES = (CURRENT_PLAN, PREVIOUS_PLAN, LEAD)
+PLAN_STATE = "PLAN_STATE"  # the plan's run state (runstate.py), same homes
+NAMES = (CURRENT_PLAN, PREVIOUS_PLAN, LEAD, PLAN_STATE)
 SUBDIR = "hal"
 
 
@@ -123,8 +125,8 @@ def remove(root: Path | str, name: str) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3 or argv[0] not in ("read", "path", "exists", "write", "remove") or argv[2] not in NAMES:
-        print("usage: pointers.py read|path|exists|write|remove <root> CURRENT_PLAN|PREVIOUS_PLAN|LEAD [<text>]",
-              file=sys.stderr)
+        print("usage: pointers.py read|path|exists|write|remove <root> "
+              "CURRENT_PLAN|PREVIOUS_PLAN|LEAD|PLAN_STATE [<text>]", file=sys.stderr)
         return 2
     verb, root, name = argv[:3]
     if verb == "read":

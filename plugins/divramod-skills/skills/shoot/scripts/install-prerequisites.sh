@@ -17,7 +17,7 @@ if ! command -v hal2-cli-shooter >/dev/null 2>&1 || ! hal2-cli-shooter --help | 
   if ! command -v cargo >/dev/null 2>&1; then
     echo "install Rust first (https://rustup.rs), then rerun this script" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/hal2-cli-shooter" ]; then
-    cargo install --path "$HOME/a/hal2/code/rust/apps/hal2-cli-shooter"
+    cargo install --path "$HOME/a/hal2/code/rust/apps/hal2-cli-shooter" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed hal2-cli-shooter
   else
     cargo install --git https://github.com/divramod/hal2 hal2-cli-shooter
   fi

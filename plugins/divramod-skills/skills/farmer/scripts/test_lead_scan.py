@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path)
 import lead_marker
+import servant_testkit
 import lead_scan as lead
 import worktree_farm
 from test_farmer import git
@@ -54,11 +56,14 @@ class Classify(unittest.TestCase):
         self.assertIsNone(lead.classify(agent(state="working", slot="main"), "", time.time()))
 
 
-LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
+LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7", "steps": [{"n": "7", "title": "", "status": ""}], "finished": False}
 
 
 class Subservant(unittest.TestCase):
     """Skills plan 0013: a worktree with plans/LEAD runs one step of its foreman's plan and never lands."""
+
+    def setUp(self):
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
 
     def test_a_marked_slot_idle_mid_step_is_idle_in_plan_even_without_a_plan(self):
         kind, why = lead.classify(agent(slot="31", lead=LEAD), "Step done.", time.time())
@@ -73,7 +78,7 @@ class Subservant(unittest.TestCase):
         done = agent(slot="31", lead=LEAD, step_done=True)
         self.assertIsNone(lead.classify(done, "Step 7 reported. Waiting for the lead?", time.time()))
         self.assertEqual(lead.classify(dict(done, state="blocked"), "", time.time())[0], "blocked")
-        bad = {"bad": True, "text": "x", "error": "plans/LEAD is not `<lead-slot> <plan> <step>`: 'x'"}
+        bad = {"bad": True, "error": "plans/LEAD names no servant: x"}
         kind, why = lead.classify(agent(slot="31", lead=bad), "Step done.", time.time())
         self.assertEqual(kind, "idle-in-plan")
         self.assertIn("broken marker", why)

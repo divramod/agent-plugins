@@ -1,4 +1,4 @@
-"""drift.py: `/handoff c`'s step 0 restores the plan's `run` once, then lets the session win; `--clear` passes the
+"""drift.py: `/continue`'s step 0 restores the plan's `run` once, then lets the session win; `--clear` passes the
 effort; `/handoff` persists `run` with plan.py's `run --sync` (plan 0016 step 5). The session is always faked (a
 fixture transcript, a temporary HOME, a cleaned environment), never the real one."""
 import json
@@ -91,7 +91,7 @@ class DriftTest(unittest.TestCase):
         self.assertEqual(first["action"], "switch", first)
         self.assertEqual(set(first["drift"]), {"model", "effort"})
         self.assertEqual(first["command"], "hal2-cli-agents switch --model claude-opus-5-5 --effort max "
-                                           "--prompt '/handoff c' --detach --json")
+                                           "--prompt /continue --detach --json")
         self.assertTrue(Path(first["record"]).is_file())
         second = self.drift("--transcript", str(transcript))
         self.assertEqual(second["action"], "sync", second)

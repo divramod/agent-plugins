@@ -38,6 +38,9 @@ no spec; say so in one line and offer `/plan new`.
    have taken numbers; `--seed` for a seed it grows from). It numbers the plan (never a hand number), writes plan.md in
    state spec and spec.md, names the folder in `CURRENT_PLAN`. It refuses while `CURRENT_PLAN` names a started plan
    (`--here` only on the user's words) and a slug `plans/` already has: continue that one or pick another title.
+   It also runs `hal2-cli-plans overlap` (plan 0593 D16; `overlap.json`, a Context line in plan.md, stderr; no CLI:
+   "overlap unchecked"): **settle each hit** (build on it, wait for it, merge into it) as a ledger entry with a link
+   before you fill the spec; a tie goes to the farmer.
 2. Fill spec.md with what the conversation, code, INTENT.md, records, research and the CLIs' help already settle,
    without asking again (D8 idea 6). Ids: goals `G<n>` ("the system SHALL ...", must, should or could; non-goals),
    requirements `R<n>` (the binding records named, never re-asked), acceptance `A<n>` as Given-When-Then rows (happy,
@@ -93,6 +96,8 @@ work on what the user asks or what is left, by the steps above.
 - In a farm whose plans live in its plan store (`hal2-cli-plans home` says `store`, D9): every `spec.py` answer adds
   `dir`, the plan's copy outside the tree; write spec.md there and run `spec.py show` (or the next command) to apply
   it; other files of the plan through the plan skill's `plan.py edit`/`apply`; commit no plan file there.
+- A spec that waits for another plan is declared when it is planned (`hal2-cli-plans depends add`, the plan skill's
+  [dependencies](../plan/references/dependencies.md)); the spec text only says why.
 - A spec passes the checkers as it is: `python3 <plan skill>/scripts/plan.py check plans/<folder>` and
   `hal2-cli-records check`.
 

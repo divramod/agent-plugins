@@ -210,7 +210,7 @@ class Hooks(Board):
         sent = board.lines(self.main_dir(), "message")
         self.assertEqual([(m["from"], m["to"], m["id"]) for m in sent], [(OWN, "07", "07-1"), (OWN, "09", "09-1")])
         self.assertIn("your crop is in the barn", sent[0]["text"])
-        self.assertEqual(self.kinds()[-3:], [("landed", "tollman-train-0294-f09", "-"), ("message", OWN, "07"),
+        self.assertEqual(self.kinds()[-3:], [("landed", "tollman-train", "-"), ("message", OWN, "07"),
                                              ("message", OWN, "09")])
 
         with contextlib.redirect_stdout(io.StringIO()):

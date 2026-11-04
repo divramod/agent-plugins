@@ -8,15 +8,15 @@ placed (`delegate-failed`), go into `wake.json` of the state folder (`roles/farm
                                          "instructions": <the file to read for this kind>}, ...]}
 
 Items accumulate until the session handles them (`farmer.py wake --done <seq>` drops every item up to `seq`). The
-session is woken by typing `/farmer act` into its empty prompt (deliver.py) once per batch: a tick with nothing new
+session is woken by typing `/continue` into its empty prompt (deliver.py) once per batch: a tick with nothing new
 adds no turn, a refused wake (the session busy, a draft) is retried by the next tick, and a wake the
 session has not acted on within an hour is repeated.
 
 A session whose context reached `CLEAR_AT` percent is woken with `/farmer handoff` instead (hal2's plan 0132): it
-writes its handoff.md and starts hal2's clear-and-continue, which types `/clear` and then `/farmer act` itself.
+writes its handoff.md and starts hal2's clear-and-continue, which types `/clear` and then `/continue` itself.
 wake.json's `handoff` ({"at", "session"}) holds every other wake back meanwhile; the farmer pane's new session id
 ends it (that counts as the wake), and one not done within `HANDOFF_TIMEOUT` falls back to a plain `/clear` and
-`/farmer act`.
+`/continue`.
 
 Another role (hal2 plan 0294) is woken the same way with its `roles.Wiring`: its own commands (`wiring.act`,
 `wiring.handoff`), its own state folder and log, the instructions and subskills of its own skill folder.
@@ -77,7 +77,7 @@ def read(main: str, wiring: roles.Wiring = roles.FARMER) -> dict:
 
 def write(main: str, data: dict, wiring: roles.Wiring = roles.FARMER) -> None:
     f = wake_file(main, wiring)
-    if not data["items"]:
+    if not data["items"] and "handoff_seq" not in data:  # a recorded handoff_seq outlives an empty batch (plan 0608)
         f.unlink(missing_ok=True)
         return
     tmp = f.with_suffix(".tmp")
@@ -122,7 +122,7 @@ def log_wake(main: str, kind: str, what: str, wiring: roles.Wiring = roles.FARME
 def pending_handoff(pane: str, main: str, data: dict, now: dt.datetime, sleep=time.sleep,
                     wiring: roles.Wiring = roles.FARMER) -> tuple[str | None, bool]:
     """A handoff under way: (why no wake now, woken). Its new session counts as the wake (the clear-and-continue
-    job typed /farmer act); past HANDOFF_TIMEOUT the plain /clear and /farmer act."""
+    job typed /continue); past HANDOFF_TIMEOUT the plain /clear and /continue."""
     pending, a, act = data["handoff"], deliver.agent(pane) or {}, wiring.act
     if a.get("session_id") and a["session_id"] != pending.get("session"):
         del data["handoff"]
@@ -159,7 +159,7 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
     `agents`: the round's one agents list (rows), else it is asked here when a wake is due.
     Returns {"items": n new, "pending": n in the file, "woken": bool, "why": refusal}. `now` naive (local) or aware."""
     now, data, new = roletime.aware(now), read(main, wiring), items(out, wiring)
-    seq = max((i["seq"] for i in data["items"]), default=0)
+    seq = max([i["seq"] for i in data["items"]] + [data.get("handoff_seq", 0)])  # never at or below a handoff's seq
     for i in new:
         seq += 1
         data["items"].append({"seq": seq, "at": roletime.stamp(now), **i})
@@ -181,13 +181,33 @@ def hand_over(top: str, main: str, out: dict, now: dt.datetime, wiring: roles.Wi
     return result
 
 
-def close_older(main: str, written: float | None, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
-    """Close (drop) every item created before `written` (the handoff's last write, an epoch): the session that
-    wrote the handoff had seen it (plan 0383 D8). An item without a readable `at` stamp stays. Returns the closed
-    items."""
+def mark_seen(main: str, wiring: roles.Wiring = roles.FARMER) -> int:
+    """Record, as wake.json's `handoff_seq`, the highest item seq there is now: called when the handoff's clear starts,
+    it is what the handoff's writer has seen (plan 0608 D1, D2); items added later keep their higher seq. Returns it."""
     data = read(main, wiring)
-    old = [i for i in data["items"]
-           if written is not None and (t := roletime.parse(i.get("at"))) is not None and t.timestamp() < written]
+    data["handoff_seq"] = max([i["seq"] for i in data["items"]] + [data.get("handoff_seq", 0)])
+    write(main, data, wiring)
+    return data["handoff_seq"]
+
+
+def close_older(main: str, written: float | None, wiring: roles.Wiring = roles.FARMER) -> list[dict]:
+    """Close (drop) the items the handoff's writer had seen (plan 0383 D8, plan 0608). With `handoff_seq` in wake.json
+    (`mark_seen`, set when the handoff's clear started) those are the items with seq up to it, whatever the file's
+    mtime; without it, every item created before `written` (handoff.md's last write, an epoch), and an item without a
+    readable `at` stays. `written` None (no handoff.md): nothing closes. The role's `wiring.keep` names, of those, the
+    items that stay open anyway (plan 0608 D3). Returns the closed items."""
+    data = read(main, wiring)
+    upto = data.get("handoff_seq")
+    if written is None:
+        old = []
+    elif isinstance(upto, int):
+        old = [i for i in data["items"] if i["seq"] <= upto]
+    else:
+        old = [i for i in data["items"]
+               if (t := roletime.parse(i.get("at"))) is not None and t.timestamp() < written]
+    if old and wiring.keep:
+        kept = wiring.keep(main, old)
+        old = [i for i in old if i not in kept]
     if old:
         data["items"] = [i for i in data["items"] if i not in old]
         write(main, data, wiring)

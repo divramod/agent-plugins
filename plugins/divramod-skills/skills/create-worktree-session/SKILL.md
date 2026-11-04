@@ -15,7 +15,8 @@ description: Start a new agent session (Claude by default) in the current reposi
 | `... --repo <dir>` | another repository (any of its checkouts) |
 | `... --agent codex\|opencode`, `--model <id>`, `--effort <level>`, `--tmux` | another agent, its model and effort (per process, saved nowhere; the JSON echoes them), a window of tmux session `hal-<repo>` instead of a terminal host |
 | `... --exact` | the first prompt exactly as given, without `/mfm` first |
-| `... --lead "<field> <plan> <step or NN-slug>"` | with `--from 30` or more: write `plans/LEAD` and the `CURRENT_PLAN` pointer into the servant field; the first prompt merges `origin/<field>` and runs `/servant` (the line `plan.py ready` prints) |
+| `... --lead "<field> <plan> <steps>"` | with `--from 30` or more: `<steps>` is one step or sub-plan, or a comma list (`3,4`); runs `hal2-cli-plans servant assign` (the one writer of the servant field's `LEAD` and `CURRENT_PLAN`; a failing call stops the start, no fallback); the first prompt merges `origin/<field>`, runs `/servant` and tells it to mark each step with `hal2-cli-plans servant status <step> "in progress"` / `done` |
+| re-assign a running servant | the foreman runs `hal2-cli-plans servant assign <NN> --plan <plan> --steps <list> --repo <its field>` itself; `create.py` is for starting only |
 | `... --from <NN>` | start the worktree search at `<NN>` (00 to 99) instead of 01 (the farmer's foremen: `--from 00`; a foreman's servants: `--from 30`) |
 | `... --to <NN>` | end the search at `<NN>` (default 99, also for the farmer's foremen: a foreman works in any field). A field holding `plans/LEAD` is a servant's and is skipped unless `--role servant`. None free in the range: exit 3 |
 | `... --role foreman\|servant` | the session loads its role skill first (`/foreman`, `/servant`: the skill's duties and the repository's `roles/<role>/ROLE.md`), after `/mfm` and before `<prompt>`, also with `--exact`; pass it for a session that runs a plan (foreman) or a foreman's step (servant, in a field holding `plans/LEAD`) (hal2 plan 0383, D15) |
@@ -25,12 +26,19 @@ description: Start a new agent session (Claude by default) in the current reposi
 ## Run
 
 1. `python3 $S/create.py [--repo <dir>] [--agent ..] [--model ..] [--effort ..] [--tmux] [--prompt "<prompt>"] [--exact]
-   [--role foreman|servant] [--from <NN>] [--to <NN>]`. Pass the user's prompt verbatim as one argument. Exit 2 names a missing hal2 CLI: run `bash $S/install-prerequisites.sh`
+   [--no-overlap] [--role foreman|servant] [--from <NN>] [--to <NN>]`. Pass the user's prompt verbatim as one argument. Exit 2 names a missing hal2 CLI: run `bash $S/install-prerequisites.sh`
    once and retry. Exit 3: no free and clean worktree in the range. Exit 1 prints why (not a repository, the start failed):
    report it, stop (too little disk: say so; the farmer prunes a worktree).
 2. The JSON has `slot`, `pane`, `worktree`, `attach`, `model`, `effort` and `skipped` (the worktrees without a session that hold work,
    each with why). Copy `attach` into both clipboards
    (`pbcopy`, and `tmux set-buffer` when a tmux server runs).
+
+## Overlap
+
+With a `--prompt` (not a servant's `--lead`), `create.py` runs `hal2-cli-plans overlap` (plan 0593 D16) and puts the
+hits into the session's first prompt and the report's `overlap`: the session settles each (build on it, wait for it,
+merge into it) before it writes a plan; a tie goes to the farmer. No CLI: "overlap unchecked", never a block.
+`--no-overlap` skips it (the farmer's delegation, whose brief carries the check).
 
 ## Report
 

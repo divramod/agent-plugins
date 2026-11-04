@@ -20,6 +20,7 @@ import due
 import farmer
 import handoff
 import mtm_scan
+import red_orders
 import role_cli
 import roletime
 import roles
@@ -27,6 +28,7 @@ import run_triage_wire
 import tick
 import timer
 import tollman
+import trains
 import wake
 from test_farmer import NOW, Repo, git
 
@@ -50,7 +52,7 @@ class Wiring(unittest.TestCase):
     def test_the_tollman_s_wiring(self):
         w = WIRING
         self.assertEqual((w.role, w.cli, w.skill), ("tollman", SCRIPTS / "tollman.py", SCRIPTS.parent))
-        self.assertEqual((w.act, w.handoff, w.delegates), ("/tollman act", "/tollman handoff", False))
+        self.assertEqual((w.act, w.handoff, w.delegates), ("/continue", "/tollman handoff", False))
         self.assertEqual((w.duties, dict(w.subskills)),
                          (("mtm", "trains", "checks", "learn", "prune", "mainred", "watch"),
                           {"mtm": "merge-to-main-boss", "trains": "merge-train"}))
@@ -95,7 +97,8 @@ class Field(Repo):
         for p in (mock.patch.object(Path, "home", return_value=self.tmp), mock.patch.object(timer, "run", launchctl),
                   mock.patch.object(run_triage_wire, "SPAWN", lambda argv, **kw: self.triages.append(argv)),
                   mock.patch.object(timer.platform, "system", return_value="Darwin"),
-                  mock.patch.object(role_cli.shutil, "which", return_value="/bin/x")):
+                  mock.patch.object(role_cli.shutil, "which", return_value="/bin/x"),
+                  mock.patch.object(trains, "MIN_HITCHED", 1)):  # the user's 10 is test_engine.Minimum's (plan 0610 D11)
             p.start()
             self.addCleanup(p.stop)
 
@@ -174,7 +177,7 @@ class Timer(Field):
                          {"cron": "7-59/15 * * * *", "label": "local.tollman.hal2"})
         self.assertFalse((self.tmp / "Library/LaunchAgents/local.farmer.hal2.plist").exists())
         self.assertEqual(farmer.mode(str(self.slot)), "claude")
-        status = json.loads(self.call("timer", "status", "--json")[1])
+        status = json.loads(self.call("timer", "status", "--detail", "--json")[1])
         self.assertEqual((status["label"], status["loaded"], status["mode"]),
                          ("local.tollman.hal2", True, "timer"))
         self.assertEqual(self.call("timer", "remove"), (0, "remove: mode claude\n"))
@@ -201,7 +204,9 @@ class Rounds(Field):
         def sh(argv, cwd, timeout=900):
             return (0, json.dumps({"status": "ok"})) if argv[0] == "hal2-cli-git" else real(argv, cwd, timeout)
 
+        # act ends with red_orders.report (gh + train.jsonl, its own tests: test_red_orders); a round's output ends with act's own line
         for p in (mock.patch.object(mtm_scan, "run_json", answers), mock.patch.object(tick, "sh", sh),
+                  mock.patch.object(red_orders, "report", return_value=0),
                   mock.patch.object(tick.deliver, "send", lambda pane, text, s=None: self.typed.append((pane, text)))):
             p.start()
             self.addCleanup(p.stop)
@@ -226,7 +231,8 @@ class Rounds(Field):
         self.queue[1]["ready"] = READY
         r = json.loads(self.call("tick", "--dry-run", "--json")[1])
         self.assertEqual(self.planned(r, "mtm"), [("waiter-gone", "send", "07"), ("ran", "ran", "-")])
-        self.assertEqual(self.planned(r, "trains"), [("ran", "ran", "-")], "its head is not known here: it waits")
+        self.assertEqual(self.planned(r, "trains"), [("form", "run", "-"), ("ran", "ran", "-")],
+                         "its head is not known here: it rides untried (plan 0610 E15), never waits")
         self.queue[0]["train"] = {"carrier": "07", "cars": [{"field": "09"}], "at": READY["at"]}
         r = json.loads(self.call("tick", "--dry-run", "--json")[1])
         self.assertEqual(self.planned(r, "mtm"), [("ran", "ran", "-")], "nor is a standing train's ticket")
@@ -262,7 +268,8 @@ class Rounds(Field):
         code, out = self.call("act")
         self.assertIn("relay  mtm/waiter-gone 07: tollman [07-", out)
         self.assertIn(f"read {SCRIPTS.parent / 'instructions/mtm.md'}", out)
-        self.assertTrue(out.endswith("2 items\n"), out)
+        # act ends with red_orders.py's check of every red job's fix order (the tollman's 7a110959e8)
+        self.assertTrue(out.endswith("2 items\n"), out)  # red_orders.report is mocked (plan 0608)
         self.assertEqual(self.call("act", "--done", "2"), (0, "0 items left\n"))
         self.assertEqual(json.loads(self.call("status", "--json")[1])["pending"], 0)
 
@@ -320,8 +327,9 @@ class Status(Field):
 
 
 class SessionEffort(Field):
-    """Hal2 plan 0333, D4/D7: the tollman's session runs at effort high (ROLE.md's `session_effort`, default
-    high) and every clear-and-continue passes it; the user's rule is in the skill, the template and the record."""
+    """Hal2 plan 0333, D4/D7: the tollman's session runs at ROLE.md's `session_effort` and every clear-and-continue
+    passes it; medium by default and in hal2's ROLE.md since plan 0610 D19 (the user, 2026-10-20: "Make the effort of
+    the tall man medium."); the user's rule is in the skill, the template and the record."""
 
     def setUp(self):
         super().setUp()
@@ -349,13 +357,18 @@ class SessionEffort(Field):
         self.assertEqual(code, 0, out)
         return self.calls[-1]
 
-    def test_the_default_is_high_and_the_template_names_it(self):
-        self.assertEqual(due.SESSION_EFFORT, "high")
-        self.assertEqual(due.schedule(ROLE, WIRING.duties)[1]["session_effort"], "high")
+    def test_the_default_is_medium_and_the_template_and_hal2_s_role_name_it(self):
+        self.assertEqual(due.SESSION_EFFORT, "medium")
+        self.assertEqual(due.schedule(ROLE, WIRING.duties)[1]["session_effort"], "medium")
         template = (SCRIPTS.parent / "templates" / "ROLE.md").read_text()
         _, settings, problems = due.schedule(template, WIRING.duties)
-        self.assertEqual((settings["session_effort"], problems), ("high", []))
-        self.assertIn("session_effort: high", template)
+        self.assertEqual((settings["session_effort"], problems), ("medium", []))
+        self.assertIn("session_effort: medium", template)
+        hal2 = (repo_root(__file__) or Path("/nonexistent")) / "roles" / "tollman" / "ROLE.md"
+        if hal2.is_file():  # absent in a published copy
+            _, settings, problems = due.schedule(hal2.read_text(), WIRING.duties)
+            self.assertEqual(settings["session_effort"], "medium", problems)
+            self.assertEqual(handoff.session_effort(str(hal2.parents[2]), WIRING), "medium", "what the clear passes")
 
     def test_a_named_effort_is_validated(self):
         self.assertEqual(due.schedule(ROLE.replace("notify:", "session_effort: xhigh\nnotify:"))[1]["session_effort"],
@@ -366,21 +379,21 @@ class SessionEffort(Field):
     def test_the_restart_passes_the_effort_to_the_clear_and_continue(self):
         self.assertTrue(WIRING.session_effort)
         self.assertFalse(roles.FARMER.session_effort, "the farmer's clear is unchanged")
-        self.assertEqual(self.clear(), ("clear-and-continue", "--pane", "%9", "--prompt", "/tollman act",
-                                        "--without-plan", "--detach", "--json", "--effort", "high", "--session", "s1"))
+        self.assertEqual(self.clear(), ("clear-and-continue", "--pane", "%9", "--prompt", "/continue",
+                                        "--without-plan", "--detach", "--json", "--effort", "medium", "--session", "s1"))
 
     def test_a_role_file_with_another_effort_or_a_bad_one_decides_the_restart(self):
         self.assertIn("xhigh", self.clear(ROLE.replace("notify:", "session_effort: xhigh\nnotify:")))
         bad = self.clear(ROLE.replace("notify:", "session_effort: huge\nnotify:"))
-        self.assertEqual(bad[bad.index("--effort") + 1], "high", "an invalid setting never blocks the clear")
+        self.assertEqual(bad[bad.index("--effort") + 1], "medium", "an invalid setting never blocks the clear")
         (self.wm / WIRING.role_file).unlink()
-        self.assertEqual(handoff.session_effort(str(self.wm), WIRING), "high")
+        self.assertEqual(handoff.session_effort(str(self.wm), WIRING), "medium")
 
     def test_the_start_command_carries_model_and_effort_in_the_skill(self):
         skill = (SCRIPTS.parent / "SKILL.md").read_text()
         starts = re.findall(r"hal2-cli-git worktree run tollman-<repo> --agent claude[^`]*", skill)
         self.assertTrue(starts)
-        self.assertTrue(all(s.endswith("--model opus --effort high") for s in starts), starts)
+        self.assertTrue(all(s.endswith("--model opus --effort medium") for s in starts), starts)
 
     def test_the_users_rule_is_in_the_skill_the_instructions_the_template_and_the_record(self):
         # the repository's record (absent in a published copy); it was found at the wrong depth before plan 0360 D20

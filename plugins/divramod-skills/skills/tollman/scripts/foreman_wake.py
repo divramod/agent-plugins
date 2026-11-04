@@ -28,6 +28,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import live_sessions
 import mtm_scan
+import run_names
 import train_state
 from deliver import READY
 from tick import act
@@ -92,7 +93,9 @@ def paused(a: dict, ctx: dict, pause: dict) -> list[dict]:
                text=TEXT["farmer"].format(field=field, why=why, train=train, id=oid, own=TEXT["own"] * resolve))
     if not resolve:
         return [note] + hold(a)
-    branch = f"{field}-train-resolve"
+    standing = train_state.standing(train_state.lines(ctx["main"])) or {}
+    branch = ((standing.get("resolve") or {}).get("branch") if standing.get("state") == "resolving" else None) or \
+        run_names.fix_branch(standing, field, "resolve")  # the order's own systematic name (plan 0610 D18)
     return [note, act("trains", SELF, "wake", key=f"{SELF}:{key}", evidence={"order": a["text"]},
                       text=TEXT["self"].format(id=oid, field=field, why=why, branch=branch, order=a["text"]))]
 

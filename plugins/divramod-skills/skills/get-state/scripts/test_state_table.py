@@ -12,6 +12,18 @@ def row(**kw) -> dict:
     return {**base, **kw}
 
 
+
+
+
+class StepsHitch(unittest.TestCase):
+    def test_the_steps_cell_names_the_hitch_label(self):
+        row = {"steps_done": 3, "steps_total": 10}
+        self.assertEqual(t.steps_cell(row), "3 of 10")
+        self.assertEqual(t.steps_cell({**row, "hitch": "milestone 1/2"}), "3 of 10 (milestone 1/2)")
+        self.assertEqual(t.steps_cell({"steps_done": None, "steps_total": None, "hitch": "partial (override)"}),
+                         "partial (override)")
+
+
 class CellsTest(unittest.TestCase):
     def test_age(self):
         self.assertEqual([t.age(s) for s in (None, 0, 300, 3 * 3600 + 5, 2 * 86400)], ["", "0m", "5m", "3h", "2d"])
@@ -84,8 +96,8 @@ class TableTest(unittest.TestCase):
 
     def test_table_and_line(self):
         lines = t.table(self.data()).split("\n")
-        self.assertEqual(lines[:2], ["| WT | Plan | Steps | State | Waits for |", "|---|---|---|---|---|"])
-        self.assertEqual(lines[2], "| 05 | free |  | check run queued |  |")
+        self.assertEqual(lines[:2], ["| WT | Plan | Steps | State | Waits for | Depends on | Dependents |", "|---|---|---|---|---|---|---|"])
+        self.assertEqual(lines[2], "| 05 | free |  | check run queued |  |  |  |")
         self.assertEqual(lines[4], "")
         self.assertEqual(lines[5], "main: abcd1234 5m ago " + "x" * 59 + "…; queue: 05 holds; waiting: 06, 07; open CI runs: 2 (05)")
 

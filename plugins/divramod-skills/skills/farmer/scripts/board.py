@@ -34,7 +34,6 @@ meant; never a pane id, session id or title), `text`, and by kind (the names are
 A post that fails never fails a round: `safely` logs it to the frame's log (`board-failed`) and goes on.
 """
 
-import argparse
 import contextlib
 import datetime as dt
 import json
@@ -67,7 +66,10 @@ KEYS = ("id", "text", "cars", "run", "head", "status", "train", "commit")
 TEXT_MAX = 2000
 # What the tollman says unasked about the yard and an old transplant: a note on the board, never a message (D9)
 # queue-leaver: leavers.py (plan 0383); foreman-paused: a paused car's foreman an order needs (plan 0522 D21)
-NOTES = ("yard-left", "yard-kept", "transplant-stale", "queue-leaver", "foreman-paused")
+# worktree-gone: a hitched car whose worktree is gone rides from its sha (trains.py, plan 0610 E13)
+# role-car-out, role-car-stopped: a role car left out of a train, a train stopped by its second time (role_cars.py, D24)
+NOTES = ("yard-left", "yard-kept", "transplant-stale", "queue-leaver", "foreman-paused", "proof-twin", "worktree-gone",
+         "role-car-out", "role-car-stopped")
 NOTES_OF = {"tollman": NOTES, "farmer": ("note",)}  # the log's `record` kinds that become a `note` line
 
 
@@ -276,39 +278,9 @@ def sync(main: str, role: str = ROLE) -> list[dict]:
 
 
 def main(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = p.add_subparsers(dest="cmd", required=True)
-    post_p, list_p = sub.add_parser("post"), sub.add_parser("list")
-    sync_p = sub.add_parser("sync")
-    post_p.add_argument("--kind", required=True)
-    post_p.add_argument("--from", dest="frm", required=True)
-    post_p.add_argument("--to", required=True)
-    for key in ("text", "id", "run", "head", "status", "train", "commit"):
-        post_p.add_argument(f"--{key}")
-    post_p.add_argument("--cars", type=lambda s: [c for c in s.split(",") if c])
-    list_p.add_argument("--kind")
-    list_p.add_argument("--last", type=int)
-    list_p.add_argument("--json", action="store_true")
-    for x in (post_p, list_p, sync_p):
-        x.add_argument("--repo", default=os.getcwd())
-        x.add_argument("--role", default=ROLE, choices=ROLES)
-    a = p.parse_args(argv)
-    main_dir = mtm_scan.main_checkout(a.repo)
-    try:
-        if a.cmd == "post":
-            keys = {k: getattr(a, k) for k in KEYS if hasattr(a, k)}
-            print(json.dumps(post(main_dir, a.kind, a.frm, a.to, role=a.role, **keys)))
-        elif a.cmd == "sync":
-            print(f"{len(sync(main_dir, a.role))} lines posted")
-        else:
-            rows = lines(main_dir, a.kind, a.last, a.role)
-            print(json.dumps(rows, indent=1) if a.json else "\n".join(
-                f"{r['at']} {r['kind']:9} {r['from']} -> {r['to']}: {r.get('text', '')[:100]}" for r in rows)
-                or "the board is empty")
-    except (ValueError, OSError) as e:
-        print(f"board.py: {e}", file=sys.stderr)
-        return 1
-    return 0
+    """The commands of the module doc (board_cli.py, split out by hal2 plan 0610 step 9, small-files)."""
+    import board_cli
+    return board_cli.main(argv)
 
 
 if __name__ == "__main__":

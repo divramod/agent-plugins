@@ -15,7 +15,7 @@ tasks under `## Tasks` (each `### <name>` with its `- **Cron**: <cron>` line, an
 time its Check may take: default 120 s, a longer one runs detached, tasks.py) run, and the
 setting `notify` is required, `servant_limit` (`auto` or a number) defaults to `auto`, `servant_model` (an alias
 such as `opus` or a model id) to `opus` and `servant_effort` (low|medium|high|xhigh|max) to `medium`: the values a
-foreman's coordinator session starts at (skills plan 0016); `session_effort` (same levels, default `high`) is the
+foreman's coordinator session starts at (skills plan 0016); `session_effort` (same levels, default `medium`) is the
 effort of the role's own session, which a role with `Wiring.session_effort` starts and restarts at.
 No roles/farmer/ROLE.md: nothing runs (exit 3).
 A cron is standard 5-field notation in local time: minute hour day-of-month month day-of-week
@@ -45,8 +45,9 @@ DUTIES = roles.FARMER.duties  # the farmer's duty names; another role passes its
 NOTIFY = ("every-round", "hourly", "daily", "never")
 # A foreman's coordinator session (skills plan 0016, D15): the user's default opus medium unless ROLE.md names more.
 SERVANT_MODEL, SERVANT_EFFORT = "opus", "medium"
-# A role's own session (the tollman, hal2 plan 0333, D4): its effort when it starts and after every clear.
-SESSION_EFFORT = "high"
+# A role's own session (the tollman, hal2 plan 0333, D4): its effort when it starts and after every clear; medium since
+# the user, 2026-10-20: "Make the effort of the tall man medium." (hal2 plan 0610 D19)
+SESSION_EFFORT = "medium"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 MODEL = re.compile(r"^[a-z][a-z0-9.\-]*(\[1m\])?$")
 MIN_TICK = 5

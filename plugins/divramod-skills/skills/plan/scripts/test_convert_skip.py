@@ -10,6 +10,8 @@ import tarfile
 from pathlib import Path
 
 import envelope
+import parallel  # noqa: F401  (puts the skills unit's scripts/ on the import path)
+import servant_testkit
 from shape_testing import SCRIPT, TempPlan
 from test_convert import RECORD, legacy_files, legacy_plan, write
 
@@ -85,6 +87,7 @@ class ConvertSkipTest(TempPlan):
 
     def test_a_servant_may_not_convert(self):
         (self.root / "plans/LEAD").write_text("07 0002-record-sample 01-record-sample\n")
+        self.env["HAL2_CLI_PLANS"] = str(servant_testkit.install(self))  # the fake `servant show` (plan 0594)
         self.assertIn("`convert` writes the foreman's files", self.refused("convert", "0002"))
 
     def test_the_global_folder_after_its_backup(self):

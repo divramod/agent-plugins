@@ -63,7 +63,7 @@ class Guard(unittest.TestCase):
         self.assertTrue(a["argv"][1].endswith("orphan_start.py"))
         self.assertEqual(a["argv"][a["argv"].index("--") + 1:],
                          ["hal2-cli-git", "worktree", "run", "01", "--agent", "claude", "--detach", "--prompt",
-                          "/handoff c"])
+                          "/continue"])
         self.assertEqual(a["argv"][a["argv"].index("--path") + 1], "/x/wt/01")
 
     def test_a_field_with_no_session_still_gets_its_start(self):

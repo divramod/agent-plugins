@@ -17,31 +17,38 @@
       a task's Check (machine form, see tasks.py), or a built-in check for roles/farmer/ROLE.md tasks: flaky ledger
       entries whose foreman runs no plan, worktrees with work and no session; exit 0 fine, 1 with what is wrong
   farmer.py prune-round [--repo <dir>]
-      the prune round as code (prune_round.py, hal2 plan 0534): the disk step (idle fields' Rust build targets while
-      the disk has under 150 GB free), then `/prune run` for the farm; exit 0 both ran, 1 with the failed or timed-out
+      the prune round as code (prune_round.py, hal2 plan 0534), when the farm's autopilot says due (plan 0543):
+      the disk step (idle fields' Rust build targets while the disk has under 150 GB free), then `/prune run` for
+      the farm; exit 0 both ran, 1 with the failed or timed-out
       step; the farmer task whose Check is `farmer prune-round` (and its Limit) runs it
   farmer.py wake [--done <seq>] [--repo <dir>] [--json]
       what the tick handed to the farmer session (wake.json: items that need judgment, relays, notices, failed
       delegations, each with the file to read for it); prints handoff.md's `## DO FIRST` first and closes the items
-      older than the handoff's last write (plan 0383 D8); --done drops the items up to <seq> once handled
+      the handoff's writer had seen (seq <= its `handoff_seq`, handoff.md's mtime only without one; plan 0608 D1); --done drops the items up to <seq> once handled
   farmer.py handoff [--rewrite] [--clear] [--repo <dir>]
       the farmer's handoff before its clear (handoff.py): the path of handoff.md in the state folder (its sections
       when it is missing); --rewrite first moves the old one to handoff-archive/<UTC time>.md (plan 0383 D9);
-      --clear warns above 80 lines and, once it is written, starts hal2's clear-and-continue (/clear, then /farmer act)
+      --clear warns above 80 lines and, once it is written, starts hal2's clear-and-continue (/clear, then /continue)
   farmer.py decision-check (--message <text> | <slot> --have <list>) [--repo <dir>] [--dry-run]
       answer a foreman's `decision check <slot>: I have these decisions: ...` (decision_check.py): the log's
       `decision` entries for the worktree that neither its list nor its checkout (HANDOFF.md, current plan, INTENT.md)
       holds, with the user's words quoted, or "none missing"; exit 1 for an unknown worktree. Logs the check (kind `decision-check`) unless --dry-run; superseded decisions never count
   farmer.py decision list [--slot <slot>] [--all] | supersede <at>... --by <at> [--why <text>] [--dry-run]
       the user's current decisions in the log; mark ones a later decision replaced (decision_log.py)
-  farmer.py timer install|remove|status [--repo <dir>] [--dry-run] [--json]
+  farmer.py timer install|enable|disable|remove|status [--repo <dir>] [--dry-run] [--json] [--detail]
       the external timer that runs `tick` at the loop's cron (launchd on macOS, a systemd user timer on Linux;
       timer.py); install switches the mode to `timer`, remove back to `claude`
+      `timer install|enable|disable|status --json` answer hal2-machine's standard installer contract (timer_standard.py:
+      one line `{schema, job: farmer-timer, state, enabled, last_exit, last_run, message}`, exit 3 not installed);
+      `status --detail --json` is the older detail (label, loaded, files, mode)
   farmer.py migrate [--role <role>] [--repo <dir>] [--dry-run] [--json]
       move a role's worktree `<role>` to `<role>-<project>` with its files in roles/<role>/ (migrate.py, hal2 plan 0143):
       refuses while the timer is installed or a session sits in the worktree; idempotent
   farmer.py question add --slot <slot|farmer> --text <Q form> [--waits <what>] | answer <n> --text <a> | drop <n> | list
-      the farmer's own question store (questions.jsonl, questions.py); never from prose by hand
+      the farmer's own question store (questions.jsonl, questions.py); never from prose by hand; `add --slot <NN>` is
+      refused (exit 2) for a field with a plan: its question lives only in the plan's questions.md (hal2-cli-plans questions add)
+  farmer.py question twins [--pair <slot>:<farmerQ>=<planQ>] [--drop] [--json]
+      the farmer-list questions a plan's store also asks; --drop closes them `twin of <plan> Q<n>` (question_twins.py)
   farmer.py questions [a|answered|l|list] [--json] [--repo <dir>]
       the one list of everyone's questions: the farmer's own, the log's open asks, each worktree's store; no model call
   farmer.py silence | unsilence [--repo <dir>]
@@ -94,6 +101,8 @@ HANDLERS: dict = {  # "duty:<name>" / "task:<name>" → (item, ctx) → planned 
     "duty:watch": duties.plan_watch,
     "duty:autoclear": duties.plan_autoclear,
     "duty:queue": queue_watch.plan_queue,  # the merge-queue watch, hal2 plan 0570 step 5
+    "duty:autopilot": duties.plan_autopilot,  # the foreman limit, hal2 plan 0543 step 24
+    "duty:runners": duties.plan_runners,  # the runner health, hal2 plan 0543 step 26
     "task:*": tasks.plan_task,
 }
 
@@ -190,7 +199,8 @@ def parser() -> argparse.ArgumentParser:
     dl.add_argument("--repo", default=os.getcwd())
     dl.add_argument("--dry-run", action="store_true")
     tm = sub.add_parser("timer")
-    tm.add_argument("action", choices=("install", "remove", "status"))
+    tm.add_argument("action", choices=("install", "enable", "disable", "remove", "status"))
+    tm.add_argument("--detail", action="store_true")
     tm.add_argument("--repo", default=os.getcwd())
     tm.add_argument("--dry-run", action="store_true")
     tm.add_argument("--json", action="store_true")

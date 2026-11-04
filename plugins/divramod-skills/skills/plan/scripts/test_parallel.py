@@ -5,9 +5,12 @@ import os
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import field_free
+import parallel  # noqa: F401  (puts the skills unit's scripts/ on the import path)
+import servant_testkit
 import testkit
 
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
@@ -48,6 +51,7 @@ def git(cwd: Path, *args: str, check: bool = True) -> str:
 
 class ParallelTest(unittest.TestCase):
     def setUp(self):
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.root = self.base / "02"  # the foreman's worktree
@@ -268,7 +272,8 @@ class ParallelTest(unittest.TestCase):
                      ("landing", "manual"), ("uat",), ("scaffold",), ("run", "--effort", "max"), ("migrate",)):
             self.assertIn("a servant of the foreman in field 02", self.refused(*args), args)
         self.assertEqual(self.path.read_text(), before)
-        self.assertEqual(self.plan("current")["lead"], {"slot": "02", "plan": SLUG, "step": "3"})
+        self.assertEqual(self.plan("current")["lead"], {"slot": "02", "plan": SLUG, "step": "3",
+                         "steps": [{"n": "3", "title": "", "status": ""}], "finished": False})
         self.assertEqual(self.numbers(self.ready()["ready"]), ["3", "5", "6"])
 
     def test_the_refusal_names_the_foreman_and_what_the_servant_does_instead(self):
@@ -282,16 +287,43 @@ class ParallelTest(unittest.TestCase):
         for word in ("stale", "delete", "plan.py report"):  # a live marker is never called a leftover (plan 0275 D26)
             self.assertNotIn(word, error)
 
+    def test_the_marker_comes_from_servant_show_and_a_missing_cli_keeps_the_field_marked(self):
+        import parallel
+        self.assertIsNone(parallel.read_marker(self.root))  # no LEAD: no process
+        (self.plans / "LEAD").write_text(f"02 {SLUG} 3,4\n")
+        marker = parallel.read_marker(self.root)
+        self.assertEqual((marker["slot"], marker["plan"], marker["step"]), ("02", SLUG, "3,4"))
+        self.assertEqual([s["n"] for s in marker["steps"]], ["3", "4"])
+        with unittest.mock.patch.dict(os.environ, {"HAL2_CLI_PLANS": str(self.base / "no-such-cli")}):
+            gone = parallel.read_marker(self.root)  # D6: no hand parse of the line, but still a servant's field
+            self.assertEqual((gone["unread"], gone["slot"], gone["steps"]), (True, "", []))
+            self.assertIn("gave no servant", self.refused("status", "3", "done"))
+
+    def test_a_sub_plan_servants_steps_name_its_folder(self):
+        import parallel
+        sub = self.root / "plans" / SLUG / "subplans" / "02-readers"
+        sub.mkdir(parents=True)
+        self.assertEqual(parallel.subplan_of_steps(self.root, SLUG, ["02.01", "02.02"]), "02-readers")
+        self.assertEqual(parallel.subplan_of_steps(self.root, SLUG, ["02-readers"]), "02-readers")
+        self.assertIsNone(parallel.subplan_of_steps(self.root, SLUG, ["02.01", "03.01"]))  # two sub-plans: legacy form
+        self.assertIsNone(parallel.subplan_of_steps(self.root, SLUG, ["3", "4"]))
+        self.assertIsNone(parallel.subplan_of_steps(self.root, SLUG, ["05.01"]))  # no such folder
+        servant_testkit.write(self.root, "07", SLUG, [("02.01", "a", ""), ("02.02", "b", "done")])
+        (self.plans / "LEAD").write_text(f"07 {SLUG} 02-readers\n")
+        got = parallel.read_marker(self.root)
+        self.assertEqual((got["step"], [s["status"] for s in got["steps"]]), ("02-readers", ["", "done"]))
+
     def test_removed_commands_are_gone(self):
         for command in ("brief", "report", "reports", "watch"):
             result = self.run_plan(command, "3")
             self.assertEqual(result.returncode, 2, command)
             self.assertIn("invalid choice", result.stderr)
 
-    def test_a_broken_marker_is_a_clean_error(self):
+    def test_a_broken_marker_still_marks_the_field_and_refuses_writes(self):
         (self.plans / "LEAD").write_text("02\n")
 
-        self.assertIn("must hold `<lead-slot> <plan> <step>`", self.refused("current"))
+        self.assertTrue(self.plan("current")["lead"]["unread"])  # still a servant's field, reading works
+        self.assertIn("gave no servant", self.refused("status", "3", "done"))
 
     # the step file
 

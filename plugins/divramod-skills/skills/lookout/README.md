@@ -9,7 +9,7 @@ Stdlib Python only; tests: `python3 -m unittest` in `scripts/`.
 
 | File | What |
 |---|---|
-| `lookout.py` | the CLI table `COMMANDS`: `start\|stop\|status` (timer on the farmer's `timer.py`) plus those of `lookout_cmds.py` |
+| `lookout.py` | the CLI table `COMMANDS`: `start\|stop\|status` and `timer install\|enable\|disable\|remove\|status` (the standard installer contract, `--json`, farmer `timer_standard.py`; timer on the farmer's `timer.py`) plus those of `lookout_cmds.py` |
 | `lookout_cmds.py` | the handlers of `add\|set\|end\|list\|log\|finds\|run\|tick` (a refusal prints `lookout.py: <why>`, exit 2) |
 | `store.py` | the farm files `<farm>.yaml` through the daybook's `watchfile.py`, the `Lock`, validation, `add\|set_keys\|end`, `update_run_keys`, `changes.jsonl` |
 | `lookout_tick.py` | the tick: `tick.lock`, `heartbeat`, due check, `runner.run_watch`, retries, the find path, alerts, ends a settled watch |
@@ -22,6 +22,7 @@ Stdlib Python only; tests: `python3 -m unittest` in `scripts/`.
 | `find.py` | find record, `apply`, daybook item, notify; each step marked so a retry never doubles one |
 | `notify.py` | one `send(...)` over the `desktop` and `telegram` backends; never raises |
 | `checks/email.py` | the generic e-mail check over `hal2-cli-email messages search` |
+| `checks/network.py` | the network watch's check over `hal2-cli-machine net status` (hal2 plan 0581 D3): one find per red stretch nobody saw, and its recovery; its record `checks/network-watch.yaml` |
 | `check-prerequisites.sh`, `install-prerequisites.sh` | python3; optional claude, a desktop notifier, hal2-cli-secrets; then `checks/`'s pair (hal2-cli-email, optional) |
 | `fakes.py`, `test_*.py` | fake checks, fake `claude`, the tests |
 

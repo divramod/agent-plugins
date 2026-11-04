@@ -4,6 +4,10 @@
     lookout.py start [--dry-run]   install the 5-minute timer (launchd on macOS, a systemd user timer on Linux)
     lookout.py stop [--dry-run]    remove it
     lookout.py status [--json]     the timer, the last tick, "lookout not running since <time>" when it stopped
+    lookout.py timer install|enable|disable|remove|status [--json]
+                                   the standard installer contract of hal2-machine (plan 0581 step 6b): with --json
+                                   one line `{schema, job: lookout-timer, state, enabled, last_exit, last_run,
+                                   message}`, exit 3 not installed (timer_standard.py in the farmer's scripts)
 
 The timer is the farmer's `timer.py` with the Wiring below (D1, D14): the label `local.lookout.global`, `*/5 * * * *`
 (minutes 0, 5, ... 55), the store folder as its working directory and the state folder for `tick.log`, `timer.json`,
@@ -27,6 +31,7 @@ import lookout_cmds
 import paths
 import roles
 import timer
+import timer_standard
 
 NAME = "global"
 CRON = "*/5 * * * *"
@@ -116,6 +121,36 @@ def cmd_status(args):
     return 0
 
 
+def late(now=None):
+    """The contract's `failing` for a timer that is loaded but not ticking: the heartbeat is older than 15 minutes."""
+    beat = heartbeat_at(paths.state_root())
+    if beat and (now or paths.now()) - beat > STALE:
+        return f"lookout not running since {beat.isoformat()}"
+    return None
+
+
+def cmd_timer(args):
+    """`timer <action>`: the standard installer contract over start and stop; `remove` is `stop`."""
+    state = paths.state_root()
+    if args.action == "remove":
+        return cmd_stop(args)
+    if args.action == "status" and not args.json:
+        return cmd_status(args)
+
+    def install():
+        for folder in (paths.config_root(), state):
+            folder.mkdir(parents=True, exist_ok=True)
+        timer.install(NAME, str(paths.config_root()), state, CRON, False, WIRING)
+
+    try:
+        code, reply = timer_standard.apply(args.action, NAME, state, WIRING, install, late)
+    except (RuntimeError, ValueError) as e:
+        print(f"lookout.py: {e}", file=sys.stderr)
+        return 2
+    print(timer_standard.line(reply) if args.json else f"{args.action}: {reply['state']}: {reply['message']}")
+    return code
+
+
 def windows_guard(_args):
     print(f"lookout.py: {WINDOWS_GAP}", file=sys.stderr)
     return 2
@@ -126,9 +161,13 @@ COMMANDS = {
     "start": ("install the 5-minute timer", lambda p: p.add_argument("--dry-run", action="store_true"), cmd_start),
     "stop": ("remove the timer", lambda p: p.add_argument("--dry-run", action="store_true"), cmd_stop),
     "status": ("the timer and the last tick", lambda p: p.add_argument("--json", action="store_true"), cmd_status),
+    "timer": ("the standard installer contract: install, enable, disable, remove, status", lambda p: (
+        p.add_argument("action", choices=("install", "enable", "disable", "remove", "status")),
+        p.add_argument("--dry-run", action="store_true"), p.add_argument("--json", action="store_true"),
+        p.add_argument("--repo", default=None, help="ignored: lookout is global")), cmd_timer),
     **lookout_cmds.COMMANDS,
 }
-NEEDS_TIMER = ("start", "stop")
+NEEDS_TIMER = ("start", "stop", "timer")
 
 
 def parser():

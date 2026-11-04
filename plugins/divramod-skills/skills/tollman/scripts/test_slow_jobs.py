@@ -14,8 +14,9 @@ NOW = dt.datetime.now(dt.timezone.utc)
 MAC = "c1-02-rust-build-mac"
 
 
-def timed(name, minutes, status="completed", ago=0):
-    end = NOW - dt.timedelta(minutes=ago)
+def timed(name, minutes, status="completed", ago=0, now=None):
+    """A job of `minutes` that ended `ago` minutes before `now` (NOW, the import's time, by default)."""
+    end = (now or NOW) - dt.timedelta(minutes=ago)
     start = end - dt.timedelta(minutes=minutes)
     return {"name": name, "status": status, "conclusion": "success" if status == "completed" else None,
             "startedAt": start.isoformat(), "completedAt": end.isoformat() if status == "completed" else None}
@@ -34,14 +35,15 @@ class Events(unittest.TestCase):
 
 class Watch(Pass):
     def test_train_27_the_watch_flags_the_three_hour_mac_build_once_and_wakes(self):
+        now = dt.datetime.now(dt.timezone.utc)  # the tick reads the clock: never the import's time (a long suite)
         green = [run(r, f"land/train-{r}-1", "2026-10-28T08:00:00Z", conclusion="success") for r in (401, 402, 403)]
         self.gh.runs[:] = [RUN] + green
         for r, minutes in ((401, 7), (402, 8), (403, 6)):
-            self.gh.jobs[str(r)] = [timed(MAC, minutes, ago=2000), timed("a1-01-lint", 1, ago=2000)]
-        self.gh.jobs["501"] = [timed(MAC, 180, "in_progress"), timed("a1-01-lint", 1)]
+            self.gh.jobs[str(r)] = [timed(MAC, minutes, ago=2000, now=now), timed("a1-01-lint", 1, ago=2000, now=now)]
+        self.gh.jobs["501"] = [timed(MAC, 180, "in_progress", now=now), timed("a1-01-lint", 1, now=now)]
         self.train("formed", "started")
         out = self.tick()
-        self.assertIn(f"job slow: {MAC} runs 180 min, over 2x its median 7 min", out)
+        self.assertRegex(out, rf"job slow: {MAC} runs 18[01] min, over 2x its median 7 min")
         state = json.loads((self.wm_state / "watch-events.json").read_text())
         self.assertEqual(state["base"], {MAC: 7 * 60, "a1-01-lint": 60}, "the medians are kept with the run")
         woke = json.loads((self.wm_state / "wake.json").read_text())["items"]

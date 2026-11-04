@@ -141,6 +141,49 @@ class Waits(Field):
         v = proof.verdict("-", str(Path(self.d) / "gone"), "0" * 40, "main", run=self.run_, cache=self.cache)
         self.assertEqual(v["state"], "wait")
 
+    def test_a_gone_field_is_proven_on_its_hitched_sha_from_the_main_checkout(self):
+        """Plan 0610 E13: the trial and the scratch proof need no field; only without a main checkout it waits."""
+        self.names_script()
+        hitched = self.commit({"b.rs": "b\n"})
+        v = proof.verdict(self.d, str(Path(self.d) / "gone"), hitched, "main", run=self.run_, cache=self.cache)
+        self.assertEqual((v["state"], self.calls), ("green", ["names"]))
+
+
+class BarnSide(Field):
+    """Field 79 row 13 (plan 0610 D18): the same finding on the barn's own head is the barn's, never the car's."""
+
+    LINE = "docs/x.md: missing key `title` (spec:required-key)"
+
+    def run_(self, argv, cwd):
+        if argv[0] == "hal2-cli-records":  # the barn's scratch answers as the field: the barn holds the finding too
+            self.calls.append(("records", "scratch" in cwd))
+            return self.answers.get(("records", "scratch" in cwd), (0, "ok"))
+        return super().run_(argv, cwd)
+
+    def test_a_finding_the_barn_shows_too_is_barn_red_and_the_car_is_green(self):
+        self.g("checkout", "-q", "main")
+        self.commit({"docs/x.md": "x\n"})
+        self.g("checkout", "-q", "06")
+        self.g("merge", "-q", "main")
+        head = self.commit({"docs/x.md": "x\ny\n"})
+        self.answers = {("records", False): (1, self.LINE), ("records", True): (1, self.LINE)}
+        v = self.verdict(head)
+        self.assertEqual((v["state"], v["lines"], v["barn_red"]), ("green", [], [f"records: {self.LINE}"]))
+        self.assertEqual(self.calls, [("records", False), ("records", True)])
+        self.assertEqual(self.verdict(head)["barn_red"], [f"records: {self.LINE}"], "kept while the barn stands")
+        self.g("checkout", "-q", "main")
+        self.commit({"c.rs": "c\n"})
+        self.g("checkout", "-q", "06")
+        self.answers = {}
+        v = self.verdict(head)  # the barn moved: the barn's red of the old head is never served again
+        self.assertEqual((v["state"], v.get("barn_red")), ("green", None))
+
+    def test_a_finding_only_the_car_has_stays_its_proof_red(self):
+        head = self.commit({"docs/x.md": "x\n"})
+        self.answers = {("records", False): (1, self.LINE)}
+        v = self.verdict(head)
+        self.assertEqual((v["state"], v["lines"], v.get("barn_red")), ("red", [f"records: {self.LINE}"], None))
+
 
 class Cache(Field):
     def test_a_verdict_is_kept_per_field_and_head(self):
@@ -154,6 +197,20 @@ class Cache(Field):
         self.assertTrue((self.cache.parent / "CACHEDIR.TAG").is_file())
         moved = self.commit({"b.rs": "fixed\n"})
         self.assertEqual(self.verdict(moved)["state"], "green", "a new head is proven again")
+        self.assertEqual(self.calls, ["names", "names"])
+
+    def test_a_red_verdict_is_proven_again_once_the_barn_moved(self):
+        """Plan 0610 E30: a red the barn fixed later gave a needless fix order for 7 days; a green stays kept."""
+        self.names_script()
+        head = self.commit({"b.rs": "b\n"})
+        self.answers["names"] = (1, "b.rs:1: slot - use worktree")
+        self.assertEqual(self.verdict(head)["state"], "red")
+        self.assertEqual(self.verdict(head)["state"], "red", "the barn did not move: the cache answers")
+        self.g("checkout", "-q", "main")
+        self.commit({"c.rs": "c\n"})
+        self.g("checkout", "-q", "06")
+        self.answers["names"] = (0, "ok")
+        self.assertEqual(self.verdict(head)["state"], "green", "the barn moved: proven again")
         self.assertEqual(self.calls, ["names", "names"])
 
     def test_old_verdicts_are_pruned(self):

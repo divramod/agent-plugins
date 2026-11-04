@@ -36,7 +36,7 @@ class Page(Fixture):
 
     def test_the_default_opens_the_page_once(self):
         with mock.patch.object(os, "getcwd", return_value=str(self.main)):
-            lines = self.run_cli("--repo", str(self.main))
+            lines = self.run_cli("--repo", str(self.main), "--html")
         self.assertEqual(len(lines), 1)
         self.browser.assert_called_once_with(Path(lines[0]).resolve().as_uri())
 
@@ -119,6 +119,25 @@ class Page(Fixture):
         self.assertEqual(seen, ["0042-the-answer"])
         self.assertEqual([(q["wt"], q["n"], q["options"]) for q in data["questions"]], [("02", "Q1", ["x", "y"])])
         self.assertNotIn("questions", state.collect(str(self.main)))
+
+    def test_default_prints_the_overview_table_and_opens_nothing(self):
+        with mock.patch("overview_sources.facts", return_value={"repo": "x"}) as facts, mock.patch.object(state.overview, "rows", return_value=[]), \
+                mock.patch.object(state.overview, "save_last") as saved, mock.patch.object(state.overview, "snapshot", return_value={}), \
+                mock.patch.object(state, "served") as served, \
+                mock.patch.object(state.page, "open_page") as opened:
+            lines = self.run_cli("--repo", str(self.main))
+        facts.assert_called_once()
+        saved.assert_called_once()
+        self.assertIn("wt", lines[0])
+        served.assert_not_called()
+        opened.assert_not_called()
+
+    def test_html_flag_writes_the_page(self):
+        with mock.patch.object(state, "served", return_value=None) as served, mock.patch.object(state.page, "open_page") as opened:
+            lines = self.run_cli("--repo", str(self.main), "--html")
+        served.assert_called_once()
+        opened.assert_called_once()
+        self.assertTrue(lines[0].endswith(".html"))
 
     def test_text_and_json_together_are_refused(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):

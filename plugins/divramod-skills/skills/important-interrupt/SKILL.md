@@ -21,21 +21,35 @@ question: the user is waiting for a quiet machine).
 
 ## stop
 
-Tells every live session by code, collects who paused, quiets the machine (`quiet.py apply --runner --yes`: builds
-and tests frozen, simulators, Ollama, timer LaunchAgents, Docker, the CI runner), stops the CI VMs and holds
-hal2-daemon so it cannot start them again, turns the workqueue's quiet mode on (`hal2-cli-workqueue quiet on`, recorded with its undo; a quiet the user set
-before stays; a missing CLI is reported, never fatal), then rescans until the CPU is quiet. Kept: this session, its checkout and
-the user's apps (Teams, Zoom, Chrome, terminals). A landing is never aborted: its processes are frozen in place and
-it is adopted again on continue.
+Tells every live session by code, then quiets the machine in six sources, each measured (seconds taken, CPU idle
+after) and recorded with its undo. Kept: this session, its checkout and the user's apps (Teams, Zoom, Chrome,
+terminals). A landing is never aborted: its processes are frozen in place and adopted again on `done`.
+
+| # | Source | stop | undo in `done` |
+|---|---|---|---|
+| 1 | sessions of every farm (also other farms' farmers, `farmer-*`) | told by code, who paused is collected | "continue" to those it paused; earlier-held ones stay |
+| 2 | hal2-daemon | its pollers held (`hal2-cli-machine quiet hold pollers`: no CI wake, no runner clone, no git status; a hold set before stays), without the CLI SIGSTOP (so it starts no CI VM) | pollers released (or SIGCONT), last |
+| 3 | CI VMs | `tart stop` (clones kept) | none needed (the daemon starts them) |
+| 4 | workqueue holders | `hal2-cli-workqueue freeze all`, SIGSTOP of the `freeze serve` pids, quiet on | CONT, `thaw all`, quiet off (first); a quiet the user set before stays |
+| 5 | host runners of every repo (`~/.local/share/hal2/host-runner/divramod-<repo>-*`) | `hal2-cli-ci runner stop --repo divramod/<repo> --all`, no `--force` | `runner start`, only the runners this stop stopped |
+| 6 | build/quiet pass (`quiet.py`: builds and tests frozen, simulators, Ollama, timer LaunchAgents, Docker) | one scan, every action under a timeout, then rescans until the CPU is quiet | quiet.py's undo, before the daemon |
+
+- Busy runner (D8): never forced; it is refused, reported and retried by the rescans, its job's builds are frozen
+  meanwhile; it does not block "quiet" and is named at the end. Unreadable `runner status` (D10): every runner is
+  stopped by its folders, `done` starts them all, with a printed warning.
+- Missing tool (tart, hal2-cli-ci, hal2-cli-workqueue, nettop, tmutil): reported, never fatal. Every probe runs
+  under a timeout (a timeout is printed, not fatal).
+- Measure: each step prints `-- <step>: <n> in <s>s`; `stats` shows the log's rows, median and max to quiet.
+- Leftover report (report only, nothing is stopped): CPU top, network top, Docker VM, Time Machine, Spotlight, Chrome.
 
 Relay the last lines: the seconds to quiet, the sessions that gave no answer (they wait for approval in their own
-terminal), and what still runs. Exit 4 means the CPU was not quiet in time: say what still runs.
+terminal), what still runs (leftovers, a busy runner). Exit 4 means the CPU was not quiet in time: say what still runs.
 
 ## done
 
-Undoes the stop in reverse (the workqueue's quiet mode off first, so full CPU is back by default; the machine next, hal2-daemon last, then the sessions get "continue"). Sessions that were
-held before the interrupt (an earlier stop-all-agent-work or pause) stay as they were; an earlier stop stays in
-force. Exit 1 with one line when no interrupt is active. Relay its lines: who got the message, who is gone or failed.
+Undoes the stop in reverse (the workqueue first, so full CPU is back by default; the machine next, hal2-daemon's
+pollers (or hal2-daemon) last, then the sessions get "continue"). An earlier stop stays in force. Exit 1 with one line when no interrupt is
+active. Relay its lines: who got the message, who is gone or failed.
 
 Related: [stop-all-agent-work](../stop-all-agent-work/SKILL.md) (asks a safety question, works by hand),
 [continue-all-agent-work](../continue-all-agent-work/SKILL.md) (also undoes an interrupt's record).

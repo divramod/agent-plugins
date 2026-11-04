@@ -4,7 +4,7 @@ and start only into a field that holds no live session.
 
     orphan_start.py --path <field folder> --slot <NN> --main <yard> [--role tollman] -- <the start's argv...>
 
-`boss.orphan` plans its `hal2-cli-git worktree run <NN> ... --prompt "/handoff c"` as a run of this script, so the
+`boss.orphan` plans its `hal2-cli-git worktree run <NN> ... --prompt "/continue"` as a run of this script, so the
 check happens when the round carries the action out, not when the scan was taken (a scan can be minutes old, a loaded
 Mac needed 548 s for it on 2026-10-20). The list is read fresh (`live_sessions.read`, own call) and asked with the
 farmer's one lookup (`live_sessions.live_session`): any live session of the field, a terminal host's included, or a

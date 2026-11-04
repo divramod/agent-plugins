@@ -5,10 +5,14 @@ merge job's next train in `minute.py`, the user's unhitch) returns one `held` li
 the watch (the minute pass, the live land run's events, leavers.check), fix orders and their answers, the
 settling of a landing that landed or ended (never its restart, L107), and a landing that runs: it is never cut
 (merge-queue-policy); engine.py reads the hold again right before a start and before the push (L88). It
-replaces unloading the timer. The hold is `hold.json` (`why`, `at`) in the tollman's state folder; `status` shows
-`held: <why>`.
+replaces unloading the timer. The hold is `hold.json` (`why`, `at`, `by`, `words`) in the tollman's state folder;
+`status` shows `held: <why>`.
 
-  tollman.py hold [--why <text>] [--repo <dir>]     hold the trains
+A hold keeps every hitched wagon out of a train, so it is the user's alone (plan 0610 E21; the record
+hitch-is-forever): `--by user --words "<the user's words>"`, typed by the user or relayed by the farmer as "the user
+decided" (~/.adr/tollman-follows-the-farmer.md). A session's or farmer's own hold, without them, is refused.
+
+  tollman.py hold --by user --words <the user's words> [--why <text>] [--repo <dir>]     hold the trains
   tollman.py unhold [--repo <dir>]                  let them form again (the next round, or `tollman.py chain`)
 """
 
@@ -37,8 +41,20 @@ def of(main: str) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
+USER = "user"  # the only `--by` a hold takes (E21)
+REFUSED = ("no hold: a hold keeps every hitched wagon out of a train, so only the user's own words set one "
+           "(`tollman.py hold --by user --words \"<the user's words>\"`, plan 0610 E21); a session's or farmer's own "
+           "hold is refused")
+
+
 def text(held: dict) -> str:
-    return f"held: {held.get('why') or 'no reason given'} (since {held.get('at')})"
+    words = f"; the user's words: \"{held['words']}\"" if held.get("words") else ""
+    return f"held: {held.get('why') or held.get('words') or 'no reason given'} (since {held.get('at')}{words})"
+
+
+def refusal(by: str, words: str) -> str:
+    """Why a hold by `by` with `words` is refused, or "" (the user's own words)."""
+    return "" if by == USER and words.strip() else REFUSED
 
 
 def line(held: dict) -> dict:
@@ -68,7 +84,10 @@ def stops(top: str) -> int:
 
 
 def add_parser(sub) -> None:
-    sub.add_parser("hold").add_argument("--why", default="")
+    h = sub.add_parser("hold")
+    h.add_argument("--why", default="")
+    h.add_argument("--by", default="", help="who holds: only `user` (plan 0610 E21)")
+    h.add_argument("--words", default="", help="the user's own words for the hold")
     sub.add_parser("unhold")
 
 
@@ -76,7 +95,11 @@ def main(args) -> int:
     main_dir = mtm_scan.main_checkout(args.repo)
     f = path(main_dir)
     if args.cmd == "hold":
-        f.write_text(json.dumps({"why": args.why, "at": train_state.utc()}) + "\n")
+        if why := refusal(args.by, args.words):
+            print(why)
+            return 1
+        doc = {"why": args.why, "at": train_state.utc(), "by": USER, "words": args.words.strip()}
+        f.write_text(json.dumps(doc) + "\n")
         print(text(of(main_dir)))
         return 0
     held = of(main_dir)

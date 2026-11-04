@@ -69,7 +69,8 @@ TEST_PATTERNS = (
     re.compile(r"✘ Test (\w[\w.]*)\(.*?\) failed"),
     re.compile(r"Test Case '-\[\S+ (\w+)\]' failed"),
     re.compile(r"^\s*test ([\w:]+) \.\.\. FAILED", re.M),
-    re.compile(r"FAIL \[\s*[\d.]+s\] (?:\(\d+/\d+\) )?(\S+ [\w:]+)"),
+    # nextest pads its progress counter: `FAIL [ 0.052s] (  935/14017) crate::bin test` (never a test name).
+    re.compile(r"(?:FAIL|TIMEOUT|SIGSEGV|SIGABRT) \[\s*[\d.]+s\] (?:\(\s*\d+/\s*\d+\)\s+)?(\w[\w-]*::\S+ [\w:]+|\w[\w-]* [\w:]+)"),
 )
 LOAD_HINTS = re.compile(r"busy machine|budget|watchdog|took \d|timed out|deadline|Elapsed|< .*limit", re.I)
 
@@ -168,9 +169,9 @@ def nested_hand(path: str, all_paths: list[str]) -> bool:
 
 
 def lead_of(path: str | Path) -> dict | None:
-    """A parallel plan's servant marker (skills plan 0013): <worktree>/plans/LEAD, one line `<foreman-worktree> <plan>
-    <step>`, as {slot, plan, step}; a broken one as {bad: True, error, text} (still marked); None without one. A
-    marked worktree never lands."""
+    """A parallel plan's servant marker (skills plan 0013): <worktree>/plans/LEAD, read by `hal2-cli-plans servant show`
+    (lead_marker.marker), as {slot, plan, step, steps, finished}; one that gives no servant as {bad: True, error} (still
+    marked); None without one. A marked worktree never lands."""
     return lead_marker.marker(path)
 
 
@@ -265,7 +266,7 @@ def no_session(w: dict) -> bool:
 
 
 def orphaned_subservant(w: dict) -> dict:
-    """A marked worktree without a session whose work its foreman's branch lacks: restarted only with /handoff c, never
+    """A marked worktree without a session whose work its foreman's branch lacks: restarted only with /continue, never
     /mtm (boss.orphan); a worktree whose work is all in origin/<foreman> is done (prune removes it), never restarted."""
     return {"kind": "work-without-agent", "slot": w["slot"], "lead": w["lead"],
             "why": f"{subservant(w['lead'])}: {'; '.join(w['missing'])}, no agent session"}
@@ -484,7 +485,7 @@ def entries(path: Path) -> list[dict]:
 
 
 def log(main: str, entry: dict, role: str = roles.ROLE) -> None:
-    entry = {"at": roletime.now(), **{k: "" for k in LOG_FIELDS}, **entry}
+    entry = {"schema": 1, "at": roletime.now(), **{k: "" for k in LOG_FIELDS}, **entry}  # schemas/log.schema.json
     with (state_dir(main, role) / "log.jsonl").open("a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -559,7 +560,9 @@ def local_hhmm(at: str) -> str:
 
 
 def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes: str, lead: str = "",
-                   role: str = roles.ROLE) -> str:
+                   role: str = roles.ROLE, depends: dict | None = None) -> str:
+    """`depends`: the farm's plan graph (`depends_view.read`); given, the Worktrees table gains the columns depends on
+    and dependents (plan 0595 step 9)."""
     at = dt.datetime.fromtimestamp(snap["now"]).strftime("%Y-%m-%d %H:%M")
     head = snap["queue"][0] if snap["queue"] else None
     lines = [f"# {role} {at}", ""]
@@ -585,18 +588,31 @@ def render_summary(snap: dict, actions: list[dict], landings: list[dict], notes:
     lines += ["", "## Actions", ""]
     lines += [f"- {local_hhmm(e['at'])} {e['kind']} {e['slot']}: {e['what']}" + (f" ({e['note']})" if e.get("note") else "")
               for e in ({**{k: "" for k in LOG_FIELDS}, **a} for a in actions)] or ["- none"]
-    lines += ["", "## Worktrees", "", "| worktree | not on main | agent | plan |", "|---|---|---|---|"]
+    deps = depends is not None
+    lines += ["", "## Worktrees", "", "| worktree | not on main | agent | plan |" + (" depends on | dependents |" if deps else ""),
+              "|---|---|---|---|" + ("---|---|" if deps else "")]
     lines += [f"| {w['slot']} | {w['ahead']} | {w.get('agent_state') or '-'} | {w.get('plan') or '-'} |"
-              for w in snap["worktrees"] if w["ahead"] or w.get("plan")]
+              + (depends_cells(depends, w) if deps else "") for w in snap["worktrees"] if w["ahead"] or w.get("plan")]
     return "\n".join(lines) + "\n"
 
 
-def write_summary(main: str, snap: dict, notes: str, lead: str = "", role: str = roles.ROLE) -> Path:
+def depends_cells(graph: dict, w: dict) -> str:
+    """The Worktrees table's last two cells for a worktree's plan: `0514 (38, pushed)` lists, `-` for none."""
+    import depends_view  # lazy: a quiet pass never renders the table (test_light_start)
+    node = depends_view.node_of(graph, w.get("plan"))
+    return "".join(f" {depends_view.cell(node[k]) or '-'} |" for k in ("depends_on", "dependents"))
+
+
+def write_summary(main: str, snap: dict, notes: str, lead: str = "", role: str = roles.ROLE,
+                  depends: dict | None = ...) -> Path:
+    """`depends`: the round's plan graph; left out (...), it is read here (`depends_view.read`)."""
+    import depends_view  # lazy: loaded only when a summary is written (test_light_start)
     d = summary_dir(main, role)
     latest = d / "latest.md"
     since = latest.stat().st_mtime if latest.exists() else snap["now"] - 3600
     landings = [l for l in snap["landings"] if (l.get("started") or landing_start(l["id"]) or 0) >= since]
-    text = render_summary(snap, actions_since(main, since, role), landings, notes, lead, role)
+    text = render_summary(snap, actions_since(main, since, role), landings, notes, lead, role,
+                          depends_view.read(main) if depends is ... else depends)
     stamp = dt.datetime.fromtimestamp(snap["now"])
     day = d / stamp.strftime("%Y-%m-%d")
     day.mkdir(exist_ok=True)

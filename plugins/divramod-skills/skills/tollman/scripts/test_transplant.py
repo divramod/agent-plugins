@@ -9,7 +9,9 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401
 import boss
+import boss_quiet
 import mtm_scan
+import roles
 import tick
 import transplant_mark
 
@@ -27,7 +29,17 @@ def record(src="34", dst="09", state="prepared", ago=5, **kw):
 
 class Orphan(unittest.TestCase):
     def setUp(self):
+        # The fake main "/x/hal2" resolves to the real tollman-hal2 state folder: its skip.json (the farmer's skip list
+        # of every field, set by hand) must never decide these tests (tests-leave-nothing; plan 0595 step 15).
+        patch = mock.patch.object(boss_quiet, "skipped", return_value={})
+        patch.start()
+        self.addCleanup(patch.stop)
         self.tmp = Path(tempfile.mkdtemp())
+        # never the live tollman's state (its skip list made every orphan a skip): a temp state folder, refused live
+        for patch in (mock.patch.object(mtm_scan, "DATA", self.tmp / "state"),
+                      mock.patch.dict(os.environ, {roles.UNDER_TEST: "1"})):
+            patch.start()
+            self.addCleanup(patch.stop)
         (self.tmp / "09").mkdir()
         (self.tmp / "09" / "HANDOFF.md").write_text("x")
         self.finding = {"kind": "work-without-agent", "slot": "09", "why": "no agent"}
@@ -42,7 +54,7 @@ class Orphan(unittest.TestCase):
     def test_without_a_mark_the_rule_acts_as_before(self):
         a = self.planned()
         self.assertEqual([(x["do"], x["kind"]) for x in a], [("run", "orphan")])
-        self.assertEqual(a[0]["text"], "started a session in 09 with /handoff c")
+        self.assertEqual(a[0]["text"], "started a session in 09 with /continue")
         self.assertEqual([x["do"] for x in self.planned([record("34", "11")])], ["run"], "another pair's transplant")
         self.assertEqual([x["do"] for x in self.planned([record(state="arrived", ago=5)])], ["run"], "over")
         self.assertEqual([x["do"] for x in self.planned([record(state="cancelled")])], ["run"], "over")
@@ -64,7 +76,7 @@ class Orphan(unittest.TestCase):
             a = self.planned([old], dict(self.wt, slot=field))
             self.assertEqual([(x["do"], x["kind"], x["slot"]) for x in a],
                              [("record", "transplant-stale", "farmer-hal2")], field)
-            self.assertNotIn("/handoff c", a[0]["text"].replace("`/transplant cancel 34`", ""))
+            self.assertNotIn("/continue", a[0]["text"].replace("`/transplant cancel 34`", ""))
         self.assertEqual(a[0]["key"], f"transplant-stale:34:09:{old['prepared']}")
         self.assertNotIn("pane", a[0], "a board note for the farmer, never typed into its session (plan 0360 step 8)")
         self.assertIn("transplant 34 to 09 is prepared for 61 minutes", a[0]["text"])
@@ -109,7 +121,7 @@ class Orphan(unittest.TestCase):
         os.utime(marker, (old, old))
         self.assertEqual(self.planned(), [], "the marker has no age: protected, nothing reported")
         marker.write_text("0286-transplant-command\n")
-        self.assertEqual(self.planned()[0]["text"], "started a session in 09 with /handoff c")
+        self.assertEqual(self.planned()[0]["text"], "started a session in 09 with /continue")
 
     def test_a_record_without_a_readable_time_is_old_and_reported(self):
         self.assertEqual([x["kind"] for x in self.planned([{"from": "34", "to": "09", "state": "prepared"}])],

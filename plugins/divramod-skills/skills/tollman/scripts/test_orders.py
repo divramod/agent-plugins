@@ -1,5 +1,5 @@
 """Hal2 plan 0360 step 6 (D6, D29): fix orders on engine_farm.py's farm. A red train is never broken up: the tollman
-orders the car's foreman to fix on `<NN>-train-fix` from the carrier's head, the foreman answers `fixed <sha>`, the
+orders the car's foreman to fix on `<NN>-train-<n>-<a>-fix` from the carrier's head (`origin/train-<n>-<a>`, plan 0610 D18), the foreman answers `fixed <sha>`, the
 fix is merged into the carrier and the same cars land again. No real gh, origin is the farm's bare repository."""
 
 import contextlib
@@ -12,6 +12,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import acks
 import fix_proof
 import orders
+import run_names
 import train_state
 import tick
 import wake
@@ -20,8 +21,9 @@ from engine_farm import Farm, out
 from test_farmer import git
 
 RUN = "https://github.com/x/runs/9"
-C = "tollman-train-0294-f09"  # the train's own worktree and branch, the carrier (plan 0375 D5)
-MERGED = f"Merge 07-train-fix into {C} (fix order 07-fix-1)"
+C = "tollman-train"  # the kept carrier worktree, the queue's slot (plan 0610 D18)
+R = "train-1-1"  # the carrier's branch of run 1 of train 1, on origin where every fix starts (plan 0610 D18)
+MERGED = f"Merge 07-train-1-1-fix into {R} (fix order 07-fix-1)"
 
 
 class Red(Farm):
@@ -40,18 +42,23 @@ class Red(Farm):
         self.head = out(self.cw, "rev-parse", "HEAD")
         self.calls_before = len(self.gate.calls)
 
-    def remote(self, branch=C):
+    def order_of(self, field):
+        """The field's last order's branch and the carrier's run it starts from (plan 0610 D18: run_names.py)."""
+        o = [e for e in train_state.lines(str(self.main)) if e["kind"] == "order" and e.get("field") == field][-1]
+        return o["branch"], run_names.base_of(o["branch"])
+
+    def remote(self, branch=R):
         return out(self.main, "ls-remote", "origin", f"refs/heads/{branch}").split("\t")[0]
 
     def fix(self, field, text="fixed", start=None):
         """The foreman's part: the side branch from the carrier's remote head (or `start`), a commit, pushed."""
         path = self.fields[field]
-        git(path, "fetch", "-q", "origin", C)
-        git(path, "switch", "-q", "-C", f"{field}-train-fix", start or f"origin/{C}")
+        git(path, "fetch", "-q", "origin", R)
+        git(path, "switch", "-q", "-C", f"{field}-train-1-1-fix", start or f"origin/{R}")
         (path / f"fix-{field}.txt").write_text(text)  # only the fix: plans/CURRENT_PLAN is gitignored in a real field
         git(path, "add", f"fix-{field}.txt")
         git(path, "commit", "-qm", f"fix {field}")
-        git(path, "push", "-q", "-f", "origin", f"{field}-train-fix")
+        git(path, "push", "-q", "-f", "origin", f"{field}-train-1-1-fix")
         return out(path, "rev-parse", "HEAD")
 
     def green(self, sha, job="rust-test"):
@@ -70,13 +77,15 @@ class Orders(Red):
         self.assertEqual(code, 0, text)
         line = train_state.lines(str(self.main))[-1]
         self.assertEqual((line["kind"], line["field"], line["branch"], line["base"], line["run"], line["id"]),
-                         ("order", "07", "07-train-fix", self.head, RUN, "07-fix-1"))
+                         ("order", "07", "07-train-1-1-fix", self.head, RUN, "07-fix-1"))
         self.assertEqual(self.remote(), self.head, "the foreman branches from the carrier's remote head")
         self.assertEqual((self.train()["state"], [o["field"] for o in self.train()["orders"]]), ("fixing", ["07"]))
         ((pane, msg),) = self.typed
         self.assertEqual(pane, "%7")
         self.assertTrue(msg.startswith("tollman [07-"), msg)
-        for part in (f"git fetch origin {C}; git switch -C 07-train-fix origin/{C}", "git push origin 07-train-fix",
+        for part in (f"git fetch origin {R}; git -C ", f"/07-fix checkout -B 07-train-1-1-fix origin/{R} || "
+                     "git worktree add -B 07-train-1-1-fix ", f"/07-fix origin/{R}`", "never your field's own checkout",
+                     "git push origin 07-train-1-1-fix",
                      "fixed <sha>", self.head[:12], "its test fails", "fix order 07-fix-1", "never landed on its own",
                      "Reply `ack 07-"):
             self.assertIn(part, msg)
@@ -87,11 +96,11 @@ class Orders(Red):
     def test_the_carrier_s_remote_is_never_moved_back(self):
         git(self.cw, "commit", "-q", "--allow-empty", "-m", "later")
         ahead = out(self.cw, "rev-parse", "HEAD")
-        git(self.cw, "push", "-q", "origin", f"HEAD:refs/heads/{C}")
-        self.assertEqual(orders.publish(str(self.cw), self.head), "")
+        git(self.cw, "push", "-q", "origin", f"HEAD:refs/heads/{R}")
+        self.assertEqual(orders.publish(str(self.cw), self.head, R), "")
         self.assertEqual(self.remote(), ahead, "the remote holds the base already: left as it is")
-        git(self.cw, "push", "-q", "-f", "origin", f"{self.head}^:refs/heads/{C}")  # behind: fast-forwarded
-        self.assertIn("pushed", orders.publish(str(self.cw), self.head))
+        git(self.cw, "push", "-q", "-f", "origin", f"{self.head}^:refs/heads/{R}")  # behind: fast-forwarded
+        self.assertIn("pushed", orders.publish(str(self.cw), self.head, R))
         self.assertEqual(self.remote(), self.head)
 
     def test_a_good_fix_is_merged_and_the_same_cars_land_again_never_broken_up(self):
@@ -124,7 +133,7 @@ class Orders(Red):
         git(self.fields["07"], "commit", "-q", "--allow-empty", "-m", "unpushed")
         code, text = self.call("fixed", "07", out(self.fields["07"], "rev-parse", "HEAD"))
         self.assertEqual(code, 1, text)
-        self.assertIn("is not on origin/07-train-fix", text)
+        self.assertIn("is not on origin/07-train-1-1-fix", text)
         self.assertEqual(self.call("fixed", "07", local, "--proof", self.green(local))[0], 0)
 
     def test_two_orders_restart_the_train_only_after_both_are_fixed(self):
@@ -141,7 +150,7 @@ class Orders(Red):
         self.round()
         self.assertEqual((self.last, len(self.spawned)), ([("restart", "run", "-")], 2))
         self.assertEqual(out(self.cw, "log", "-2", "--first-parent", "--format=%s").splitlines(),
-                         [f"Merge 09-train-fix into {C} (fix order 09-fix-1)",
+                         [f"Merge 09-train-1-1-fix into {R} (fix order 09-fix-1)",
                           MERGED])
         self.broken_up_never()
 
@@ -163,18 +172,19 @@ class Orders(Red):
         code, text = self.call("order", "main", "--why", "the barn is red: linux / rust-test")
         self.assertEqual(code, 0, text)
         line = train_state.lines(str(self.main))[-1]
-        self.assertEqual((line["field"], line["branch"]), ("main", "tollman-train-fix"))
+        self.assertEqual((line["field"], line["branch"]), ("main", "tollman-train-1-1-fix"))
         self.assertEqual(self.typed, [])
         items = wake.read(str(self.main), tollman.WIRING)["items"]
         self.assertEqual([i["kind"] for i in items][-1], "fix-order-main")
-        self.assertIn("tollman-train-fix", items[-1]["text"])
-        git(self.cw, "branch", "-q", "tollman-train-fix", self.head)
-        git(self.cw, "switch", "-q", "tollman-train-fix")
+        self.assertIn(f"tollman-fix` on `tollman-train-1-1-fix` from {self.head[:12]}", items[-1]["text"])
+        self.assertIn(f"the carrier `{R}` is never switched", items[-1]["text"])
+        git(self.cw, "branch", "-q", "tollman-train-1-1-fix", self.head)
+        git(self.cw, "switch", "-q", "tollman-train-1-1-fix")
         (self.cw / "barn-fix.txt").write_text("fixed")
         git(self.cw, "add", "barn-fix.txt")
         git(self.cw, "commit", "-qm", "the barn's fix")
         sha = out(self.cw, "rev-parse", "HEAD")
-        git(self.cw, "switch", "-q", C)
+        git(self.cw, "switch", "-q", R)
         self.assertEqual(self.call("fixed", "main", sha, "--proof", self.green(sha))[0], 0,
                          "the tollman's own side branch, local")
         self.assertEqual(self.train()["state"], "retry")
@@ -196,7 +206,7 @@ class Orders(Red):
         self.assertEqual(code, 0, text)
         rows = train_state.lines(str(self.main))
         line = [r for r in rows if r["kind"] == "order"][-1]
-        self.assertEqual((line["field"], line["branch"], line["id"]), ("03", "03-train-fix", "03-fix-1"))
+        self.assertEqual((line["field"], line["branch"], line["id"]), ("03", "03-train-1-1-fix", "03-fix-1"))
         self.assertEqual(self.train()["state"], "fixing")
         # plan 0522 D21: 03 has no session, so the order first starts its foreman (faked by the farm) and says so
         self.assertEqual(self.started, [["hal2-cli-git", "worktree", "run", "03", "--agent", "claude", "--detach"]])
@@ -205,7 +215,7 @@ class Orders(Red):
 
 class Proof(Red):
     """Plan 0522 D5: a `fixed <sha>` counts only proven green: a light job (python-lint here) run by the tollman on the
-    sha (its pretest faked: `self.proof`), a heavy one (rust-test) by the gate's green line in the answer."""
+    sha (its pretest faked: `self.proof`), a heavy one (rust-test) by a green line in the answer (the gate's or the red check's, plan 0610 D6)."""
 
     def setUp(self):
         super().setUp()
@@ -241,7 +251,7 @@ class Proof(Red):
     def test_a_heavy_job_s_answer_without_its_green_line_is_refused_with_it_taken(self):
         self.call("order", "07", "--why", "its test fails")
         self.assertEqual(train_state.lines(str(self.main))[-1]["jobs"], ["rust-test"], "named by the train's red")
-        self.assertIn("For rust-test add the line the gate prints", self.typed[0][1])
+        self.assertIn("For rust-test add the red check's own green", self.typed[0][1])  # plan 0610 D6
         sha = self.fix("07")
         self.ack(sha)
         self.round()

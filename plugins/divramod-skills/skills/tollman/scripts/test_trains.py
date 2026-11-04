@@ -60,6 +60,10 @@ class Crops(unittest.TestCase):
         green = mock.patch.object(trains, "PROVE", lambda *a: {"state": "green", "lines": []})  # Proof: the real one
         green.start()
         self.addCleanup(green.stop)
+        free = mock.patch.object(trains.train_depends, "read", lambda main: {"plans": [], "line": None})  # see
+        # test_train_depends.py: no farm here, never the installed hal2-cli-plans
+        free.start()
+        self.addCleanup(free.stop)
         git_seed.guard(self)
         git_seed.grow(self.d, "test_trains.Crops", self.grow)
 
@@ -148,7 +152,7 @@ class Draft(Crops):
         self.assertEqual((self.cars(d), d["alone"], d["waiting"], d["unhitched"]),
                          ([f"{n:02d}" for n in range(1, 15)], False, [], []))
 
-    def test_what_cannot_ride_is_unhitched_at_once(self):
+    def test_what_cannot_ride_waits_hitched_never_unhitched(self):
         q = self.queue(**{"31": {"servant.rs": "s\n"}, "07": {"seven.rs": "7\n"}, "05": {"gone.rs": "g\n"}})
         q[2]["worktree"] = str(Path(self.d) / "no-such-field")
         q[0]["worktree"] = self.servant_field()  # D16: a servant's field is the one holding plans/LEAD, not field 31
@@ -156,10 +160,12 @@ class Draft(Crops):
         own = ticket("tollman-hal2", 4, q[1]["ready"]["head"], self.d)
         other = ticket("06", 5, q[1]["ready"]["head"], self.d, rides_with="08")
         d = self.draft([*q, landed, own, other])
-        self.assertEqual(self.cars(d), ["07"], "the own field and a car of another carrier are not ours")
-        self.assertEqual([(u["field"], u["tell"], u["why"]) for u in d["unhitched"]],
-                         [("31", "servant", "a servant's field (plans/LEAD) never rides"),
-                          ("05", None, "its worktree is gone"), ("04", None, "its head is in the barn already")])
+        self.assertEqual(self.cars(d), ["07", "05"], "the own field and a car of another carrier are not ours")
+        self.assertEqual(d["unhitched"], [], "the user, 2026-11-04: a hitched car never leaves the queue")
+        self.assertEqual(d["waiting"], [
+            {"field": "31", "why": "a servant's field (plans/LEAD) never rides; it stays hitched", "reason": "servant"},
+            {"field": "04", "why": "its head is in the barn already; it stays hitched", "reason": "barn"},
+            {"field": "06", "why": "own landing: it rides with 08", "reason": "own-landing"}])  # plan 0610 E14
 
     def test_a_wagon_that_conflicts_rides_with_its_files_and_is_never_unhitched(self):
         # Plan 0522 D18 (the user, 2026-10-31): "every hitched wagon should go into the next train".
@@ -181,19 +187,27 @@ class Draft(Crops):
         self.assertEqual((nine["field"], nine["ahead"], nine["conflict"]), ("09", [], ["a.rs"]))
 
     def test_the_alone_rule(self):
-        # D12: only a car changing what starts the landing's run rides alone, the only car of its train.
-        why = "rides alone in the next train: it changes what starts the landing's run (.github/workflows/merge-to-main.yml: " \
-              "on, name or run-name)"
+        # D12: only a car changing what starts the landing's run rides alone, the only car of its train; plan 0610 D9,
+        # D15: it holds nobody: the others form now, it rides alone in the train right after them.
+        run = "it changes what starts the landing's run (.github/workflows/merge-to-main.yml: on, name or run-name)"
         q = self.queue(**{"07": {".github/workflows/merge-to-main.yml": "on: pull_request\n"}, "09": {"nine.rs": "9\n"},
                           "11": {"eleven.rs": "11\n"}})
-        first = self.draft(q)
-        self.assertEqual((self.cars(first), first["alone"]), (["07"], True))
-        self.assertEqual(first["waiting"], [{"field": f, "why": "rides in the next train, after 07, which rides alone"}
-                                            for f in ("09", "11")])
-        self.assertEqual(trains.train_actions("/f", first, {})[-1]["text"], "wagon train: 07 (alone)")
-        later = self.draft([dict(q[1], position=0), dict(q[0], position=1), q[2]])
-        self.assertEqual((self.cars(later), later["alone"], later["unhitched"]), (["09", "11"], False, []))
-        self.assertEqual(later["waiting"], [{"field": "07", "why": why}])
+        for order in (q, [dict(q[1], position=0), dict(q[0], position=1), q[2]]):
+            d = self.draft(order)
+            self.assertEqual((self.cars(d), d["alone"], d["unhitched"]), (["09", "11"], False, []))
+            self.assertEqual(d["waiting"], [{"field": "07", "why": f"rides alone in its own train, right after this "
+                                                                  f"one: {run}", "reason": "alone"}])
+            self.assertEqual(d["alone_next"], ["07"], "the formed line owes 07 the next train")
+            self.assertEqual(trains.train_actions("/f", d, {})[-1]["argv"][-4:], ["--alone-next", "07", "--repo", "/f"])
+        alone = self.draft([q[0]])
+        self.assertEqual((self.cars(alone), alone["alone"], alone["waiting"]), (["07"], True, []))
+        self.assertEqual(trains.train_actions("/f", alone, {})[-1]["text"], "wagon train: 07 (alone)")
+        owed = trains.draft(self.d, q, "tollman-hal2", "main", "main", first=["07"])  # D15: its own train, next
+        self.assertEqual((self.cars(owed), owed["alone"], owed["alone_next"], [w["field"] for w in owed["waiting"]]),
+                         (["07"], True, [], ["09", "11"]))
+        self.assertEqual(trains.owed([{"kind": "formed", "alone_next": ["07"]}, {"kind": "started"}]), ["07"])
+        self.assertEqual(trains.owed([{"kind": "formed", "alone_next": ["07"]}, {"kind": "formed"}]), [])
+        self.assertEqual(trains.train_actions("/f", owed, {})[-1]["window"], 0, "no hour's wait on a form (E25)")
 
     def test_what_starts_the_landing_s_run(self):
         self.g("checkout", "-q", "main")
@@ -282,22 +296,19 @@ class Proof(Crops):
         self.g("checkout", "-q", "main")
         self.write("main", files, new=False)  # the barn's names check, as the field has it
 
-    def test_06s_car_with_an_old_word_in_a_prose_line_is_unhitched_with_the_finding(self):
+    def test_06s_car_with_an_old_word_in_a_prose_line_rides_with_its_finding(self):
         # 2026-10-14 08:17: 06's car at d192125ca rode with "the slot's pane" in plan 0255's uat.md, and train
-        # 38534070998 was red in python-lint's names check; one car's line cost the whole train's run.
+        # 38534070998 was red in python-lint's names check. Until 2026-11-04 such a car was unhitched; the user: "take
+        # all finished ones into the train": it rides with `proof_red` and gets its fix order in the train.
         uat = f"plans/{self.PLAN}/uat.md"
         (q,) = self.queue(**{"06": {uat: "# UATs\n\nExpected: 1 shows the slot's pane (or a window in session "
                                          "`hosts`), no popup.\n"}})
         d = self.draft([q])
-        self.assertEqual(self.cars(d), [], "the car does not ride")
-        (u,) = d["unhitched"]
-        self.assertEqual((u["field"], u["tell"]), ("06", "proof"))
-        self.assertEqual(u["lines"], [f"names: {uat}:3: slot — use worktree"])
-        (unhitch, told) = trains.train_actions("/f", d, {"06": "%6"})
-        self.assertEqual((unhitch["kind"], told["kind"], told["pane"]), ("unhitch", "unhitched", "%6"))
-        self.assertIn(f"{uat}:3: slot — use worktree", told["text"])
-        self.assertTrue(told["text"].endswith("Fix it, push and report it ready again (`hal2-cli-git worktree "
-                                              "queue ready`)."), told["text"])
+        self.assertEqual((self.cars(d), d["unhitched"]), (["06"], []), "the hitched wagon rides")
+        self.assertEqual(d["cars"][0]["proof_red"], [f"names: {uat}:3: slot — use worktree"])
+        (form,) = trains.train_actions("/f", d, {"06": "%6"})
+        self.assertEqual((form["kind"], form["argv"][2]), ("form", "form"), "no unhitch, no tell")
+        self.assertIn("06 with red light checks to fix", form["text"])
 
     def test_a_car_not_at_its_hitched_head_is_proven_on_its_hitched_sha(self):
         # plan 0490 row 23, D24: a field that committed on after its hitch rides, proven on the hitched sha in the
@@ -307,13 +318,13 @@ class Proof(Crops):
         self.assertEqual((self.cars(d), d["unhitched"], d["waiting"]), (["07", "09"], [], []))
         self.assertEqual(self.g("rev-parse", "HEAD"), q[1]["ready"]["head"], "the field's checkout is never changed")
 
-    def test_a_moved_on_car_whose_hitched_sha_has_a_finding_is_unhitched(self):
+    def test_a_moved_on_car_whose_hitched_sha_has_a_finding_rides_with_it(self):
         notes = f"plans/{self.PLAN}/notes.md"  # an open plan: its prose is checked
         q = self.queue(**{"07": {notes: "the slot's pane\n"}, "09": {"nine.rs": "9\n"}})
         d = self.draft(q)  # the checkout is at 09's head: the finding is on 07's hitched sha only
-        self.assertEqual(self.cars(d), ["09"])
-        (u,) = d["unhitched"]
-        self.assertEqual((u["field"], u["tell"], u["lines"]), ("07", "proof", [f"names: {notes}:1: slot — use worktree"]))
+        self.assertEqual((self.cars(d), d["unhitched"]), (["07", "09"], []))
+        self.assertEqual(d["cars"][0]["proof_red"], [f"names: {notes}:1: slot — use worktree"])
+        self.assertNotIn("proof_red", d["cars"][1])
 
 
 TRAIN = {"train": "07+09@" + AT, "carrier": "tollman-hal2", "base": "b" * 40, "state": "landing", "starts": 1,
@@ -448,7 +459,7 @@ class Plan(unittest.TestCase):
                            dict(self.line("unhitched", why="its test fails", by="user"), slot="09")])
         self.assertEqual(shape(split), [("breakup", "run", "-"), ("unhitched", "send", "09")])
         self.assertEqual(split[0]["argv"][2:5], ["breakup", "--why", "split after red by the user"])
-        self.assertIn("field 09 is unhitched from the red train by the user: its test fails.", split[1]["text"])
+        self.assertIn("field 09 is out of the red train by the user's own command: its test fails.", split[1]["text"])
 
     def test_a_leftover_mark_is_broken_up(self):
         mark = {"carrier": "tollman-hal2", "cars": [{"field": "05"}], "at": AT}
@@ -493,6 +504,7 @@ class Frozen(unittest.TestCase):
         out = self.plan([self.FORMED], [later])
         self.assertEqual((shape(out), out[0]["argv"][2], out[0]["key"]),
                          ([("restart", "run", "-")], "restart", f"resume:{TRAIN['train']}"), "the same cars")
+        self.assertEqual(out[0]["window"], trains.RESUME_WINDOW, "a failed restart is tried again soon, never after a week")
 
     def test_a_mark_naming_other_cars_breaks_no_train_up(self):
         rows = [self.FORMED, self.STARTED]
@@ -607,7 +619,7 @@ class State(unittest.TestCase):
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
         kinds = ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push",
                  "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared",
-                 "woke"]
+                 "woke", "roles", "alone"]  # the role cars and an owed alone car (plan 0610 D18, D15)
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)), kinds)
         schema = json.loads((Path(__file__).resolve().parent.parent / "schemas/train.schema.json").read_text())
         self.assertEqual(schema["properties"]["kind"]["enum"], kinds, "the schema names every kind train_state writes")

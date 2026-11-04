@@ -32,10 +32,12 @@ class Draft(test_trains.Crops):
         self.assertIsNone(trains.held_for(tickets, "tollman-hal2"), "no place that waits for its field")
         d = self.draft(tickets)
         self.assertEqual((self.cars(d), d["waiting"], d["unhitched"]), (["07", "09"], [], []))
-        # A ready mark it still bore would make it no wagon: its own landing ended, a run of its may still land it.
+        # A ready mark it still bore makes it no car: its own landing ended, a run of its may still land it. It is
+        # listed as waiting in its own landing (plan 0610 E14), hitched, never unhitched.
         marked = dict(front, ready={"at": AT, "head": q[0]["ready"]["head"], "by": "hal2/05"})
         d = self.draft([marked] + tickets[1:])
-        self.assertEqual((self.cars(d), d["waiting"], d["unhitched"]), (["07", "09"], [], []))
+        self.assertEqual((self.cars(d), [(w["field"], w["reason"]) for w in d["waiting"]], d["unhitched"]),
+                         (["07", "09"], [("05", "own-landing")], []))
 
 
 class Carrier(unittest.TestCase):

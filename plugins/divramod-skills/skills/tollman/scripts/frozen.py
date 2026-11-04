@@ -1,15 +1,17 @@
-"""A train is frozen at forming (hal2 plan 0360 D3, D7): before forming wagons still drop out (trains.draft: a
-servant's field, a gone worktree, a head in the barn, a conflict, red light checks, the alone rule); from its
-`formed` line on nothing leaves the train, and no wait limit ends it: a red train waits until it is fixed. A later
-hitch only joins: while its landing waits for the run before, a clean, proven wagon is added (open_train.join, plan
-0490 step 20, the one place a car comes in after forming); from the push on it waits for the next train. Only the
-user's own command (`--by-user`) breaks a formed train up or takes a car out of it; the session never passes it. The
-one undo left is `engine.form`'s own (and open_train.join's of its own car): a car that does not merge there, or a
-mark the queue refuses, undoes that same call's forming, before the train ever was in the queue.
+"""A train is frozen at forming (hal2 plan 0360 D3, D7): before forming a wagon waits only under a user-named
+exception (trains_draft.EXCEPTIONS: a servant's field, a head in the barn, a smuggle entry, the sleep flag, a reserved
+place, the user's hold); a conflict and red light checks ride; from its `formed` line on nothing leaves the train, and
+no wait limit ends it: a red train waits until it is fixed. A later hitch joins the standing train until its push
+starts, in every state before it (formed, resolving, red, fixing, retry, its landing before the push), with its
+resolve or fix order when it has a conflict or red light checks (open_train.py, train_join.py; plan 0490 step 20,
+plan 0610 D17); from the push on it rides the next train. Only the user's own command (`--by-user`, typed by the user
+or relayed by the farmer as "the user decided") breaks a formed train up or takes a car out of it; the session never
+passes it on its own judgment. Nothing undoes a forming or a join (plan 0610 E6, E25): a car that does not merge
+waits `resolving` with its resolve order (resolve_train.py), a failed regenerate or a refused mark leaves the train
+standing for its next start, which marks it and merges the cars the carrier lacks (engine.restart).
 
-`merge_car` is the merge of one car into the carrier (`form`'s, open_train.join's, and `complete`'s for a train whose
-form died between its lines); `complete` merges the cars the carrier lacks, so `restart` lands the same train, never
-a new draft.
+`merge_car` is the merge of one car into the carrier (`form`'s by resolve_train.merge_rest, open_train.join's);
+`lacking` names the cars the carrier lacks (engine.restart, open_train.stops).
 """
 
 from pathlib import Path
@@ -18,7 +20,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import generated
 import origin
 import lead_marker
-from carrier import Done, git
+from carrier import git
 
 CURRENT = "CURRENT_PLAN"  # the pointer's name: the git dir's, else plans/ (hal2 plan 0409 step 12)
 POINTERS = lead_marker.pointers
@@ -50,28 +52,12 @@ def merge_car(top: str, branch: str, car: dict) -> tuple[int, str, list[str]]:
     return (0 if got else code), out, got
 
 
+def lacking(top: str, train: dict) -> list[str]:
+    """The cars of the standing train the carrier `top` lacks (a form that died, a join recorded outside a landing:
+    engine.restart merges them first, plan 0610 D17)."""
+    return [c["field"] for c in train["cars"] if git(top, "merge-base", "--is-ancestor", c["head"], "HEAD")[0]]
+
+
 def write_current(top: str, cars: list[dict], yard: bool) -> None:
     """The CURRENT_PLAN pointer: `yard` and the cars' plan names joined by ` + ` (the land run's title)."""
     POINTERS.write(top, CURRENT, " + ".join(["yard"] * yard + [c.get("plan") or c["field"] for c in cars]))
-
-
-def complete(top: str, train: dict) -> Done:
-    """The cars of a formed train its carrier lacks, merged in order (a form that died between its lines): the train
-    stays the same, a car that does not merge leaves it standing and the restart fails (the tick wakes the session)."""
-    branch = git(top, "branch", "--show-current")[1] or Path(top).name
-    merged = []
-    for car in train["cars"]:
-        if git(top, "merge-base", "--is-ancestor", car["head"], "HEAD")[0] == 0:
-            continue
-        code, out, taken = merge_car(top, branch, car)
-        if code:
-            git(top, "merge", "--abort")
-            return 1, f"car {car['field']} of train {train['train']} did not merge: {out[-300:]}; the train stands (D3)"
-        if taken:
-            code, text, _, _ = generated.regenerate(top, sorted(set(taken)), [c["field"] for c in train["cars"]])
-            if code:
-                return 1, f"{text}; the train stands (D3)"
-        merged.append(car["field"])
-    if merged or not POINTERS.exists(top, CURRENT):
-        write_current(top, train["cars"], bool(train.get("yard")))
-    return 0, f"merged the missing cars {', '.join(merged)}" if merged else ""

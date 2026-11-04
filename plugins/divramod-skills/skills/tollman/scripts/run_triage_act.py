@@ -66,7 +66,8 @@ def order(top: str, field: str, reds: list[dict], train: dict, url: str, key: st
     if not standing:
         return send
     argv = [sys.executable, str(CLI), "order", field, "--post", train["train"], "--why", words.why(reds), "--run", url,
-            "--repo", top]
+            "--repo", top, *[x for r in reds if (r.get("evidence") or {}).get("unit")
+                             for x in ("--unit", r["evidence"]["unit"])]]
     return act("trains", "triage-order", "run", field, key=key, argv=argv, on_fail=[send],
                text=f"train {train['train']}: fix order to {field} for {words.names(reds)} of run {url.rsplit('/', 1)[-1]}"
                     f" (the fix rides train {standing['train']})")

@@ -217,7 +217,7 @@ class Work(unittest.TestCase):
         w = wt("31", state=None, lead=LEAD, path=str(self.tmp / "31"), missing=["HEAD: 1 commit(s) not in origin/02"])
         planned = boss.plan(snap([f], [], [w]), {"now": NOW, "log": [], "main": "/x/hal2"})
         self.assertEqual([(a["do"], a["kind"]) for a in planned], [("run", "orphan")])
-        self.assertEqual(planned[0]["argv"][-2:], ["--prompt", "/handoff c"])
+        self.assertEqual(planned[0]["argv"][-2:], ["--prompt", "/continue"])
         bare = boss.plan(snap([f], [], [dict(w, path="/nowhere")]), {"now": NOW, "log": [], "main": "/x/hal2"})
         self.assertEqual([(a["do"], a["kind"]) for a in bare], [("wake", "orphan")])
         self.assertNotIn("/merge-to-main", json.dumps(planned + bare))
@@ -230,7 +230,7 @@ class Work(unittest.TestCase):
         f = {"kind": "work-without-agent", "slot": "31", "why": "", "lead": LEAD}
         merged = wt("31", state=None, lead=LEAD, path=str(self.tmp / "31"), missing=[], ahead=5)
         self.assertEqual(plan(snap([f], [], [merged])), [])
-        bad = {"bad": True, "text": "x", "error": "plans/LEAD is not `<lead-slot> <plan> <step>`: 'x'"}
+        bad = {"bad": True, "error": "plans/LEAD names no servant: x"}
         broken = dict(merged, lead=bad, missing=[bad["error"], "HEAD: 5 commit(s) not in origin/main"])
         self.assertEqual(plan(snap([dict(f, lead=bad)], [], [broken])), [("wake", "orphan", "31")])
 

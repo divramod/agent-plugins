@@ -43,10 +43,13 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
                                                            gets one written into it. Without --spec, `new` stops
                                                            while CURRENT_PLAN names a spec not planned yet, unless
                                                            --no-spec
-  plan.py current                                          print the current plan as JSON (`spec`: the spec.md in its
+  plan.py current [--plan <slug>]                          print the current plan as JSON (`spec`: the spec.md in its
                                                            folder or "", `designs`: its accepted design versions,
                                                            `spec_review`: the round of a spec change not reviewed yet,
-                                                           0 without; `check` reports it, rule `plan-spec-review`)
+                                                           0 without; `check` reports it, rule `plan-spec-review`;
+                                                           `gaps`, `manual`: the open count, the total and the
+                                                           items (n, title, state, route | from, waits) of the plan's
+                                                           gaps/ and manual/ folders, items_view.py)
   plan.py list                                             print every plan as JSON
   plan.py use <slug-or-number> [--here]                    make a plan current; refused while the field is occupied
                                                            (a started plan is current), --here only on the user's word
@@ -99,6 +102,10 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
                                                            not done whose `## Brief` has Out or Proof as the
                                                            template's placeholder, or whose Context keeps the
                                                            placeholder `- Seed:` line (`current`'s `brief` shows it)
+                                                           then the CURRENT_PLAN plan's undeclared waits on other
+                                                           plans (dcheck.py: `hal2-cli-plans depends check --json`),
+                                                           each a problem ending in `(plan-dependencies)`; skipped
+                                                           by a CLI without the command
                                                            then each record plan's questions.md (qcheck.py:
                                                            `hal2-cli-plans questions check --json`, $HAL2_CLI_PLANS,
                                                            else on PATH): an open question of the agent without
@@ -163,6 +170,11 @@ file, `prompt` and `uat` refuse and name the row's plan; `ready`, `assign` and `
 A plan of a masterplan that turns done ticks its row there (`status`, also with --plan; `tick` in the JSON), and the
 tick is taken back when a step reopens (masterplan_keep.py); `tick_skipped` says why a row was not held (the
 masterplan's folder is not in this checkout, no row links the plan, a row's cells are not its header's).
+  plan.py end [--dry-run] [--json]                         the plan's end (land: ready): push (state pushing),
+                                                           hitch (hitched) or name /mtm (done); plan_end.py
+  plan.py milestone --after <id> [--title <what lands>]    insert the row `Milestone <n>: <what lands>` below step <id>
+                                                           (next free id, n one above the milestones above it; ids and
+                                                           numbers are never renumbered); prints the plan and `milestone`
   plan.py leave [--release]                                after a bring in (status uat/done = finished; PREVIOUS_PLAN
                                                            restored when unfinished): the CURRENT_PLAN pointer names the finished
                                                            plan's unfinished masterplan, else it is deleted (also
@@ -177,7 +189,10 @@ The JSON's `landing` is the plan's `Landing:` line (auto|manual; none for a glob
 `after_landing` says its done-when starts with "after the landing" (or the older "after the user's `/mtm`"), `next`
 is the first open step to run before the landing (an after-landing step only when no other is open), `land` is
 `ready` when no open step must run before the landing (`wait` otherwise; `manual`, `none` from `landing`), and
-`problems` lists after-landing steps followed by steps that are not. `masterplan` is true for a masterplan (`crop`:
+`problems` lists after-landing steps followed by steps that are not (and hal2-plans' milestone rule problems). `hitch` is
+hal2-plans' hitch kind (`hal2-cli-plans show --json`, `progress.hitch`: complete, milestone n/m, partial; null without
+the CLI, then `hitch_note` says why). A step's `milestone` is n of a `Milestone <n>` row, `after_milestone` n of a done-when
+starting `after milestone <n>`. `masterplan` is true for a masterplan (`crop`:
 its crop), `parent` the number of the plan the front matter names and `row` that masterplan's row for this plan.
 """
 import argparse
@@ -198,22 +213,31 @@ import checker
 import context
 import envelope
 import folder
+import lessons
+import hitch
 import masterplan
+import milestone
 import masterplan_keep
 import masterplan_view
 import names
+import overlap
 import neutral_commit
 import parallel
+import plan_end
+import plan_rules
 import plan_number
 import planhome
 import pointers
 import prompt as step_prompt
+import dcheck
 import qcheck
+import runstate
 import seed
 import session
 import shape
 import shape_check
 import shape_cli
+import items_view
 import shape_cmds
 import shape_lead
 import shape_names
@@ -447,6 +471,8 @@ def read_steps(text: str) -> list[dict]:
         steps.append(step)
     for step in steps:
         step["after_landing"] = step["done_when"].lower().lstrip("*_ ").startswith(AFTER_LANDING)
+        step["milestone"] = milestone.number(step["step"])
+        step["after_milestone"] = milestone.after(step["done_when"])
     return steps
 
 
@@ -522,6 +548,8 @@ def describe(root: Path, path: Path) -> dict:
                  "ready": ready}
     if not GLOBAL and (marker := parallel.read_marker(root)):
         extra["lead"] = marker
+    hitch_kind, hitch_problems, hitch_note = hitch.of(root, slug_of(path)) if steps and open_steps and not GLOBAL and WITH_HITCH \
+        else (None, [], "")
     return {
         "slug": slug_of(path),
         "path": rel(path, root),
@@ -547,10 +575,17 @@ def describe(root: Path, path: Path) -> dict:
         "landing": landing,
         "land": land,
         "problems": problems_of(steps) + (parallel.problems(steps) if extra.get("parallel") else [])
-                    + steps_problems(text, rel(path, root)),
+                    + steps_problems(text, rel(path, root)) + hitch_problems,
+        "hitch": hitch_kind,
+        **({"hitch_note": hitch_note} if hitch_note else {}),
         "steps": steps,
         **extra,
     }
+
+
+def current_view(root: Path, path: Path) -> dict:
+    """`current`'s JSON: describe(), the spec and its designs, and the plan's gaps and manual items (items_view.py)."""
+    return {**describe(root, path), **spec_link.fields(root, path), **items_view.fields(root, path)}
 
 
 def brief_problems(text: str, label: str) -> list[str]:
@@ -682,6 +717,19 @@ def set_cells(path: Path, step: str, values: dict[str, str]) -> dict | None:
             path.write_text("".join(lines))
             return stamp_finished(path)
     raise PlanError(f"no step '{step}' in {slug_of(path)}")
+
+
+def add_milestone(root: Path, path: Path, after: str, title: str) -> dict:
+    """`plan.py milestone`: the row below step `after`; the plan's description plus `milestone` (its id and number)."""
+    if masterplan.of(path):
+        raise PlanError("a masterplan's rows are plans: declare the milestone in the plan that lands in parts")
+    lines = path.read_text().split("\n")
+    try:
+        out, new_id, n = milestone.insert(lines, after, title)
+    except milestone.MilestoneError as error:
+        raise PlanError(str(error)) from None
+    path.write_text("\n".join(out))
+    return {**describe(root, path), "milestone": {"step": new_id, "n": n}}
 
 
 def feature_of(title: str) -> str:
@@ -834,8 +882,24 @@ def main(argv: list[str]) -> int:
                        help="a plan of masterplan N: its `parent`, its Context line and the masterplan's draft row")
     p_new.add_argument("--autogenerated", default="", metavar="BY",
                        help="write `Autogenerated: <BY>, <date>`: a plan a watcher (e.g. sanity-watch) made")
-    sub.add_parser("current")
+    p_current = sub.add_parser("current")
+    p_current.add_argument("--plan", help="another plan than CURRENT_PLAN's (a number, a slug)")
     sub.add_parser("list")
+    p_state = sub.add_parser("state", help="the plan's run state (working, pushing, waiting, blocked, done, hitched, "
+                                           "landed): no value prints it, a value sets it (runstate.py)")
+    p_state.add_argument("value", nargs="?", choices=runstate.STATES)
+    p_state.add_argument("--why", help="what a `waiting` or `blocked` plan waits for or misses (required for those)")
+    p_state.add_argument("--json", action="store_true")
+    p_end = sub.add_parser("end", help="the plan's end: push (state pushing), then hitch for the tollman (hitched) "
+                                       "or name /mtm (plan_end.py)")
+    p_end.add_argument("--dry-run", action="store_true", help="print what it would do, change nothing")
+    p_end.add_argument("--json", action="store_true")
+    p_lesson = sub.add_parser("lesson", help="the lessons of past runs (references/lessons.md): add or list")
+    p_lesson.add_argument("action", choices=("add", "list"))
+    p_lesson.add_argument("cls", nargs="?", help="add: the lesson's class (done-not-hitched, ...)")
+    p_lesson.add_argument("text", nargs="*", help="add: the lesson in one line")
+    p_lesson.add_argument("--plan", help="add: the plan it came from (NNNN)")
+    p_lesson.add_argument("--json", action="store_true")
     p_use = sub.add_parser("use")
     p_use.add_argument("plan")
     p_use.add_argument("--here", action="store_true",
@@ -882,6 +946,10 @@ def main(argv: list[str]) -> int:
     p_run.add_argument("--window", choices=list(sizing.WINDOWS))
     p_migrate = sub.add_parser("migrate", help="give a record plan the columns Model, Effort, Window and Size")
     p_migrate.add_argument("--plan")
+    p_milestone = sub.add_parser("milestone", help="insert a `Milestone <n>: <what lands>` row below a step (next free id)")
+    p_milestone.add_argument("--after", required=True, help="the id of the row the milestone follows")
+    p_milestone.add_argument("--title", default="", help="what lands")
+    p_milestone.add_argument("--plan")
     p_ready = sub.add_parser("ready", help="a parallel plan's steps that can start now")
     p_ready.add_argument("--plan")
     p_ready.add_argument("--limit", type=int)
@@ -915,6 +983,8 @@ def main(argv: list[str]) -> int:
                        help="the step table gets the columns Needs, Touches and Who (a parallel plan)")
     storerun.add_parsers(sub)
     args = parser.parse_args(argv)
+    if args.command == "lesson":  # the skill's own file: no repository needed
+        return lessons.run(args)
 
     try:
         if args.is_global or args.global_root:
@@ -931,9 +1001,74 @@ def main(argv: list[str]) -> int:
         return 1
 
 
+# The commands that print one plan ask hal2-plans for its hitch kind (one CLI call); `list`, `masterplan` and the
+# other readers of many plans do not.
+HITCH_COMMANDS = ("new", "current", "use", "status", "milestone")
+WITH_HITCH = False
+
+
 def dispatch(root: Path, args) -> int:
-    """A repository's command on `root`'s plans (the files, or the store home's view: storerun.py)."""
+    """A repository's command on `root`'s plans (the files, or the store home's view: storerun.py); then the run state
+    follows a step's status and a leave (runstate.py)."""
+    global WITH_HITCH
+    WITH_HITCH = args.command in HITCH_COMMANDS
     try:
+        if args.command in ("status", "step"):
+            path = resolve(root, args.plan) if args.plan else current_path(root)
+            plan_rules.guard(root, args.command, slug_of(path), getattr(args, "status", ""), getattr(args, "action", ""))
+    except plan_rules.Frozen as error:
+        print(f"plan.py: {error}", file=sys.stderr)
+        return 1
+    except ERRORS:
+        pass  # no such plan: the command itself says so
+    code = dispatch_command(root, args)
+    if code == 0 and args.command == "status":
+        track_state(root, args)
+    elif code == 0 and args.command == "leave":
+        runstate.clear_stale(root)
+    return code
+
+
+def run_state(root: Path, args) -> int:
+    """`plan.py state [<value>] [--why <t>] [--json]`: prints the current plan's run state, or sets it."""
+    plan = current_name(root)
+    try:
+        found = runstate.write(root, plan, args.value, args.why) if args.value else runstate.read(root)
+    except runstate.StateError as error:
+        raise PlanError(str(error)) from None
+    if args.json:
+        print(json.dumps(found or {"schema": runstate.SCHEMA, "plan": plan, "state": None}, ensure_ascii=False))
+    else:
+        print(f"{found['state']}{' (' + found['why'] + ')' if found['why'] else ''}" if found else "none")
+    return 0
+
+
+def run_end(root: Path, args) -> int:
+    """`plan.py end [--dry-run] [--json]`: the current plan's end (plan_end.py); schema 2 reads `land` as `current`."""
+    path = current_path(root)
+    info = {**describe(root, path), **spec_link.fields(root, path)}
+    if shape_cmds.routed(path, "current"):
+        info, _ = shape_cmds.run(root, path, argparse.Namespace(command="current"), lambda p: describe(root, p))
+    return plan_end.show(plan_end.end(root, info, args.dry_run), args.json)
+
+
+def track_state(root: Path, args) -> None:
+    """After a successful `status`: next writes working, the last step done writes done (runstate.after_status). A
+    run state is a field's, so a plan the field does not work on (`--plan`) changes nothing."""
+    try:
+        path = resolve(root, args.plan) if args.plan else current_path(root)
+        runstate.after_status(root, slug_of(path), args.status, bool(header_value(path.read_text(), "Finished")))
+    except (*ERRORS, OSError) as error:  # the status is written; a state that cannot be is told, never fatal
+        print(f"plan.py: run state not written: {error}", file=sys.stderr)
+
+
+def dispatch_command(root: Path, args) -> int:
+    """A repository's command on `root`'s plans."""
+    try:
+        if args.command == "state":
+            return run_state(root, args)
+        if args.command == "end":
+            return run_end(root, args)
         if args.command == "check":
             return run_check(root, args.folders, args.json)
         if args.command == "convert":
@@ -941,8 +1076,7 @@ def dispatch(root: Path, args) -> int:
         if args.command in shape_cmds.ROUTED:
             path = resolve(root, args.plan) if getattr(args, "plan", None) else current_path(root)
             if shape_cmds.routed(path, args.command):
-                out, code = shape_cmds.run(root, path, args,
-                                           lambda p: {**describe(root, p), **spec_link.fields(root, p)})
+                out, code = shape_cmds.run(root, path, args, lambda p: current_view(root, p))
                 sys.stdout.write(out if isinstance(out, str) else json.dumps(out, indent=2, ensure_ascii=False) + "\n")
                 return code
         if args.command in ("masterplan", *masterplan.NO_STEPS):
@@ -976,6 +1110,7 @@ def dispatch(root: Path, args) -> int:
             master = masterplan.check_new(args.masterplan, args.research,
                                           resolve(root, args.parent) if args.parent else None)
             sown = seed.read(root, args.seed) if args.seed else None
+            found = None if spec_info else overlap.scan(root, f"{args.title}\n{args.goal}", research=args.research)
             if spec_info and spec_link.in_place(into):
                 path = plan_spec_in_place(root, args, spec_info, into, designs, sown)
             else:
@@ -988,14 +1123,19 @@ def dispatch(root: Path, args) -> int:
             if master:
                 masterplan.adopt(master, path, names.default_ref(root))
                 stamp_finished(master)
+            if not spec_info:  # plan 0593 D16: the hits are settled before the plan is written
+                overlap.attach(path, found)
+                print(overlap.report(found, path.parent), file=sys.stderr)
             result = describe(root, path)
+            if not spec_info:
+                result["overlap"] = overlap.lines(found)
             if spec_info:
                 result.update(spec_link.fields(root, path))
             if sown:
                 result["seed"] = seed.mark(root, sown)
         elif args.command == "current":
-            path = current_path(root)
-            result = {**describe(root, path), **spec_link.fields(root, path)}
+            path = resolve(root, args.plan) if args.plan else current_path(root)
+            result = current_view(root, path)
         elif args.command == "list":
             result = [describe_safe(root, p) for p in plan_files(root)]
         elif args.command == "leave":
@@ -1009,6 +1149,9 @@ def dispatch(root: Path, args) -> int:
             result = run_values(resolve(root, args.plan) if args.plan else current_path(root), args)
         elif args.command == "migrate":
             result = migrate(root, resolve(root, args.plan) if args.plan else current_path(root))
+        elif args.command == "milestone":
+            path = resolve(root, args.plan) if args.plan else current_path(root)
+            result = add_milestone(root, path, args.after, args.title)
         elif args.command == "prompt":
             result = prompt_call(root, resolve(root, args.plan) if args.plan else current_path(root), args)
         elif args.command in shape_cli.COMMANDS:
@@ -1189,18 +1332,32 @@ def run_check(root: Path, folders: list[Path], as_json: bool = False) -> int:
 
 def local_problems(root: Path, plans: list[Path]) -> tuple[list[str], str | None]:
     """The skill's own problems of `plans`: sizing (schema 1 by the step table, schema 2 by shape_check), Brief,
-    names, the questions' Q form; and the questions' advisory line."""
+    names, the current plan's undeclared waits on other plans (dcheck.py, D20), the questions' Q form; and the
+    questions' advisory line."""
     rel = lambda p: in_root(p, root)  # noqa: E731
     shaped = {p for p in plans if p.name == MAIN and shape.is_shape(p.parent)}
     out = [line for p in plans if p not in shaped for line in steps_problems(p.read_text(), rel(p))]
+    out += [line for p in plans for line in rule_problems(p.read_text(), rel(p))]
     out += [line for p in plans for line in brief_problems(p.read_text(), rel(p))]
     out += [line for p in plans for line in spec_link.review_problems(p.read_text(), rel(p))]
     out += names.problems(root, plans, current_name(root), slug_of)
     marker = parallel.subservant_marker(root, Path.cwd())
     lead = marker["plan"] if marker and shape_lead.subplan_of(marker) else None
     out += [line for p in sorted(shaped) for line in shape_check.problems(root, p.parent, p.parent.name == lead)]
+    current = current_name(root)  # D20: only this checkout's own plan, never other foremen's
+    out += dcheck.check(root, [p for p in plans if current and p.parent.name == current])  # before the questions
     asked, advisory = question_problems(root, plans)
     return out + asked, advisory
+
+
+def rule_problems(text: str, label: str) -> list[str]:
+    """plan_rules' lines (no after-landing step, a milestone's reason) of a record plan that is not a masterplan."""
+    if not folder.is_record(text) or masterplan.of_text(Path(label).parent.name, text):
+        return []
+    try:
+        return plan_rules.problems(label, *table_rows(text.splitlines())[1:])
+    except PlanError:
+        return []
 
 
 def records_found(root: Path, folders: list[Path], plans: list[Path]):
@@ -1259,7 +1416,7 @@ def check_records(root: Path, folders: list[Path]) -> tuple[int, list[str]] | No
 
 # What a servant (a field with plans/LEAD) may not do: plan.md is its foreman's (hal2 shows the newest copy). Reading
 # stays: current, list, ready, prompt, masterplan.
-SUBSERVANT_REFUSES = ("new", "status", "assign", "grilled", "landing", "uat", "changelog", "scaffold",
+SUBSERVANT_REFUSES = ("new", "status", "end", "assign", "grilled", "landing", "uat", "changelog", "scaffold",
                      "run", "migrate", "leave", "convert", *shape_cli.COMMANDS)
 PARALLEL_COMMANDS = ("ready", "assign")
 

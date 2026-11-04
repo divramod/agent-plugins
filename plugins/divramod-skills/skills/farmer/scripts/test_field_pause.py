@@ -18,7 +18,7 @@ from test_farmer import NOW, Repo
 PAUSE = {"by": "farmer", "why": "reading its handoff", "since": "2026-10-28T09:00:00Z"}
 DOC = {"schema": 1, "repo": "hal2", "fields": [{"field": "07", **PAUSE}, {"field": "12", **PAUSE, "by": "user"}]}
 ORPHAN_ARGV = ["python3", "/s/orphan_start.py", "--path", "/w/07", "--slot", "07", "--main", "/y", "--", "hal2-cli-git",
-               "worktree", "run", "07", "--agent", "claude", "--detach", "--prompt", "/handoff c"]
+               "worktree", "run", "07", "--agent", "claude", "--detach", "--prompt", "/continue"]
 CLEAR_ARGV = ["hal2-cli-agents", "clear-and-continue", "--pane", "%7", "--session", "s1", "--await-handoff", "--detach"]
 LAND_ARGV = ["hal2-cli-git", "worktree", "queue", "release", "07"]
 

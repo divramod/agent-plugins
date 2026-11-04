@@ -15,7 +15,7 @@ for tool in python3 git scc; do
 done
 for tool in hal2-cli-agents hal2-cli-git; do
   if ! command -v "$tool" >/dev/null 2>&1 && [ -d "$HOME/a/hal2/code/rust" ]; then
-    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$tool")
+    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$tool" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$tool")
   fi
 done
 exec "$here/check-prerequisites.sh"

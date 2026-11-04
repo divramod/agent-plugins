@@ -185,10 +185,14 @@ def item_actions(item: dict, handlers: dict, ctx: dict) -> list[dict]:
     """The planned actions of one due duty or task, ending with its run record. A handler gets the item and
     `ctx` (top, main, now, dry, log: the farmer's log entries) and returns planned actions."""
     kind, _, name = item["name"].partition(":")
-    handler = handlers.get(item["name"]) or handlers.get(f"{kind}:*")
-    planned = handler(item, ctx) if handler else [
-        act(name if kind == "duty" else "task", "no-handler", "wake",
-            text=f"{item['name']} has no tick handler yet: run it as the skill says")]
+    try:
+        handler = handlers.get(item["name"]) or handlers.get(f"{kind}:*")
+        planned = handler(item, ctx) if handler else [
+            act(name if kind == "duty" else "task", "no-handler", "wake",
+                text=f"{item['name']} has no tick handler yet: run it as the skill says")]
+    except Exception as e:  # noqa: BLE001  (no silent duty, plan 0514 D17: the failure is the duty's status, reported)
+        import duty_health
+        planned = duty_health.crashed(name if kind == "duty" else "task", e)
     return planned + [act(name if kind == "duty" else "task", "ran", "ran", name=item["name"])]
 
 
@@ -291,7 +295,10 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
         ack_acts = field_pause.skip(stale(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["now"]),
                                     ctx["paused_fields"])
         actions += [{**a, "item": "acks"} for a in fresh(ack_acts, ctx["log"], ctx["now"], role)]
-    return {"due": items, "settings": settings, "actions": actions, "stop": False, "agent_rows": ctx["agent_rows"]}
+    # `depends` (the plan graph, read once if a planner needed it) and `waits` (field -> "waits for 0514 (open)"):
+    # the summary shows them (plan 0595 step 11)
+    return {"due": items, "settings": settings, "actions": actions, "stop": False, "agent_rows": ctx["agent_rows"],
+            "waits": ctx.get("waits", {}), **({"depends": ctx["depends"]} if "depends" in ctx else {})}
 
 
 def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
@@ -308,7 +315,8 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
         code, text = sh(a["argv"], a.get("cwd") or top)
         a["exit"], a["output"] = code, text[-2000:]
         for follow in a.get("on_fail", []) if code and code != OFFLINE else []:
-            execute(follow, top, main, out, wiring)
+            from run_failed import failed  # only once a run failed: a minute pass loads none (plan 0480 D3)
+            execute(failed(follow, code, text), top, main, out, wiring)
     if a["do"] == "send":
         acks.stamp_send(a, main, wiring.role)  # an id and the ack asked for, also when it becomes a relay (plan 0137)
         states = set(a.get("states", ())) | deliver.READY
@@ -397,8 +405,10 @@ def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
     out["delegations"] += delegation.follow_up(main, slot_state(main), limit, dry, now, values)
 
 
-def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARMER) -> None:
-    """The round's summary from the log: a file of its own when the round did something, latest.md always."""
+def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARMER, graph: dict | None = ...) -> None:
+    """The round's summary from the log: a file of its own when the round did something, latest.md always. `graph`: the
+    round's plan graph if a planner read it (plan 0595), else (...) it is read here: one read a round."""
+    import depends_view  # lazy: a quiet pass never reads the plan graph (test_light_start, plan 0595)
     import scan_cache
     role = wiring.role
     # The round's own scan: duty:mtm wrote last-scan.json this round; a new snapshot only when it is missing or
@@ -406,11 +416,13 @@ def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARME
     snap = scan_cache.scan(top, role, out.get("started"))
     logged = [a for a in out["done"] if a["do"] != "ran"]
     notes = "\n".join(f"- {a['duty']} {a['kind']} {a['slot']}: {a.get('text', '')}" for a in logged) or "quiet"
+    graph = depends_view.read(main) if graph is ... else graph
+    waits = "".join(f"\n- waiting {slot}: {text}" for slot, text in sorted((out.get("waits") or {}).items()))
     if logged or snap["findings"]:
-        out["summary"] = str(mtm_scan.write_summary(main, snap, notes, role=role))
+        out["summary"] = str(mtm_scan.write_summary(main, snap, notes + waits, role=role, depends=graph))
         return
     latest = mtm_scan.summary_dir(main, role) / "latest.md"
-    latest.write_text(mtm_scan.render_summary(snap, [], [], notes, role=role))
+    latest.write_text(mtm_scan.render_summary(snap, [], [], notes + waits, role=role, depends=graph))
     out["summary"] = str(latest)
 
 
@@ -456,12 +468,14 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
     rnd = (plan_round(top, handlers, now, dry, timing, all_due, wiring, paused) if go_on
            else {"due": [], "settings": {}, "actions": [], "stop": True})
     out["planned"] += rnd["actions"]
-    out.update(due=rnd["due"], settings=rnd["settings"], stop=rnd["stop"])
+    out.update(due=rnd["due"], settings=rnd["settings"], stop=rnd["stop"], waits=rnd.get("waits", {}))
     if not dry:
         for a in edit + rnd["actions"]:
             with timed(timing, a.get("item", "frame")):
                 execute(a, top, main, out, wiring)
             out["done"].append(a)
+        import duty_health
+        out["duty_reports"] = duty_health.after_round(top, main, rnd, now or dt.datetime.now(), wiring)
     if go_on and wiring.delegates:
         with timed(timing, "delegations"):
             delegate_all(main, out, dry, roletime.aware(now))
@@ -473,7 +487,7 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
             out["woke"] = wake.hand_over(top, main, out, roletime.aware(now), wiring, rnd.get("agent_rows"))
     if not dry:
         with timed(timing, "summary"):
-            summarize(main, top, out, wiring)
+            summarize(main, top, out, wiring, rnd.get("depends", ...))
 
 
 def timing_line(timing: dict, gh: dict | None = None) -> str:

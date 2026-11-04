@@ -19,7 +19,7 @@ install_hal2() {
   if ! command -v cargo >/dev/null 2>&1; then
     echo "install Rust first (https://rustup.rs), then rerun this script" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/$1" ]; then
-    cargo install --locked --path "$HOME/a/hal2/code/rust/apps/$1"
+    cargo install --locked --path "$HOME/a/hal2/code/rust/apps/$1" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$1"
   else
     cargo install --locked --git https://github.com/divramod/hal2 "$1"
   fi

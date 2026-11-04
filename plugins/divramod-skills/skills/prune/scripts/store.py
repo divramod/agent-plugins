@@ -55,16 +55,18 @@ def _try_lock(fd: int) -> bool:
 
 
 @contextlib.contextmanager
-def farm_lock(main: str | Path):
+def farm_lock(main: str | Path, name: str = LOCK):
     """One prune run per farm at a time (D14): raises Locked naming the holder (its pid and start) when another run
-    holds it; the holder's file is the only thing written, the lock goes with the process."""
+    holds it; the holder's file is the only thing written, the lock goes with the process. `name`: another lock of
+    the farm (the disk phase's `disk-lock`, plan 0514 D18, never held back by a run's)."""
     d = state_dir(main)
-    fd = os.open(d / LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    holder = d / (HOLDER if name == LOCK else f"{name}.json")
+    fd = os.open(d / name, os.O_RDWR | os.O_CREAT, 0o644)
     try:
         if not _try_lock(fd):
-            h = read_json(d / HOLDER, {})
+            h = read_json(holder, {})
             raise Locked(f"pid {h.get('pid', '?')} since {h.get('started', '?')}")
-        write_json(d / HOLDER, {"pid": os.getpid(), "started": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+        write_json(holder, {"pid": os.getpid(), "started": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
         yield
     finally:
         os.close(fd)  # closing the descriptor releases the lock

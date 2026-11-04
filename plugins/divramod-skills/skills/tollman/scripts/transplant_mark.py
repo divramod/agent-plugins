@@ -5,7 +5,7 @@ the target itself. hal2-git keeps one JSON record per transplant (`hal2-cli-git 
 `{"transplants": [{"id", "from", "to", "state", "prepared", "driven", ...}]}`, newest first); it is open while its
 `state` is `prepared` or `driven`. A prepared target also holds the marker `transplant-from-<source>` in its
 `CURRENT_PLAN` pointer. The orphan rule (boss.py) leaves the source and the target of an open transplant alone, or
-it would start a second `/handoff c` in a field the transplant is driving.
+it would start a second `/continue` in a field the transplant is driving.
 
 Read tolerantly: an installed CLI without the command, a failure or output that is not the contract answers no
 record; only `from`, `to`, `state` and the times are used, so a newer writer's keys change nothing. The marker file

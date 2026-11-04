@@ -193,6 +193,21 @@ class Context(Farm):
         self.assertEqual(len(ctx["log"]), 1)
         self.assertEqual(ctx["farmer_log"], [])
 
+    def test_a_hitch_settled_as_landed_holds_no_field(self):
+        """Plan 0610 D21: the tollman settles a hitched head that is in the barn as landed (a `barn` line) and its
+        ready mark stays; that ticket keeps no field from pruning, a newer hitch of the same field still does."""
+        head = "a" * 40
+        self.queue = {"queue": [{"slot": "13", "state": "waiting", "ready": {"head": head}},
+                                {"slot": "15", "state": "waiting", "ready": {"head": "b" * 40}},
+                                {"slot": "16", "state": "active", "ready": {"head": "c" * 40}}]}
+        state = self.data / "hal2/tollman/train.jsonl"
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text("".join(json.dumps({"schema": 1, "at": "2026-11-04T10:00:00Z", "kind": "barn", "slot": s,
+                                             "head": h, "how": "hitch"}) + "\n"
+                                 for s, h in (("13", head), ("15", "d" * 40), ("16", "c" * 40))))
+        ctx = facts.context(str(self.main), NOW)
+        self.assertEqual(ctx["waiting"], {"15", "16"}, "13 is settled; 15 hitched a newer head; 16 is landing")
+
     def test_the_proof_per_field_free_or_why_not(self):
         fs = [f for f in facts.fields(str(self.main)) if f["slot"] in ("03", "04", "13", "31", "32")]
         ctx = {"waiting": {"13"}, "landing": set(), "log": [], "farmer_log": []}

@@ -40,6 +40,12 @@ def record(v: dict, why: str, suffix: str = "step") -> dict:
     return act("trains", "step-record", "record", "-", key=f"{v['key']}:{suffix}", text=f"{words.head(v)}: {why}")
 
 
+def units(v: dict) -> list[str]:
+    """`--unit <test>` for the order's red (red_claims.py: one red, one foreman)."""
+    unit = (v.get("evidence") or {}).get("unit")
+    return ["--unit", unit] if unit else []
+
+
 def order(top: str, ev: dict, v: dict, train: dict, standing: dict | None, where: str, pane: str | None) -> dict:
     """The acked order for the step's red to its owner, on the train `where` names (see the module doc)."""
     field, url, rid, bare = v["owner"], ev.get("url") or "", ev["run"], stack_red.bare(ev["job"])
@@ -50,7 +56,7 @@ def order(top: str, ev: dict, v: dict, train: dict, standing: dict | None, where
                     f"runs, {url}) failed: judge it, then `python3 {CLI} order <field> [--post {train['train']}] "
                     f"--why ... --run {url}`")
     if where == "current":
-        argv = [sys.executable, str(CLI), "order", field, "--why", why, "--run", url, "--repo", top]
+        argv = [sys.executable, str(CLI), "order", field, "--why", why, "--run", url, "--repo", top, *units(v)]
         return act("trains", "triage-order", "run", field, key=key, argv=argv, on_fail=[wake],
                    text=f"train {train['train']}: fix order to {field} for {words.unit(v)}, its step red while the job "
                         "runs: fixed in place before the merge")
@@ -59,7 +65,7 @@ def order(top: str, ev: dict, v: dict, train: dict, standing: dict | None, where
     if not standing:
         return send
     argv = [sys.executable, str(CLI), "order", field, "--post", train["train"], "--why", why, "--run", url, "--repo",
-            top]
+            top, *units(v)]
     return act("trains", "triage-order", "run", field, key=key, argv=argv, on_fail=[send],
                text=f"train {train['train']}: fix order to {field} for {words.unit(v)}, its step red after the merge "
                     f"(the fix rides train {standing['train']})")

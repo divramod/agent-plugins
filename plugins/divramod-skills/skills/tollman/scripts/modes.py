@@ -21,10 +21,12 @@ hal2-roles writes it, also when `$FARMER_DIR` moves the state folder) puts it to
    smuggle).
 2. Awake again (D75 5, D76): the round notes the mode it saw (`seen-mode`, `mode.json` in the state folder;
    `asleep` while the flag stands). The first round in production after smuggle mode or the flag, before any train, finds the cars already in the barn (`git merge-base
-   --is-ancestor <head> <default>`): a waiting hitch is cleared, a car of a formed train (not landing: formed, red,
-   fixing, retry, split) leaves it (D76 amends D3 for this case only), a car of a running train (landing, paused) is
-   only recorded; each a `barn` line of train.jsonl (`tollman.py barn`) and its foreman told once (`in-barn`); then
-   the chain goes on in the same round. A formed train whose every car left is cleared.
+   --is-ancestor <head> <default>`): each is settled as landed by code (plan 0610 D21: closed, no unhitch, no
+   question): a waiting hitch keeps its ready mark and rides nothing again (trains_sort's `barn`), a car of a formed
+   train (not landing: formed, red, fixing, retry, split) leaves it (D76 amends D3 for this case only) and keeps its
+   mark, a car of a running train (landing, paused) is only recorded; each a `barn` line of train.jsonl (`tollman.py
+   barn`) and its foreman told once (`in-barn`); then the chain goes on in the same round. A formed train whose every
+   car left is cleared. Nothing here clears a ready mark: a hitch is forever (.adr/hitch-is-forever.md).
 
   tollman.py seen-mode production|smuggle|asleep [--repo <dir>]              the mode this round saw
   tollman.py barn <field> --head <sha> --how hitch|formed|running [--train <name>] [--repo <dir>]
@@ -53,7 +55,8 @@ KEEP = ("train-paused", "train-resumed", "train-run", "train-stuck", "landed", "
         "stack-red-fix", "chain")  # what a landing train still does while asleep: watched, paused, landed
 TEXT = {"in_barn": "tollman (wagon train): field {field}'s crop ({head}) is already in the barn (smuggled, or "
                    "landed alone while the tollman slept): {what}. Nothing of it is carried again: /merge-from-main and finish the plan as after \"in the barn\"."}
-WHAT = {"hitch": "its hitch is cleared", "formed": "it left the formed train {train}",
+WHAT = {"hitch": "it is settled as landed (its hitch stays, nothing carries it again)",
+        "formed": "it is settled as landed and left the formed train {train} (its hitch stays)",
         "running": "the running train {train} carries nothing new of it"}
 
 
@@ -147,7 +150,10 @@ def cli(top: str, kind: str, key: str, text: str, *args: str, **kw) -> dict:
 
 
 def in_barn(main: str, default: str, tickets: list[dict], train: dict | None, own: str) -> list[dict]:
-    """The cars and hitches whose head is in `default` already: [{field, head, how, train}]."""
+    """The cars and hitches whose head is in `default` already: [{field, head, how, train}]; a hitch settled as
+    landed before (its `barn` line for that head: its mark stays, D21) is not found again."""
+    settled = {(e.get("slot"), e.get("head")) for e in train_state.lines(main) if e.get("kind") == "barn"}
+
     def landed(head: str) -> bool:
         return bool(head) and trial.git(main, "merge-base", "--is-ancestor", head, default)[0] == 0
     how = "running" if train and train["state"] in RUNNING else "formed"
@@ -156,7 +162,8 @@ def in_barn(main: str, default: str, tickets: list[dict], train: dict | None, ow
     riding = {c["field"] for c in (train or {}).get("cars", [])} | {own}
     return found + [{"field": t["slot"], "head": t["ready"]["head"], "how": "hitch", "train": None} for t in tickets
                     if t.get("ready") and t.get("slot") not in riding and not t.get("rides_with")
-                    and t.get("state", "waiting") == "waiting" and landed(t["ready"].get("head"))]
+                    and t.get("state", "waiting") == "waiting" and (t["slot"], t["ready"].get("head")) not in settled
+                    and landed(t["ready"].get("head"))]
 
 
 def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict], panes: dict,
@@ -187,15 +194,13 @@ def turn(top: str, main: str, mode: dict, tickets: list[dict], rows: list[dict],
 
 
 def barn(repo: str, field: str, head: str, how: str, name: str | None) -> tuple[int, str]:
-    """The verb: the `barn` line; a hitch or a formed train's car loses its ready mark; a formed train left without
-    a car is cleared."""
+    """The verb: the `barn` line settles the field as landed (plan 0610 D21: closed, no unhitch, no question); its
+    ready mark stays (a hitch is forever: only the user's `--by-user` clears one, engine_car.py); a formed train left
+    without a car is cleared."""
     import engine
     main = mtm_scan.main_checkout(repo)
     train_state.append(main, "barn", field, train=name, head=head, how=how)
-    said = f"{field} is in the barn already ({how})"
-    if how in ("hitch", "formed"):
-        code, text = engine.cli(["worktree", "queue", "ready", field, "--clear", "--json"], main)
-        said += "; hitch cleared" if not code else f"; its mark stays: {text[-200:]}"
+    said = f"{field} is in the barn already ({how}): settled as landed, its hitch stays"
     train = train_state.standing(train_state.lines(main))
     if how == "formed" and train and not train["cars"] and not train.get("yard"):
         code, text = engine.clear(repo, "every car is in the barn already (smuggled or landed alone)")

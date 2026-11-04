@@ -39,6 +39,15 @@ from pathlib import Path
 import checker
 import research_number
 
+_UNIT = next((p / "scripts" for p in Path(__file__).resolve().parents if (p / ".claude-plugin").is_dir()), None)
+if _UNIT is not None:
+    sys.path.insert(0, str(_UNIT))
+    from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+    sys.path.insert(0, str(sibling("plan") / "scripts"))
+    import overlap  # noqa: E402  (the start paths' overlap check, plan 0593 D16)
+else:  # a published copy without the unit: no check
+    overlap = None
+
 RESEARCH = Path("research")
 MAIN = "research.md"
 DOC_RE = re.compile(r"^(\d{4})-[a-z0-9][a-z0-9-]*$")
@@ -441,6 +450,11 @@ def new(root: Path, title: str, question: str = "", plan: str = "", origin: str 
     text = text.replace(f"# Research {number:04d}: {dump_scalar(title)}", f"# Research {number:04d}: {title}")
     folder.mkdir(parents=True)
     (folder / MAIN).write_text(text)
+    if overlap is not None:  # plan 0593 D5: cite, reuse or revisit similar earlier research before researching
+        found = overlap.scan(root, f"{title}\n{question}", research=True)
+        overlap.write(folder, found)
+        add_log(folder, overlap.context_line(found).removeprefix("- "), today)
+        print(overlap.report(found, folder), file=sys.stderr)
     return folder
 
 

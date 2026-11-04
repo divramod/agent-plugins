@@ -4,8 +4,9 @@ cleared at 11:27:09 (split after red), and the next train 09@11:47:24 formed on 
 origin/tollman-hal2 was refused at 11:52:57 as not a fast-forward, because the remote still held the red
 train's merge (the farmer's 17-4: three times that day). The new train's form puts the remote back on its base
 (`carrier.push_base`, leased) whatever the earlier end did; a retry keeps the red head there, since it lands it
-again. On engine_farm's farm (a bare origin, no landing, D5). Since plan 0375 D5 the carrier is the train's own
-worktree and branch, `tollman-train-0274` for 09's plan: the same cars form the same name again."""
+again. On engine_farm's farm (a bare origin, no landing, D5). Since plan 0610 D18 the carrier is the kept worktree
+`tollman-train` on the branch `train-<n>-<a>`: every train has a branch of its own, so a dead train's remote never
+blocks the next one."""
 
 import os
 import unittest
@@ -16,8 +17,7 @@ import train_state
 from engine_farm import Farm, out
 from test_farmer import git
 
-C = "tollman-train-0274"
-REF = f"refs/heads/{C}"
+C = "tollman-train"
 
 
 class RedCarrier(Farm):
@@ -26,12 +26,15 @@ class RedCarrier(Farm):
         self.origin = self.tmp / "hal2.git"
         self.crop("09", {"nine.txt": "9"}, plan="0274-masterplan-halverse-plugin")
 
+    def ref(self):
+        return f"refs/heads/{self.branch()}"
+
     def landing_push(self):
         """What the landing does with the carrier first: its head pushed to its remote branch, without force."""
-        return engine.git(str(self.cw), "push", "-q", "origin", f"HEAD:{REF}")
+        return engine.git(str(self.cw), "push", "-q", "origin", f"HEAD:{self.ref()}")
 
-    def remote(self):
-        code, sha = engine.git(str(self.origin), "rev-parse", "--verify", "-q", REF)
+    def remote(self, ref=None):
+        code, sha = engine.git(str(self.origin), "rev-parse", "--verify", "-q", ref or self.ref())
         return sha if code == 0 else None
 
     def last_line(self, kind):
@@ -56,23 +59,24 @@ class RedCarrier(Farm):
         else:
             hook.unlink()
 
-    def test_the_next_train_after_a_red_one_forms_with_the_remote_on_its_base_and_its_push_fast_forwards(self):
+    def test_the_next_train_after_a_red_one_forms_on_a_branch_of_its_own_and_its_push_fast_forwards(self):
         base = out(self.wm, "rev-parse", "HEAD")
-        dead = self.red_train()  # 11:18:02
+        dead, ref = self.red_train(), self.ref()  # 11:18:02
         self.refuse(True)  # the red train's end did not put the remote back (here: its breakup's push refused)
         # 11:27:09: split after red; the unhitch call itself breaks the train up (chain.py, plan 0333 step 6)
         code = self.call("unhitch", "09", "--why", "test_roles.py reads PROTECT", "--by-user", repo=self.main)[0]
         self.assertEqual(code, 0, "the user's own unhitch (plan 0360 D3)")
         self.assertIsNone(self.train(), "the unhitch's chain broke the red train up")
         self.assertIn("still holds the dead train", self.last_line("cleared")["pushed"])
-        self.assertEqual(self.remote(), dead)
+        self.assertEqual(self.remote(ref), dead)
         self.refuse(False)
         self.commit(self.fields["09"], "nine.txt", "9, fixed")
         self.gate.hitch("09", self.fields["09"])
         self.round()  # 11:47:24: the train of 09 forms again on the same base
         self.assertIn(("form", "run", "-"), self.last)
-        self.assertEqual((self.train()["base"], self.remote()), (base, base), "the dead train is gone from origin")
-        self.assertEqual(self.last_line("formed")["pushed"], f"origin's {REF} back on {base[:12]} (was {dead[:12]})")
+        self.assertEqual((self.train()["base"], self.branch(), self.remote()), (base, "train-2-1", None),
+                         "train 2 has a branch of its own: the dead train 1's remote cannot block it")
+        self.assertNotIn("pushed", self.last_line("formed"))
         code, text = self.landing_push()  # 11:52:57 was refused here
         self.assertEqual(code, 0, f"the next train's push fast-forwards: {text}")
 
@@ -91,14 +95,17 @@ class RedCarrier(Farm):
         self.assertIn(("form", "run", "-"), self.last)
         self.assertNotIn("pushed", self.last_line("formed"), "the landed train is in the base's history")
         self.assertIsNotNone(landed)
-        self.assertIsNone(self.remote(), "deleted with a lease once it was in the barn (L55): nothing to push back")
+        self.assertIsNone(self.remote("refs/heads/train-1-1"), "train 1's remote deleted with a lease once it was in "
+                          "the barn (L55): nothing to push back")
+        self.assertEqual((self.branch(), self.remote()), ("train-2-1", None))
         self.assertEqual(self.landing_push()[0], 0)
 
     def test_a_retry_keeps_the_red_head_on_the_remote_and_its_push_fast_forwards(self):
-        dead = self.red_train()
+        dead, ref = self.red_train(), self.ref()
         self.assertEqual(self.call("retry", "--why", "rust-test timing under load")[0], 0)
         self.round()  # restart: the empty retry commit on the red head (step 13)
-        self.assertEqual(self.remote(), dead, "a retry lands the red head again: nothing reset")
+        self.assertEqual((self.remote(ref), self.branch()), (dead, "train-1-2"),
+                         "a retry lands the red head again: nothing reset; the carrier is run 2's (D18)")
         self.assertEqual(out(self.cw, "rev-parse", "HEAD^"), dead)
         code, text = self.landing_push()
         self.assertEqual(code, 0, f"the retry's push fast-forwards, none of its commits dropped: {text}")

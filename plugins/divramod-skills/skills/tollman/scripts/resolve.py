@@ -20,6 +20,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import orders
+import run_names
 import train_state
 from tick import act
 
@@ -31,10 +32,12 @@ HOUR = 3600
 TEXT = {
     "order": "tollman (wagon train): resolve order {id} for field {field}: train {train} carries your crop {head12}, "
              "and it conflicts with {what} in {files}. Every hitched wagon rides (plan 0522 D18): resolve it on the "
-             "train's branch. In your field: `git fetch origin {carrier}; git switch -C {branch} origin/{carrier}` "
-             "(the train with the cars before yours, {base}), `git merge {head}`, resolve keeping both sides' intent "
-             "(yours and the train's), commit, `git push origin {branch}`, `git switch {own}` (back on your branch: "
-             "your hitch stays on its head), then answer `done resolved <sha>` with the ack below. The tollman merges "
+             "train's branch. In your kept fix worktree `{where}`, never your field's own checkout (it stays on its "
+             "hitched head): `git fetch origin {carrier}; git -C {where} checkout -B {branch} origin/{carrier} || git "
+             "worktree add -B {branch} {where} origin/{carrier}` (the train with the cars before yours, {base}), "
+             "`git -C {where} merge {head}`, resolve keeping both sides' intent (yours and the train's), commit, "
+             "`git -C {where} push origin {branch}`, then answer `done resolved <sha>` with the ack below (your "
+             "field `{own}` and its hitch stay as they are). The tollman merges "
              "it into the train, merges the cars behind yours and lands the train once its light checks are green. "
              "`{branch}` is a side branch: never landed on its own, delete it after the barn (merge-to-main's "
              "references/tollman.md, \"A resolve order\").",
@@ -59,7 +62,9 @@ def actions(top: str, rows: list[dict], panes: dict, log: list[dict]) -> list[di
         argv = [sys.executable, str(CLI), "resolve-publish", "--repo", top]
         return [act("trains", "resolve-publish", "run", r["field"], key=f"publish:{r['id']}", window=HOUR, argv=argv,
                     text=f"resolve order {r['id']}: the train's base pushed again ({r['unpublished'][:120]})")]
-    words = {**r, "train": train["train"], "carrier": train["carrier"], "head12": r["head"][:12], "base": r["base"][:12],
+    where = str(Path(top).parent / run_names.fix_worktree(r["field"]))  # the kept `<NN>-fix` (plan 0610 D18)
+    words = {**r, "train": train["train"], "carrier": r.get("ref") or train["carrier"], "where": where,
+             "head12": r["head"][:12], "base": r["base"][:12],
              "what": what(r.get("ahead") or []), "files": ", ".join((r.get("files") or [])[:5]),
              "own": next((c.get("branch") or c["field"] for c in train["cars"] if c["field"] == r["field"]), r["field"])}
     out = [act("trains", "resolve-order", "send", r["field"], pane=panes.get(r["field"]),
@@ -74,7 +79,9 @@ def actions(top: str, rows: list[dict], panes: dict, log: list[dict]) -> list[di
 
 
 def add_parser(sub) -> None:
-    sub.add_parser("resolve-form").add_argument("--cars", required=True)
+    f = sub.add_parser("resolve-form")
+    f.add_argument("--cars", required=True)
+    f.add_argument("--alone-next", nargs="*", default=[])  # the alone cars owed the next train (plan 0610 D15)
     r = sub.add_parser("resolved")
     r.add_argument("field")
     r.add_argument("sha")
@@ -85,7 +92,7 @@ def main(args, wiring) -> int:
     """`tollman.py resolve-form|resolved|resolve-publish` (VERBS); a refusal's message done as a round does it."""
     import resolve_train  # the engine's side, loaded only by a verb
     if args.cmd == "resolve-form":
-        code, text = resolve_train.form(args.repo, json.loads(args.cars))
+        code, text = resolve_train.form(args.repo, json.loads(args.cars), alone_next=args.alone_next)
     elif args.cmd == "resolve-publish":
         code, text = resolve_train.publish(args.repo)
     else:

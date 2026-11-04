@@ -2,10 +2,12 @@
 
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path: git_seed)
 import git_seed
+import servant_testkit
 import lead_marker
 from test_farmer import git
 
@@ -32,6 +34,7 @@ class Fields(unittest.TestCase):
         base = Path(self.tmp.name)
         self.main, self.foreman, self.servant = base / "hal2", base / "wt/09", base / "wt/34"
         git_seed.guard(self)
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
         git_seed.grow(base, "test_lead_marker.Fields", self.grow)
         (self.servant / "plans").mkdir()
         (self.servant / "plans/LEAD").write_text("09 0275-masterplan 3\n")
@@ -52,6 +55,24 @@ class Fields(unittest.TestCase):
         (self.servant / "work.txt").write_text("x")
         git(self.servant, "add", "work.txt")
         git(self.servant, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "work")
+
+
+class Marker(Fields):
+    """The marker is read by `servant show` (plan 0594): its existence marks the field, the CLI gives the parts."""
+
+    def test_the_cli_gives_the_foreman_the_plan_and_every_step(self):
+        servant_testkit.write(self.servant, "09", "0275-masterplan", [("3", "a", "done"), ("4", "b", "")])
+        got = lead_marker.marker(self.servant)
+        self.assertEqual((got["slot"], got["plan"], got["step"], got["finished"]), ("09", "0275-masterplan", "3,4", False))
+        self.assertEqual([s["status"] for s in got["steps"]], ["done", ""])
+        self.assertIn("steps 3, 4", lead_marker.describe(got))
+
+    def test_no_marker_file_asks_no_process_and_a_marker_without_a_servant_is_bad_but_marked(self):
+        self.assertIsNone(lead_marker.marker(self.foreman))
+        with unittest.mock.patch.dict("os.environ", {"HAL2_CLI_PLANS": str(self.main / "no-such-cli")}):
+            bad = lead_marker.marker(self.servant)  # D6: no hand parse of the line
+        self.assertTrue(bad["bad"])
+        self.assertIn("names no servant", bad["error"])
 
 
 class State(Fields):

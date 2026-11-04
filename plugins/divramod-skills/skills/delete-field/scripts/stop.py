@@ -10,7 +10,8 @@ terminal host (`t:<id>`) or sends SIGHUP, SIGTERM, SIGKILL to its tmux pane's pr
 its box, running background tasks or a clear-and-continue job too; an older hal2 without `stop` cannot see a draft:
 refused, with --force its host killed or its process signalled here. It waits --wait seconds (default 15) for the session to be gone. It refuses (exit 3,
 `refused` names why) the session it runs in, a busy agent (working, starting, blocked) and a worktree whose landing runs
-or waits in the merge queue, unless --force (never for its own session). Exit 4: several sessions in that worktree (name the pane). Prints
+or waits in the merge queue and a field whose plan has open dependents (plans that wait for it: `hal2-cli-plans depends
+list`), unless --force (never for its own session). Exit 4: several sessions in that worktree (name the pane). Prints
 JSON. Exit 2 when a hal2 CLI is missing.
 """
 import json
@@ -22,6 +23,9 @@ import sys
 import time
 from pathlib import Path
 from typing import NoReturn
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import dependents  # noqa: E402  (open plan dependents of a field, hal2 plan 0595 step 13)
 
 BUSY = {"working", "starting", "blocked"}
 GONE = {"ended", "failed"}
@@ -94,7 +98,12 @@ def refusal(repo: Path, agent: dict, force: bool) -> str | None:
     if agent["state"] in BUSY:
         return f"the agent is {agent['state']}"
     state = landing(repo, agent["slot"])
-    return f"its landing is {state} in the merge queue" if state else None
+    if state:
+        return f"its landing is {state} in the merge queue"
+    why, advice = dependents.refusal(repo, agent["slot"])
+    if advice:
+        print(f"stop.py: {advice}", file=sys.stderr)
+    return why
 
 
 def still_running(repo: Path, pane: str) -> bool:

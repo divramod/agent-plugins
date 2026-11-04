@@ -1,15 +1,15 @@
 """The farmer's handoff before its clear (hal2 plan 0132): what the session knows goes into `handoff.md` in its state
 folder (`roles/farmer/` of the farmer's worktree, never a committed HANDOFF.md: the farmer commits nothing of its branch but
 roles/farmer/ROLE.md and the folder's .gitignore), then the session starts hal2's clear-and-continue itself, which waits for the turn to end, types
-`/clear` and then `/farmer act`. `/farmer act` and `/farmer start` read handoff.md first.
+`/clear` and then `/continue`. `/continue` and `/farmer start` read handoff.md first.
 
 Another role's handoff (hal2 plan 0294) is the same with its `roles.Wiring`: handoff.md in its own state folder,
 its own session cleared and continued with its own act command.
 
 `## DO FIRST` (hal2 plan 0383 rule 7, D8) is the handoff's first section: what the fresh session does before any wake
-item. `act` prints it inline and closes every wake item created before the handoff's last write (`written`, the
-file's mtime): whoever wrote the handoff had seen them. The stamp is the mtime, not a line the model types, so it
-stays right when the old handoff is archived and moved (plan 0383 step 9, D9).
+item. `act` prints it inline and closes the wake items whoever wrote the handoff had seen: the clear records the highest
+wake seq then (`handoff_seq`, plan 0608 D1) and `act` closes up to it, never by the file's mtime, which any later edit
+moves; a wake.json without `handoff_seq` falls back to the mtime of the last write (`written`, plan 0383 D8, D9).
 
 A rewrite (`handoff --rewrite`, step 9, D9) first moves the old handoff.md to `handoff-archive/<UTC time>.md` beside
 it (the state folder is gitignored, so the archive is runtime state): the new file is written from the template
@@ -132,7 +132,7 @@ def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> s
 
 
 def session_effort(top: str, wiring: roles.Wiring) -> str:
-    """The effort a role's session runs at (ROLE.md's `session_effort`, default high); an unreadable or invalid
+    """The effort a role's session runs at (ROLE.md's `session_effort`, default medium: due.SESSION_EFFORT); an unreadable or invalid
     setting falls back to the default: the clear must still happen."""
     try:
         text = (Path(top) / wiring.role_file).read_text()
@@ -152,6 +152,7 @@ def clear(top: str, main: str, now: dt.datetime, wiring: roles.Wiring = roles.FA
     pane = wake.farmer_pane(top)
     if not pane:
         return 1, f"no {role} session"
+    wake.mark_seen(main, wiring)  # what the writer saw: `act` closes only up to this seq (plan 0608 D1)
     session = (deliver.agent(pane) or {}).get("session_id")
     args = ["clear-and-continue", "--pane", pane, "--prompt", wiring.act, "--without-plan", "--detach", "--json"]
     if wiring.session_effort:

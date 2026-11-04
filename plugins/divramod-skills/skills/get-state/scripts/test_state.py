@@ -20,6 +20,7 @@ import state
 import state_sources as src
 import steward_sources
 import tollman_sources
+import servant_testkit as kit
 
 
 def git(cwd, *args):
@@ -35,8 +36,10 @@ PLAN = """# Plan 0042: the answer
 """
 REAL = {name: getattr(src, name) for name in ("agents", "queue", "open_runs", "git_numbers", "paused_fields")}  # before setUp mocks them
 REAL_STATE = src.queue_state
+REAL_JOBS = src.workqueue_jobs  # before setUp mocks it
 KEYS = {"wt", "is_main", "path", "branch", "plan", "plan_number", "plan_name", "steps_done", "steps_total", "agent",
-        "agent_state", "description", "own", "foreman", "git", "done_pct", "last_commit_age", "uncommitted", "ahead", "queue", "ci", "waits", "cells", "paused"}
+        "agent_state", "description", "own", "foreman", "finished", "git", "done_pct", "last_commit_age", "uncommitted", "ahead", "queue", "ci", "waits", "cells", "paused", "run_state", "wq_wait",
+        "next_step", "depends_on", "dependents", "depends_wait", "hitch"}
 
 
 def now_iso(minutes_ago: int = 0) -> str:
@@ -106,10 +109,12 @@ class Fixture(unittest.TestCase):
         self.data = self.tmp / "state"
         self.mock(fl.roles, "OVERRIDE", self.data)
         self.set_tools()
-        env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.tmp / "xdg")})  # pages into tmp, never a browser
+        env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.tmp / "xdg"),  # pages into tmp, never a browser
+                                           "HAL2_CLI_AGENTS": str(self.tmp / "no-role-cli")})  # the folder rule (test_role: the CLI's)
         env.start()
         self.addCleanup(env.stop)
         self.browser = mock.Mock(return_value=True)
+        kit.install(self)  # a fake hal2-cli-plans: the servant state is read through `servant show --json` (plan 0594)
         self.mock(page.webbrowser, "open", self.browser)
         self.serve = mock.Mock(return_value=None)  # no loopback server: the page call falls back to the file
         self.mock(serve_launch, "ensure", self.serve)
@@ -124,7 +129,9 @@ class Fixture(unittest.TestCase):
         for name, value in (("agents", agents), ("queue", queue), ("open_runs", runs)):
             self.mock(src, name, lambda *a, _v=value: _v)
         self.mock(src, "queue_state", lambda *a, _q=queue, _m=mode: {"queue": _q, "mode": _m})
-        self.mock(src, "workqueue_jobs", lambda: [{"field": "hal2/16", "class": "test", "head": "cargo nextest"}])
+        self.mock(src, "workqueue_status", lambda: None)  # no real `hal2-cli-workqueue`; a test sets the document it wants
+        self.mock(src, "workqueue_jobs", lambda *a: [{"field": "hal2/16", "class": "test", "head": "cargo nextest"}])
+        self.mock(src, "depends", lambda *a: None)  # no real `hal2-cli-plans depends list` (test_state_depends fakes it)
         self.mock(src, "git_numbers", lambda *a: None)  # no real `hal2-cli-git status` of the fixture's worktrees
         self.mock(ledger_sources, "cli_questions", lambda *a: None)  # no real `hal2-cli-plans`: the parser reads
         self.mock(plan_cli, "run", lambda *a, **k: None)  # the foreman page's plan, likewise (test_plan_cli runs it)
@@ -153,7 +160,7 @@ class Slots(Fixture):
 
     def test_json_keys(self):
         out = state.collect(str(self.main))
-        self.assertEqual(set(out), {"repo", "default", "head", "head_age", "head_subject", "queue", "mode", "runs", "jobs", "rows"})
+        self.assertEqual(set(out), {"repo", "default", "head", "head_age", "head_subject", "queue", "mode", "runs", "jobs", "rows", "depends_known"})
         self.assertEqual(out["default"], "main")
         self.assertEqual(len(out["head"]), 8)
         for r in out["rows"]:
@@ -171,7 +178,7 @@ class Slots(Fixture):
         with contextlib.redirect_stdout(buf), mock.patch.object(os, "getcwd", return_value=str(self.main)):
             self.assertEqual(state.main(["--repo", str(self.main), "--text"]), 0)
         lines = buf.getvalue().rstrip("\n").split("\n")
-        self.assertEqual(lines[0], "| WT | Plan | Steps | State | Waits for |")
+        self.assertEqual(lines[0], "| WT | Plan | Steps | State | Waits for | Depends on | Dependents |")
         self.assertTrue(lines[-6].startswith("| **main** |") and lines[-5] == "")
         self.assertTrue(lines[-4].startswith("main: ") and lines[-3] == "")
         self.assertEqual(lines[-2], "Running jobs: 1")  # the mocked workqueue job (plan 0382 step 5)
@@ -311,6 +318,26 @@ class Tools(Fixture):
         self.assertEqual(state.queue_fact(got, "/nowhere", "02")["red"], {"step": "checks", "attempts": 2})
         self.assertNotIn("red", state.queue_fact(got, "/nowhere", "10"))
 
+    def test_a_milestone_ticket_shows_the_queue_s_label_never_a_count(self):
+        """Plan 0593 step 4 (0592 D10): the hitch label rides from `plan.hitch` of the ticket and `plan_progress`."""
+        milestone = {"kind": "milestone", "n": 1, "of": 2, "label": "milestone 1/2"}
+        raw = {"queue": [{"slot": "02", "worktree": None, "position": 0, "holding": False, "state": "waiting",
+                          "plan": {"number": 593, "hitch": milestone}},
+                         {"slot": "10", "worktree": None, "position": 1, "holding": False, "state": "waiting",
+                          "plan": {"number": 9, "hitch": {"kind": "partial", "label": "partial"}}},
+                         {"slot": "11", "worktree": None, "position": 2, "holding": False, "state": "waiting",
+                          "plan": {"number": 8, "hitch": {"kind": "complete", "label": "complete"}}}]}
+        self.mock(src, "tool_json", lambda args, cwd=None: raw)
+        got = REAL_STATE(str(self.main))["queue"]
+        self.assertEqual([t["hitch"] for t in got], ["milestone 1/2", "partial (override)", None])
+        self.assertEqual(state.queue_fact(got, "/nowhere", "02")["hitch"], "milestone 1/2")
+        self.assertNotIn("hitch", state.queue_fact(got, "/nowhere", "11"))
+        agent = state.agent_facts({os.path.realpath("/p"): {"state": "idle", "plan_progress": {"hitch": milestone}}}, "/p")
+        self.assertEqual(agent["progress_hitch"], "milestone 1/2")
+        self.assertEqual(src.hitch_label("milestone 2/3"), "milestone 2/3")
+        self.assertIsNone(src.hitch_label({"kind": "none", "label": "none"}))  # a servant's: never hitches
+        self.assertIsNone(src.hitch_label("none"))
+
     def test_the_queue_and_its_mode_come_from_one_call(self):
         raw = {"queue": [{"slot": "02", "worktree": None, "position": 0, "holding": True, "state": "held"}],
                "mode": {"mode": "smuggle", "by": "user", "at": "t", "why": None}}
@@ -410,9 +437,13 @@ if __name__ == "__main__":
 
 
 class Marks(Fixture):
-    def lead(self, slot: str, text: str) -> None:
+    def lead(self, slot: str, foreman: str | None, plan: str = "0042-the-answer", steps: tuple = ("3",),
+             finished: bool = False) -> None:
+        """A servant field: its LEAD pointer exists, and the fake CLI shows the object (`foreman` None: it shows none)."""
         (self.wt / slot / "plans").mkdir(exist_ok=True)
-        (self.wt / slot / "plans/LEAD").write_text(text)
+        (self.wt / slot / "plans/LEAD").write_text("marker\n")
+        if foreman:
+            kit.write(self.wt / slot, foreman, plan, [(n, "", "") for n in steps], finished)
 
     def test_the_own_row_is_bold_and_only_it(self):
         out = state.collect(str(self.main), str(self.wt / "02"))
@@ -429,22 +460,31 @@ class Marks(Fixture):
         self.assertFalse(any(r["cells"][0].startswith("**") for r in state.collect(str(self.main), str(elsewhere))["rows"]))
 
     def test_servants_stand_under_their_foreman_by_number(self):
-        self.lead("10", "02 0042-the-answer 3\n")
-        self.lead("1", "02 0042-the-answer 2\n")
+        self.lead("10", "02")
+        self.lead("1", "02", steps=("2",))
         out = state.collect(str(self.main), str(self.main))
         self.assertEqual([r["wt"] for r in out["rows"]], ["02", "1", "10", "farmer-x", "main"])
         self.assertEqual([r["cells"][0] for r in out["rows"]], ["02", "↳ 1", "↳ 10", "farmer-x", "**main**"])
         self.assertEqual({r["wt"]: r["foreman"] for r in out["rows"]}, {"02": None, "1": "02", "10": "02", "farmer-x": None, "main": None})
 
     def test_a_marker_naming_no_slot_of_the_table_keeps_the_row_in_place(self):
-        self.lead("10", "77 0042-the-answer 3\n")
+        self.lead("10", "77")
         out = state.collect(str(self.main))
         self.assertEqual([r["wt"] for r in out["rows"]], ["1", "02", "10", "farmer-x", "main"])
         self.assertEqual(out["rows"][2]["cells"][0], "10")
 
     def test_a_broken_marker_names_no_foreman(self):
-        self.lead("10", "nonsense\n")
+        self.lead("10", None)  # the CLI shows no servant for a marker it cannot read
         self.assertIsNone(self.rows()["10"]["foreman"])
+        self.assertFalse(self.rows()["10"]["finished"])
+
+    def test_a_finished_servant_is_marked_in_its_row_and_cell(self):
+        self.lead("10", "02", steps=("3", "4"), finished=True)
+        self.lead("1", "02")
+        rows = self.rows()
+        self.assertEqual((rows["10"]["finished"], rows["1"]["finished"]), (True, False))
+        self.assertIn("finished: the foreman removes the field", rows["10"]["cells"][3])
+        self.assertNotIn("finished", rows["1"]["cells"][3])
 
 
 class WithoutTheSiblingSkills(Fixture):
@@ -452,7 +492,7 @@ class WithoutTheSiblingSkills(Fixture):
         self.write_log({"at": now_iso(), "kind": "ask", "slot": "02", "what": "x"})
         with mock.patch.object(fl, "FARMER", self.tmp / "nope"), mock.patch.object(fl, "mtm_scan", None), \
                 mock.patch.object(fl, "acks", None), mock.patch.object(fl, "logstate", None), \
-                mock.patch.object(fl, "roles", None), mock.patch.object(fl, "lead_marker", None):
+                mock.patch.object(fl, "roles", None):
             rows = {r["wt"]: r for r in state.collect(str(self.main))["rows"]}
         self.assertEqual(list(rows), ["1", "02", "10", "farmer-x", "main"])
         self.assertEqual(rows["02"]["waits"], [])

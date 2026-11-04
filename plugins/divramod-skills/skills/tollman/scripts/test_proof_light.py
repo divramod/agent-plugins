@@ -38,7 +38,8 @@ class Light(Field):
         name = next((n for k, n in (("names-inventory", "names"), ("check-plugins", "skills"), ("hal2-cli-records",
                      "records"), ("hal2-cli-state", "state"), ("env-readers", "env-readers")) if k in tool), tool)
         self.calls.append(name)
-        return self.answers.get(name, (0, "ok"))
+        answer = self.answers.get(name, (0, "ok"))
+        return answer(cwd) if callable(answer) else answer  # a callable answers by the tree it runs in
 
     def restock(self, files):
         """The barn moves on with `files` after the crop left it."""
@@ -76,7 +77,8 @@ class Untouched(Light):
         head = self.commit({"code/rust/b.rs": "fn b() {}\n", "code/rust/c.toml": "a = 1\n"})
         v = self.verdict(head)
         self.assertEqual((v["state"], v["checks"], self.calls), ("green", ["names"], ["names"]))
-        self.assertEqual(self.gits, ["rev-parse", "diff", "-c"], "rev-parse, the crop's diff, its status: as before")
+        self.assertEqual(self.gits, ["rev-parse", "rev-parse", "diff", "-c"],
+                         "the field's head, the barn's (the cache key, plan 0610 step 1), the crop's diff, its status")
 
 
 class Keys(Light):
@@ -217,10 +219,12 @@ class State(Light):
     def test_a_problem_in_the_crops_declaration_is_red(self):
         self.names_script()
         head = self.commit({self.ACCESS: "[unit]\n"})
-        self.answers["state"] = (10, f"error: 2 problems:\n  {self.ACCESS}: why.processes is 280 chars, at most 240\n"
-                                     "  code/rust/apps/other/access.toml: unknown key")
+        said = (10, f"error: 2 problems:\n  {self.ACCESS}: why.processes is 280 chars, at most 240\n"
+                    "  code/rust/apps/other/access.toml: unknown key")
+        # the crop's file: the barn's head (barn_side, plan 0610 step 1) has no such declaration, so no such problem
+        self.answers["state"] = lambda cwd: said if (Path(cwd) / self.ACCESS).exists() else (0, "ok")
         v = self.verdict(head)
-        self.assertEqual((v["state"], self.calls), ("red", ["names", "state"]))
+        self.assertEqual((v["state"], self.calls), ("red", ["names", "state", "state"]), "the barn's head looked at too")
         self.assertEqual(v["lines"], [f"state: {self.ACCESS}: why.processes is 280 chars, at most 240"])
 
     def test_a_problem_elsewhere_is_not_the_cars(self):

@@ -259,9 +259,11 @@ def plan(item: dict, ctx: dict, data: dict | None = None, landed: dict | None = 
 
 
 def handler(item: dict, ctx: dict) -> list[dict]:
-    """/prune's plan, and a train worktree left beside the field dropped again (train_wt.retry, L135)."""
+    """/prune's disk phase first, never held back (prune_disk.py, plan 0514 D18), /prune's plan, and a train worktree
+    left beside the field dropped again (train_wt.retry, L135)."""
+    import prune_disk
     import train_wt
-    return train_wt.retry(ctx.get("top", ctx["main"]), ctx["main"]) + plan(item, ctx)
+    return prune_disk.actions(ctx) + train_wt.retry(ctx.get("top", ctx["main"]), ctx["main"]) + plan(item, ctx)
 
 
 def main(argv: list[str]) -> int:

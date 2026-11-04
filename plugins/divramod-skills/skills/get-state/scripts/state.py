@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """The state call, `/s` (hal2 plans 0268, 0366): one row per worktree of the repository, collected as code, no model.
 
-    state.py [--repo <path>] [--role <role>] [--no-open] [--text | --json]
+    state.py [--repo <path>] [--html [--role <role>] [--no-open] | --text | --json]
 
-By default writes the session's role's page (role.py detects the role from the checkout of --repo, views.py builds
+By default prints the overview table of the farm's working fields (overview.py, plan 0591), opening nothing.
+With --html (implied by --no-open and --role) writes the session's role's page (role.py detects the role from the checkout of --repo, views.py builds
 the page, page.py writes it to the state dir), opens it from the loopback server serve.py (reused or started, plan 0369
 D1) and prints one line, its URL; without a server it opens the file and prints its path. --no-open only writes the
-file and prints its path, starting nothing. --text prints the table (the own row's WT bold, a foreman's servants under its row as `↳ <WT>`) `WT | Plan | Steps | State | Waits for` and a line under it (state_table.py), or with --json
+file and prints its path, starting nothing. --text prints the table (the own row's WT bold, a foreman's servants under its row as `↳ <WT>`) `WT | Plan | Steps | State | Waits for | Depends on | Dependents` and a line under it (state_table.py), or with --json
 {repo, default, head, head_age, head_subject, queue, mode, runs, rows}: the raw facts per worktree (`wt`, `path`, `branch`, `plan` = the text of
-the CURRENT_PLAN pointer, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `description` (the plan.md front matter's, or null), `own` the checkout the script runs in, `foreman` the worktree named by plans/LEAD (or null), `agent` busy|idle|none, `agent_state`,
+the CURRENT_PLAN pointer, `plan_number`, `plan_name`, `steps_done`, `steps_total`, `description` (the plan.md front matter's, or null), `own` the checkout the script runs in, `foreman` the worktree the field is a servant of (`hal2-cli-plans servant show`, or null), `finished` true for a servant whose foreman must remove the field, `agent` busy|idle|none (busy: working, starting, blocked or live background work), `agent_state`, `run_state` {state, why, at} of the field's plan (or null), `wq_wait` the field's workqueue wait (or null),
 `last_commit_age` seconds, `uncommitted`, `ahead` commits not on origin/<default> (the main checkout: not pushed),
-`paused` {by, why, since} when the field is paused (`hal2-cli-git worktree paused`, plan 0458), else null, `git` the statusline's numbers {behind, ahead, stash, untracked, added, modified, deleted} (or null), `done_pct` (or null), `queue`, `ci` the worktree's open runs, `waits` fact dicts, `cells` the five table cells). A fact that cannot be known is None (a missing, failing or
+`paused` {by, why, since} when the field is paused (`hal2-cli-git worktree paused`, plan 0458), else null, `git` the statusline's numbers {behind, ahead, stash, untracked, added, modified, deleted} (or null), `done_pct` (or null), `queue`, `ci` the worktree's open runs, `waits` fact dicts, `next_step`, `depends_on` / `dependents` / `depends_wait` (plan 0595 step 9: the farm's plan graph, `depends_view`), `cells` the seven table cells); `depends_known` false when `hal2-cli-plans depends list` gave no answer. A fact that cannot be known is None (a missing, failing or
 slow tool never raises). Rows: numbered worktrees by number, named worktrees by name, the main checkout last as `main`; dot
 checkouts and prunable worktrees are no rows. Only reads: no fetch, no write.
 """
@@ -25,9 +26,11 @@ from pathlib import Path
 
 import farmer_link as fl
 import ledger_sources
+import overview
 import page
 import role as roles
 import serve_launch
+import state_run
 import state_sources as src
 import state_table
 import views
@@ -44,7 +47,7 @@ def slot_key(row: dict) -> tuple:
 
 
 def arrange(rows: list[dict]) -> set[str]:
-    """Moves each servant (a worktree whose plans/LEAD names a foreman's worktree of this table) directly under its foreman's row,
+    """Moves each servant (a worktree whose servant state names a foreman's worktree of this table) directly under its foreman's row,
     the servants of one foreman by number, in place; returns the worktrees that now stand nested."""
     by_wt = {r["wt"]: r for r in rows}
     kids = {}
@@ -90,14 +93,15 @@ def agent_facts(by_path: dict | None, path: str) -> dict:
     a = by_path.get(os.path.realpath(path))
     if a is None:
         return {"agent": "none", "agent_state": None}
-    return {"agent": "busy" if a.get("state") in fl.BUSY else "idle", "agent_state": a.get("state")}
+    return {"agent": "busy" if fl.is_busy(a) else "idle", "agent_state": a.get("state"),
+            "progress_hitch": src.hitch_label((a.get("plan_progress") or {}).get("hitch"))}
 
 
 def queue_fact(tickets: list[dict] | None, path: str, wt: str) -> dict | None:
     for t in tickets or []:
         if t["worktree"] == os.path.realpath(path) or (t["worktree"] is None and t["slot"] == wt):
             return {"holds": t["holding"], "position": t["position"], "state": t["state"],
-                    **({"red": t["red"]} if t.get("red") else {})}
+                    **({"red": t["red"]} if t.get("red") else {}), **({"hitch": t["hitch"]} if t.get("hitch") else {})}
     return None
 
 
@@ -136,7 +140,9 @@ def worktree_facts(w: dict, default: str, table_facts: bool = True) -> dict:
     base = f"origin/{default}" if not w.get("is_main") else "@{u}"
     current = current_plan(path)
     plan = src.plan_of(path, current)
-    return {"plan": current, "plan_facts": plan, "foreman": None if w.get("is_main") else fl.foreman_of(path),
+    servant = None if w.get("is_main") else fl.servant_of(path)
+    return {"plan": current, "plan_facts": plan, "foreman": servant and str(servant["foreman"]),
+            "finished": bool(servant and servant.get("finished")),
             "git_facts": git_facts(path, base) if table_facts else dict.fromkeys(TABLE_FACTS), "git": src.git_numbers(path),
             "questions": src.open_questions(path, plan["plan_slug"])}
 
@@ -149,15 +155,28 @@ def build_row(w: dict, ctx: dict, facts: dict | None = None) -> dict:
     runs = ctx["runs"]
     row = {
         "wt": wt, "is_main": bool(w.get("is_main")), "own": os.path.realpath(path) == ctx["own"],
-        "foreman": f["foreman"], "path": path, "branch": w.get("branch"), "plan": f["plan"],
+        "foreman": f["foreman"], "finished": f["finished"], "path": path, "branch": w.get("branch"), "plan": f["plan"],
         **{k: v for k, v in f["plan_facts"].items() if k != "plan_slug"},
         **agent_facts(ctx["agents"], path), **f["git_facts"], "git": f["git"],
         "queue": queue_fact(ctx["queue"], path, wt), "paused": ctx["paused"].get(wt),
+        "run_state": state_run.run_state(path), "wq_wait": state_run.wait_of(ctx["wq"], path, bool(w.get("is_main"))),
         "ci": [{k: r[k] for k in ("workflow", "status", "branch", "url")} for r in runs if r["branch"] in ci_branches] if runs else [],
     }
+    progress = row.pop("progress_hitch", None)
+    row["hitch"] = (row["queue"] or {}).get("hitch") or progress  # the ticket's label, else plan_progress's
     row["done_pct"] = done_pct(row["steps_done"], row["steps_total"])
     row["waits"] = waits_of(row, ctx["log"], ctx["asking"], ctx["unacked"], f["questions"])
+    row.update(depends_facts(ctx.get("depends"), row))
     return row
+
+
+def depends_facts(graph: dict | None, row: dict) -> dict:
+    """`depends_on` and `dependents` (the CLI's links: plan, slug, field, steps, needs, until, state, reached) of the
+    row's plan and `depends_wait`, `waits for 0514 (open)` while an open dependency holds its next step ("" else)."""
+    view = fl.depends_view
+    node = view.node_of(graph, row["plan_number"]) if view and row["plan_number"] else {}
+    return {"depends_on": node.get("depends_on") or [], "dependents": node.get("dependents") or [],
+            "depends_wait": view.wait_of(node, row.get("next_step")) if node else ""}
 
 
 def ledger_rows(slots: list[dict]) -> list[dict]:
@@ -178,16 +197,18 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     slots.append({"path": main, "branch": src.git(main, "symbolic-ref", "--short", "-q", "HEAD"), "is_main": True})
     with ThreadPoolExecutor(POOL) as pool:
         f_agents, f_queue, f_runs = pool.submit(src.agents), pool.submit(src.queue_state, main), pool.submit(src.open_runs, main)
-        f_jobs = pool.submit(src.workqueue_jobs)
+        f_wq = pool.submit(src.workqueue_status)  # read once: the jobs table and each field's workqueue wait
         f_paused = pool.submit(src.paused_fields, main)
+        f_depends = pool.submit(src.depends, main)
         f_questions = ledger_sources.submit_questions(ledger_rows(slots), pool) if ledgers else None
         f_facts = [pool.submit(worktree_facts, w, default, table_facts) for w in slots]
         log = src.farmer_log(main)
         top = src.git(here or os.getcwd(), "rev-parse", "--show-toplevel")
         head = (src.git(main, "log", "-1", "--format=%H%x09%ct%x09%s", f"origin/{default}") or "").split("\t", 2)
         runs = f_runs.result()
-        ctx = {"own": os.path.realpath(top) if top else None, "default": default, "agents": f_agents.result(), **f_queue.result(),
-               "runs": runs, "paused": f_paused.result() or {}, "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
+        graph = f_depends.result()
+        ctx = {"depends": graph, "own": os.path.realpath(top) if top else None, "default": default, "agents": f_agents.result(), **f_queue.result(),
+               "runs": runs, "paused": f_paused.result() or {}, "wq": f_wq.result(), "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
         rows = [build_row(w, ctx, f.result()) for w, f in zip(slots, f_facts)]
         questions = f_questions() if f_questions else None
     rows.sort(key=slot_key)
@@ -197,7 +218,8 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
     stamp = int(head[1]) if len(head) == 3 and head[1].isdigit() else None
     out = {"repo": main, "default": default, "head": head[0][:8] or None if len(head) == 3 else None,
            "head_age": max(0, int(time.time()) - stamp) if stamp else None, "head_subject": head[2] if len(head) == 3 else None,
-           "queue": ctx["queue"], "mode": ctx["mode"], "runs": runs, "jobs": f_jobs.result(), "rows": rows}
+           "queue": ctx["queue"], "mode": ctx["mode"], "runs": runs, "jobs": src.workqueue_jobs(ctx["wq"] or {}), "rows": rows,
+           "depends_known": graph is not None}
     return {**out, "questions": questions} if ledgers else out
 
 
@@ -246,15 +268,18 @@ def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--repo", default=os.getcwd(), help="a path inside the repository (default: the current folder)")
     out = p.add_mutually_exclusive_group()
-    out.add_argument("--json", action="store_true", help="the raw rows as JSON (each with its five `cells`) instead of the page")
+    out.add_argument("--json", action="store_true", help="the raw rows as JSON (each with its seven `cells`) instead of the page")
     out.add_argument("--text", action="store_true", help="the table and the line under it instead of the page")
-    p.add_argument("--role", choices=roles.ROLES, help="the page of this role instead of the detected one")
-    p.add_argument("--no-open", action="store_true", help="write the page without opening it in the browser")
+    p.add_argument("--html", action="store_true", help="the role's page in the browser instead of the overview table")
+    p.add_argument("--role", choices=roles.ROLES, help="the page of this role instead of the detected one (implies --html)")
+    p.add_argument("--no-open", action="store_true", help="write the page without opening it in the browser (implies --html)")
     args = p.parse_args(argv)
     if args.json or args.text:
         data = collect(args.repo)
         print(json.dumps(data, indent=2) if args.json else state_table.table(data))
         return 0
+    if not (args.html or args.no_open or args.role):
+        return overview.main(["--repo", args.repo])
     url = None if args.no_open else served(args.repo, args.role)  # the server renders its own copy meanwhile
     data = collect(args.repo, **page_facts(args.repo, args.role))
     path = show_page(data, args.repo, args.role, open_it=not args.no_open and url is None)

@@ -45,7 +45,8 @@ class PointerHomesTest(unittest.TestCase):
 
     def test_the_servant_marker_is_read_from_the_git_dir(self):
         self.hide("LEAD", f"07 {SLUG} 3\n")
-        self.assertEqual(parallel.read_marker(self.root), {"slot": "07", "plan": SLUG, "step": "3"})
+        self.assertEqual(parallel.read_marker(self.root), {"slot": "07", "plan": SLUG, "step": "3",
+                         "steps": [{"n": "3", "title": "", "status": ""}], "finished": False})
 
     def test_a_field_holding_a_plan_in_its_git_dir_holds_it_for_convert(self):
         field = self.base / "08"

@@ -1,5 +1,6 @@
-"""A servant's field of the one plan shape (hal2 plan 0376, design §4, A3, A8): its gitignored `plans/LEAD` holds
-`<foreman's field> <plan slug> <NN-slug>`, the sub-plan the servant runs. There `plan.py status` writes only the step
+"""A servant's field of the one plan shape (hal2 plan 0376, design §4, A3, A8): its gitignored `plans/LEAD` names
+the sub-plan the servant runs. The marker's existence marks the field, its parts come from `hal2-cli-plans servant show`
+(`parallel.read_marker`, hal2 plan 0594): a sub-plan servant's `step` is `NN-slug`. There `plan.py status` writes only the step
 files of that sub-plan and never regenerates plan.md's overview (the foreman does after the merge); every command
 that writes plan.md, a subplan.md, the ledgers or 99-uat is refused. A third token of digits is the legacy step or
 masterplan row form and keeps plan.py's old refusal (parallel.py, masterplan.servant_refusal).
@@ -12,7 +13,7 @@ import parallel
 from shape_names import ShapeError, SubplanId
 
 # What a sub-plan's servant may not do: everything that writes the foreman's files.
-REFUSED = ("new", "subplan", "step", "assign", "uat", "grilled", "landing", "changelog", "scaffold", "run",
+REFUSED = ("new", "subplan", "step", "end", "assign", "uat", "grilled", "landing", "changelog", "scaffold", "run",
            "migrate", "leave", "convert")
 
 
@@ -28,7 +29,8 @@ def subplan_of(marker: dict | None) -> SubplanId | None:
 
 
 def marker(root: Path) -> dict | None:
-    """The field's plans/LEAD (of `--root`, else of the cwd's checkout)."""
+    """The field's servant marker (of `--root`, else of the cwd's checkout); `unread: True` when the CLI gave no
+    servant: the field is still a servant's, so its writes stay refused."""
     return parallel.subservant_marker(root, Path.cwd())
 
 

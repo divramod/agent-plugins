@@ -3,6 +3,7 @@
   farmer.py question add --slot <slot|farmer> --text <the question in the Q form> [--waits <what waits for it>]
   farmer.py question answer <n> --text <answer>      farmer.py question drop <n> [--text <why>]
   farmer.py question list [--open|--answered|--all] [--json]       the farmer's own store only
+  farmer.py question twins [--pair <slot>:<farmerQ>=<planQ>] [--drop] [--json]   one question store (question_twins.py)
   farmer.py questions [a|answered|l|list] [--json]    the call `/farmer questions` (and `/q` in the farmer's worktree): the
       farmer's own entries, the log's open `ask` entries and unacked instructions, and every worktree's store (the
       `q` skill's script), sorted by worktree then number, each in the Q form under a head line. No model call.
@@ -245,8 +246,15 @@ def joined(mode_key: str, as_json: bool, repo: str) -> int:
 
 def run_question(args) -> int:
     main = mtm_scan.main_checkout(args.repo)
+    if args.action == "twins":
+        import question_twins
+        return question_twins.run_twins(args)
     try:
         if args.action == "add":
+            import question_twins
+            if message := question_twins.refusal(main, args.slot or ""):
+                print(f"farmer.py question add: {message}", file=sys.stderr)
+                return 2
             e = add(mtm_scan.state_dir(main), args.slot or "", args.text or "", args.waits)
             print(f"Q{e['n']} added for {e['slot']}")
         elif args.action in ("answer", "drop"):
@@ -267,7 +275,7 @@ def run_question(args) -> int:
 def add_parsers(sub) -> None:
     """The subcommands `question` and `questions` of farmer.py."""
     qs = sub.add_parser("question", help="the farmer's own question store")
-    qs.add_argument("action", choices=("add", "answer", "drop", "list"))
+    qs.add_argument("action", choices=("add", "answer", "drop", "list", "twins"))
     qs.add_argument("n", nargs="?", type=int)
     qs.add_argument("--slot")
     qs.add_argument("--text")
@@ -275,6 +283,8 @@ def add_parsers(sub) -> None:
     qs.add_argument("--open", action="store_true")
     qs.add_argument("--answered", action="store_true")
     qs.add_argument("--all", action="store_true")
+    qs.add_argument("--pair", action="append", default=[], help="twins: <slot>:<farmerQ>=<planQ>")
+    qs.add_argument("--drop", action="store_true", help="twins: close the farmer twins")
     ql = sub.add_parser("questions", help="the one list of everyone's questions")
     ql.add_argument("mode", nargs="?", default="open", choices=sorted(MODES))
     for x in (qs, ql):

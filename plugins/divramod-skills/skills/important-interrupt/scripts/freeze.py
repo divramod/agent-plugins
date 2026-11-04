@@ -16,6 +16,7 @@ import os
 import re
 import signal
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 BUILD_NAMES = ("cargo", "rustc", "cargo-nextest", "xcodebuild", "swift-build", "swift-test", "swift-frontend",
                "bats", "buildkitd")
@@ -23,6 +24,7 @@ JS_TESTS = re.compile(r"\bvitest\b|\bplaywright\S*\s+test\b")
 DOCKER_BUILD = re.compile(r"\bdocker\b.*\b(build|buildx)\b")
 DAEMON = re.compile(r"^hal2-daemon(-macos)?$")
 STAT_SKIP = ("T", "Z")
+PS_TIMEOUT = 20  # D6: a ps that does not answer is given up after this, the table is then empty
 
 
 class Sys:
@@ -52,14 +54,17 @@ class Sys:
 def proc_table(sys_: Sys) -> dict:
     """{pid: {pid, ppid, uid, stat, cpu, comm, args}}: comm (the executable) and args from two ps calls."""
     table = {}
-    _, out, _ = sys_.run(["ps", "-axo", "pid=,ppid=,uid=,stat=,pcpu=,comm="])
+    with ThreadPoolExecutor(max_workers=2) as pool:  # the two ps run side by side: on a loaded Mac each takes seconds
+        first = pool.submit(sys_.run, ["ps", "-axo", "pid=,ppid=,uid=,stat=,pcpu=,comm="], PS_TIMEOUT)
+        second = pool.submit(sys_.run, ["ps", "-axo", "pid=,args="], PS_TIMEOUT)
+    _, out, _ = first.result()
     for line in out.splitlines():
         m = re.match(r"\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+([\d.]+)\s+(.*)", line)
         if m:
             pid, ppid, uid, stat, cpu, comm = m.groups()
             table[int(pid)] = {"pid": int(pid), "ppid": int(ppid), "uid": int(uid), "stat": stat,
                                "cpu": float(cpu), "comm": comm.strip(), "args": comm.strip()}
-    _, out, _ = sys_.run(["ps", "-axo", "pid=,args="])
+    _, out, _ = second.result()
     for line in out.splitlines():
         m = re.match(r"\s*(\d+)\s+(.*)", line)
         if m and int(m.group(1)) in table:
@@ -151,9 +156,12 @@ def daemon(table: dict, uid: int | None = None) -> list:
             for p in table.values() if DAEMON.match(base(p)) and p["uid"] == uid and p["stat"][:1] not in STAT_SKIP]
 
 
-def vms(sys_: Sys) -> list:
-    """The running tart VMs (`tart list --format json`); none when tart is missing."""
-    code, out, _ = sys_.run(["tart", "list", "--format", "json"])
+def vms(sys_: Sys, report=None) -> list:
+    """The running tart VMs (`tart list --format json`, under a timeout); none when tart is missing or does not
+    answer, which `report` (a print function) is told."""
+    code, out, err = sys_.run(["tart", "list", "--format", "json"], timeout=30)
+    if code in (124, 127) and report:
+        report("tart not found: no CI VMs to stop" if code == 127 else f"tart list {err}: CI VMs not stopped")
     try:
         data = json.loads(out) if code == 0 else []
     except ValueError:

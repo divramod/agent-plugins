@@ -10,7 +10,7 @@ for tool in python3 git; do
 done
 for app in hal2-cli-git hal2-cli-agents; do
   if ! command -v "$app" >/dev/null 2>&1 && [ -d "$HOME/a/hal2/code/rust" ]; then
-    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$app")
+    (cd "$HOME/a/hal2/code/rust" && cargo install --path "apps/$app" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$app")
   fi
 done
 if ! command -v gh >/dev/null 2>&1 && command -v brew >/dev/null 2>&1; then brew install gh; fi

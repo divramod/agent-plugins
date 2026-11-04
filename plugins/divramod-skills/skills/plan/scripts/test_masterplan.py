@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 
 import field_free
+import parallel  # noqa: F401  (puts the skills unit's scripts/ on the import path)
+import servant_testkit
 import testkit
 import masterplan
 import masterplan_view
@@ -64,6 +66,7 @@ def git(cwd: Path, *args: str) -> None:
 
 class MasterplanTest(unittest.TestCase):
     def setUp(self):
+        self.servant_cli = servant_testkit.install(self)  # reads plans/LEAD (plan 0594): pass it as `cli=` in a servant's field
         self.tmp = tempfile.TemporaryDirectory()
         self.base = Path(self.tmp.name)
         self.root = self.base / "09"
@@ -294,13 +297,14 @@ class MasterplanTest(unittest.TestCase):
         (self.plans / "CURRENT_PLAN").write_text(MASTER + "\n")
         (self.plans / "LEAD").write_text(f"09 {MASTER} 1\n")
 
-        result = self.run_plan("masterplan")
+        result = self.run_plan("masterplan", cli=self.servant_cli)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines()[-1],
                          "this field is a servant of the foreman in field 09: row 1, plan 0002-tools")
-        self.assertEqual(self.plan("masterplan", "--json")["lead"], {"slot": "09", "plan": MASTER, "step": "1"})
+        self.assertEqual(self.plan("masterplan", "--json", cli=self.servant_cli)["lead"],
+                         {"slot": "09", "plan": MASTER, "step": "1", "steps": [{"n": "1", "title": "", "status": ""}], "finished": False})
         for command in (("new", "x"), ("new", "x", "--parent", "1"), ("status", "1", "done")):
-            error = self.refused(*command)
+            error = self.refused(*command, cli=self.servant_cli)
             self.assertIn(f"a servant of the foreman in field 09 (plan {MASTER} row 1)", error)
             self.assertIn("report to the foreman in field 09, who marks the step", error)
             for word in ("stale", "delete"):

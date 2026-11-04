@@ -1,8 +1,10 @@
+import dataclasses
 import datetime as dt
 import json
 import unittest
 from unittest import mock
 
+import roles
 import roletime
 import tick
 import wake
@@ -44,7 +46,7 @@ class Wake(Repo):
 
     def test_a_judgment_item_wakes_once_until_it_is_handled(self):
         self.assertTrue(self.over({"wake": [judgment()]})["woken"])
-        self.assertEqual(self.sent, [("%9", "/farmer act")])
+        self.assertEqual(self.sent, [("%9", "/continue")])
         self.over({})
         notice = tick.act("frame", "role-invalid", "notify", text="bad role")
         self.over({"notify": [notice]}, NOW + dt.timedelta(minutes=15))
@@ -107,7 +109,7 @@ class Handoff(Repo):
     def test_below_the_threshold_a_plain_wake(self):
         self.agent["context_percent"] = wake.CLEAR_AT - 1
         self.assertTrue(self.over({"wake": [judgment()]})["woken"])
-        self.assertEqual(self.sent, ["/farmer act"])
+        self.assertEqual(self.sent, ["/continue"])
 
     def test_from_the_threshold_the_handoff_no_clear_and_no_double_wake(self):
         self.agent["context_percent"] = wake.CLEAR_AT
@@ -139,7 +141,7 @@ class Handoff(Repo):
         self.over({"wake": [judgment()]})
         r = self.over({}, 16)
         self.assertTrue(r["woken"])
-        self.assertEqual(self.sent, ["/farmer handoff", "/clear", "/farmer act"])
+        self.assertEqual(self.sent, ["/farmer handoff", "/clear", "/continue"])
         self.assertNotIn("handoff", wake.read(self.main))
         self.assertIn("handoff-timeout", [e["kind"] for e in self.log()])
 
@@ -177,7 +179,7 @@ class Ticks(Repo):
         self.assertFalse(wake.wake_file(str(self.main)).exists())
         r = self.round({"duty:lead": lambda i, c: [judgment()], "task:*": lambda i, c: []}, sent,
                        NOW + dt.timedelta(minutes=15))
-        self.assertEqual((r["woke"]["woken"], sent), (True, [("%9", "/farmer act")]))
+        self.assertEqual((r["woke"]["woken"], sent), (True, [("%9", "/continue")]))
         self.assertEqual(r["wake"][0]["kind"], "question")
 
     def test_a_dry_run_lists_the_items_and_wakes_nobody(self):
@@ -256,6 +258,35 @@ class CloseOlder(Wake):
         self.assertEqual(wake.close_older(self.main, None), [], "no handoff.md: nothing closes")
         wake.close_older(self.main, (NOW + dt.timedelta(minutes=30)).timestamp())
         self.assertEqual([i["seq"] for i in wake.read(self.main)["items"]], [3])
+
+    def test_with_a_handoff_seq_only_the_seen_items_close_whatever_the_mtime(self):
+        """Plan 0608 D1: the seq `mark_seen` recorded wins over the file's mtime."""
+        self.over({"wake": [judgment("seen")]}, NOW)
+        self.assertEqual(wake.mark_seen(self.main), 1)
+        self.over({"wake": [judgment("later")]}, NOW + dt.timedelta(minutes=5))
+        closed = wake.close_older(self.main, (NOW + dt.timedelta(hours=2)).timestamp())
+        self.assertEqual([i["text"] for i in closed], ["seen"])
+        self.assertEqual([i["seq"] for i in wake.read(self.main)["items"]], [2])
+        self.assertEqual(wake.close_older(self.main, None), [], "no handoff.md: nothing closes")
+
+    def test_a_role_keep_hook_names_the_seen_items_that_stay_open(self):
+        """Plan 0608 D3: `wiring.keep(main, seen)` is asked once, only with seen items; the farmer's wiring has none."""
+        self.over({"wake": [judgment("keep me"), judgment("close me")]}, NOW)
+        wake.mark_seen(self.main)
+        asked = []
+
+        def keep(main, items):
+            asked.append([i["text"] for i in items])
+            return [i for i in items if i["text"] == "keep me"]
+
+        wiring = dataclasses.replace(roles.FARMER, keep=keep)
+        closed = wake.close_older(self.main, (NOW + dt.timedelta(hours=2)).timestamp(), wiring)
+        self.assertEqual([i["text"] for i in closed], ["close me"])
+        self.assertEqual(asked, [["keep me", "close me"]])
+        self.assertEqual([i["text"] for i in wake.read(self.main)["items"]], ["keep me"])
+        self.assertIsNone(roles.FARMER.keep)
+        wake.close_older(self.main, None, wiring)
+        self.assertEqual(len(asked), 1, "no handoff.md: nothing is a candidate, the hook is not asked")
 
 
 class RoundsList(unittest.TestCase):

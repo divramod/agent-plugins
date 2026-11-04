@@ -48,6 +48,12 @@ def built() -> tuple[str | None, str]:
 EXE, WHY_NOT = built()
 
 
+# The farm hitches two or three fields, below the user's minimum of 10 (trains.MIN_HITCHED, plan 0610 D11): the dry
+# run's own process starts with the minimum at 1, so each check proves the draft, not the minimum (test_engine's).
+LOW_MINIMUM = ("import runpy, sys; sys.path.insert(0, sys.argv[1].rsplit('/', 1)[0]); import trains; "
+               "trains.MIN_HITCHED = 1; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')")
+
+
 @unittest.skipUnless(EXE, WHY_NOT)
 class Proof(unittest.TestCase):
     """One farm for the four checks, each leaving the queue and the yard as it found them: 07 and 09 hitched."""
@@ -123,7 +129,7 @@ class Proof(unittest.TestCase):
         return self.cli(self.yard, "worktree", "queue")["queue"]
 
     def dry_run(self, *flags):
-        done = self.run_([sys.executable, HERE / "tollman.py", "train", "--dry-run", *flags,
+        done = self.run_([sys.executable, "-c", LOW_MINIMUM, HERE / "tollman.py", "train", "--dry-run", *flags,
                           "--repo", self.yard], self.tmp)
         self.assertEqual(done.returncode, 0, done.stderr)
         return json.loads(done.stdout) if "--json" in flags else done.stdout

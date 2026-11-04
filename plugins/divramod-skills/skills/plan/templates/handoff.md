@@ -20,4 +20,4 @@ Done when: `plan.py current` shows the step done.
 
 ## Start with
 
-> /handoff c
+> /continue

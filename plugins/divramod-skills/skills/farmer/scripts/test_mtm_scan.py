@@ -1,7 +1,9 @@
 import time
 import unittest
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path)
 import mtm_scan as scan
+import servant_testkit
 import test_farmer
 import worktree_farm
 
@@ -40,6 +42,32 @@ class FailingTests(unittest.TestCase):
             scan.landing_start("2026-10-03T02-33-17.591Z-12"),
             scan.parse_time("2026-10-03T02:33:17.591Z"))
         self.assertIsNone(scan.landing_start(None))
+
+
+class NextestCounter(unittest.TestCase):
+    """nextest's padded progress counter `(  935/14017)` is never read as a test name (plan 0608, D10)."""
+
+    def test_padded_counter_is_skipped_for_real_lines(self):
+        msg = (
+            "        FAIL [   0.052s] (  935/14017) hal2-agents-node::it unit_autopilot::a_folder_is_refused\n"
+            "        FAIL [   0.541s] ( 3179/14017) hal2-cli-tmux::it list::the_project_table_holds\n"
+            "     TIMEOUT [  60.000s] (14000/14017) hal2-core::it slow::times_out\n"
+            "     SIGSEGV [   0.100s] (    1/14017) hal2-core::it crash::segfaults\n"
+            "        FAIL [   0.100s] hal2-core::it plain::no_counter\n"
+            "     Summary [1094.802s] 14017 tests run: 14005 passed, 12 failed, 92 skipped\n"
+        )
+        self.assertEqual(scan.failing_tests(msg), [
+            "hal2-agents-node::it unit_autopilot::a_folder_is_refused",
+            "hal2-cli-tmux::it list::the_project_table_holds",
+            "hal2-core::it slow::times_out",
+            "hal2-core::it crash::segfaults",
+            "hal2-core::it plain::no_counter",
+        ])
+
+    def test_no_name_starts_with_a_counter(self):
+        for name in scan.failing_tests("        FAIL [   0.052s] (  935/14017) a-crate::it t::x\n"):
+            self.assertNotIn("(", name)
+            self.assertNotIn("935", name)
 
 
 class Findings(unittest.TestCase):
@@ -212,11 +240,14 @@ class Summary(unittest.TestCase):
                 scan.DATA = old
 
 
-LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7"}
+LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7", "steps": [{"n": "7", "title": "", "status": ""}], "finished": False}
 
 
 class Subservants(unittest.TestCase):
     """Skills plan 0013: a worktree with plans/LEAD is a parallel plan's servant and never lands."""
+
+    def setUp(self):
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
 
     def test_the_marker_is_read_a_missing_one_is_none_a_broken_one_bad_but_marked(self):
         import tempfile
@@ -227,12 +258,12 @@ class Subservants(unittest.TestCase):
             (Path(d) / "plans/LEAD").write_text("02 0149-hal9k\n")  # review 1 finding 10: still marked
             bad = scan.lead_of(d)
             self.assertTrue(bad["bad"])
-            self.assertIn("servant with a broken marker (plans/LEAD is not", scan.subservant(bad))
+            self.assertIn("servant with a broken marker (plans/LEAD names no servant", scan.subservant(bad))
             (Path(d) / "plans/LEAD").write_text("02 0149-hal9k 7\n")
             self.assertEqual(scan.lead_of(d), LEAD)
 
     def test_a_broken_marker_counts_as_marked_in_the_findings(self):
-        bad = {"bad": True, "text": "x", "error": "plans/LEAD is not `<lead-slot> <plan> <step>`: 'x'"}
+        bad = {"bad": True, "error": "plans/LEAD names no servant: x"}
         q = [{"slot": "31", "state": "waiting", "seq": 5, "process_alive": False}]
         w = [{"slot": "31", "ahead": 5, "agent_state": "done", "agent_idle_seconds": 3600, "plan": "x", "lead": bad,
               "missing": [bad["error"], "HEAD: 5 commit(s) not in origin/main"]}]
@@ -535,7 +566,7 @@ class Roles(unittest.TestCase):
 
 class SubservantWork(worktree_farm.MarkedSlots):
     """Review 1 finding 3: a marked worktree's work is measured against origin/<foreman>, never main, so a servant whose
-    step its foreman merged is not restarted with /handoff c every 3 hours. 31: merged into origin/02; 32: not."""
+    step its foreman merged is not restarted with /continue every 3 hours. 31: merged into origin/02; 32: not."""
 
     def entry(self, name):
         return scan.worktree_entry({"path": str(self.base / name), "branch": name}, {}, "main", time.time())

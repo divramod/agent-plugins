@@ -20,9 +20,40 @@ def mode_text(mode: dict | None) -> str:
     return text + (f" ({', '.join(extra)})" if extra else "")
 
 
-def note(t: dict) -> str:
-    """The marks of a ticket in a few words, fixed order."""
+def depends_notes(graph: dict | None, tickets: list[dict]) -> dict[str, str]:
+    """Why a hitched wagon rides after another or waits (plan 0595 step 15, D17; the tollman's `train_depends`): for a
+    ready wagon whose plan depends on a plan not yet in main, `rides after 07 (0707)` when that plan's field is
+    another hitched wagon (a train car or a ready ticket), else `waits for 0514 (pushed)`. `graph` is the farm's
+    `depends list` by plan number (None: no notes, the page stays as it was)."""
+    nodes = {str(n["field"]): n for n in (graph or {}).values() if n.get("field")}
+    hitched = {str(t.get("slot")) for t in tickets if t.get("ready")}
+    hitched |= {str(c.get("field")) for t in tickets if isinstance(t.get("train"), dict)
+                for c in t["train"].get("cars") or [] if isinstance(c, dict)}
+    out = {}
+    for t in tickets:
+        slot = str(t.get("slot"))
+        if not t.get("ready") or slot not in nodes:
+            continue
+        lines = []
+        for link in nodes[slot].get("depends_on") or []:
+            if link.get("state") == "main":
+                continue
+            field, plan = link.get("field"), f"{int(link['plan']):04d}"
+            if field and str(field) in hitched and str(field) != slot:
+                lines.append(f"rides after {field} ({plan})")
+            else:
+                lines.append(f"waits for {plan} ({link.get('state') or 'open'})")
+        if lines:
+            out[slot] = "; ".join(lines)
+    return out
+
+
+def note(t: dict, deps: dict | None = None) -> str:
+    """The marks of a ticket in a few words, fixed order; `deps` (`depends_notes`) ends them."""
     out = []
+    plan = t.get("plan") if isinstance(t.get("plan"), dict) else {}
+    if label := src.hitch_label(plan.get("hitch")):  # step 2's ticket label ("milestone 1/2"), read, never recomputed
+        out.append(label)
     red = src.red_of(t)
     if red:
         out.append(f"red: {state_table.red_phrase(red)}; holds the queue until it lands or is released")
@@ -38,6 +69,8 @@ def note(t: dict) -> str:
         out.append(f"rides with {t['rides_with']}")
     if t.get("waits_for"):
         out.append(f"waits for {t['waits_for']}")
+    if deps and deps.get(str(t.get("slot"))):
+        out.append(deps[str(t.get("slot"))])
     return "; ".join(out)
 
 
@@ -45,9 +78,9 @@ def ticket_row(t: dict) -> list:
     return [t.get("position"), t.get("slot"), t.get("state") or "", note(t)]
 
 
-def ready_row(t: dict) -> list:
+def ready_row(t: dict, deps: dict | None = None) -> list:
     r = t["ready"] if isinstance(t.get("ready"), dict) else {}
-    return [t.get("position"), t.get("slot"), r.get("at") or "", (r.get("head") or "")[:8], note(t)]
+    return [t.get("position"), t.get("slot"), r.get("at") or "", (r.get("head") or "")[:8], note(t, deps)]
 
 
 def train_row(t: dict) -> list:
@@ -55,7 +88,7 @@ def train_row(t: dict) -> list:
     return [t.get("slot"), t["train"].get("carrier") or "", ", ".join(map(str, cars)) or "no cars", t["train"].get("at") or ""]
 
 
-def queue_sections(tickets: list[dict]) -> list[dict]:
+def queue_sections(tickets: list[dict], deps: dict | None = None) -> list[dict]:
     tickets = sorted(tickets, key=lambda t: t.get("position") if isinstance(t.get("position"), int) else 10**9)
     holder = [t for t in tickets if t.get("holding")]
     trains = [t for t in tickets if isinstance(t.get("train"), dict)]
@@ -68,7 +101,7 @@ def queue_sections(tickets: list[dict]) -> list[dict]:
         {"heading": f"Trains ({len(trains)})", "columns": ["Field", "Carrier", "Cars", "Since"],
          "rows": [train_row(t) for t in trains], "empty": "No train."},
         {"heading": f"Ready wagons ({len(ready)})", "columns": ["Place", "Field", "Ready since", "Head", "Note"],
-         "rows": [ready_row(t) for t in ready], "empty": "No wagon is hitched."},
+         "rows": [ready_row(t, deps) for t in ready], "empty": "No wagon is hitched."},
         {"heading": f"Waiting in order ({len(waiting)})", "columns": cols, "rows": [ticket_row(t) for t in waiting],
          "empty": "Nobody else waits."},
     ]
@@ -103,5 +136,5 @@ def view(data: dict, ctx: dict) -> tuple[str, list[dict]]:
         sections.append({"heading": "Merge queue", "empty": EMPTY})
         return views.title_of(ctx), sections
     else:
-        sections += queue_sections(raw["queue"])
+        sections += queue_sections(raw["queue"], depends_notes(src.depends(data["repo"]), raw["queue"]))
     return views.title_of(ctx), sections + [runs]

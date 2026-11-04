@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+os.environ.setdefault("HAL2_OVERLAP", "off")  # create.py's overlap scan (plan 0593 D16) has its own tests
 COORDINATOR = ("You are the plan's coordinator: you never do a step yourself; each step runs in one subagent at its "
                "row's Model and Effort, sized under 35% of its Window; you check its done-when, commit it and keep "
                "`run` current.")

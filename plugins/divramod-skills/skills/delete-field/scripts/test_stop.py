@@ -52,6 +52,17 @@ elif args[:2] == ["worktree", "queue"]:
     print(json.dumps({"queue": [{"repo": os.path.basename(repo), "slot": "04", "state": "active"}]}))
 '''
 
+# hal2-cli-plans `depends list`: the graph in $FAKE_GRAPH (none: an empty graph); hermetic via HAL2_CLI_PLANS
+PLANS = r'''#!/usr/bin/env python3
+import json, os, sys
+if sys.argv[1:3] != ["depends", "list"]:
+    sys.exit(2)
+print(json.dumps({"schema": 1, "farm": "app", "plans": json.loads(os.environ.get("FAKE_GRAPH", "[]")), "problems": []}))
+'''
+WAITING = [{"plan": "0595", "slug": "0595-gaps", "field": "03", "depends_on": [], "dependents": [
+    {"plan": "0600", "slug": "0600-later", "field": "12", "steps": [], "needs": [], "until": "main",
+     "state": "pushed", "reached": False}]}]
+
 
 class TestStop(unittest.TestCase):
     def setUp(self):
@@ -68,6 +79,8 @@ class TestStop(unittest.TestCase):
         for name in ("hal2-cli-agents", "hal2-cli-git"):
             (self.bin / name).write_text(FAKE)
             (self.bin / name).chmod(0o755)
+        (self.bin / "hal2-cli-plans").write_text(PLANS)
+        (self.bin / "hal2-cli-plans").chmod(0o755)
         self.log = t / "log"
 
     def tearDown(self):
@@ -75,7 +88,8 @@ class TestStop(unittest.TestCase):
 
     def run_stop(self, *args, code=0, **env):
         env = {**os.environ, "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(self.log),
-               "FAKE_REPO": str(self.repo.resolve()), "TMUX_PANE": "%99", **env}
+               "FAKE_REPO": str(self.repo.resolve()), "TMUX_PANE": "%99",
+               "HAL2_CLI_PLANS": str(self.bin / "hal2-cli-plans"), **env}
         env.pop("HAL2_TERMINAL", None)
         r = subprocess.run([sys.executable, str(HERE / "stop.py"), *args, "--repo", str(self.repo)],
                            capture_output=True, text=True, env=env)
@@ -130,6 +144,22 @@ class TestStop(unittest.TestCase):
 
     def test_a_running_landing_is_refused(self):
         self.assertIn("landing is active", self.run_stop("stop", "04", code=3)["refused"])
+
+    def test_a_field_whose_plan_has_an_open_dependent_is_refused_unless_forced(self):
+        graph = json.dumps(WAITING)
+        why = self.run_stop("stop", "03", code=3, FAKE_GRAPH=graph)["refused"]
+        self.assertEqual(why, "its plan has open dependents: plan 0600 waits for plan 0595 until main (now pushed)")
+        self.assertEqual(self.run_stop("stop", "03", "--force", FAKE_GRAPH=graph)["how"], "signal")
+
+    def test_a_dependent_that_is_satisfied_or_in_another_field_does_not_hold_the_field(self):
+        done = [{**WAITING[0], "dependents": [{**WAITING[0]["dependents"][0], "state": "main"}]}]
+        self.assertEqual(self.run_stop("stop", "03", FAKE_GRAPH=json.dumps(done))["how"], "signal")
+        self.assertEqual(self.run_stop("stop", "04", FAKE_GRAPH=json.dumps(WAITING), code=3)["refused"],
+                         "its landing is active in the merge queue")  # 04 is refused for its landing only
+
+    def test_a_missing_cli_is_one_advisory_line_never_a_refusal(self):
+        out = self.run_stop("stop", "03", HAL2_CLI_PLANS="/no/such/hal2-cli-plans")
+        self.assertEqual(out["how"], "signal")
 
     def test_its_own_session_is_refused_even_forced(self):
         out = self.run_stop("stop", "%7", "--force", code=3, TMUX_PANE="%7")

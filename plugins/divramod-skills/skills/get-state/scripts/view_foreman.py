@@ -4,8 +4,9 @@
 landing and the field's place in the merge queue, the step table (the next step marked), the next step with its
 done-when and the open questions, and, for a farm with a plan store, its home and state ref (plan 0409 step 6: sync on
 or off and why, a locked gpg agent, conflicts). The plan is read through `hal2-cli-plans --json` (`plan_cli`: either
-home, the plans folder or the store); only without the CLI the files are read. A servant (its `plans/LEAD` names a
-foreman's field) shows its foreman's plan from that field's checkout, with the line "servant of <field>". A field
+home, the plans folder or the store); only without the CLI the files are read. A servant (`hal2-cli-plans servant show`, plan 0594: its
+foreman's field) shows its foreman's plan from that field's checkout, with the line "servant of <field>, working
+steps 3 (done), 4 (open)" and, once finished, that the foreman removes the field. A field
 without a plan gets an empty state.
 """
 
@@ -13,7 +14,10 @@ import re
 import sys
 from pathlib import Path
 
+import farmer_link as fl
 import plan_cli
+import servant_state
+import state_run
 import state_sources as src
 from skillpath import sibling  # on sys.path since state_sources (plan 0360 D20)
 
@@ -122,20 +126,17 @@ def slug_of(root: str, current: str) -> str | None:
     return found or (name if src.PLAN_NAME.match(name) and "/" not in name else None)
 
 
-def lead(root: str) -> tuple[str, str, str] | None:
-    """(foreman field, plan, step) of the checkout's `plans/LEAD`, None without a usable marker."""
-    parts = src.pointers.read(root, "LEAD").split()
-    return (parts[0], parts[1], parts[2]) if len(parts) >= 3 else None
-
-
 def owner_of(own: dict, rows: list[dict]) -> tuple[dict, str, str]:
     """The row whose plan is shown, its plan text and the servant line: the foreman's for a servant, else the own."""
-    marker = lead(own["path"])
+    servant = fl.servant_of(own["path"])
     by_wt = {r["wt"]: r for r in rows}
-    if marker and marker[0] in by_wt and marker[0] != own["wt"]:
-        boss = by_wt[marker[0]]
-        plan = marker[1] if src.PLAN_NAME.match(marker[1]) else boss.get("plan") or ""
-        return boss, plan, f"servant of {marker[0]}, working step {marker[2]}"
+    if servant and servant["foreman"] in by_wt and servant["foreman"] != own["wt"]:
+        boss = by_wt[servant["foreman"]]
+        plan = servant["plan"] if src.PLAN_NAME.match(servant["plan"]) else boss.get("plan") or ""
+        line = f"servant of {servant['foreman']}, working {servant_state.steps_line(servant)}"
+        if servant.get("finished"):
+            line += f"; finished: the foreman removes this field (servant finish {own['wt']})"
+        return boss, plan, line
     return own, own.get("plan") or "", ""
 
 
@@ -144,9 +145,16 @@ def queue_line(row: dict, mode: dict | None) -> str:
     text = "not in the merge queue"
     if q:
         text = "holds the toll gate" if q.get("holds") else f"waits in the merge queue, position {q.get('position')}"
+    if q and q.get("hitch"):
+        text += f", hitched as {q['hitch']}"
     if mode and mode.get("mode") == "smuggle":
         text += " (smuggle mode)"
     return f"Queue: field {row['wt']} {text}"
+
+
+def run_line(row: dict) -> str:
+    """`Run state: pushing, waits behind landing 07` (hal2 plan 0514), empty for a field with none."""
+    return f"Run state: {text}" if (text := state_run.phrase(row)) else ""
 
 
 def empty_view(title: str, own: dict | None, current: str) -> tuple[str, list[dict]]:
@@ -160,7 +168,7 @@ def plan_sections(p: dict, row: dict, servant: str, mode: dict | None, questions
                   store: list[str] | None = None) -> list[dict]:
     nxt, steps = p["next"], p["steps"]
     items = [i for i in (p["description"], servant, f"Landing: {p['landing']}" + (f" ({p['land']})" if p["land"] else "")
-                         if p["landing"] else "", queue_line(row, mode)) if i]
+                         if p["landing"] else "", queue_line(row, mode), run_line(row)) if i]
     marked = [i for i, s in enumerate(steps) if nxt is not None and s is nxt]
     return [
         {"heading": p["title"], "items": items},

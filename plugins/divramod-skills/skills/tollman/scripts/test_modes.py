@@ -54,8 +54,10 @@ def kinds(actions):
 
 
 def plan(rows, tickets=(), alive=(4711,), result=None, mode=SMUGGLE, flag=None):
-    return trains.plan(TOP, MAIN, list(tickets), list(rows), {}, alive=lambda pid: pid in alive,
-                       result=lambda main: result, mode=mode, sleep_flag=flag)
+    # MAIN is no repository: git reads nothing there (plan 0610 step 1: the draft reads the barn for every ready ticket)
+    with mock.patch("trial.git", return_value=(1, "")):
+        return trains.plan(TOP, MAIN, list(tickets), list(rows), {}, alive=lambda pid: pid in alive,
+                           result=lambda main: result, mode=mode, sleep_flag=flag)
 
 
 class Asleep(unittest.TestCase):
@@ -188,7 +190,7 @@ class Woken(WokenBase):
         self.assertEqual(self.last, [("asleep", "record", "-")], "one line per round, noted once, told once")
         self.assertEqual(modes.seen(str(self.main)), "asleep")
 
-    def test_back_in_production_a_smuggled_hitch_is_cleared_and_the_rest_forms(self):
+    def test_back_in_production_a_smuggled_hitch_is_settled_as_landed_and_the_rest_forms(self):
         self.crop("07", {"seven.txt": "7"})
         self.crop("09", {"nine.txt": "9"})
         self.panes = {"09": "%9"}
@@ -199,14 +201,15 @@ class Woken(WokenBase):
         self.round()
         self.assertEqual(self.last[:3], [("barn", "run", "09"), ("in-barn", "send", "09"), ("seen-mode", "run", "-")])
         self.assertEqual(self.barn_lines(), [("09", "hitch")])
-        self.assertIsNone(self.gate.of("09"), "its hitch cleared")
+        self.assertTrue(self.gate.of("09")["ready"], "settled as landed, its hitch stays (plan 0610 D21)")
+        self.assertNotIn(["worktree", "queue", "ready", "09", "--clear"], self.gate.calls, "never cleared")
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07"], "the chain formed the rest")
         self.assertEqual([p for p, _ in self.typed], ["%9"])
         self.assertIn("already in the barn", self.typed[0][1])
         self.round()
         self.assertNotIn(("barn", "run", "09"), self.last, "told once")
 
-    def test_awake_again_a_hitch_that_landed_alone_is_cleared_and_the_rest_forms(self):
+    def test_awake_again_a_hitch_that_landed_alone_is_settled_and_the_rest_forms(self):
         self.crop("07", {"seven.txt": "7"})
         self.crop("09", {"nine.txt": "9"})
         self.panes = {"09": "%9"}
@@ -257,25 +260,26 @@ class Woken(WokenBase):
         self.assertTrue(all(t["ready"] and not t["train"] for t in self.gate.tickets))
         self.assertEqual(sorted(p for p, _ in self.typed), ["%7", "%9"], "each told to land alone")
 
-    def test_sleep_stops_a_train_in_tollman_train_0375_0365_drops_its_worktree_the_cars_keep_their_places(self):
-        """Plan 0375 D5, D8 (step 4's done-when): two cars of plans 0375 and 0365 form a train in its own worktree;
-        on the flag, its landing's process gone, the asleep round drops the train and its worktree through the proof,
-        and both cars wait in their places, told to land alone."""
+    def test_sleep_stops_a_train_in_tollman_train_drops_its_branch_the_cars_keep_their_places(self):
+        """Plan 0375 D5, D8 (step 4's done-when), plan 0610 D18: two cars of plans 0375 and 0365 form a train in the
+        kept worktree `tollman-train` on `train-1-1`; on the flag, its landing's process gone, the asleep round drops
+        the train and its branch through the proof (the folder stays: warm cache), and both cars wait in their places,
+        told to land alone."""
         self.crop("07", {"seven.txt": "7"}, plan="0375-tollman-switch")
         self.crop("09", {"nine.txt": "9"}, plan="0365-queue-view")
         self.round()
-        wt = self.wm.parent / "tollman-train-0375-0365"
+        wt = self.wm.parent / "tollman-train"
         self.assertEqual((self.carrier(), self.spawned, self.train()["state"]), (wt.name, [wt.name], "landing"))
         self.assertEqual(out(wt, "log", "-2", "--format=%s").splitlines(),
-                         [f"Merge branch '09' into {wt.name}", f"Merge branch '07' into {wt.name}"])
+                         ["Merge branch '09' into train-1-1", "Merge branch '07' into train-1-1"])
         places = [(t["slot"], t["seq"]) for t in self.gate.tickets if t["ready"]]
         self.panes = {"07": "%7", "09": "%9"}
         self.alive.clear()  # its landing's process is gone
         self.flag()
         self.round()
         self.assertIn(("train-drop", "run", "-"), self.last)
-        self.assertEqual((self.train(), wt.exists(), out(self.main, "branch", "--list", wt.name)), (None, False, ""),
-                         "the train and its worktree are gone")
+        self.assertEqual((self.train(), wt.exists(), out(self.main, "branch", "--list", "train-1-1")), (None, True, ""),
+                         "the train and its branch are gone, the kept folder stays")
         self.assertEqual(self.state()[-1], ("cleared", wt.name))
         self.assertEqual([(t["slot"], t["seq"]) for t in self.gate.tickets], places, "the cars keep their places")
         self.assertTrue(all(t["ready"] and not t["train"] for t in self.gate.tickets), "hitched, on no train")

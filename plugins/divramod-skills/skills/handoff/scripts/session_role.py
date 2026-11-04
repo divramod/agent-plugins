@@ -3,11 +3,12 @@
 
   session_role.py [--repo DIR] [--json]   prints `/foreman duties` or `/servant duties`, nothing for any other session
 
-A foreman and a servant lose their role in a clear, so `/handoff c` loads it again before anything else. The role comes from
+A foreman and a servant lose their role in a clear, so `/continue` loads it again before anything else. The role comes from
 the checkout, never from the field's number (D16: a foreman may work in any field 00-99): a field holding `plans/LEAD`
 is a servant's, a field whose `CURRENT_PLAN` pointer names a plan (a `plan.md`) without it is a foreman's. Whether the
-checkout is a field at all, and not the main checkout, a farmer's, a tollman's or an upper role's place, is get-state's
-detection (`role.detect`, which the pages of `/s` use): those roles load their own skill (`/farmer act`, `/tollman act`).
+checkout is a field at all, and not the main checkout, a farmer's, a tollman's, a train's or an upper role's place, is
+hal2's one rule (`hal2-cli-agents role --json`, plan 0592's D12) through get-state's `role.resolve`, which falls back
+to its own `detect` without the CLI: those roles load their own skill (`/continue` dispatches them).
 """
 import argparse
 import json
@@ -34,9 +35,10 @@ def session_role(root: Path) -> str | None:
     top = git(root, "rev-parse", "--show-toplevel")
     common = git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
     main = str(Path(common).parent) if common else None
-    if state_role.detect(top, main) not in ("foreman", "servant"):  # a field only (by its folder), not its role
+    found = state_role.resolve(None, top, main)  # hal2's rule (a train's field: none), else the folder's
+    if found not in ("foreman", "servant"):
         return None
-    if where.pointers.exists(Path(top), where.pointers.LEAD):
+    if found == "servant" or where.pointers.exists(Path(top), where.pointers.LEAD):
         return "servant"
     return "foreman" if where.current_plan(Path(top)) else None
 

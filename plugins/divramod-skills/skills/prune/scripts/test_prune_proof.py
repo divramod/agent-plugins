@@ -132,7 +132,7 @@ class Marked(MarkedSlots):
         self.mark("33", lead="99")
         self.assertIn("origin/99 does not exist", self.why()["33"])
         (self.base / "33/plans/LEAD").write_text("nonsense\n")
-        self.assertIn("plans/LEAD is not", self.why()["33"])
+        self.assertIn("plans/LEAD names no servant", self.why()["33"])
 
     def test_unmarked_slots_are_unchanged(self):
         why = self.why()

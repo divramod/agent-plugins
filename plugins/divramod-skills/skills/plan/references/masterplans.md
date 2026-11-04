@@ -14,7 +14,7 @@ never edit, commit or start a servant, and count in the five subagents at once. 
 yet grilled again against the default branch), `next`, `running`, `blocked <why>`, `done` (`done (<note>)`) or blank,
 nothing else; `done` exactly when its plan is. **Code ticks it**: the `plan.py status` that finishes a plan's last
 step sets its row `done` (`tick` in the JSON, `tick_skipped`: why not; also with `--plan`), a reopened step takes it
-back (`running`); commit both `plan.md` files. Between two plans `CURRENT_PLAN` names the masterplan (`/handoff c`).
+back (`running`); commit both `plan.md` files. Between two plans `CURRENT_PLAN` names the masterplan (`/continue`).
 
 - `plan.py new "<title>" --masterplan`: its crop is the first of twelve no unfinished masterplan of any checkout uses;
   the marker is none of the name's four words. After `new --parent <n>` fill the row's Needs and Touches.

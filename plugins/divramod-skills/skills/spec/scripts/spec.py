@@ -46,6 +46,7 @@ from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0
 sys.path.insert(0, str(sibling("plan") / "scripts"))
 import envelope  # noqa: E402  (the plan skill's front matter reader)
 import occupied  # noqa: E402  (a started plan keeps the field, plan 0376 D2)
+import overlap  # noqa: E402  (the start paths' overlap check, plan 0593 D16)
 import names  # noqa: E402  (plan-names-are-short)
 import plan_number  # noqa: E402  (unique numbers across worktrees and branches)
 import planhome  # noqa: E402  (files or store, hal2 plan 0409)
@@ -209,6 +210,7 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
     refused before any number is taken, and in an occupied field (a started plan is current) unless `here`: the
     user's switch, the plan goes to PREVIOUS_PLAN. `seed` (`<seedbag>#<n>`) is linked into the plan and marked sent."""
     slug, description, sown = refusals(root, title, description, here, seed)
+    found = overlap.scan(root, f"{title}\n{description}")  # plan 0593 D16: settled before the spec is written
     number, folder = numbered_folder(root, slug, title, fetch)  # in the store home the claim comes after every check
     title = " ".join(title.split())
     text = TEMPLATE.read_text().format(
@@ -224,7 +226,10 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
             shutil.rmtree(folder)
             raise SpecError(str(error)) from None
     pointers.write(root, POINTER, folder.name)
+    overlap.attach(folder / spec_plan.PLAN, found)
+    print(overlap.report(found, folder), file=sys.stderr)
     info = describe(root, folder)
+    info["overlap"] = overlap.lines(found)
     if sown:
         info["seed"] = seeds.mark(root, sown)
     return info

@@ -73,7 +73,7 @@ class OnePerPlan(Counting):
         found = self.collect()
         self.assertEqual(len(self.count(["ps"])), 1, self.count(["ps"]))
         self.assertEqual(len(self.refs_calls()), 1, self.refs_calls())
-        self.assertEqual(len(self.calls("hal2-cli-plans", "list")), 1)
+        self.assertEqual(len([c for c in self.calls("hal2-cli-plans", "list") if c[0] != "depends"]), 1)  # not the graph
         self.assertEqual(self.calls("hal2-cli-plans", "show"), [], "no show per field: the list knew the plan")
         self.assertEqual([r for r in self.runs if any("cleanup.py" in x for x in r)], [], "no cleanup.py program per field")
         by = {f["slot"]: f for f in found["fields"]}

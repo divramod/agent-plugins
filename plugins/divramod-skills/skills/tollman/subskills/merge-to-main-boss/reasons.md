@@ -296,7 +296,7 @@ Nothing holds the queue on red and nothing runs on the Mac, so the local cases c
   - 2026-10-03: wt 11 (plan 0085, 13 commits) and wt 13 (plan 0102, 7 commits; its last landing failed
     2026-10-02 03:54).
 - **Remedy**: start a session in the worktree (`hal2-cli-git worktree run <NN> --agent claude --detach --prompt
-  "/handoff c"`), or ask the user when the plan looks abandoned.
+  "/continue"`), or ask the user when the plan looks abandoned.
 
 ## R8 · A system-wide stop paused a landing
 

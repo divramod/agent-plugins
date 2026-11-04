@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Does the session match the plan's `run` after a clear? `/handoff c`'s step 0, decided without judgment (plan 0016
+"""Does the session match the plan's `run` after a clear? `/continue`'s step 0, decided without judgment (plan 0016
 step 5; plan 0015's D10: before a clear the session wins, after it the plan wins).
 
   drift.py [--root <checkout>] [--transcript <file>] [--session <id>]
@@ -12,7 +12,7 @@ the live values are session.py's (the plan skill's; --transcript and --session g
 
 - `ok`: nothing to do. No plan, a legacy plan or a servant's worktree (where.py's form `legacy`), no `run`, no
   difference, or only the window differs (the window is no launch flag).
-- `switch`: the model or the effort differs; `command` restarts the session at `run` with `/handoff c` as its first
+- `switch`: the model or the effort differs; `command` restarts the session at `run` with `/continue` as its first
   prompt. The switch is recorded under `$HANDOFF_ROOT/switches/<checkout>.json` (default `~/skills/handoff`) with the
   handoff's `at`, so the next call for the same handoff knows it ran.
 - `sync`: it still differs after a switch for the same handoff (`at`): the session's values win, `command` writes them
@@ -103,7 +103,7 @@ def decide(root: Path, live: dict | None = None) -> dict:
                       "still differ: the session's values win", command=command, record=str(record), **base)
     model, effort, _ = run_words(run)
     flags = (["--model", model] if model else []) + (["--effort", effort] if effort else [])
-    command = shlex.join(["hal2-cli-agents", "switch", *flags, "--prompt", "/handoff c", "--detach", "--json"])
+    command = shlex.join(["hal2-cli-agents", "switch", *flags, "--prompt", "/continue", "--detach", "--json"])
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(json.dumps({"checkout": str(root), "at": at, "run": run, "drift": drift,
                                   "switched": dt.datetime.now().isoformat(timespec="seconds")}, indent=2) + "\n")

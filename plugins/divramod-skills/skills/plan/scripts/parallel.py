@@ -11,22 +11,34 @@
 - Status: `done...`, `running`, `blocked <why>`, anything else (blank, `next`) is open. A running step, and a blocked
   one with a Who, holds its Touches.
 
-A servant's field holds the gitignored marker `plans/LEAD` (`<foreman's field> <plan-slug> <step>`; of a masterplan's
+A servant's field holds the gitignored marker `plans/LEAD` (`<foreman's field> <plan-slug> <steps>`; of a masterplan's
 servant the masterplan's slug and its row): plan.py and mtm refuse to write the plan or land there (plan 0015 D12;
-hal2 plan 0275 D26): the foreman marks the steps and brings the work in.
+hal2 plan 0275 D26): the foreman marks the steps and brings the work in. The marker's existence marks the field; its
+parts come from `hal2-cli-plans servant show --json` (`read_marker`, hal2 plan 0594), never from a split of the line.
 """
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
+import planread
+import milestone
 import pointers
+
+try:  # the skills unit's scripts/: the one reader of plans/LEAD (plan 0594); the plan skill copied out of the unit has none
+    sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
+    import servant_state
+except (StopIteration, ImportError):
+    servant_state = None
 
 LEAD = Path("plans") / "LEAD"  # the words of the messages; the file is the git dir's or plans/ (pointers.py)
 DEFAULT_CAPACITY = {"@vm": 2}
-MILESTONE = re.compile(r"^\W*milestone\s+\d+", re.I)
+MILESTONE = milestone.ROW  # the row form is milestone.py's (one definition with hal2-plans)
 WHO = re.compile(r"^(lead|subagent|user)$")
 SLOT = re.compile(r"^slot\s*\d+$")
+SUBPLAN_REF = re.compile(r"(\d\d)\.\d+")  # a schema 2 step ref `02.01`: the servant object's step of a sub-plan servant
+SUBPLAN_DIR = re.compile(r"\d\d-[a-z0-9][a-z0-9-]*")  # a sub-plan `02-readers`
 
 
 class ParallelError(Exception):
@@ -145,6 +157,7 @@ def holds(step: dict) -> bool:
 def schedule(steps: list[dict], room: dict[str, int], limit: int | None = None) -> tuple[list[dict], list[dict]]:
     """(ready, waiting): ready steps picked greedily in table order, each open one left over with why it waits."""
     done = {s["number"] for s in steps if kind(s["status"]) == "done"}
+    open_milestones = {s["milestone"] for s in steps if s.get("milestone") and kind(s["status"]) != "done"}
     used: dict[str, int] = {}
     for s in steps:
         if holds(s):
@@ -158,6 +171,8 @@ def schedule(steps: list[dict], room: dict[str, int], limit: int | None = None) 
         busy = [t for t in s["touches"] if used.get(t, 0) >= room.get(t, 1)]
         if s["after_landing"]:
             why = "checked after the landing"
+        elif s.get("after_milestone") in open_milestones:
+            why = f"waits for Milestone {s['after_milestone']} in the barn"
         elif open_needs:
             why = f"needs step(s) {', '.join(open_needs)}"
         elif busy:
@@ -187,14 +202,37 @@ def check_who(who: str) -> str:
 
 
 def read_marker(root: Path) -> dict | None:
-    """The servant marker LEAD (the git dir's, else plans/LEAD): {slot, plan, step}, None when there is none."""
+    """The servant marker LEAD (the git dir's, else plans/LEAD) as {slot, plan, step, steps, finished}: `slot` the
+    foreman's field, `step` the steps joined by commas (a sub-plan servant's: its sub-plan `02-readers`), `steps` the
+    CLI's list; None when there is none. The field stays a servant's when `hal2-cli-plans servant show` is missing or
+    gives none (D6, no fallback parse): {slot: "", plan: "", step: "", steps: [], unread: True}, so the write refusal
+    never depends on the CLI."""
     if not pointers.exists(root, pointers.LEAD):
         return None
-    text = pointers.read(root, pointers.LEAD)
-    parts = text.split()
-    if len(parts) < 3:
-        raise ParallelError(f"{LEAD} must hold `<lead-slot> <plan> <step>`, not '{text}'")
-    return {"slot": parts[0], "plan": parts[1], "step": parts[2]}
+    found = servant_state.of(root) if servant_state else None
+    if found is None:
+        return {"slot": "", "plan": "", "step": "", "steps": [], "unread": True}
+    names = servant_state.step_names(found)
+    return {"slot": str(found["foreman"]), "plan": str(found["plan"]),
+            "step": subplan_of_steps(root, str(found["plan"]), names) or ",".join(names),
+            "steps": found["steps"], "finished": bool(found.get("finished"))}
+
+
+def subplan_of_steps(root: Path, plan: str, names: list[str]) -> str | None:
+    """`02-readers` when the servant's steps are one sub-plan of a schema 2 plan: the object names them `02.01`, `02.02`
+    (all of sub-plan 02; the folder is found in the plan's `subplans/`) or, when the plan is not found, the sub-plan
+    itself (`02-readers`). None for the legacy form (step numbers, masterplan rows)."""
+    if len(names) == 1 and SUBPLAN_DIR.fullmatch(names[0]):
+        return names[0]
+    prefixes = {m.group(1) for n in names if (m := SUBPLAN_REF.fullmatch(n))}
+    if not names or len(prefixes) != 1 or not all(SUBPLAN_REF.fullmatch(n) for n in names):
+        return None
+    number = next(iter(prefixes))
+    for folder in (planread.plan_dir(root, plan), *sorted(Path(root).glob(f"plans/{plan}-*"))):
+        for sub in sorted((folder / "subplans").glob(f"{number}-*")):
+            if SUBPLAN_DIR.fullmatch(sub.name):
+                return sub.name
+    return None
 
 
 def worktree_of(path: Path) -> Path | None:

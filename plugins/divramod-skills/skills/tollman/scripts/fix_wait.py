@@ -174,8 +174,8 @@ def fixes(main: str, name: str, merge, join, sleep=time.sleep, clock=time.monoto
         lines += merge()
         rows = train_state.lines(main)
         train = train_state.standing(rows)
-        if not train or train.get("train") != name:
-            return lines + [f"next train: train {name} no longer stands: the fix wait ends"]
+        if not train or train.get("train") != name or train.get("state") != "landing":
+            return lines + [f"next train: train {name} no longer lands: the fix wait ends"]  # a joiner's resolve (E5)
         left = holding(main, train, rows, entry_of(main, rid), read, seen)
         if left == []:
             lines.append(f"next train: every red of run {rid} has its fix car or a named reason: the push goes")

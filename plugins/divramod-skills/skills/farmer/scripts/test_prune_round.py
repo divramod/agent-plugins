@@ -6,6 +6,7 @@ import io
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -45,13 +46,21 @@ class Farm(unittest.TestCase):
                   mock.patch.object(pr, "size_gb", lambda t: self.sizes[t.parent.parent.parent.name]),
                   mock.patch.object(pr, "is_idle", lambda f: f.name not in self.busy),
                   mock.patch.object(pr, "is_ignored", lambda f: f.name not in self.tracked),
-                  mock.patch.object(pr, "is_checkout", lambda f: True)]  # the fake farm is no git repository
+                  mock.patch.object(pr, "is_checkout", lambda f: True),  # the fake farm is no git repository
+                  mock.patch.object(pr, "autopilot", lambda m: self.autopilot),
+                  mock.patch.object(pr, "record", self.record)]
+        self.autopilot = None  # unreadable: the round runs by its cron, as before step 27
+        self.recorded = []
         out = contextlib.redirect_stdout(io.StringIO())
         out.__enter__()
         self.addCleanup(out.__exit__, None, None, None)
         for p in self.p:
             p.start()
             self.addCleanup(p.stop)
+
+    def record(self, main, started):
+        self.recorded.append((main, started))
+        return None
 
     def free(self):
         gone = sum(self.sizes[n] for n, f in self.fields.items() if not (f / pr.TARGET).exists())
@@ -148,6 +157,88 @@ class Round(Farm):
         with mock.patch.object(pr, "run", return_value=1) as m:
             self.assertEqual(farmer.main(["prune-round", "--repo", "/x/farmer"]), 1)
         m.assert_called_once_with("/x/farmer")
+
+
+NOON = datetime(2026, 11, 3, 12, 0, tzinfo=timezone.utc)
+
+
+def farm(**kw):
+    return {"auto_prune": True, "prune_interval_s": 1200, "prune_due": None, "pruned_at": None, **kw}
+
+
+class Due(unittest.TestCase):
+    """The autopilot's switch (plan 0543 step 27): Prune now always, else auto prune by its interval."""
+
+    def test_a_prune_now_runs_also_with_auto_prune_off_and_inside_the_interval(self):
+        go, why = pr.due(farm(auto_prune=False, prune_due="2026-11-03T11:59:00Z", pruned_at="2026-11-03T11:58:00Z"), NOON)
+        self.assertTrue(go)
+        self.assertIn("Prune now asked at 2026-11-03T11:59:00Z", why)
+
+    def test_auto_prune_off_without_a_prune_now_waits(self):
+        self.assertEqual(pr.due(farm(auto_prune=False), NOON), (False, "auto prune off, no Prune now asked"))
+
+    def test_the_interval_counts_from_the_last_passed_round(self):
+        self.assertFalse(pr.due(farm(pruned_at="2026-11-03T11:45:00Z"), NOON)[0], "15 min of 20")
+        self.assertTrue(pr.due(farm(pruned_at="2026-11-03T11:40:00Z"), NOON)[0], "20 min")
+        self.assertTrue(pr.due(farm(), NOON)[0], "never ran")
+        self.assertTrue(pr.due(farm(pruned_at="garbage"), NOON)[0], "unreadable: run")
+
+
+class Gated(Farm):
+    def round(self, code=0):
+        with mock.patch.object(pr.subprocess, "run", return_value=done(code)) as m, \
+                mock.patch.object(pr.mtm_scan, "main_checkout", lambda r: self.main):
+            self.base = 200.0
+            got = pr.run(self.main, now=lambda: NOON)
+        return got, m
+
+    def test_not_due_runs_nothing_and_records_nothing(self):
+        self.autopilot = farm(auto_prune=False)
+        code, m = self.round()
+        self.assertEqual((code, m.call_count, self.recorded), (0, 0, []))
+
+    def test_a_prune_now_runs_the_round_and_records_its_start(self):
+        self.autopilot = farm(auto_prune=False, prune_due="2026-11-03T11:59:00Z")
+        code, m = self.round()
+        self.assertEqual((code, m.call_count), (0, 1))
+        self.assertEqual(self.recorded, [(self.main, "2026-11-03T12:00:00Z")])
+
+    def test_a_failed_round_is_not_recorded_so_the_prune_now_stays(self):
+        self.autopilot = farm(prune_due="2026-11-03T11:59:00Z")
+        self.assertEqual(self.round(code=2)[0], 1)
+        self.assertEqual(self.recorded, [])
+
+    def test_an_unreadable_autopilot_runs_by_the_cron_and_records_nothing(self):
+        code, m = self.round()
+        self.assertEqual((code, m.call_count, self.recorded), (0, 1, []))
+
+    def test_a_failed_record_fails_the_round(self):
+        self.autopilot = farm()
+        with mock.patch.object(pr, "record", return_value="record exit 2: x"), mock.patch("builtins.print") as out:
+            self.assertEqual(self.round()[0], 1)
+        self.assertIn("prune round failed: record exit 2: x", out.call_args.args[0])
+
+
+class Reads(unittest.TestCase):
+    """The CLI calls themselves, by a fake bounded.run."""
+
+    def test_show_is_read_in_the_main_checkout_and_a_bad_answer_is_none(self):
+        with mock.patch.object(pr.bounded, "run", return_value=done(0, '{"farm": {"auto_prune": true}}')) as m:
+            self.assertEqual(pr.autopilot("/a/hal2"), {"auto_prune": True})
+        self.assertEqual(m.call_args.args[0], ["hal2-cli-agents", "autopilot", "show", "--json"])
+        self.assertEqual(m.call_args.kwargs["cwd"], "/a/hal2")
+        for answer in (done(1), done(0, "not json"), done(0, "[]")):
+            with mock.patch.object(pr.bounded, "run", return_value=answer):
+                self.assertIsNone(pr.autopilot("/a/hal2"))
+        with mock.patch.object(pr.bounded, "run", side_effect=OSError("missing")):
+            self.assertIsNone(pr.autopilot("/a/hal2"))
+
+    def test_record_sets_pruned_to_the_rounds_start(self):
+        with mock.patch.object(pr.bounded, "run", return_value=done(0)) as m:
+            self.assertIsNone(pr.record("/a/hal2", "2026-11-03T12:00:00Z"))
+        self.assertEqual(m.call_args.args[0][2:], ["set", "--pruned", "2026-11-03T12:00:00Z", "--json"])
+        with mock.patch.object(pr.bounded, "run", return_value=done(2, "", "bad")):
+            self.assertEqual(pr.record("/a/hal2", "x"), "record exit 2: bad")
 
 
 if __name__ == "__main__":

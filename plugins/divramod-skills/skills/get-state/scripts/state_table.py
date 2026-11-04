@@ -1,9 +1,13 @@
-"""The state table (hal2 plan 0268, D4): the raw rows of `state.collect` as the five cells
-`WT | Plan | Steps | State | Waits for` and the line under the table. Pure: no IO. Cells are fixed phrases in a fixed
+"""The state table (hal2 plan 0268, D4; plan 0595 step 9): the raw rows of `state.collect` as the seven cells
+`WT | Plan | Steps | State | Waits for | Depends on | Dependents` and the line under the table. Pure: no IO. Cells are fixed phrases in a fixed
 order joined by `; `; an unknown fact is left out, an empty cell stays empty, a `|` in a cell is escaped.
+
+The State cell also carries the field's plan run state and workqueue wait (state_run.phrase, hal2 plan 0514 D4, D7).
 """
 
-HEADER = ["WT", "Plan", "Steps", "State", "Waits for"]
+import state_run
+
+HEADER = ["WT", "Plan", "Steps", "State", "Waits for", "Depends on", "Dependents"]
 QUEUED = {"queued", "waiting", "pending", "requested"}
 
 
@@ -26,7 +30,9 @@ def plan_cell(row: dict) -> str:
 
 def steps_cell(row: dict) -> str:
     done, total = row["steps_done"], row["steps_total"]
-    return f"{done} of {total}" if done is not None and total is not None else ""
+    text = f"{done} of {total}" if done is not None and total is not None else ""
+    hitch = row.get("hitch")  # the queue's or plan_progress's label, never our own count (plan 0593 step 4)
+    return f"{text} ({hitch})" if text and hitch else text or (hitch or "")
 
 
 def run_phrase(run: dict) -> str:
@@ -55,12 +61,17 @@ def paused_phrase(paused: dict | None) -> str:
 def state_cell(row: dict, default: str) -> str:
     out = [paused_phrase(row.get("paused"))] if row.get("paused") else []
     out += {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
+    out += [p] if (p := state_run.phrase(row)) else []
+    if row.get("depends_wait"):
+        out.append(row["depends_wait"])
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"waits in the queue at {q['position']}")
         if q.get("red"):
             out.append(f"red: {red_phrase(q['red'])}, blocks the queue until it lands")
     out += sorted({run_phrase(r) for r in row["ci"]}, key=lambda p: (p.split()[0], p))
+    if row.get("finished"):
+        out.append("finished: the foreman removes the field")
     if row["uncommitted"]:
         out.append(f"{row['uncommitted']} uncommitted")
     if row["ahead"]:
@@ -107,9 +118,19 @@ def wt_cell(row: dict, nested: bool) -> str:
     return ("↳ " if nested else "") + (f"**{row['wt']}**" if row.get("own") else row["wt"])
 
 
+def depends_cell(links: list[dict] | None) -> str:
+    """`0514 (38, pushed), 0571 (open)`: the plans on the other end of the row's edges, their field and state."""
+    out = []
+    for link in links or []:
+        inside = ", ".join(x for x in (link.get("field"), link.get("state")) if x)
+        out.append(f"{int(link['plan']):04d}" + (f" ({inside})" if inside else ""))
+    return ", ".join(out)
+
+
 def cells(row: dict, default: str, nested: bool = False) -> list[str]:
-    """The five cells of a row, as the table prints them (not yet escaped)."""
-    return [wt_cell(row, nested), plan_cell(row), steps_cell(row), state_cell(row, default), waits_cell(row)]
+    """The seven cells of a row, as the table prints them (not yet escaped)."""
+    return [wt_cell(row, nested), plan_cell(row), steps_cell(row), state_cell(row, default), waits_cell(row),
+            depends_cell(row.get("depends_on")), depends_cell(row.get("dependents"))]
 
 
 def queue_text(queue: list[dict] | None) -> str:
@@ -154,8 +175,9 @@ def head_text(data: dict) -> str:
 def line(data: dict) -> str:
     """`<default>: <sha> <age> ago <subject>; [mode: smuggle since <t> (by <who>); ]queue: <holder and waiters | empty>; open CI runs: <n (worktrees) | none>`."""
     parts = [f"{data['default']}: {head_text(data)}".rstrip(": ")]
+    unknown = "unknown (hal2-cli-plans depends list did not answer)" if data.get("depends_known") is False else ""
     for label, text in (("mode", mode_text(data.get("mode"))), ("queue", queue_text(data["queue"])),
-                        ("open CI runs", runs_text(data["runs"], data["rows"]))):
+                        ("open CI runs", runs_text(data["runs"], data["rows"])), ("plan dependencies", unknown)):
         if text:
             parts.append(f"{label}: {text}")
     return "; ".join(parts)

@@ -21,7 +21,8 @@ Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md
    ask which to stop (plain-text question: worktree or pane, `none` to stop) and go on with the answer.
 2. `python3 $S/stop.py stop <target> [--repo <dir>]` per target. Exit 2 names a missing hal2 CLI: run
    `bash $S/install-prerequisites.sh` once and retry.
-   - Exit 3, `refused`: its own session (never stop it; say so), or the agent is busy, holds a draft, runs
+   - Exit 3, `refused`: its own session (never stop it; say so), its plan has open dependents (plans waiting for
+     it, `hal2-cli-plans depends list`; `--force` only on the user's word), or the agent is busy, holds a draft, runs
      background tasks or its landing runs (an older hal2 without `hal2-cli-agents stop` refuses every unforced
      stop: it cannot see a draft): show why and ask by the question rule (a) leave it running (recommended), b)
      stop it anyway: it loses its current turn, its draft and its background tasks, a landing ends with exit 13 (5 before hal2 plan 0318) and

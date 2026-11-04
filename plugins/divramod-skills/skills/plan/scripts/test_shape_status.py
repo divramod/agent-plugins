@@ -3,7 +3,9 @@
 import unittest
 
 import envelope
+import parallel  # noqa: F401  (puts the skills unit's scripts/ on the import path)
 import plan
+import servant_testkit
 import shape
 import shape_status
 from shape_testing import TempPlan, fixture
@@ -100,15 +102,23 @@ class StatusTest(TempPlan):
 
 
 class ServantFieldTest(TempPlan):
-    def lead(self, token: str) -> None:
+    def setUp(self):
+        super().setUp()
+        self.env["HAL2_CLI_PLANS"] = str(servant_testkit.install(self))  # the fake `servant show` (plan 0594)
+
+    def lead(self, token: str, steps: list[tuple] | None = None) -> None:
+        """plans/LEAD with `token`; `steps` is what `servant show` answers (the real CLI turns a sub-plan into its
+        steps `02.01`, the fake answers the line's words unless told)."""
         (self.root / "plans/LEAD").write_text(f"07 0001-deploy-the-hub {token}\n")
+        if steps:
+            servant_testkit.write(self.root, "07", "0001-deploy-the-hub", steps)
 
     def test_a_subplan_servant_writes_only_its_steps(self):
         folder = self.new("deploy the hub")
         self.plan("subplan", "new", "readers")
         self.plan("step", "add", "2", "Statusline", "--size", "40k")
         before = (folder / "plan.md").read_text()
-        self.lead("02-readers")
+        self.lead("02-readers", [("02.01", "Statusline", "")])  # the CLI names a sub-plan's steps, not its folder
         info = self.plan("status", "02.01", "done")
         self.assertIn("skipped", info["written"]["overview"])
         self.assertEqual((folder / "plan.md").read_text(), before)

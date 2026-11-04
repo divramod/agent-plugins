@@ -68,7 +68,7 @@ class Selfcheck(unittest.TestCase):
 OFF_227 = {"session_id": "227f49f1-0b95-4ea0-af2f-b55a9b6a9917", "pane": "%171", "stage": "cancelled", "percent": 22.0,
            "threshold": 35, "soft_at": 1791272539541, "rearm_percent": 1000.0, "gave_up": True}
 JOB_171 = {"state": "cancelled", "pane": "%171", "old_session": "227f49f1-0b95-4ea0-af2f-b55a9b6a9917",
-           "prompt": "/handoff c", "requested_at": 1791274202629, "updated_at": 1791274355223, "pid": 78211}
+           "prompt": "/continue", "requested_at": 1791274202629, "updated_at": 1791274355223, "pid": 78211}
 # The sweep's own give-up (hal2 sweep.rs, MAX_ATTEMPTS): a real failure the doctor must keep reporting.
 SWEEP_GAVE_UP = {"session_id": "4100c537-6070-4262-b6cd-aabe0fb0067c", "pane": "%49", "stage": "soft", "percent": 35.0,
                  "threshold": 35, "soft_at": 1791014836027, "denied_tool": "Bash", "attempts": 3, "gave_up": True}
@@ -120,7 +120,7 @@ class AutoclearOff(unittest.TestCase):
 # with the tmux restart; the job's `session-ended` was right and hal2 reports no such reason, but the doctor listed
 # it and the farmer's autoclear duty delegated it.
 JOB_ENDED = {"state": "failed", "reason": "session-ended", "message": "the session ended", "pane": "%171",
-             "old_session": "5f157c8c-0000-4000-8000-000000000000", "prompt": "/handoff c"}
+             "old_session": "5f157c8c-0000-4000-8000-000000000000", "prompt": "/continue"}
 
 
 class Quiet(unittest.TestCase):

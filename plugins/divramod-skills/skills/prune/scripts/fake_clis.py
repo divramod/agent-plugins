@@ -1,7 +1,7 @@
 """Fake hal2 CLIs and a scratch farm for prune's executor tests (hal2 plan 0377 step 5). No test here.
 
 `Farm` is the farmer's scratch repository (a main checkout `hal2` with its origin, test_farmer.Repo) with numbered
-fields added by `add`, and executables `hal2-cli-git`, `hal2-cli-agents` and `hal2-cli-plans` first on PATH. They read
+fields added by `add`, and executables `hal2-cli-git`, `hal2-cli-agents`, `hal2-cli-plans` and `hal2-cli-workqueue` first on PATH. They read
 `data.json` (agents, queue, plans, fields whose removal fails, a slow removal) and log every call to `calls.jsonl`;
 `hal2-cli-git worktree remove` removes with real git on the scratch farm only. Prune's state folder, the farmer's and
 cleanup's CLI switch point into the scratch folder: no test touches a real worktree of the machine.
@@ -17,6 +17,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import busy
+import disk_facts
 import responses
 import executor
 import facts
@@ -48,11 +49,15 @@ def worktrees():
     return [{"name": "main" if i == 0 else Path(w["path"]).name, "path": w["path"], "main": i == 0,
              "branch": w.get("branch")} for i, w in enumerate(rows)]
 
-if name == "hal2-cli-agents":
+if name == "hal2-cli-workqueue":
+    print(json.dumps(data.get("workqueue", {"holds": [], "running": [], "waiting": []})))
+elif name == "hal2-cli-agents":
     print(json.dumps(data.get("agents", [])) if args[:1] == ["list"] else "{}")
 elif name == "hal2-cli-plans" and args[:1] == ["list"]:
     print(json.dumps({"plans": [{"slug": k, "number": int(k[:4]) if k[:4].isdigit() else None, **v}
                                 for k, v in data.get("plans", {}).items()]}))
+elif name == "hal2-cli-plans" and args[:2] == ["depends", "list"] and "depends" in data:
+    print(json.dumps({"schema": 1, "farm": "hal2", "plans": data["depends"], "problems": []}))
 elif name == "hal2-cli-plans":
     plan = args[1] if len(args) > 1 else ""
     if plan in data.get("plans", {}):
@@ -92,7 +97,7 @@ def install(root: Path) -> dict:
     bin_dir, state = root / "bin", root / "fake"
     bin_dir.mkdir(parents=True, exist_ok=True)
     state.mkdir(parents=True, exist_ok=True)
-    for name in ("hal2-cli-git", "hal2-cli-agents", "hal2-cli-plans"):
+    for name in ("hal2-cli-git", "hal2-cli-agents", "hal2-cli-plans", "hal2-cli-workqueue"):
         (bin_dir / name).write_text(FAKE.replace("#!/usr/bin/env python3", f"#!{sys.executable}", 1))
         (bin_dir / name).chmod(0o755)
     return {"PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}", "PRUNE_FAKE_STATE": str(state),
@@ -116,6 +121,7 @@ class Farm(Repo):
         self.env = install(self.tmp)
         self.disk = {"free_gb": 400.0, "used_pct": 60.0, "total_gb": 1000.0}
         self.free = [10**12]
+        self.gb = [1000.0]  # disk_facts.free_gb, the disk phase's reading (plan 0514 D18): each read takes the next
         self.tart = None  # responses.tool: a fake program path, never the real tart (plan 0472 D2)
         self.busy = None  # busy.reason: a workqueue hold is live when this is its text (plan 0472)
         for p in (mock.patch.dict(os.environ, self.env),
@@ -123,12 +129,16 @@ class Farm(Repo):
                   mock.patch.object(busy, "reason", side_effect=lambda main: self.busy),
                   mock.patch.object(responses, "tool", side_effect=lambda: self.tart),
                   mock.patch.object(responses, "tart_home", side_effect=lambda: self.tmp / "tart-home"),
-                  mock.patch.object(executor, "free_bytes", side_effect=self.next_free)):
+                  mock.patch.object(executor, "free_bytes", side_effect=self.next_free),
+                  mock.patch.object(disk_facts, "free_gb", side_effect=self.next_gb)):
             p.start()
             self.addCleanup(p.stop)
 
     def next_free(self, main):
         return self.free.pop(0) if len(self.free) > 1 else self.free[0]
+
+    def next_gb(self, main):
+        return self.gb.pop(0) if len(self.gb) > 1 else self.gb[0]
 
     def add(self, slot: str, base: str = "origin/main", push: bool = True) -> Path:
         path = self.base / slot

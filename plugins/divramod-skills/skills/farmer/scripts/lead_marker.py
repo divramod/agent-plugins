@@ -1,14 +1,15 @@
 """A parallel plan's servant worktree (skills plan 0013), as every farmer duty reads it.
 
-A worktree that holds `plans/LEAD` (one line `<foreman-worktree> <plan> <step>`) runs one step of its foreman's plan,
-never lands and is measured against its foreman's branch `origin/<foreman-worktree>`, never main. A malformed marker still
-marks the worktree (bad but marked: no landing, no restart by rule, the report names the broken marker); only a worktree
+A worktree that holds `plans/LEAD` runs steps of its foreman's plan, never lands and is measured against its foreman's
+branch `origin/<foreman-worktree>`, never main. The marker is read by `hal2-cli-plans servant show --json` (the one
+parser, hal2 plan 0594 D5; `servant_state`), never split by hand: its existence marks the worktree, the CLI gives the
+parts. A marker the CLI gives no servant for (malformed, or the CLI missing: D6, no fallback parse) still marks the
+worktree (bad but marked: no landing, no restart by rule, the report names the broken marker); only a worktree
 without the file is unmarked. A marker is "stale" only by `state` (its foreman's plan done or gone, or its field
 without session and unmerged work); a running servant's is in use. Used by mtm_scan, boss, lead_scan, trains, duties and prune.
 """
 
 import bounded
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,6 @@ IN_USE, STALE, UNKNOWN = "in-use", "stale", "unknown"
 GONE = {"ended", "failed"}  # an agent state that is no session any more
 
 LEAD = Path("plans/LEAD")
-NUMBERED = re.compile(r"\d\d")
 IGNORED = (":!plans/LEAD", ":!plans/CURRENT_PLAN")  # a marked worktree's runtime files, ignored or not
 
 
@@ -49,26 +49,27 @@ def ok(path: str | Path, *args: str) -> bool:
 
 
 def marker(path: str | Path) -> dict | None:
-    """plans/LEAD (the git dir's, else plans/) as {slot, plan, step}; a malformed one as {bad: True, error, text}; None
-    without the file."""
-    f = pointers.path(path, "LEAD")
-    if not f.is_file():
+    """The servant marker of the checkout (`hal2-cli-plans servant show`) as {slot, plan, step, steps, finished}: `slot`
+    the foreman's field, `step` its steps joined by commas, `steps` the CLI's list [{n, title, status}]; a marker the CLI
+    gives no servant for as {bad: True, error}; None without the file (an existence check, no process)."""
+    if not pointers.exists(path, "LEAD"):
         return None
-    try:
-        text = f.read_text().strip()
-    except OSError as e:
-        text = f"<unreadable: {e}>"
-    parts = text.split()
-    if len(parts) < 3 or not NUMBERED.fullmatch(parts[0]):
-        return {"bad": True, "text": text, "error": f"plans/LEAD is not `<foreman-worktree> <plan> <step>`: '{text}'"}
-    return {"slot": parts[0], "plan": parts[1], "step": parts[2]}
+    import servant_state  # the one reader of plans/LEAD (plan 0594); lazy: a quiet pass loads few modules (test_light_start)
+    found = servant_state.of(path)
+    if found is None:
+        return {"bad": True, "error": "plans/LEAD names no servant: `hal2-cli-plans servant show` gave none (the marker "
+                                      "is not `<foreman-worktree> <plan> <steps>`, or the CLI is missing)"}
+    return {"slot": str(found["foreman"]), "plan": str(found["plan"]), "step": ",".join(servant_state.step_names(found)),
+            "steps": found["steps"], "finished": bool(found.get("finished"))}
 
 
 def describe(lead: dict) -> str:
     """What the marker is: a servant of the foreman's plan (a running one is in use, never "stale": see state)."""
     if lead.get("bad"):
         return f"servant with a broken marker ({lead['error']})"
-    return f"servant of field {lead['slot']}'s plan {lead['plan']} (step {lead['step']})"
+    import servant_state
+    names = servant_state.step_names(lead) if lead.get("steps") else [lead["step"]]
+    return f"servant of field {lead['slot']}'s plan {lead['plan']} (step{'s' if len(names) > 1 else ''} {', '.join(names)})"
 
 
 def ref_exists(path: str | Path, ref: str) -> bool:

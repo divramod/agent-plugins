@@ -7,7 +7,9 @@ the landing runs the candidate's own `merge-to-main.yml` (`on: push` to `land/**
 changed job, lane, job list or runner, and a red train is split as any other. What that run cannot test is a change
 to what starts it and lets hal2-cli-git find it: the landing workflow added, removed or renamed, or its `on:`,
 `name:` or `run-name:` changed. Such a car (`alone_why` names the file and the change) rides alone, the only car of
-its train. On 2026-10-14 09, 08, 21 and 22 changed gate files, none of them that part: they ride together.
+its train, and holds nobody: the others form now, it rides alone in the very next train, ahead of every later hitch
+and without the minimum (trains_draft.draft, plan 0610 D9, D15). On 2026-10-14 09, 08, 21 and 22 changed gate files,
+none of them that part: they ride together.
 """
 
 import re

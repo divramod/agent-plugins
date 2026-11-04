@@ -27,6 +27,11 @@ class FieldIndependentTest(unittest.TestCase):
             field = Path(tmp).resolve() / "38"
             scripts = field / "code" / "skills" / "plan" / "scripts"
             shutil.copytree(SKILL, scripts.parent, ignore=shutil.ignore_patterns("__pycache__"))
+            unit = next(p for p in SKILL.parents if (p / ".claude-plugin").is_dir())  # the servant reader and its fake
+            (field / "code" / ".claude-plugin").mkdir()
+            (field / "code" / "scripts").mkdir()
+            for name in ("servant_state.py", "servant_testkit.py"):
+                shutil.copy(unit / "scripts" / name, field / "code" / "scripts" / name)
             subprocess.run(["git", "init", "-q", "-b", "38", str(field)], check=True)
             (field / "plans").mkdir()
             (field / "plans" / "LEAD").write_text("09 0001-masterplan-farm 2\n")

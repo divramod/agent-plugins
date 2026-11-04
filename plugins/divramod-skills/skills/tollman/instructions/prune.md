@@ -14,6 +14,11 @@ lacks, no change, no live `CURRENT_PLAN` pointer, no merge queue ticket or boss 
 the last 30 minutes (10-99), no build running in it and no open question to the user. Main, the role fields
 (`farmer-<repo>`, `tollman-<repo>`, ...) and other names are never touched.
 
+- **Disk phase** (`prune_disk.py`, plan 0514 step 7, D18), first in every round and beside the plan: it asks /prune
+  `disk --due --json` (the filesystem's free space, no `du`) and, when the disk is below `[disk] below_gb` (80 GB), starts
+  detached `prune.py disk` (pid in `prune-disk.json`, output in `prune-disk.log` of your state folder, one at a time,
+  again after 10 minutes at the earliest). No hold, train or running prune delays it: the phase itself keeps busy fields
+  and deletes only idle fields' `code/rust/target` until `until_gb` (150 GB), through /prune's proof.
 - **00-09**: mucked out once per landing (keyed on HEAD), never removed.
 - **10-99**, one per round, the cars of the last landed train first (/prune's order): the idle session stopped by signal,
   then `hal2-cli-git worktree remove NN --remote`, a removal never under a timeout, a half-removed field resumed.
@@ -34,6 +39,7 @@ the last 30 minutes (10-99), no build running in it and no open question to the 
 | Wake | What you do |
 |---|---|
 | `failed` | The duty could not ask /prune ("/prune could not be asked") or its run could not start (a `run` with an exit in the log): read `prune-run.log`, `prune-ask.log` and `python3 $S/prune.py plan`, and fix or tell the user; the next try is the round after the key's window. A leftover half-removed field is /prune's to resume; leave a field that holds anything alone. |
+| `disk-failed` | (key `prune:disk-failed`) /prune's `disk --due` could not be asked (read `prune-disk.log` and run `python3 $S/prune.py disk --due --json` yourself), or the detached phase failed to start. You wake for it at most once per 6 hours. A deletion that failed shows as a `failure` row and exit 1 in `prune-disk.log`: fix the cause (a folder in use, a permission) or tell the user; never delete a field's folder by hand that the proof refuses. |
 | `barn-stuck` | A car of the last landed train still holds work 24 hours after the landing (key `barn-stuck:<NN>:<HEAD>`, once). New work of its foreman is fine: nothing to do. Work left behind (an unpushed commit, a forgotten change, a `CURRENT_PLAN` of a finished plan): tell its foreman in one line; a field with no session: leave the farmer a board note (`board.py post --kind note --from tollman-<repo> --to farmer-<repo> --text ...`; it reads it when it asks). Never remove it. |
 
 Log what you did: `python3 $K/farmer/scripts/mtm_scan.py record prune <slot> "<what you did>" --note "<why>" --role

@@ -50,6 +50,12 @@ def git(path: str | Path, *args: str) -> str | None:
     return out.strip() if out is not None else None
 
 
+def depends(main: str) -> dict[int, dict] | None:
+    """The farm's plan dependencies by plan number (the farmer skill's depends_view, `hal2-cli-plans depends list`);
+    None when the reader or the CLI's command is missing (the columns stay empty, one line says so)."""
+    return fl.depends_view.read(main) if fl.depends_view else None
+
+
 def agents() -> dict[str, dict] | None:
     """The agent sessions by their real checkout path; None when `hal2-cli-agents` gives nothing."""
     raw = tool_json(["hal2-cli-agents", "list", "--json"])
@@ -68,6 +74,18 @@ def paused_fields(main: str) -> dict[str, dict] | None:
     if not isinstance(fields, list):
         return None
     return {f["field"]: {k: f.get(k) for k in ("by", "why", "since")} for f in fields if isinstance(f, dict) and f.get("field")}
+
+
+def hitch_label(hitch) -> str | None:
+    """The hitch's label as the queue or `plan_progress` carries it ("milestone 1/2", "partial (override)"), never a
+    count of our own (plan 0593 step 4, 0592 D10); a complete hitch and kind `none` (a servant's, work that never
+    hitches: step 7) have none, a bare string label passes through."""
+    if isinstance(hitch, str):
+        return hitch if hitch not in ("", "none", "complete") else None
+    if not isinstance(hitch, dict) or hitch.get("kind") not in ("milestone", "partial"):
+        return None
+    label = hitch.get("label") or hitch["kind"]
+    return label + " (override)" if hitch["kind"] == "partial" and "override" not in label else label
 
 
 def red_of(ticket: dict) -> dict | None:
@@ -93,7 +111,8 @@ def queue_state(main: str) -> dict:
         return {"queue": None, "mode": None}
     tickets = [{"slot": t.get("slot"), "wt": ticket_wt(t), "worktree": os.path.realpath(t["worktree"]) if t.get("worktree") else None,
                 "position": t.get("position"), "holding": bool(t.get("holding")), "state": t.get("state"),
-                "land_ref": t.get("land_ref"), "red": red_of(t)}  # a train's branch `land/train-...` (plan 0383), else None
+                "land_ref": t.get("land_ref"), "red": red_of(t),
+                "hitch": hitch_label((t.get("plan") or {}).get("hitch"))}  # a train's branch `land/train-...` (plan 0383), else None
                for t in raw["queue"] if isinstance(t, dict)]
     tickets.sort(key=lambda t: (not t["holding"], t["position"] if isinstance(t["position"], int) else 10**9))  # the holder, then by place
     mode = raw.get("mode")
@@ -105,10 +124,18 @@ def queue(main: str) -> list[dict] | None:
     return queue_state(main)["queue"]
 
 
-def workqueue_jobs() -> list[dict] | None:
-    """The jobs running now from `hal2-cli-workqueue status --json` (plan 0382 step 5): `field`, `class`, `head`, `since`
-    (RFC 3339), `source`, `flags` each; None when the CLI is missing, fails or gives no `live` list (shown as nothing)."""
+def workqueue_status() -> dict | None:
+    """ONE `hal2-cli-workqueue status --json` document (running, waiting, holds, frozen, live; plan 0514 D4): the jobs
+    list and every field's workqueue wait come out of it; None when the CLI is missing, fails or prints no object."""
     raw = tool_json(["hal2-cli-workqueue", "status", "--json"])
+    return raw if isinstance(raw, dict) else None
+
+
+def workqueue_jobs(raw: dict | None = None) -> list[dict] | None:
+    """The jobs running now from the status document's `live` list (plan 0382 step 5; `raw`: the one already read, else
+    read here): `field`, `class`, `head`, `since`, `source`, `flags` each; None when the CLI is missing, fails or gives
+    no `live` list (shown as nothing)."""
+    raw = raw if raw is not None else workqueue_status()
     if not isinstance(raw, dict) or not isinstance(raw.get("live"), list):
         return None
     return [{k: j.get(k) for k in ("field", "class", "head", "since", "source", "flags")}
@@ -182,7 +209,7 @@ def plan_of(root: str | Path, current: str) -> dict:
     """A CURRENT_PLAN text as `plan_number`, `plan_name` and the steps `steps_done`/`steps_total` of the plan skill's
     parser (`plan.describe_safe`, D5); a plan is `<NNNN>-<slug>` with a plans/<it>/plan.md, else all None."""
     out = {"plan_number": None, "plan_name": None, "steps_done": None, "steps_total": None, "plan_slug": None,
-           "description": None}
+           "description": None, "next_step": None}
     current = current.strip().removesuffix("/plan.md").rstrip("/").removeprefix("plans/")  # a path names its plan too
     m = PLAN_NAME.match(current)
     plan_md = planread.plan_dir(root, current) / "plan.md" if m else Path(root) / "plans" / current / "plan.md"
@@ -190,7 +217,7 @@ def plan_of(root: str | Path, current: str) -> dict:
         return out
     out.update(plan_number=m.group(1), plan_name=m.group(2), plan_slug=current)
     done = steps(root, plan_md)
-    out.update(steps_done=done[0], steps_total=done[1], description=description(plan_md))
+    out.update(steps_done=done[0], steps_total=done[1], description=description(plan_md), next_step=next_step(root, plan_md))
     return out
 
 
@@ -223,12 +250,23 @@ def description(plan_md: Path) -> str | None:
 
 def steps(root: str | Path, plan_md: Path) -> tuple[int | None, int | None]:
     """(done, total) steps of a plan.md from the sibling plan skill; (None, None) when it is missing or fails."""
+    d = describe(root, plan_md)
+    return d.get("done"), d.get("total")
+
+
+def next_step(root: str | Path, plan_md: Path) -> str | None:
+    """The number of the plan's next open step before the landing (`describe`'s `next`), None when none or unknown."""
+    return (describe(root, plan_md).get("next") or {}).get("number")
+
+
+def describe(root: str | Path, plan_md: Path) -> dict:
+    """The plan skill's `describe_safe` of a plan.md (`done`, `total`, `next`, ...); {} when it is missing or fails."""
     try:
         scripts = sibling("plan", __file__) / "scripts"
     except FileNotFoundError:
-        return None, None
+        return {}
     if not (scripts / "plan.py").is_file():
-        return None, None
+        return {}
     if str(scripts) not in sys.path:
         sys.path.append(str(scripts))  # appended: the farmer's own modules keep their names
     try:
@@ -236,7 +274,5 @@ def steps(root: str | Path, plan_md: Path) -> tuple[int | None, int | None]:
         with planread.registered(root):
             d = plan.describe_safe(Path(root), plan_md)
     except Exception:  # noqa: BLE001  (the plan skill's parser failing never fails the report)
-        return None, None
-    if "total" not in d:
-        return None, None
-    return d["done"], d["total"]
+        return {}
+    return d if "total" in d else {}

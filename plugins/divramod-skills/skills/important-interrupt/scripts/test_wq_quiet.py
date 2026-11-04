@@ -65,8 +65,9 @@ class QuietRoundTrip(Base):
         super().tearDown()
 
     def argv(self):
+        """The CLI's `quiet` calls (the workqueue holders source's `frozen` and `freeze all` left out)."""
         log = Path(self.env2["FAKE_WQ_DIR"]) / "argv.log"
-        return log.read_text().splitlines() if log.exists() else []
+        return [x for x in log.read_text().splitlines() if x.split()[:1] == ["quiet"]] if log.exists() else []
 
     def mode(self):
         return self.state.read_text().strip()

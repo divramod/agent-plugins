@@ -104,7 +104,8 @@ class RedStep(Watch):
         (order,) = self.orders(planned)
         argv = order["argv"]
         self.assertEqual((order["do"], order["slot"], order["key"]), ("run", "02", f"triage:{RID}:stack-test"))
-        self.assertEqual(argv[2:4] + argv[-4:], ["order", "02", "--run", URL, "--repo", str(self.top)])
+        self.assertEqual(argv[2:4] + argv[-6:], ["order", "02", "--run", URL, "--repo", str(self.top), "--unit",
+                                                 "stack-test/hub-e2e"])  # one red, one foreman (red_claims)
         self.assertNotIn("--post", argv, "before the merge: fixed in place in the current train")
         self.assertTrue(argv[argv.index("--why") + 1].startswith(f"{STACK}: step {RED} red while the job runs"))
         self.assertEqual(self.tick(), [], "the next pass: the step is told, nothing new")

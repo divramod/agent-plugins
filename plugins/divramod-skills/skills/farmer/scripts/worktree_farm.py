@@ -4,6 +4,8 @@ on it. No test here."""
 
 import os
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path)
+import servant_testkit
 from test_farmer import NOW, Repo, git
 
 NOW_MS = NOW.timestamp() * 1000
@@ -37,6 +39,7 @@ class MarkedSlots(Slots):
 
     def setUp(self):
         super().setUp()
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
         self.lead = self.base / "02"
 
     def grow(self):

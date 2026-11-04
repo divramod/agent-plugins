@@ -152,6 +152,32 @@ class AfterTheBarn(unittest.TestCase):
             (self.tmp / "04" / "plans" / "CURRENT_PLAN").write_text("0460-old\n")
             self.assertEqual([a["kind"] for a in self.round(hours=25) if a["slot"] == "04"], ["barn-stuck"])
 
+    def test_a_milestone_car_is_never_barn_stuck(self):
+        """Plan 0593 step 4: its plan stays open on purpose (the milestone label rides on the formed car)."""
+        formed = {"kind": "formed", "train": "03+04+14@x", "cars": [{"field": "04", "plan": "0460-old",
+                                                                     "milestone": "milestone 1/2"}]}
+        with mock.patch.object(barn.train_state, "lines", side_effect=lambda main: [formed, LANDED]):
+            self.assertEqual([a for a in self.round(hours=25) if a["slot"] == "04"], [], "a milestone, not stuck")
+        plain = {"kind": "formed", "train": "03+04+14@x", "cars": [{"field": "04", "plan": "0460-old"}]}
+        with mock.patch.object(barn.train_state, "lines", side_effect=lambda main: [plain, LANDED]):
+            self.assertEqual([a["kind"] for a in self.round(hours=25) if a["slot"] == "04"], ["barn-stuck"])
+
+    def test_a_milestone_car_s_barn_text_says_continue(self):
+        car = {"field": "03", "milestone": "milestone 1/2"}
+        text = trains.barn_text("03, 14", "https://x/runs/9", car)
+        self.assertIn("milestone 1/2", text)
+        self.assertIn("`/continue`", text)
+        self.assertNotIn("once finished /cleanup", text)
+        self.assertEqual(trains.barn_text("03", None, {"field": "03"}), trains.TEXT["barn"].format(cars="03", run=""))
+
+    def test_the_draft_reads_the_hitch_label_from_the_ticket(self):
+        hitch = {"kind": "milestone", "n": 1, "of": 2, "label": "milestone 1/2"}
+        self.assertEqual(trains.open_plan({"plan": {"number": 593, "hitch": hitch}}), {"milestone": "milestone 1/2"})
+        self.assertEqual(trains.open_plan({"plan": {"hitch": {"kind": "partial", "label": "partial"}}}),
+                         {"milestone": "partial"})
+        self.assertEqual(trains.open_plan({"plan": {"hitch": {"kind": "complete"}}}), {})
+        self.assertEqual(trains.open_plan({"plan": None}), {})
+
     def test_a_car_above_09_is_started_for_removal_before_other_free_fields(self):
         remove = [a for a in self.round() if a["kind"] == "remove"]
         self.assertEqual([a["slot"] for a in remove], ["14"], "13 is free too, but /prune names the car 14 first")

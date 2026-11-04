@@ -32,10 +32,6 @@ HEAVY = {
     "rust-build-test-fixtures": "a cargo build: the tollman builds nothing (plan 0467 D21)",
     "rust-lint": "clippy compiles every affected crate, CI 82 s",
     "rust-test": "cargo builds and tests: never on the Mac",
-    "tmux-build-linux": "a Linux build",
-    "tmux-build-mac": "a cargo build on the Mac host runner",
-    "tmux-test-linux": "a Linux build and suite",
-    "tmux-test-mac": "the macOS VM's suite",
     "ts-budget-linux": "timing tests alone on the quiet server (lane `quiet`, plan 0532)",
     "ts-check-plugins": "its validator is the installed main's hal2-daemon, not the candidate's: may differ from CI",
     "ts-test": "CI 96 s, the suites of every TypeScript unit",
@@ -45,7 +41,7 @@ HEAVY = {
     **{job: NONE for job in (
         "desktop-e2e-mac", "desktop-e2e-windows", "mac-check-vm-runner", "rust-build-apps-linux",
         "rust-build-apps-windows", "rust-bundle-apps-linux", "rust-bundle-apps-windows", "rust-check-apps-mac",
-        "rust-check-apps-windows", "rust-test-mac", "rust-test-windows", "tmux-build-windows", "tmux-test-windows",
+        "rust-check-apps-windows", "rust-test-mac", "rust-test-windows",
         "ts-bundle-desktop-linux", "ts-bundle-desktop-mac", "ts-bundle-desktop-windows", "ts-bundle-mobile-android",
         "ts-bundle-mobile-ios", "ts-lint-windows", "ts-test-mac", "ts-test-windows")},
 }

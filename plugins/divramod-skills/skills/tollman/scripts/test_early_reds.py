@@ -73,7 +73,7 @@ class Run41167356202(unittest.TestCase):
 
         second = self.tick(2, "2026-10-31T04:45:30Z")  # ts-test: app-keys.json is car 30's
         orders = [a for a in second if a["kind"] == "early-order"]
-        self.assertEqual([(a["slot"], a["key"]) for a in orders], [("30", f"early-order:{RID}:{TS}")])
+        self.assertEqual([(a["slot"], a["key"]) for a in orders], [("30", f"early-order:{RID}:{TS}:30")])
         why = orders[0]["argv"][orders[0]["argv"].index("--why") + 1]
         self.assertEqual(why, f"{TS}: × are in src/commands/app-keys.json 14ms", "the runner's red line")
         wake = second[-1]

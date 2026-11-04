@@ -97,13 +97,22 @@ full grill.
 One autogrill round: the grill without the user. The plan skill runs one on every new plan before offering it
 (and on a never-grilled plan before it runs); the user asks for more rounds with "another autogrill round".
 
+0. Read the plan skill's lessons (`python3 <plan skill>/scripts/plan.py lesson list`; the file is its
+   `references/lessons.md`) and let each shape the decisions and steps: a plan never repeats a lesson.
 1. Do the **Start** reading and map the design tree as in **Rounds**; a further round starts from what the
    previous rounds left open or opened (deeper branches first) and never re-decides a recorded decision.
 2. Decide the whole frontier yourself, round after round, until it is empty: facts are looked up; choices follow
    the repo's rules for choosing between options (in hal2: the more professional, performant, battle-tested one)
    and its decision record. Ask nothing.
 3. Record each decision in its one home as in **Record**, marked `(autogrill <n>)`, and adjust the plan's steps
-   and done-when checks it changes.
+   and done-when checks it changes. A wait on another plan found in the grill is declared with `hal2-cli-plans depends add`
+   ([dependencies](../plan/references/dependencies.md)), not left in prose.
+3a. **No after-landing step**: a check that needs the landed branch is a check of `uat.md` (`Auto: yes` when code can
+   run it), never a step; the plan lands once (`plan.py check` rule `plan-no-after-landing`).
+3b. **Declare the milestones.** A plan that may hitch before it is whole (a first delivery others build on, a risky
+   tail) gets a row `Milestone <n>: <what lands>` at that position, and the rows that need its code in main start
+   their done-when with `after milestone <n>:` (plan skill, [Milestones](../plan/SKILL.md)); add one later with
+   `plan.py milestone --after <id>`. A plan known to be two deliveries is two plans, not one with a milestone.
 4. **Check the Brief** (`plan.py current`'s `brief`): every `Must` has a step whose done-when proves it and
    every step serves a `Must` or the goal (adjust steps or checks, not the Must); fill `Out` and `Proof` where
    they are still the placeholder.
@@ -123,6 +132,10 @@ One autogrill round: the grill without the user. The plan skill runs one on ever
 A manual `/grill-plan` after autogrill rounds takes their decisions as the recommended answers and may reopen any.
 
 ## Record
+
+A decision whose answer needs the user's hands (a login, a click in an app, a purchase) also gets
+`hal2-cli-plans manual add "<title>" --from Q<n>`, the guide in the step-by-step form of `~/AGENTS.md`; the ledger
+entry links it, the question text is not copied.
 
 After every round, write each decision down in exactly **one home** so it survives `/clear`, and link from the
 others instead of repeating it:

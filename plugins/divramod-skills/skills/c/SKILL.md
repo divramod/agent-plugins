@@ -1,6 +1,6 @@
 ---
 name: c
-description: Shortcut for `/handoff continue` — `/c <args>` runs `/handoff continue <args>` of the handoff skill.
+description: Shortcut for `/continue` — `/c <args>` runs `/continue <args>` of the continue skill.
 disable-model-invocation: true
 ---
 
@@ -8,4 +8,4 @@ disable-model-invocation: true
 
 # /c
 
-Shortcut for `/handoff continue`. Read [`../handoff/SKILL.md`](../handoff/SKILL.md) and carry out `/handoff continue`, with any arguments given to `/c` appended, exactly as that skill describes it.
+Shortcut for `/continue`. Read [`../continue/SKILL.md`](../continue/SKILL.md) and carry out `/continue`, with any arguments given to `/c` appended, exactly as that skill describes it.

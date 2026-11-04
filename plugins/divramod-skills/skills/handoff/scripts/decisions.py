@@ -4,7 +4,7 @@
   decisions.py [--farmer-repo <repo>] [--json]
   decisions.py --check
 
-Lists the decisions a session continuing with `/handoff c` has: HANDOFF.md's Decisions (the index of every user
+Lists the decisions a session continuing with `/continue` has: HANDOFF.md's Decisions (the index of every user
 decision in force), then the current plan's Decisions and Pre-authorized (the plan the `CURRENT_PLAN` pointer names, else
 the one HANDOFF.md links; an item holding one of the index's quotes is left out) and HANDOFF.md's Open. Prints the farmer
 HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a foreman), the worktree id the farmer knows
@@ -12,12 +12,14 @@ HANDOFF.md names (`Farmer: <session> (<repo>)`, written by /handoff for a forema
 
   decision check <slot>: I have these decisions: (1) ... (2) .... Did I forget one?
 
-In a parallel plan's servant worktree (skills plan 0013: `plans/LEAD` holds `<lead-slot> <plan> <step>`) it adds
-`lead` ({slot, plan, step}) to the JSON and a `foreman:` line to the text: `/handoff c` there continues that one step
-only, never the plan and never a landing. A masterplan's servant (hal2 plan 0275 D26: the marker names the masterplan
+In a parallel plan's servant worktree (skills plan 0013: a `plans/LEAD` pointer) it adds `lead` ({slot, plan, step,
+steps, finished}: the servant state `hal2-cli-plans servant show --json` gives, hal2 plan 0594; `steps` each {n, title,
+status}) to the JSON and a `foreman:` line to the text naming every step with its status: `/continue` there continues
+those steps only, never the plan and never a landing; a `finished` servant writes nothing more, its foreman removes the
+field. A masterplan's servant (hal2 plan 0275 D26: the marker names the masterplan
 and its row) continues the plan of that row instead: `lead` gains `row_plan`, the plan the row links (null when this
-checkout's copy names none). A malformed marker still marks the worktree: `lead` is {bad: true, error, text} and the
-text says `foreman: broken marker ...`.
+checkout's copy names none). A pointer that gives no servant (the CLI missing or failing, a malformed marker) still marks the worktree: `lead` is
+{bad: true, error} and the text says `foreman: broken marker ...`.
 
 `--check` validates HANDOFF.md's Decisions section after /handoff wrote it: the section exists (`- none` when the
 work holds no user decision) and every line is `- <YYYY-MM-DD> "<the user's words>" (<who relayed it>) · home: <plan |
@@ -45,6 +47,7 @@ import sys
 from pathlib import Path
 
 import where
+import servant_state  # the skills unit's scripts/ (where.py put it on sys.path)
 
 ITEM_CHARS = 240
 GENERATED_LOG = "<!-- generated: decision-log -->"
@@ -194,38 +197,42 @@ def plan_file(root: Path, handoff: str) -> Path | None:
 
 
 def lead_of(root: Path) -> dict | None:
-    """The servant marker plans/LEAD: {slot, plan, step}; a malformed one {bad: True, error, text}: the worktree is
-    still a servant's (bad but marked, as the farmer reads it); None without the file."""
-    f = where.pointers.path(root, "LEAD")  # the git dir's, else plans/LEAD
-    if not f.is_file():
+    """The servant state of this checkout (`hal2-cli-plans servant show --json`, plan 0594): {slot, plan, step, steps,
+    finished} (`step` the first of `steps`, each {n, title, status}); a field that holds a LEAD pointer but gives no
+    servant object is still a servant's: {bad: True, error}; None without the pointer."""
+    if not where.pointers.exists(root, where.pointers.LEAD):
         return None
-    try:
-        text = f.read_text().strip()
-    except OSError as e:
-        text = f"<unreadable: {e}>"
-    parts = text.split()
-    if len(parts) < 3 or not re.fullmatch(r"\d\d", parts[0]):
-        return {"bad": True, "text": text, "error": f"plans/LEAD is not `<lead-slot> <plan> <step>`: '{text}'"}
-    lead, kind = {"slot": parts[0], "plan": parts[1], "step": parts[2]}, where.masterplan
-    master = root / "plans" / parts[1] / kind.MAIN
+    servant = servant_state.of(root)
+    if not servant or not servant["steps"]:
+        return {"bad": True, "error": "`hal2-cli-plans servant show --json` gives no servant with steps for this field's "
+                                      "LEAD pointer (the CLI is missing or fails, or the pointer is malformed)"}
+    steps = servant["steps"]
+    lead = {"slot": str(servant["foreman"]), "plan": servant["plan"], "step": str(steps[0]["n"]), "steps": steps,
+            "finished": bool(servant.get("finished"))}
+    kind = where.masterplan
+    master = root / "plans" / lead["plan"] / kind.MAIN
     # the slug says "may be a masterplan"; where this checkout holds the plan, its front matter decides
-    if kind.has_marker(parts[1]) and (not master.is_file() or kind.of(master)):
+    if kind.has_marker(lead["plan"]) and (not master.is_file() or kind.of(master)):
         rows = kind.rows(kind.read(master)) if master.is_file() else []
-        lead["row_plan"] = next((r["plan"] for r in rows if r["number"] == parts[2]), None)
+        lead["row_plan"] = next((r["plan"] for r in rows if r["number"] == lead["step"]), None)
     return lead
 
 
 def lead_line(lead: dict) -> str:
     if lead.get("bad"):
         return (f"foreman: broken marker ({lead['error']}): still a servant, never the plan, never a landing; ask "
-                "the foreman to rewrite plans/LEAD")
+                "the foreman to rewrite it with `hal2-cli-plans servant assign`")
+    named = servant_state.steps_line(lead)
+    done = ("; finished: every step is done and merged, the foreman removes this field (`servant finish`), write "
+            "nothing more" if lead.get("finished") else "")
     if "row_plan" in lead:
         plan = lead["row_plan"] or "which this checkout's copy of the masterplan does not name"
-        return (f"foreman: worktree {lead['slot']}, masterplan {lead['plan']}, row {lead['step']}: a servant, "
-                f"continue the plan of that row, {plan}, each of its steps in a hand (never another row, never a "
-                "Status cell, never a landing)")
-    return (f"foreman: worktree {lead['slot']}, plan {lead['plan']}, step {lead['step']}: a servant, continue that one "
-            "step only (never the plan, never a landing)")
+        return (f"foreman: worktree {lead['slot']}, masterplan {lead['plan']}, {named.replace('step', 'row', 1)}: a "
+                f"servant, continue the plan of that row, {plan}, each of its steps in a hand (never another row, never "
+                f"a Status cell, never a landing){done}")
+    only = "that one step only" if len(lead["steps"]) == 1 else "those steps only"
+    return (f"foreman: worktree {lead['slot']}, plan {lead['plan']}, {named}: a servant, continue {only} (never the "
+            f"plan, never a landing){done}")
 
 
 def short(item: str) -> str:

@@ -1,10 +1,14 @@
 """The verbs of a train with a conflicting car (hal2 plan 0522 D18; resolve.py is the round's side):
 
-- `form` (`tollman.py resolve-form --cars <json>`): the twin of `engine.form` for a draft with a car marked
-  `conflict` (trains.draft): the train's own worktree, the barn, its `formed` line, the yard's car, then `merge_rest`
+- `form` (`tollman.py resolve-form --cars <json>`): `engine.form` for a draft with a car marked `conflict`
+  (trains.draft), the same forming (engine_form.py): the train's own worktree, the barn, its `formed` line, the yard's
+  car, then `merge_rest`, which `engine.form` ends with too (plan 0610 E25: a car that does not merge there is a
+  resolve order, never a cleared train)
 - `merge_rest`: the cars the carrier lacks merged in queue order (frozen.merge_car); the first that conflicts (not
   only in generated files) is aborted and `wait` writes its `resolving` line: the carrier's head published on its
-  remote branch (orders.publish, never moved back), a resolve order `<NN>-resolve-<n>` on `<NN>-train-resolve`. All
+  remote branch (orders.publish, never moved back: `train-<n>-<a>`, run_names.base_ref), a resolve order
+  `<NN>-resolve-<n>` on `<NN>-train-<n>-<a>-resolve` (run_names.fix_branch; a train without a number:
+  `<NN>-train-resolve`), worked in the field's kept fix worktree `<NN>-fix` (plan 0610 D18). All
   merged: the generated files written again, the CURRENT_PLAN pointer, then `engine.restart` (mark; the landing's
   pretest runs before its push)
 - `resolved` (`tollman.py resolved <field> <sha>`): the answer checked (on `origin/<branch>`, from the order's base,
@@ -23,11 +27,10 @@ import frozen
 import generated
 import hold
 import orders
+import run_names
 import train_state
-import train_wt
 import trial
-from carrier import Done, git, push_base
-from engine_yard import load_yard
+from carrier import Done, git
 from resolve import open_resolve, what
 from tick import act
 
@@ -37,29 +40,10 @@ REFUSED = ("tollman (wagon train): your resolve {sha} for resolve order {id} is 
            "`done resolved <sha>` again.")
 
 
-def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
-    """engine.form's forming for a train with a conflicting car; the cars then by `merge_rest`."""
-    main, _, train, _ = engine.here(top)
-    if train:
-        return 0, f"train {train['train']} stands ({train['state']}): no second one"
-    if not cars:
-        return 1, "a train needs a car"
-    default = engine.fetch(top)
-    code, top = train_wt.add(top, cars)
-    if code:
-        return 1, top
-    field, taken = Path(top).name, []
-    behind = git(top, "merge-base", "--is-ancestor", default, "HEAD")[0]
-    if behind and git(top, "merge", "-q", "--no-edit", default)[0] and not (taken := generated.take(top, "--theirs")):
-        git(top, "merge", "--abort")
-        return 1, f"{default} does not merge into {field}: no train formed; {train_wt.drop(top)[1]}"
-    name, base = "+".join(c["field"] for c in cars) + "@" + train_state.utc(now), git(top, "rev-parse", "HEAD")[1]
-    pushed = push_base(top, field, base)
-    train_state.append(main, "formed", field, now, train=name, number=train_state.next_number(main), cars=cars,
-                       base=base, worktree=top, **({"pushed": pushed} if pushed else {}))
-    note = load_yard(top, main, default, name, cars, now)[1]
-    code, text = merge_rest(top, now, taken)
-    return code, "; ".join(t for t in (text, pushed, note) if t)
+def form(top: str, cars: list[dict], now: dt.datetime | None = None, alone_next=()) -> Done:
+    """engine.form's forming (engine_form.py, plan 0610 E25: one forming for both verbs); the cars by `merge_rest`."""
+    import engine_form
+    return engine_form.form(top, cars, now, alone_next)
 
 
 def merge_rest(top: str, now: dt.datetime | None = None, taken=()) -> Done:
@@ -80,7 +64,7 @@ def merge_rest(top: str, now: dt.datetime | None = None, taken=()) -> Done:
             return 1, f"{text}; train {train['train']} stands (D3)"
     frozen.write_current(top, train["cars"], bool(train.get("yard")))
     if held := hold.of(main):  # plan 0383 step 7: nothing restarts while held; unheld, the round restarts it
-        return 0, f"train {train['train']}: every conflict resolved, it lands once unheld ({hold.text(held)})"
+        return 0, f"train {train['train']}: every car merged, it lands once unheld ({hold.text(held)})"
     return engine.restart(top, now)
 
 
@@ -96,10 +80,11 @@ def wait(top: str, main: str, train: dict, car: dict, taken: list[str], now=None
     base, cars = git(top, "rev-parse", "HEAD")[1], [c["field"] for c in train["cars"]]
     barn = bool(trial.merge(top, train["base"], car["head"])[1])  # it conflicts with the barn itself
     ahead = [] if barn else cars[:cars.index(car["field"])]
-    rid, told = next_id(train_state.lines(main), car["field"]), orders.publish(top, base)
+    ref = run_names.base_ref(train, git(top, "branch", "--show-current")[1] or Path(top).name)  # plan 0610 D18
+    rid, told = next_id(train_state.lines(main), car["field"]), orders.publish(top, base, ref)
     train_state.append(main, "resolving", Path(top).name, now, train=train["train"], field=car["field"],
-                       head=car["head"], files=files, ahead=ahead, base=base, id=rid,
-                       branch=f"{car['field']}-train-resolve", taken=sorted(set(taken)) or None,
+                       head=car["head"], files=files, ahead=ahead, base=base, id=rid, ref=ref,
+                       branch=run_names.fix_branch(train, car["field"], "resolve"), taken=sorted(set(taken)) or None,
                        unpublished=told if told.startswith("not") else None)
     return 0, (f"train {train['train']} waits resolving: car {car['field']} conflicts with {what(ahead)} in "
                f"{', '.join(files[:5])}; resolve order {rid}" + (f"; {told}" if told else ""))
@@ -111,7 +96,7 @@ def publish(top: str, now: dt.datetime | None = None) -> Done:
     r = open_resolve(train)
     if not r or not r.get("unpublished"):
         return 0, "no resolve order waits for its base"
-    told = orders.publish(top, r["base"])
+    told = orders.publish(top, r["base"], r.get("ref"))
     if told.startswith("not"):
         return 1, told
     keys = {k: v for k, v in r.items() if k not in ("schema", "at", "kind", "slot", "unpublished")}

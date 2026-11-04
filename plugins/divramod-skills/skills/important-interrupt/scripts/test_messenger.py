@@ -114,6 +114,13 @@ class TestSessions(Base):
         self.assertIsNone(by_pid[900]["socket"])
         self.assertEqual(by_pid[900]["kind"], "codex")
 
+    def test_a_farmer_of_another_farm_is_listed(self):
+        """Plan 0585 source 5: the stop tells every live session of the machine, other farms' farmers among them."""
+        self.reg(810, "farmer-diktier", "/a/diktier/.hal/farmer", "idle", socket=str(self.root / "810.sock"))
+        rows = m.sessions(500, run=Runner(), alive=self.alive, directory=self.sessions)
+        farmer = next(r for r in rows if r["name"] == "farmer-diktier")
+        self.assertEqual((farmer["pid"], farmer["checkout"]), (810, "/a/diktier/.hal/farmer"))
+
     def test_sessions_without_hal2_still_list_the_registry(self):
         rows = m.sessions(500, run=lambda cmd, timeout=20: (127, "", "missing"), alive=self.alive,
                           directory=self.sessions)

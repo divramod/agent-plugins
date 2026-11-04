@@ -23,6 +23,7 @@ import traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+os.environ.setdefault("HAL2_OVERLAP", "off")  # the start paths' overlap scan takes ~25 s: test_overlap.py turns it on
 _TEMPLATES: dict[str | None, Path] = {}
 _FILLED: dict[str, Path] = {}
 
@@ -40,7 +41,7 @@ def run(script: Path, args, env: dict | None = None, cwd: Path | str | None = No
     try:
         if env is not None:
             os.environ.clear()
-            os.environ.update(env)
+            os.environ.update({"HAL2_OVERLAP": "off", **env})
         if cwd is not None:
             os.chdir(cwd)
         sys.argv = [str(script), *argv]

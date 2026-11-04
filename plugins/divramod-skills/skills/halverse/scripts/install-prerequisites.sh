@@ -17,7 +17,7 @@ if ! command -v hal2-cli-voiceink >/dev/null 2>&1; then
   if ! command -v cargo >/dev/null 2>&1; then
     echo "install Rust first (https://rustup.rs), then rerun this script" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/hal2-cli-voiceink" ]; then
-    (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-voiceink)
+    (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-voiceink && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed hal2-cli-voiceink)
   else
     cargo install --git https://github.com/divramod/hal2 hal2-cli-voiceink
   fi
@@ -27,7 +27,7 @@ if ! command -v hal2-cli-halverse >/dev/null 2>&1; then
   if ! command -v cargo >/dev/null 2>&1; then
     echo "install Rust first (https://rustup.rs), then rerun this script" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/hal2-cli-halverse" ]; then
-    (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-halverse)
+    (cd "$HOME/a/hal2/code/rust" && cargo install --path apps/hal2-cli-halverse && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed hal2-cli-halverse)
   else
     cargo install --git https://github.com/divramod/hal2 hal2-cli-halverse
   fi

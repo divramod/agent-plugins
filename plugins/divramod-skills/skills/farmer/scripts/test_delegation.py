@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ import tick
 import sys
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import repo_root, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+os.environ.setdefault("HAL2_OVERLAP", "off")  # the start paths' overlap scan (~25 s) has its own tests
 NOW = dt.datetime(2026, 10, 3, 10, 0)
 MAIN = "/x/hal2"
 
@@ -56,8 +58,8 @@ class Delegation(Ledger):
         r = delegation.delegate(flaky(), MAIN, 5, True, NOW)
         self.assertEqual(r["how"], "new")
         self.assertEqual(r["calls"][0], delegation.FREE + ["--repo", MAIN])
-        self.assertEqual(r["calls"][1][:13], delegation.CREATE + ["--repo", MAIN, "--from", "00", "--to", "99",
-                                                                  "--model", "opus", "--effort", "medium", "--prompt"])
+        self.assertEqual(r["calls"][1][:13], delegation.CREATE + ["--repo", MAIN, "--from", "00",
+                                                                  "--to", "99", "--no-overlap", "--model", "opus", "--effort", "medium"])
         prompt = r["calls"][1][-1]
         self.assertNotIn('/plan new "disable the load-flaky test t"', prompt)
         self.assertNotIn("disable the load-flaky test t", prompt.split("/plan new")[1].split("`")[0])

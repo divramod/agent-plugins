@@ -69,7 +69,10 @@ run the Workflow; no further confirmation.
    yourself and write it down.
 2. **Scaffold.** `python3 $S/research.py new "<title>" --question "<question>" [--plan <plan.md>] [--origin <shot or
    plan>] [--kind decision|investigation|survey|incident|architecture]`, then `research.py set <n> status
-   researching`; when no plan runs it, create its research plan first (see above) and pass `--plan`.
+   researching`; when no plan runs it, create its research plan first (see above) and pass `--plan`. `new` runs `hal2-cli-plans
+   overlap --research` (plan 0593 D5; `overlap.json`, a Log line, stderr; no CLI: "overlap unchecked"): **cite, reuse
+   or revisit** a similar earlier research (`/research revisit`, `supersede`) and build on or wait for an overlapping
+   plan instead of repeating it; record the choice in the Log.
 3. **Run the Workflow** (tool `Workflow`; it is one step of the plan, run by the coordinator or the row's subagent, and its internal agents take the Workflow's own model settings) with `scriptPath: <skill-dir>/workflows/deep-research.js` and
    `args: {query: "<question>", breadth: 4, context: "<repo facts, constraints, criteria, paths to read>", today:
    "<YYYY-MM-DD>"}`. `breadth` is 2-6 sub-questions (4 by default; 5-6 for broad surveys). The script cannot

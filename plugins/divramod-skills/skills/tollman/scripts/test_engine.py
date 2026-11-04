@@ -16,6 +16,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
+import own_fix
 import tick
 import train_state
 import workqueue_hold
@@ -27,6 +28,10 @@ from test_farmer import git
 os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
 
 SKILL = Path(__file__).resolve().parents[1]
+
+
+def git_ok(cwd, *args) -> bool:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True).returncode == 0
 
 
 class Forming(Farm):
@@ -71,10 +76,10 @@ class Forming(Farm):
         base = out(self.wm, "rev-parse", "HEAD")
         self.round()
         self.assertEqual(self.last, [("form", "run", "-")])
-        self.assertEqual((self.carrier(), out(self.cw, "branch", "--show-current")), ("tollman-train-0294-f09",) * 2,
-                         "the train's own worktree beside the tollman's field, its branch the carrier (plan 0375 D5)")
-        self.assertEqual(self.subjects(), [f"Merge branch '09' into {self.carrier()}",
-                                           f"Merge branch '07' into {self.carrier()}", "nine.txt", "seven.txt"])
+        self.assertEqual((self.carrier(), out(self.cw, "branch", "--show-current")), ("tollman-train", "train-1-1"),
+                         "the kept train worktree beside the tollman's field, on its run's branch (plan 0610 D18)")
+        self.assertEqual(self.subjects(), [f"Merge branch '09' into {self.branch()}",
+                                           f"Merge branch '07' into {self.branch()}", "nine.txt", "seven.txt"])
         self.assertEqual((out(self.wm, "rev-parse", "HEAD"), (self.wm / "plans/CURRENT_PLAN").exists()), (base, False),
                          "the tollman's field holds no train")
         self.assertEqual((self.cw / "plans/CURRENT_PLAN").read_text(), "0294-tollman-role + 09\n")
@@ -121,6 +126,8 @@ class Forming(Farm):
         self.assertEqual((self.train()["state"], [c["field"] for c in self.train()["cars"]]), ("resolving", ["07", "09"]))
 
     def test_the_alone_rule_and_what_never_rides(self):
+        """Plan 0610 D9, D15: the alone car holds nobody; the others form now, it rides alone in the very next train,
+        ahead of a later hitch and without the minimum, keeping its ticket and ready mark."""
         self.crop("07", {".github/workflows/merge-to-main.yml": "on: push\n"})
         self.crop("09", {"nine.txt": "9"})
         self.crop("31", {"servant.txt": "s"})
@@ -129,36 +136,138 @@ class Forming(Farm):
         self.gate.ticket("04", self.fields["07"], ready={"at": "2026-10-13T09:00:00Z", "by": "hal2/04",
                                                         "head": out(self.main, "rev-parse", "origin/main")})
         d = json.loads(self.call("train", "--dry-run", "--json")[1])
-        self.assertEqual(([c["field"] for c in d["cars"]], d["alone"], d["waiting"]),
-                         (["07"], True, [{"field": "09",
-                                          "why": "rides in the next train, after 07, which rides alone"}]),
-                         "07 adds the landing workflow (plan 0333 D12)")
+        self.assertEqual(([c["field"] for c in d["cars"]], d["alone"], d["alone_next"]), (["09"], False, ["07"]))
+        self.assertEqual([(w["field"], w["reason"]) for w in d["waiting"]],
+                         [("31", "servant"), ("04", "barn"), ("07", "alone")])
+        self.assertIn("rides alone in its own train, right after this one: it adds the landing workflow",
+                      d["waiting"][2]["why"])
         self.round()
-        self.assertEqual(self.last, [("unhitch", "run", "31"), ("unhitched", "relay", "31"), ("unhitch", "run", "04"),
-                                     ("form", "run", "-")],
-                         "31 has no session: its message waits as a relay; in the barn already: no message at all")
+        self.assertEqual(self.last, [("form", "run", "-")],
+                         "no unhitch, no message: 31 (servant) and 04 (in the barn) stay hitched (the user, 2026-11-04)")
         self.assertEqual(self.gate.calls[-1],
-                         ["worktree", "queue", "train", self.carrier(), "07", "--train", "1", "--attempt", "1"])
-        self.assertTrue(self.gate.of("09")["ready"], "09 waits for the next train")
-        self.assertEqual((self.gate.of("31"), self.gate.of("04")), (None, None))
+                         ["worktree", "queue", "train", self.carrier(), "09", "--train", "1", "--attempt", "1"])
+        self.assertEqual(train_state.lines(str(self.main))[0]["alone_next"], ["07"], "the formed line owes 07 its train")
+        self.assertTrue(all(self.gate.of(f)["ready"] for f in ("07", "31", "04")), "their ready marks stay")
+        seven = self.gate.of("07")
+        self.ends({"status": "landed", "commit": "c0ffee"}, land=True)
+        self.gate.tickets.append(seven)  # the landing took only its cars' tickets
+        self.crop("11", {"eleven.txt": "11"})  # hitched after 07
+        with mock.patch.object(trains, "MIN_HITCHED", 10):  # the user's minimum: never for the alone car (D15)
+            self.round()
+        self.assertEqual(self.gate.calls[-1],
+                         ["worktree", "queue", "train", self.carrier(), "07", "--train", "2", "--attempt", "1"],
+                         "07 rides alone in the very next train, ahead of 11")
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07"])
+        self.assertTrue(self.gate.of("11")["ready"], "11 waits, hitched, for the train after 07")
 
-    def test_a_car_that_does_not_merge_or_a_refused_mark_breaks_the_train_up_again(self):
+    def test_a_car_whose_plan_depends_on_another_rides(self):
+        """Plan 0610 E27, D18, D20: no dependency hold (train_depends.py is not built): both ride, in queue order."""
+        self.crop("09", {"nine.txt": "9"}, plan="0602-needs-seven")
+        (self.fields["09"] / "plans/0602-needs-seven").mkdir(parents=True)
+        (self.fields["09"] / "plans/0602-needs-seven/plan.md").write_text("Depends on: 0601-seven\n")
+        self.crop("07", {"seven.txt": "7"}, plan="0601-seven")
+        self.round()
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["09", "07"])
+
+    def test_a_refused_mark_leaves_the_train_standing_and_the_next_round_lands_it(self):
+        """Plan 0610 E25: nothing undoes a forming; the refused mark's train is `formed`, its restart marks it again."""
         self.crop("07", {"seven.txt": "7"})
-        base, head = out(self.wm, "rev-parse", "HEAD"), self.gate.of("07")["ready"]["head"]
-        car = {"field": "07", "branch": "07", "head": head, "plan": ""}
+        head = self.gate.of("07")["ready"]["head"]
         self.gate.refuse = "07"  # the mark with this car
-        code, text = engine.form(str(self.wm), [car])
+        code, text = engine.form(str(self.wm), [{"field": "07", "branch": "07", "head": head, "plan": ""}])
         self.assertEqual(code, 1, text)
         self.assertIn("was not marked: refused: 07", text)
-        self.assertEqual((out(self.wm, "rev-parse", "HEAD"), self.spawned, self.train()), (base, [], None))
-        self.assertFalse((self.wm / "plans/CURRENT_PLAN").exists())
-        self.assertEqual(self.state(), [("formed", self.carrier()), ("cleared", self.carrier())])
+        self.assertEqual((self.state(), self.train()["state"], self.spawned), ([("formed", self.carrier())], "formed", []))
+        self.assertEqual(engine.form(str(self.wm), [])[0], 0, "a train stands: no second one")
         self.gate.refuse = ""
-        code, text = engine.form(str(self.wm), [dict(car, head="0" * 40)])
-        self.assertEqual((code, out(self.wm, "rev-parse", "HEAD"), self.train()), (1, base, None), text)
-        self.assertEqual(engine.form(str(self.wm), [])[0], 1)
-        r = self.round()  # the tick's own form of the same car now works; a failed run would wake the session
-        self.assertEqual((self.last, r["wake"], self.train()["state"]), ([("form", "run", "-")], [], "landing"))
+        r = self.round()
+        self.assertEqual((self.last, r["wake"], self.train()["state"]), ([("restart", "run", "-")], [], "landing"))
+
+    def test_a_car_that_does_not_merge_gets_a_resolve_order_and_the_train_stands(self):
+        """Plan 0610 E25: a car whose merge fails in `form` (an untried trial, E15) waits `resolving` with its resolve
+        order; the cars before it are merged, nothing is cleared, every ready mark stays."""
+        self.commit(self.main, "shared.txt", "base\n", push=True)
+        git(self.wm, "merge", "-q", "--ff-only", "main")
+        cars = [{"field": f, "branch": f, "head": self.crop(f, {"shared.txt": f + "\n"})["ready"]["head"], "plan": ""}
+                for f in ("07", "09")]
+        code, text = engine.form(str(self.wm), cars)
+        self.assertEqual(code, 0, text)
+        self.assertIn("resolve order 09-resolve-1", text)
+        t = self.train()
+        self.assertEqual((t["state"], t["resolve"]["field"], self.subjects()[0]),
+                         ("resolving", "09", f"Merge branch '07' into {self.branch()}"))
+        self.assertNotIn("cleared", [k for k, _ in self.state()])
+        self.assertTrue(self.gate.of("07")["ready"] and self.gate.of("09")["ready"])
+
+    def test_a_failed_regenerate_leaves_the_train_standing(self):
+        """Plan 0610 E25: the generated files not written again: the train stands `formed`, never cleared."""
+        self.crop("07", {"seven.txt": "7"})
+        car = {"field": "07", "branch": "07", "head": self.gate.of("07")["ready"]["head"], "plan": ""}
+        merge = engine.frozen.merge_car
+        with mock.patch.object(engine.frozen, "merge_car", lambda *a: (*merge(*a)[:2], ["code/gen.md"])), \
+                mock.patch("generated.regenerate", return_value=(1, "the generated files were not written again: x",
+                                                                 None, [])):
+            code, text = engine.form(str(self.wm), [car])
+        self.assertEqual(code, 1, text)
+        self.assertIn("stands", text)
+        self.assertEqual((self.train()["state"], [k for k, _ in self.state()]), ("formed", ["formed", "regenerated"]))
+
+    def test_a_barn_that_does_not_merge_into_the_field_forms_the_train_on_the_barn(self):
+        """Plan 0610 E25: the tollman's own commits clash with the barn: the train forms on the barn's head, its cars
+        all ride; the field's commits wait for a later train."""
+        self.commit(self.wm, "own.txt", "tollman\n")
+        self.commit(self.main, "own.txt", "barn\n", push=True)
+        self.crop("07", {"seven.txt": "7"})
+        car = {"field": "07", "branch": "07", "head": self.gate.of("07")["ready"]["head"], "plan": ""}
+        code, text = engine.form(str(self.wm), [car])
+        self.assertEqual(code, 0, text)
+        self.assertIn("does not merge into tollman-hal2: the train forms on the barn's head", text)
+        self.assertEqual((self.train()["base"], self.train()["state"]),
+                         (out(self.main, "rev-parse", "origin/main"), "landing"))
+        self.assertEqual(self.subjects(), [f"Merge branch '07' into {self.branch()}", "seven.txt"])
+
+
+class Minimum(Farm):
+    """Plan 0610 D11, D15 (the user, 2026-10-31: "I said at least 10 hitched fields ... So it should be 10 plus."):
+    a train forms once MIN_HITCHED fields are hitched and takes every one; the alone car is never bound by it."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(trains, "MIN_HITCHED", 3)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_fewer_wait_hitched_and_the_minimum_takes_every_one(self):
+        self.crop("07", {"seven.txt": "7"})
+        self.crop("09", {"nine.txt": "9"})
+        self.round()
+        self.assertEqual((self.last, self.train()), ([], None))
+        d = json.loads(self.call("train", "--dry-run", "--json")[1])
+        self.assertEqual([(w["field"], w["reason"], w["why"][:21]) for w in d["waiting"]],
+                         [("07", "minimum", "2 of 3 fields hitched"), ("09", "minimum", "2 of 3 fields hitched")])
+        self.assertEqual(trains.draft(str(self.main), self.gate.queue()["queue"], OWN, "origin/main", "origin/main",
+                                      minimum=0)["cars"][0]["field"], "07", "a join (open_train) has no minimum")
+        self.crop("11", {"eleven.txt": "11"})
+        self.round()
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09", "11"])
+
+    def test_the_barn_s_own_fix_forms_at_once_below_the_minimum(self):  # plan 0610 D22: a red barn holds every train
+        self.crop("07", {"seven.txt": "7"})
+        self.crop("09", {"nine.txt": "9"})
+        main = str(self.main)
+        train_state.append(main, "order", OWN, field="main", branch="tollman-train-fix", base="b" * 40, why="barn red",
+                           id="main-fix-1")
+        train_state.append(main, "fixed", OWN, id="main-fix-1", sha="f" * 40)
+        self.assertIsNotNone(own_fix.waiting(train_state.lines(main)), "the fix is merged and waits to ride")
+        self.round()
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09"], "2 of 3 hitched, yet it forms")
+
+    def test_an_alone_car_below_the_minimum_rides_alone_at_once(self):
+        self.crop("07", {".github/workflows/merge-to-main.yml": "on: push\n"})
+        self.crop("09", {"nine.txt": "9"})
+        self.round()
+        self.assertEqual(([c["field"] for c in self.train()["cars"]], self.train()["state"]), (["07"], "landing"))
+        self.assertTrue(self.gate.of("09")["ready"], "09 waits, hitched")
 
 
 class Standing(Farm):
@@ -183,8 +292,8 @@ class Standing(Farm):
         self.assertEqual([p for p, _ in self.typed], ["%7", "%9"])
         self.assertIn("your crop is in the barn (the train of 07, 09, https://github.com/x/runs/9)", self.typed[0][1])
         self.assertEqual((self.train(), self.subjects(), (self.wm / "plans/CURRENT_PLAN").exists()), (None, [], False))
-        self.assertEqual((self.cw.exists(), out(self.main, "branch", "--list", self.carrier())), (False, ""),
-                         "in the barn: the train's worktree and branch dropped (plan 0375 D5)")
+        self.assertEqual((self.cw.exists(), self.branch()), (True, "train-1-1"), "in the barn: the kept worktree "
+                         "stays on the landed branch until the next train checks out its own (plan 0610 D18)")
         last = train_state.lines(str(self.main))[-1]
         self.assertEqual((last["kind"], last["cars"], last["run"], last["commit"]),
                          ("landed", ["07", "09"], "https://github.com/x/runs/9", "c0ffee"))
@@ -215,14 +324,16 @@ class Standing(Farm):
                                            "chain link 1: breakup -, unhitched 09, form -\n"
                                            "chain stops: a landing started\n"))
         self.assertIsNone(self.gate.of("09"))
-        self.assertIn("field 09 is unhitched from the red train by the user: its test fails. Fix it, push and report it "
-                      "ready "
-                      "again (`hal2-cli-git worktree queue ready`).", self.typed[0][1])
-        old, new = "tollman-train-0294-f09", "tollman-train-0294"
+        self.assertIn("field 09 is out of the red train by the user's own command: its test fails. Fix it on "
+                      "your branch `09`", self.typed[0][1])
+        self.assertIn("tell the farmer by SendMessage", self.typed[0][1], "plan 0610 D21: the answer reaches someone")
+        self.assertNotIn("done fixed", self.typed[0][1], "no fix order stands after the user's split")
+        old = new = "tollman-train"  # one kept carrier worktree, a branch per train and run (plan 0610 D18)
         self.assertIn(["worktree", "release", old, "--by", "the user"], self.gate.calls, "its own failed landing's hold, by the user")
         self.assertEqual((self.carrier(), self.gate.calls[-1]), (new, ["worktree", "queue", "train", new, "07", "--train", "2", "--attempt", "1"]))
-        self.assertFalse((self.wm.parent / old).exists(), "the broken train's worktree dropped (plan 0375 D5)")
-        self.assertEqual(self.subjects(), [f"Merge branch '07' into {new}", "seven.txt"])
+        self.assertEqual((self.branch(), git_ok(self.main, "rev-parse", "-q", "--verify", "refs/heads/train-1-1")),
+                         ("train-2-1", False), "the broken train's branch dropped, its folder kept (plan 0610 D18)")
+        self.assertEqual(self.subjects(), ["Merge branch '07' into train-2-1", "seven.txt"])
         self.assertEqual(self.state()[-5:], [("red", old), ("unhitched", "09"), ("cleared", old), ("formed", new),
                                              ("started", new)])
         self.assertEqual((self.train()["base"], len(self.spawned)), (self.base, 2))
@@ -240,12 +351,12 @@ class Standing(Farm):
         self.round()
         self.assertEqual(self.last, [("landed", "run", "-"), ("in-the-barn", "relay", "07"),
                                      ("in-the-barn", "relay", "09"), ("chain", "run", "-")])
-        self.assertEqual(self.state()[-3:], [("landed", "tollman-train-0294-f09"), ("formed", self.carrier()),
+        self.assertEqual(self.state()[-3:], [("landed", "tollman-train"), ("formed", self.carrier()),
                                              ("started", self.carrier())])
-        self.assertFalse((self.wm.parent / "tollman-train-0294-f09").exists(), "the landed train's worktree dropped")
+        self.assertEqual(self.branch(), "train-2-1", "the kept worktree on the next train's branch (plan 0610 D18)")
         self.assertEqual((self.gate.calls[-1], len(self.spawned)), (["worktree", "queue", "train", self.carrier(), "11", "--train", "2", "--attempt", "1"], 2))
         self.assertEqual(([c["field"] for c in self.train()["cars"]], self.subjects()),
-                         (["11"], [f"Merge branch '11' into {self.carrier()}", "eleven.txt"]))
+                         (["11"], [f"Merge branch '11' into {self.branch()}", "eleven.txt"]))
         self.assertEqual([e["what"] for e in self.wm_log() if e["kind"] == "chain" and e["do"] == "record"],
                          ["chain link 1: form -; stops: a landing started"])
         self.alive.add(40002)
@@ -296,8 +407,8 @@ class Standing(Farm):
         self.assertEqual(self.gate.calls, [["worktree", "queue", "train", left, "--clear"],
                                            ["worktree", "queue", "train", left, "07", "09", "--train", "2", "--attempt", "1"]])
         self.assertEqual(self.state(), [("cleared", left), ("formed", left), ("started", left)])
-        self.assertEqual(self.subjects(), [f"Merge branch '09' into {left}", f"Merge branch '07' into {left}", "nine.txt",
-                                           "seven.txt"], "dropped through the proof and formed again, the same cars")
+        self.assertEqual(self.subjects(), ["Merge branch '09' into train-2-1", "Merge branch '07' into train-2-1",
+                                           "nine.txt", "seven.txt"], "dropped through the proof and formed again, the same cars")
         self.assertEqual(train_state.lines(str(self.main))[0]["why"], "a mark without a train of ours")
 
 
@@ -341,8 +452,8 @@ class Frozen(Farm):
         code, text = self.call("unhitch", "09", "--why", "the user's word", "--by-user", repo=self.main)
         self.assertEqual(code, 0, text)
         self.assertIn("chain link 1: breakup -, unhitched 09, form -", text)
-        self.assertEqual(self.state()[-4:], [("unhitched", "09"), ("cleared", "tollman-train-0294-f09"),
-                                             ("formed", "tollman-train-0294"), ("started", "tollman-train-0294")])
+        self.assertEqual(self.state()[-4:], [("unhitched", "09"), ("cleared", "tollman-train"),
+                                             ("formed", "tollman-train"), ("started", "tollman-train")])
         self.assertEqual(train_state.lines(str(self.main))[-4]["by"], "user")
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07"])
 
@@ -367,17 +478,19 @@ class Frozen(Farm):
 
     def test_a_train_whose_form_died_resumes_with_its_own_cars(self):
         """A `formed` line and only the first car merged (the form's process gone): the same train, its missing car
-        merged, marked and started; 11, hitched meanwhile, waits for the next train."""
+        merged, marked and started; 11, hitched meanwhile, joins it before its start (plan 0610 D17, E4)."""
         cars = [{"field": f, "branch": f, "head": self.gate.of(f)["ready"]["head"], "plan": ""} for f in ("07", "09")]
         train_state.append(str(self.main), "formed", OWN, train="07+09@x", cars=cars, base=self.base)
-        git(self.wm, "merge", "-q", "--no-ff", "-m", f"Merge branch '07' into {self.carrier()}", cars[0]["head"])
+        git(self.wm, "merge", "-q", "--no-ff", "-m", f"Merge branch '07' into {self.branch()}", cars[0]["head"])
         self.crop("11", {"eleven.txt": "11"})
         self.round()
-        self.assertEqual((self.last, self.state()), ([("restart", "run", "-")], [("formed", self.carrier()), ("started", self.carrier())]))
-        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", self.carrier(), "07", "09"])
-        self.assertEqual(self.subjects()[:2], [f"Merge branch '09' into {self.carrier()}", f"Merge branch '07' into {self.carrier()}"],
-                         "the missing car merged after the one its form had merged")
-        self.assertTrue(self.gate.of("11")["ready"], "11 rides the next train")
+        self.assertEqual((self.last, self.state()), ([("join", "run", "-"), ("restart", "run", "-")], [
+            ("formed", self.carrier()), ("joined", self.carrier()), ("started", self.carrier())]))
+        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", self.carrier(), "07", "09", "11"])
+        self.assertEqual([m for m in self.subjects() if m.startswith("Merge")],
+                         [f"Merge branch '{f}' into {self.branch()}" for f in ("11", "09", "07")],
+                         "the missing car and the joiner merged after the one its form had merged")
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09", "11"])
 
 
 class UnchangedHead(Farm):
@@ -504,7 +617,8 @@ class Files(Farm):
         self.assertRaises(ValueError, train_state.append, str(self.main), "derailed", self.carrier())
 
     def test_the_landing_is_a_child_of_a_process_that_stays(self):
-        with mock.patch.object(engine, "LAND", [sys.executable, "-c", "import sys; sys.exit(4)"]):
+        with (mock.patch.object(engine, "LAND", [sys.executable, "-c", "import sys; sys.exit(4)"]),
+              mock.patch.object(engine.land_name, "refuses", return_value=0)):  # its own test: test_land_name
             self.assertEqual(engine.land(str(self.wm)), 4)
         self.assertEqual(engine.LAND, ["hal2-cli-git", "worktree", "merge-to-main", "--json"])
 
@@ -530,6 +644,7 @@ class Files(Farm):
               mock.patch.object(engine.next_train, "before_push", lambda top: calls.append("wait")),
               mock.patch.object(engine.hold, "stops", return_value=0),  # no hold (L88's look: its own test)
               mock.patch.object(engine.head_guard, "refuses", return_value=0),  # its own test: UnchangedHead
+              mock.patch.object(engine.land_name, "refuses", return_value=0),  # its own test: test_land_name
               mock.patch.object(workqueue_hold, "cloud_train", lambda top: cloud),
               mock.patch("sys.stdout"), mock.patch.dict(os.environ)):
             os.environ.pop("HAL2_WORKQUEUE_HOLD", None)

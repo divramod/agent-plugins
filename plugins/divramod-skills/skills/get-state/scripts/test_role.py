@@ -19,7 +19,7 @@ class Detect(unittest.TestCase):
         for d in (self.main, *self.places.values()):
             d.mkdir()
         env = {"HAL_VILLAGE": str(self.places["mayor"]), "HAL_CITY": str(self.places["lord"]),
-               "HAL_PLANET": str(self.places["pope"])}
+               "HAL_PLANET": str(self.places["pope"]), "HAL2_CLI_AGENTS": str(self.tmp / "no-such-cli")}
         p = mock.patch.dict(os.environ, env)
         p.start()
         self.addCleanup(p.stop)
@@ -85,6 +85,41 @@ class Detect(unittest.TestCase):
     def test_roles(self):
         self.assertEqual(set(role.ROLES), {"farmer", "foreman", "servant", "steward", "tollman", "mayor", "lord", "pope"})
         self.assertEqual(set(role.PLACES), {"mayor", "lord", "pope"})
+
+
+class FromCli(unittest.TestCase):
+    """Plan 0592's D12: the role is hal2's one rule (`hal2-cli-agents role --json`), `detect` only without it."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.field = self.tmp / "tollman-train-0574"
+        self.field.mkdir()
+
+    def fake(self, body: str) -> None:
+        cli = self.tmp / "hal2-cli-agents"
+        cli.write_text("#!/bin/sh\n" + body + "\n")
+        cli.chmod(0o755)
+        p = mock.patch.dict(os.environ, {"HAL2_CLI_AGENTS": str(cli)})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_the_cli_s_role_wins_over_the_folder_name(self):
+        self.fake('echo \'{"schema":1,"role":"foreman","why":"a field without a LEAD marker"}\'')
+        self.assertEqual(role.resolve(None, str(self.field), str(self.tmp)), "foreman")
+
+    def test_no_role_from_the_cli_is_unknown(self):
+        """A train's carrier field has no role, though its name starts with `tollman-`."""
+        self.fake('echo \'{"schema":1,"role":null,"why":"a train\\u0027s carrier field"}\'')
+        self.assertEqual(role.resolve(None, str(self.field), str(self.tmp)), "unknown")
+
+    def test_an_older_cli_falls_back_to_the_folder(self):
+        self.fake('echo "unrecognized subcommand role" >&2; exit 2')
+        self.assertEqual(role.resolve(None, str(self.field), str(self.tmp)), "tollman")
+
+    def test_the_cli_is_asked_for_the_checkout(self):
+        self.fake('echo "{\\"schema\\":1,\\"role\\":\\"steward\\",\\"path\\":\\"$3\\"}"')
+        self.assertEqual(role.from_cli(str(self.field))["path"], str(self.field))
 
 
 if __name__ == "__main__":

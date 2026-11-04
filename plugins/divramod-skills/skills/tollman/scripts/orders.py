@@ -4,12 +4,14 @@ the train. Replaces unhitch-after-red and breakup (the user's own `--by-user` st
 - `order`: the tollman's session, after its triage judgment (a `car_red` wake), orders the car's foreman: an `order`
   line of the train state (train_state.py; the train goes `fixing`, frozen as red), the carrier's head published on
   its remote branch (never moved back), and one acked message (`tick.execute` stamps it, `tollman [<id>] ...`): fix on
-  `<NN>-train-fix` from `origin/<carrier>`, push, answer `fixed <sha>`. `order main` (a `main_red` wake, D29): the
-  tollman's own hand fixes on `tollman-train-fix`; no foreman message, a wake for its own session.
+  `<NN>-train-<n>-<a>-fix` from `origin/train-<n>-<a>` in the kept `<NN>-fix` worktree (run_names.py, plan 0610 D18;
+  a train without a number: `<NN>-train-fix` from `origin/<carrier>`), push, answer `fixed <sha>`. `order main` (a
+  `main_red` wake, D29): the tollman's own hand fixes on `tollman-train-<n>-<a>-fix` in `tollman-fix`; no foreman
+  message, a wake for its own session.
 - early (plan 0383 step 5, D5, L35): `order` also while the train still lands, placed by code when the triage of
   the run's first red job names exactly one car (early_order.py) or by the session's hand; the train stays `landing`
-  and its red makes it `fixing` (train_state.py). The message is the same (the fix on `<NN>-train-fix` from
-  `origin/<carrier>`, never the field's own branch); an early order for a field that has one open is no second one:
+  and its red makes it `fixing` (train_state.py). The message is the same (the fix on its systematic branch from
+  the carrier's run, never the field's own branch); an early order for a field that has one open is no second one:
   a red job it does not name yet is added to it (`also`, plan 0522 D16: one message per red job, one answer).
   `fixed` waits for the run's end (L34): while the train lands an answer is neither checked nor merged.
 - post-merge (plan 0383 step 6, D6, L34): `order --post <landed train>` for a red after the merge job of a train
@@ -19,7 +21,7 @@ the train. Replaces unhitch-after-red and breakup (the user's own `--by-user` st
   runs; a train that lands first hands it on to the next.
 - `fixed`: the answer, checked (the sha on `origin/<branch>`, or the local branch for `main`, and descending from the
   order's base), proven green (fix_proof.py, plan 0522 D5: the order's `jobs`, a light one run by the tollman on the
-  sha, a heavy one by the gate's green line in the answer; `--unproven <why>` the session's word without), merged
+  sha, a heavy one by the red check's own green line in the answer, plan 0610 D6; `--unproven <why>` the session's word without), merged
   into the carrier (`--no-ff`; generated-only conflicts take the carrier's side, as
   frozen.merge_car), a `fixed` line; the last order closed, the train is `retry` and the next round's `restart` lands
   the same cars plus the fixes on a new candidate (the merge; no empty retry commit, engine.fresh). A refused answer
@@ -42,6 +44,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import fix_proof
 import generated
 import mtm_scan
+import run_names
 import train_state
 from carrier import Done, git
 from orders_open import close, stopped, told_finished, unpushed
@@ -49,7 +52,7 @@ from orders_text import TEXT, proof_text
 from tick import act
 
 MAIN = "main"  # `order main`: the barn's red, fixed by the tollman's own hand (D29)
-OWN_FIX = "tollman-train-fix"
+OWN_FIX = run_names.OWN_FIX  # the barn's red without a train (own_fix.py), a train without a number
 CLI = Path(__file__).with_name("tollman.py")
 FIXED = re.compile(r"\bfixed\s+([0-9a-f]{7,40})\b")
 def remote_tip(top: str, ref: str) -> tuple[int, str]:
@@ -57,11 +60,11 @@ def remote_tip(top: str, ref: str) -> tuple[int, str]:
     return code, next((w[0] for w in (line.split() for line in text.splitlines()) if w[1:] == [ref]), "") or text * code
 
 
-def publish(top: str, base: str) -> str:
-    """The carrier's remote branch made to hold `base`, so a foreman branches from it: "" when it does already
-    (`base` itself or a later head: never moved back), else a leased push (carrier.push_base's lease: never a bare
-    force); a failure starts with `not`."""
-    ref = "refs/heads/" + (git(top, "branch", "--show-current")[1] or Path(top).name)
+def publish(top: str, base: str, branch: str | None = None) -> str:
+    """The carrier's remote branch (`branch`, else the carrier's own) made to hold `base`, so a foreman branches from
+    it: "" when it does already (`base` itself or a later head: never moved back), else a leased push
+    (carrier.push_base's lease: never a bare force); a failure starts with `not`."""
+    ref = "refs/heads/" + (branch or git(top, "branch", "--show-current")[1] or Path(top).name)
     code, tip = remote_tip(top, ref)
     if code:
         return f"not published: origin's {ref} not read: {tip[-200:]}"
@@ -90,7 +93,8 @@ def refusal(train: dict | None, field: str, smuggle: bool, post: str | None) -> 
 
 
 def order(top: str, field: str, why: str, run: str | None, panes: dict, now=None,
-          smuggle: bool = False, post: str | None = None, jobs: list[str] | None = None) -> tuple[int, str, list[dict]]:
+          smuggle: bool = False, post: str | None = None, jobs: list[str] | None = None,
+          units: list[str] | None = None) -> tuple[int, str, list[dict]]:
     """The order for `field` (a car of the standing red train, `main`, with `smuggle` a smuggling field: its
     smuggle conflicts with or broke the train, plan 0360 step 18; with `post` a car of that landed train, its red
     after the merge): its exit, its line and its actions (the foreman's message or the own session's wake), which
@@ -106,19 +110,21 @@ def order(top: str, field: str, why: str, run: str | None, panes: dict, now=None
     jobs = list(dict.fromkeys(jobs or [])) or fix_proof.named(top, why, train.get("why") or "")
     if o := next((o for o in open_ if o["field"] == field), None):
         if more := [j for j in jobs if j not in (o.get("jobs") or [])] * early:
-            return also(top, main, train, o, why, run, more, panes, now)
+            return also(top, main, train, o, why, run, more, panes, now, units)
         return 0, f"fix order {o['id']} for {field} stands already: no second one while it is open", []
-    base, carrier = git(top, "rev-parse", "HEAD")[1], git(top, "branch", "--show-current")[1] or Path(top).name
-    told = publish(top, base)
+    base = git(top, "rev-parse", "HEAD")[1]
+    carrier = run_names.base_ref(train, git(top, "branch", "--show-current")[1] or Path(top).name)
+    told = publish(top, base, carrier)
     if told.startswith("not"):
         return 1, f"no fix order: {told}", []
-    oid, branch = next_id(rows, field), OWN_FIX if field == MAIN else f"{field}-train-fix"
+    oid, branch = next_id(rows, field), run_names.fix_branch(train, field)
+    fixwt = str(Path(top).parent / run_names.fix_worktree(field))
     train_state.append(main, "order", Path(top).name, now, train=train["train"], field=field, branch=branch, base=base,
-                       why=why, run=run or train.get("run"), id=oid, post=post, jobs=jobs or None)
+                       why=why, run=run or train.get("run"), id=oid, post=post, jobs=jobs or None, units=units or None)
     words = {"id": oid, "field": field, "train": train["train"],
              "red": why if early or post else train.get("why") or train.get("status"), "early": TEXT["early"] * early,
              "run": run or train.get("run") or "none", "why": why, "carrier": carrier, "branch": branch,
-             "base": base[:12], "rid": run or train.get("run") or "", "where": top, "post": post,
+             "base": base[:12], "rid": run or train.get("run") or "", "where": fixwt, "post": post,
              "proof": proof_text(top, jobs)}
     key = f"order:{train['train']}:{field}:{oid.rsplit('-', 1)[1]}"
     if field == MAIN:
@@ -131,11 +137,11 @@ def order(top: str, field: str, why: str, run: str | None, panes: dict, now=None
 
 
 def also(top: str, main: str, train: dict, o: dict, why: str, run: str | None, jobs: list[str], panes: dict,
-         now=None) -> tuple[int, str, list[dict]]:
+         now=None, units: list[str] | None = None) -> tuple[int, str, list[dict]]:
     """Another red job of the field with the open early order `o` (plan 0522 D16): an `order` line `also` adds `jobs`
     to it (train_state.py), and the foreman is told this red too; one answer fixes both."""
     train_state.append(main, "order", Path(top).name, now, train=train["train"], field=o["field"], id=o["id"],
-                       also=o["id"], why=why, run=run or o.get("run"), jobs=jobs)
+                       also=o["id"], why=why, run=run or o.get("run"), jobs=jobs, units=units or None)
     text = TEXT["also"].format(id=o["id"], field=o["field"], why=why, run=run or o.get("run") or "none",
                                branch=o["branch"], proof=proof_text(top, jobs))
     a = act("trains", "fix-order", "send", o["field"], pane=panes.get(o["field"]), text=text,
@@ -290,7 +296,7 @@ def answers(top: str, rows: list[dict], log: list[dict], now: dt.datetime | None
         argv = [sys.executable, str(CLI), "fixed", o["field"], sha, "--repo", top, "--proof", note]
         refused = act("trains", "fix-refused", "wake", key=f"stuck:fixed:{o['id']}:{sha}",
                       text=f"the fix {sha[:12]} of order {o['id']} was refused: `{' '.join(argv[1:5])}` says why")
-        lines = f":{zlib.crc32(note.encode()):08x}" if fix_proof.GREEN.search(note) else ""  # an ack with new proof
+        lines = f":{zlib.crc32(note.encode()):08x}" if fix_proof.has_line(note) else ""  # an ack with new proof
         out.append(act("trains", "fixed", "run", o["field"], key=f"fixed:{o['id']}:{sha}{lines}", argv=argv,
                        on_fail=[refused], text=f"fix order {o['id']}: {o['field']} answered fixed {sha[:12]}"))
     return out

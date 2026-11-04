@@ -13,9 +13,11 @@ order's red jobs are green on that sha; the foreman's word alone let records-che
   select is green: CI runs it neither) accepts; red refuses with the job's first error line; incomplete starts it
   again, up to TRIES times, then refuses; skipped (a tool missing, a job that changed tracked files) refuses: the
   session decides
-- heavy (every other job): the answer carries the gate's line `gate: <job> green at <sha>` (gate/main.sh prints it
-  after a green job) for that job, on the sha or a commit of its tree; an order that names no job needs such a line
-  for some job
+- heavy (every other job): the answer carries the red check's own green (plan 0610 D6, the user: "only what was
+  red"): `green: <check> at <sha>`, the check the smallest form of what was red (the failing test, the build, the
+  lint check, the CI step), on the sha or a commit of its tree; a check line naming one of the order's heavy jobs
+  proves that job, one naming none proves them all. The gate's `gate: <job> green at <sha>` still proves its job, but
+  is never asked for (never the whole gate job). An order that names no job needs one such line
 - `fixed --unproven <why>`: the session's word without proof (a red that is another car's, a red of the Mac's)
 
   fix_proof.py start --repo <carrier> <order id> <sha>    the proof, detached (the round's action)
@@ -47,7 +49,10 @@ TREE = ".proof-tree"  # a dot name: worktree listings leave it out (mtm_scan.py,
 TRIES = 3  # incomplete proofs of one answer before it is refused
 KEEP_DAYS = 14
 LINT_JOBS = "code/bash/scripts/gate/lint-jobs.txt"
-GREEN = re.compile(r"gate: ([a-z0-9][a-z0-9-]*) green at ([0-9a-f]{7,40})")
+GREEN = re.compile(r"gate: ([a-z0-9][a-z0-9-]*) green at ([0-9a-f]{7,40})")  # a whole job's: accepted, never asked
+CHECK = re.compile(r"(?<![a-z0-9-])green: (\S[^\n]*?) at ([0-9a-f]{7,40})\b")  # the red check's own green (D6)
+ASK = ("run the check that was red on the fix, its smallest form (the failing test, the build, the lint check or the "
+       "CI step; never the whole gate job), and answer `done fixed {sha}: green: <that check> at {sha}`")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9-]*")
 LIGHT_OK = ("green", "none")
 
@@ -118,24 +123,33 @@ def tree_of(top: str, rev: str) -> str:
     return pretest.git(top, "rev-parse", f"{rev}^{{tree}}")
 
 
-def lines_for(top: str, sha: str, note: str) -> set[str]:
-    """The jobs whose green line in `note` is on `sha` (or a commit of its tree)."""
+def has_line(note: str) -> bool:
+    """Whether `note` carries a proof line at all (a red check's `green:` or a gate's line)."""
+    return bool(CHECK.search(note or "") or GREEN.search(note or ""))
+
+
+def lines_for(top: str, sha: str, note: str) -> tuple[set[str], list[str]]:
+    """The jobs whose gate line in `note` is on `sha` (or a commit of its tree), and the checks whose `green:` line
+    is (D6)."""
     tree = tree_of(top, sha)
-    return {job for job, at in GREEN.findall(note or "") if sha.startswith(at) or (tree and tree_of(top, at) == tree)}
+
+    def on(at: str) -> bool:
+        return sha.startswith(at) or bool(tree and tree_of(top, at) == tree)
+    return ({job for job, at in GREEN.findall(note or "") if on(at)},
+            [check.lower() for check, at in CHECK.findall(note or "") if on(at)])
 
 
 def heavy_why(top: str, sha: str, heavy: list[str], note: str, any_job: bool) -> str:
-    """What the answer's lines lack for the heavy jobs (`any_job`: the order names none), or ""."""
-    green = lines_for(top, sha, note)
+    """What the answer's lines lack for the heavy jobs (`any_job`: the order names none), or "": a job is proven by
+    its gate line, a check line naming it, or a check line naming none of them (D6: the red check's own green)."""
+    jobs, checks = lines_for(top, sha, note)
+    ask = ASK.format(sha=sha[:12])
     if any_job:
-        return "" if green else (f"no proof: the answer carries no `gate: <job> green at {sha[:12]}` line; run the red "
-                                 "job on the fix (`code/bash/scripts/gate/main.sh <job> --branch origin/main`) and "
-                                 f"answer `done fixed {sha[:12]}: <that line>`")
-    missing = [j for j in heavy if j not in green]
-    return "" if not missing else (
-        f"no proof for {', '.join(missing)}: run {'each' if len(missing) > 1 else 'it'} on the fix "
-        f"(`code/bash/scripts/gate/main.sh <job> --branch origin/main`) and answer `done fixed {sha[:12]}: "
-        f"gate: {missing[0]} green at {sha[:12]}` (the line the gate prints)")
+        return "" if jobs or checks else (f"no proof: the answer carries no `gate: <job> green at {sha[:12]}` or "
+                                          f"`green: <check> at {sha[:12]}` line; {ask}")
+    every = any(not any(j in c for j in heavy) for c in checks)
+    missing = [j for j in heavy if j not in jobs and not every and not any(j in c for c in checks)]
+    return "" if not missing else f"no proof for {', '.join(missing)}: {ask}"
 
 
 def verdict(top: str, main: str, o: dict, sha: str, note: str = "") -> tuple[str, str]:

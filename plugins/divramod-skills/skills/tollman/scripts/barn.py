@@ -13,7 +13,8 @@ not clear itself. The prune duty (prune.py) then looks at each car of the newest
   last train's cars first, so a car is removed right after the barn (prune.py starts the run for it);
 - a car whose field still holds work 24 hours after the landing: one wake, `barn-stuck:<slot>:<train>`, never a
   forced removal; none for a field whose CURRENT_PLAN names another plan than the car's that rode (its foreman's new
-  work, L109: keyed by HEAD, every new commit of field 16's new research plan woke again).
+  work, L109: keyed by HEAD, every new commit of field 16's new research plan woke again); none for a milestone car
+  (its `milestone` label from the queue's `plan.hitch`, plan 0593 step 4): its plan stays open on purpose.
 """
 
 import datetime as dt
@@ -91,6 +92,15 @@ def rode(main: str, landed: dict) -> dict[str, str]:
     return out
 
 
+def milestone_cars(main: str, landed: dict) -> set[str]:
+    """The fields whose car rode as a milestone or partial hitch: their plan stays open on purpose (plan 0593 step 4)."""
+    out: set[str] = set()
+    for e in train_state.lines(main):
+        if e.get("train") == landed.get("train") and e.get("kind") in ("formed", "joined"):
+            out |= {str(c.get("field")) for c in e.get("cars", []) if isinstance(c, dict) and c.get("milestone")}
+    return out
+
+
 def new_plan(w: dict, plan: str) -> bool:
     """The field's CURRENT_PLAN names a plan, and not the one its car carried."""
     try:
@@ -112,13 +122,17 @@ def actions(ctx: dict, found: list[dict], landed: dict | None) -> list[dict]:
         return []
     fields, out = cars(landed), []
     late = age(landed, ctx["now"]) >= STUCK_AFTER
+    miles = None
     agents, plans = [], None  # the live list, read when the first clear is due; the cars' plans, at the first stuck
     for w in found:
         if w["slot"] not in fields or not Path(w["path"]).is_dir():
             continue
         if w["why"]:
             plans = plans if plans is not None or not late else rode(ctx["main"], landed)
-            out += [stuck(w, landed)] if late and not new_plan(w, (plans or {}).get(w["slot"], "")) else []
+            if late and miles is None:
+                miles = milestone_cars(ctx["main"], landed)
+            skip = w["slot"] in (miles or ())  # a milestone car's plan stays open: no barn-stuck wake
+            out += [stuck(w, landed)] if late and not skip and not new_plan(w, (plans or {}).get(w["slot"], "")) else []
         elif int(w["slot"]) < 10 and cleaned(ctx.get("log", []), w["slot"], w["head"]):
             if not agents:
                 agents.append(live_agents())

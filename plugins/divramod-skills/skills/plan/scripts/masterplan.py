@@ -308,6 +308,10 @@ def refuse_step(path: Path, command: str, step: str = "") -> None:
 def servant_refusal(marker: dict, command: str) -> str:
     """Why plan.py refuses `command` in a servant's field (`marker`: its plans/LEAD, `<foreman's field> <plan>
     <step, or the masterplan's row>`), and what the servant does instead."""
+    if marker.get("unread"):
+        return (f"this field holds plans/LEAD, a servant's marker, but `hal2-cli-plans servant show` gave no servant "
+                f"(the CLI is missing, or the marker is broken): `{command}` is the foreman's, who alone edits plan.md "
+                f"and brings the work in. Install or fix the CLI, or ask the foreman")
     field, plan = marker["slot"], marker["plan"]
     part = "row" if has_marker(plan) else "step"
     return (f"this field is a servant of the foreman in field {field} (plan {plan} {part} {marker['step']}): "

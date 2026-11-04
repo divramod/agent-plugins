@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 import interrupt
+import passes
 import quiet
 import stopall
 from test_freeze import FakeSys, machine
@@ -48,17 +49,25 @@ class FakeQuiet:
     """quiet.py's scan/apply: a CONFIRM runner row and a session row; later passes repeat a failing docker pause."""
 
     def __init__(self):
-        self.applied = []
+        self.applied, self.shared = [], []
+        self.reads = {"procs": 0, "scan": 0, "apply": 0}
         self.rows = [{"kind": "session", "pid": 77, "what": "x"},
                      {"kind": "runner", "label": "actions.runner.hal2", "confirm": "self-hosted CI runner"},
                      {"kind": "session", "pid": 78, "what": "rsync /Volumes/x", "confirm": "copies or moves data"}]
 
     key = staticmethod(quiet.key)
 
-    def scan(self, keep, runner):
+    def procs(self):
+        self.reads["procs"] += 1
+        return {}
+
+    def scan(self, keep, runner, table=None):
+        self.reads["scan"] += 1
         return self.rows
 
-    def apply(self, keep, runner, dry, yes):
+    def apply(self, keep, runner, dry, yes, rows=None, table=None):
+        self.reads["apply"] += 1
+        self.shared.append((rows is self.rows, table is not None))
         self.applied.append((keep, runner, dry, list(yes)))
         w = "would " if dry else ""
         if len(self.applied) == 1:
@@ -91,7 +100,12 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
-        self.env = {"STOP_ALL_AGENT_WORK_ROOT": str(base / "stop"), "IMPORTANT_INTERRUPT_ROOT": str(base / "ii")}
+        # No hal2-cli-machine (whatever PATH has): hal2-daemon is frozen, as test_pollers_quiet's fake CLI avoids.
+        self.env = {"STOP_ALL_AGENT_WORK_ROOT": str(base / "stop"), "IMPORTANT_INTERRUPT_ROOT": str(base / "ii"),
+                    "HAL2_CLI_WORKQUEUE": str(base / "no-wq"), "HAL2_CLI_CI": str(base / "no-ci"),
+                    "HAL2_HOST_RUNNER_ROOT": str(base / "no-runners"),
+                    "HAL2_CLI_MACHINE": str(base / "no-hal2-cli-machine")}  # the real CLIs and folders never seen
+        self.base_saved = {k: os.environ.get(k) for k in self.env}
         os.environ.update(self.env)
         (base / "pause").mkdir()
         self.msg = FakeMessenger(base / "pause", paused={"07-ab"})
@@ -100,14 +114,14 @@ class Base(unittest.TestCase):
         self.quiet, self.lines = FakeQuiet(), []
 
     def tearDown(self):
-        for k in self.env:
-            del os.environ[k]
+        for k, v in self.base_saved.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
         self.tmp.cleanup()
 
     def deps(self, tables=()):
         self.clock = Clock(self.sys, tables)
         return interrupt.Deps(self.sys, self.msg, self.quiet, stopall, self.clock, self.clock.sleep,
-                              self.lines.append, lambda: 502)
+                              self.lines.append, lambda: 502, idle=lambda: 50.0)  # the passes' idle: no top
 
     def run_stop(self, *args, tables=()):
         return interrupt.main(["stop", *args], self.deps(tables))
@@ -155,6 +169,19 @@ class InterruptTest(Base):
         self.assertEqual(row["counts"]["build"], 8)
         self.assertIn("quiet after 0m 5s (idle 85%)", self.lines)
         self.assertNotIn("pause container db: docker pause 1  (failed)", self.lines)
+
+    def test_the_quiet_pass_reads_the_machine_once(self):
+        # D12: one process table and one scan per pass, shared by the confirmations and the apply
+        self.run_stop("--dry-run")
+        self.assertEqual(self.quiet.reads, {"procs": 1, "scan": 1, "apply": 1})
+        self.assertEqual(self.quiet.shared, [(True, True)])
+
+    def test_a_timed_out_action_is_not_counted_as_done(self):
+        d = self.deps()
+        self.quiet.apply = lambda *a, **k: print("pause container db: docker pause 1  (failed: timed out after 20s)")
+        kinds = passes.quiet_pass(d, [], False, False, True)
+        self.assertEqual(kinds, [])
+        self.assertIn("pause container db: docker pause 1  (failed: timed out after 20s)", self.lines)
 
     def test_rescan_freezes_what_starts_later(self):
         late = {700: [1, os.getuid(), "R", 90.0, "/x/xcodebuild", "xcodebuild build"]}

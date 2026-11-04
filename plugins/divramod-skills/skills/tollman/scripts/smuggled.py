@@ -17,6 +17,9 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import mtm_scan
+import run_names
+import train_state
 import trial as trial_merge
 from tick import act, default_ref
 
@@ -82,7 +85,8 @@ def conflict(top: str, main: str, train: dict, result: dict | None, tickets, aft
     files = (result or {}).get("files") or []
     s = next((s for s in rows if set(files) & set(s["files"])), rows[0])
     named = [f for f in files if f in s["files"]] or files
-    why = TEXT["resume_conflict"].format(files=", ".join(named[:5]) or "its files", branch=f"{s['slot']}-train-fix")
+    why = TEXT["resume_conflict"].format(files=", ".join(named[:5]) or "its files",
+                                         branch=run_names.fix_branch(train, s["slot"]))
     return [order(top, s["slot"], why, after)]
 
 
@@ -90,5 +94,7 @@ def red(top: str, verdict: dict, after: str, run: str | None) -> list[dict]:
     """The order for a smuggled red (D61)."""
     e, slot = verdict["evidence"], verdict["evidence"]["slot"]
     why = TEXT["smuggled_red"].format(run=run or "none", jobs=", ".join(e.get("jobs") or e.get("red") or []) or "a job",
-                                      files=", ".join(e.get("files", [])[:5]), branch=f"{slot}-train-fix")
+                                      files=", ".join(e.get("files", [])[:5]),
+                                      branch=run_names.fix_branch(train_state.standing(train_state.lines(
+                                          mtm_scan.main_checkout(top))) or {}, slot))
     return [order(top, slot, why, after, run)]

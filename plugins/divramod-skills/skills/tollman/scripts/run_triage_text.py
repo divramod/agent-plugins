@@ -2,7 +2,7 @@
 evidence (job, first error line, failing tests, the commit and run) and its "reproduce first" command: the tollman
 never reproduces a red itself, the receiving field does (run_triage.REPRODUCED). Pure text over verdicts."""
 
-from orders_text import PROOF  # the whole red job before the answer, the gate's bats (L113, L85): one source
+from orders_text import PROOF  # only what was red, its smallest form (plan 0610 D6): one source
 
 LINE = 160  # an error line kept in a text
 WHY = 700  # the longest `--why` of an order

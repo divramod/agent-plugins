@@ -1,0 +1,20 @@
+{
+ "about": "Fields 09, 23, 29 of hal2 on 2026-10-30 ~18:47 (farmer journal, agents chronicle; plan 0514 step 2's Notes): every step committed, the session done or idle, `git push` waiting in the pre-push hook behind jobsearch/05's landing hold. 09 carries today's run state (plan.py end wrote `pushing`); 23 and 29 have none (as then): 23's push is a workqueue job, 29's a live background shell. jobsearch/02 sits beside hal2's field 02 (D16).",
+ "fields": {
+  "09": {"plan": "0486-hal9k-ui", "state": "pushing", "why": "pre-push hook; workqueue holds by jobsearch/05 (landing)",
+         "agent": {"state": "done", "minutes": 34, "said": "All steps committed. pre-push running, hitch after."}},
+  "23": {"plan": "0497-locale-texts", "state": null,
+         "agent": {"state": "idle", "minutes": 29, "said": "Step 9 done; pushing now."}},
+  "29": {"plan": "0492-uats-index", "state": null,
+         "agent": {"state": "idle", "minutes": 25, "said": "Pushed in the background; the lint hook runs.",
+                   "background_tasks": [{"id": "b1", "type": "shell", "description": "git push origin 29", "status": "running"}]}}
+ },
+ "queue": {"schema": 1, "queue": [
+  {"slot": "05", "repo": "jobsearch", "worktree": "~/.hal/git/worktree/jobsearch/05", "state": "active", "ready": {"head": "aa"}},
+  {"slot": "02", "repo": "jobsearch", "worktree": "~/.hal/git/worktree/jobsearch/02", "state": "waiting", "ready": {"head": "bb"}}
+ ]},
+ "workqueue": {"schema": 1, "running": [], "frozen": [], "live": [],
+  "waiting": [{"field": "hal2/23", "class": "build", "head": "pre-push: cargo build", "position": 2},
+              {"field": "jobsearch/02", "class": "build", "head": "git push origin 02", "position": 3}],
+  "holds": [{"id": "h1", "field": "jobsearch/05", "class": "landing", "state": "holding"}]}
+}

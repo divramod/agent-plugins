@@ -41,7 +41,8 @@ def stopped(top: str, train: dict) -> bool:
 
 
 def unpushed(top: str, o: dict, now: dt.datetime) -> dict | None:
-    """One wake for an order older than STALE whose fix sits on the local `<NN>-train-fix`, descending from its base,
+    """One wake for an order older than STALE whose fix sits on its local branch (`<NN>-train-<n>-<a>-fix`),
+    descending from its base,
     but not on origin (L106: the pre-push hook refused it, the foreman's session ended), else None."""
     at = dt.datetime.fromisoformat(str(o.get("at") or now.isoformat()).replace("Z", "+00:00"))
     if (now - at).total_seconds() < STALE:

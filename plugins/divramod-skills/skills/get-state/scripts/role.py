@@ -7,9 +7,15 @@
 
 Each place is overridden by its environment variable (`HAL_VILLAGE`, `HAL_CITY`, `HAL_PLANET`). Anything else is
 `unknown` (the page then shows today's table). `--role` overrides the detected role.
+
+The one rule lives in hal2 (plan 0592's D12): `resolve` and `of_checkout` read `hal2-cli-agents role --path <dir>
+--json` (schema 1; its `role` null, a train's field, is `unknown` here) and fall back to `detect` only when the CLI is
+missing, older (no `role` command) or answers no schema 1 object. `HAL2_CLI_AGENTS` names another binary (a test's).
 """
 
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,6 +63,37 @@ def detect(top: str | None, main: str | None) -> str:
     return field_role(name, here) or UNKNOWN
 
 
+CLI_TIMEOUT = 15
+
+
+def cli() -> str:
+    return os.environ.get("HAL2_CLI_AGENTS") or "hal2-cli-agents"
+
+
+def from_cli(path: str) -> dict | None:
+    """`hal2-cli-agents role --path <path> --json` (schema 1: `path, checkout, repo, field, role, why, lead, plan`); None
+    when the CLI is missing, older, fails or answers something else."""
+    try:
+        done = subprocess.run([cli(), "role", "--path", str(path), "--json"], capture_output=True, text=True,
+                              timeout=CLI_TIMEOUT, check=False)
+        found = json.loads(done.stdout) if done.returncode == 0 and done.stdout.strip() else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    if not isinstance(found, dict) or found.get("schema") != 1 or "role" not in found:
+        return None
+    return found
+
+
+def of_checkout(top: str | None, main: str | None) -> str:
+    """The role of the checkout `top`: hal2's one rule (`from_cli`), else `detect`."""
+    if not top:
+        return UNKNOWN
+    found = from_cli(top)
+    if found is None:
+        return detect(top, main)
+    return found["role"] if found["role"] in ROLES else UNKNOWN
+
+
 def resolve(override: str | None, top: str | None, main: str | None) -> str:
-    """`--role` wins; else the role detected from the checkout."""
-    return override or detect(top, main)
+    """`--role` wins; else the role of the checkout (`of_checkout`)."""
+    return override or of_checkout(top, main)

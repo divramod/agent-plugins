@@ -4,7 +4,7 @@ function and one verb per change of a train, each writing its line of the train 
 whoever follows the trains (the message board, step 7) hooks in here and nowhere else. The tick runs the verbs as
 its `run` actions; none waits for CI.
 
-  engine.py form --cars <json> [--repo <field>]
+  engine.py form --cars <json> [--alone-next <field> ...] [--repo <field>]
       in the train's own worktree `tollman-train-<plan>-...` beside the tollman's field, on its head with the barn's
       (train_wt.py, plan 0375 D5; every later verb runs there, its branch the carrier; a breakup, the asleep round's
       drop and the landed train drop it through the never-delete proof): the yard's uncommitted work as the first car (yard.py:
@@ -12,14 +12,20 @@ its `run` actions; none waits for CI.
       order (a merge commit per car, frozen.merge_car), the CURRENT_PLAN pointer written (`yard` and the cars' plan names
       joined by ` + `: the land run's title; its bracket shows the cars' worktrees, `[02|03]`, the yard as `main`, never this field, plan 0352), then
       `restart`. Before the cars the field's remote branch goes back on its head when an earlier train's end left that
-      train there (carrier.py, plan 0313 step 14). A car that does not merge, or a mark the queue refuses, undoes this
-      call's forming (`clear`; the last drop-out before the train is frozen, plan 0360 D3); one whose conflicts are all
-      generated files takes the barn's side, and the train's last commit writes them again (generated.py, plan 0313
-      step 8; a command that fails undoes the forming too)
+      train there (carrier.py, plan 0313 step 14). Nothing undoes a forming (plan 0610 E25, engine_form.py): a car that
+      does not merge waits `resolving` with its resolve order, a failed regenerate or a refused mark leaves the train
+      `formed` for the next restart; one whose conflicts are all generated files takes the barn's side, and the train's
+      last commit writes them again (generated.py, plan 0313 step 8). `--alone-next`: the alone cars that ride alone
+      next (plan 0610 D15). The minimum of hitched fields (trains.MIN_HITCHED) is the round's: this verb by hand, the
+      user's `land now`, is never bound by it
   engine.py restart [--repo <field>]
       under the hold (hold.py, L88) nothing; else mark the train (`queue train`), start its landing detached (`land`
-      stamps its pid, D2); also after an interrupted landing, a `retry` (one empty commit) and a train never started
-      (frozen.complete first); 75 while the last start's process lives after its red was taken (plan 0522 D17)
+      stamps its pid, D2); also after an interrupted landing, a `retry` (one empty commit) and a train never started;
+      first the cars the carrier lacks (a form that died, a car joined outside a landing, plan 0610 D17) merged by
+      resolve_train.merge_rest (a conflict waits `resolving` with its resolve order); 75 while the last start's
+      process lives after its red was taken (plan 0522 D17); a train with a car whose light checks are red and that
+      has no fix order yet goes `red` (`proof_red`) instead, its fix orders first (proof_orders.py, the user
+      2026-11-04: every hitched wagon rides)
   engine.py land [--land-ref <train-...>] [--repo <field>]
       the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
       `pretest_red` and no landing starts), then the wait until the land run before has finished and the answered
@@ -28,7 +34,10 @@ its `run` actions; none waits for CI.
       `restart` names it). It stays that landing's parent until it ends, because a merge-to-main whose starter is
       gone ends `interrupted`. Right before it the unchanged-head guard (head_guard.py, plan 0560 D5): the head of
       the last red run of the train is refused (`tollman: refused`, the result `refused`, exit 1), any other is
-      written as the `push` line
+      written as the `push` line; before both open_train.stops: a car that joined and waits for its resolve, is
+      unmerged or has red light checks holds the push (plan 0610 E5, E6); then, on the train's first run only, the
+      tollman's and the farmer's own branches merged as its last two cars (role_cars.py, plan 0610 D18); a train
+      stopped by a role car left out twice in a row never pushes (D24)
   engine.py landed [--run <url>] [--commit <sha>] [--repo <field>]
       the train is in the barn: the field fast-forwarded, CURRENT_PLAN gone (its worktree dropped later, L135); the
       yard's carried files dropped where still the same, the yard fast-forwarded; a store farm's `sync --if-due landing`
@@ -52,22 +61,26 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import adopt
 import bounded
 import frozen
-import generated
 import head_guard
 import hold
+import land_name
 import mirror
 import mtm_scan
 import next_train
+import open_train
 import origin
 import pretest_train
+import proof_orders
+import role_cars
 import train_branch
 import train_state
 import train_wt
 import workqueue_hold
 from carrier import Done, git, push_base
-from engine_yard import load_yard, settle_yard
+from engine_yard import settle_yard
 from tick import OFFLINE, default_ref
 from skillpath import load  # noqa: E402  (farmer_frame put the skills unit's scripts/ on the path)
 
@@ -93,7 +106,7 @@ def spawn(top: str, log: Path, ref: str | None) -> int:
     parent that waits), its output in `log`: its pid."""
     with log.open("w") as out:
         argv = [sys.executable, str(Path(__file__).resolve()), "land", "--repo", top, *(["--land-ref", ref] if ref else [])]
-        p = subprocess.Popen(argv, cwd=top,
+        p = subprocess.Popen(argv, cwd=top, env={**os.environ, adopt.SPAWNED: "1"},  # adopt.direct: only this child
                              stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
     return p.pid
 
@@ -114,44 +127,10 @@ def fetch(top: str) -> str:
     return default
 
 
-def form(top: str, cars: list[dict], now: dt.datetime | None = None) -> Done:
-    main, _, train, _ = here(top)
-    if train:
-        return 0, f"train {train['train']} stands ({train['state']}): no second one"
-    if not cars:
-        return 1, "a train needs a car"
-    default = fetch(top)
-    code, top = train_wt.add(top, cars)  # the train's own worktree on the field's head (plan 0375 D5)
-    if code:
-        return 1, top
-    field = Path(top).name
-    behind = git(top, "merge-base", "--is-ancestor", default, "HEAD")[0]
-    taken = []  # generated files whose conflict took the barn's side (generated.py, plan 0313 step 8)
-    if behind and git(top, "merge", "-q", "--no-edit", default)[0] and not (taken := generated.take(top, "--theirs")):
-        git(top, "merge", "--abort")
-        return 1, f"{default} does not merge into {field}: no train formed; {train_wt.drop(top)[1]}"
-    name = "+".join(c["field"] for c in cars) + "@" + train_state.utc(now)
-    number = train_state.next_number(main)  # plan 0398 D4: the train's number, the land branch `train-<n>-<a>`
-    branch, base = git(top, "branch", "--show-current")[1] or field, git(top, "rev-parse", "HEAD")[1]
-    pushed = push_base(top, field, base)  # a dead train an earlier end left on the remote (plan 0313 step 14)
-    train_state.append(main, "formed", field, now, train=name, number=number, cars=cars, base=base, worktree=top,
-                       **({"pushed": pushed} if pushed else {}))
-    told = f"; {pushed}" if pushed else ""
-    rides, note = load_yard(top, main, default, name, cars, now)
-    for car in cars:
-        code, out, got = frozen.merge_car(top, branch, car)
-        if code:
-            broken = clear(top, f"car {car['field']} did not merge: {out[-300:]}", now)[1]
-            return 1, f"car {car['field']} did not merge; {broken}{told}"
-        taken += got
-    if taken:  # the train's last commit: the generated files written again for its head, before the landing
-        code, text, commit, files = generated.regenerate(top, sorted(set(taken)), [c["field"] for c in cars])
-        train_state.append(main, "regenerated", field, now, train=name, commit=commit, files=files, why=text)
-        if code:
-            return 1, f"{text}; {clear(top, text, now)[1]}{told}"
-    frozen.write_current(top, cars, bool(rides))
-    code, text = restart(top, now)
-    return (1, f"{text}; {clear(top, text, now)[1]}{told}") if code else (0, text + told + (f"; {note}" * bool(note)))
+def form(top: str, cars: list[dict], now: dt.datetime | None = None, alone_next=()) -> Done:
+    """The train of `cars` formed (engine_form.py: never cleared again, plan 0610 E25)."""
+    import engine_form  # it calls back into this module (here, fetch)
+    return engine_form.form(top, cars, now, alone_next)
 
 
 def restart(top: str, now: dt.datetime | None = None) -> Done:
@@ -161,14 +140,20 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
     if train_state.alive(pid := train["pid"]):  # its landing runs, or still ends after a red taken from its run (D17)
         return (0, f"train {train['train']}: its landing runs (pid {pid})") if train["state"] == "landing" else (
             OFFLINE, f"train {train['train']}: its last landing (pid {pid}) still ends: never a second one beside it")
+    if entry := adopt.live(top, field):  # a landing the state does not know (a hand-typed land): adopted, never doubled
+        return adopt.adopt(main, field, train, entry, now)
     if held := hold.of(main):  # L88: read again right before the start, never the round's earlier reading
         return 0, f"train {train['train']} not started: {hold.text(held)}"
+    if frozen.lacking(top, train):
+        import resolve_train  # a form that died between its lines, a car joined outside a landing (plan 0610 D17):
+        return resolve_train.merge_rest(top, now)  # merged in order, a conflict waits `resolving`; then this again
+    if red := proof_orders.red_line(main, field, train, now):
+        return 0, red  # a car's light checks are red: fixed in the train first (proof_orders.py), never pushed so
     code, commit = fresh(top, train) if train["state"] == "retry" and not train["fixed"] else (0, None)  # a fix merged
     if code:
         return 1, f"train {train['train']} was not retried: {commit[-300:]}"
-    code, done = frozen.complete(top, train) if train["state"] == "formed" else (0, "")
-    if code:
-        return 1, done
+    if train_branch.numbered(train) and (named := train_wt.to_run(top, train["number"], train["starts"] + 1))[0]:
+        return 1, f"train {train['train']} not started: {named[1]}"  # the carrier's branch is its run's (D18)
     code, out = cli(["worktree", "queue", "train", field, *(c["field"] for c in train["cars"]), *train_branch.mark(train),
                      "--json"], top)
     if code:
@@ -205,12 +190,20 @@ def land(top: str, ref: str | None = None) -> int:
     code, out = cli(["worktree", "queue", "train", Path(top).name, "--pid", str(os.getpid()), "--json"], top)
     print(*["tollman: the train's pid is not on its mark:", out[-200:]] * bool(code), flush=True)
     argv = LAND + ["--land-ref", ref] * bool(ref)
+    if land_name.refuses(top, ref):  # land/<NN> or land/train-<n>-<a> only, checked before the pretest and the push
+        return 1
     with workqueue_hold.landing_hold(top):
         if pretest_train.before_landing(top):
             return 1
     next_train.before_push(top)
-    # L88: the hold's last look; plan 0560 D5: never the head of the train's last red run again (head_guard.py)
-    return hold.stops(top) or head_guard.refuses(top) or subprocess.run(argv, cwd=top).returncode
+    # a joined car's resolve, merge or fix first (plan 0610 E5, E6); L88: the hold's last look; then the role cars, the
+    # train's last, once on its first run (role_cars.py, plan 0610 D18); plan 0560 D5: never the head of the train's
+    # last red run again (head_guard.py)
+    if code := open_train.stops(top) or hold.stops(top):
+        return code
+    if code := role_cars.merge(top):  # its lines printed; a stopped train (plan 0610 D24) never pushes
+        return code
+    return head_guard.refuses(top) or land_name.refuses(top, ref) or subprocess.run(argv, cwd=top).returncode
 
 
 def landed(top: str, run: str | None = None, commit: str | None = None, now: dt.datetime | None = None) -> Done:
@@ -252,8 +245,8 @@ def breakup(top: str, why: str, now: dt.datetime | None = None, user: bool = Fal
 
 
 def clear(top: str, why: str, now: dt.datetime | None = None) -> Done:
-    """The train or the leftover mark gone (the user's breakup, `form` undoing its own forming, the asleep round's
-    drop), and with it the train's worktree (train_wt.drop: only through the proof)."""
+    """The train or the leftover mark gone (the user's breakup, the asleep round's drop; never a forming, plan 0610
+    E25), and with it the train's worktree (train_wt.drop: only through the proof)."""
     main, field, train, top = here(top)
     if train and train["state"] == "landing" and train_state.alive(train["pid"]):
         return 1, f"train {train['train']} lands (pid {train['pid']}): a running landing is never stopped"
@@ -288,6 +281,7 @@ def main(argv: list[str]) -> int:
     for verb in ("form", "restart", "land", "landed", "red", "breakup", "unhitch", "retry"):
         sub.add_parser(verb).add_argument("--repo", default=".")
     sub.choices["form"].add_argument("--cars", required=True, type=json.loads)
+    sub.choices["form"].add_argument("--alone-next", nargs="*", default=[])
     sub.choices["land"].add_argument("--land-ref")
     sub.choices["unhitch"].add_argument("field")
     for verb in ("landed", "red"):
@@ -304,9 +298,12 @@ def main(argv: list[str]) -> int:
     found, shown = git(a.repo, "rev-parse", "--show-toplevel")
     top = a.repo if found else shown
     if a.verb == "land":
+        if adopt.direct():  # only restart's spawn starts a landing: it marks the train and writes its started line
+            print(adopt.REFUSED, file=sys.stderr)
+            return 2
         return land(top, a.land_ref)
     import engine_car  # its verbs call back into this module (here, cli)
-    code, text = {"form": lambda: form(top, a.cars), "restart": lambda: restart(top),
+    code, text = {"form": lambda: form(top, a.cars, alone_next=a.alone_next), "restart": lambda: restart(top),
                   "landed": lambda: landed(top, a.run, a.commit), "red": lambda: red(top, a.status, a.run, a.why),
                   "breakup": lambda: breakup(top, a.why, user=a.by_user),
                   "unhitch": lambda: engine_car.unhitch(top, a.field, a.why, user=a.by_user),

@@ -57,6 +57,22 @@ else:
         out(obj, rc)
 sys.exit(2)
 '''
+# hal2-cli-plans: `depends list` answers $FAKE_DIR/depends.json (the graph's plans; none: an empty graph); the fake
+# logs to its own file so the other fakes' call lists stay as they were. Anything else: an unknown command.
+PLANS = r'''#!/usr/bin/env python3
+import json, os, sys
+d, args = os.environ["FAKE_DIR"], sys.argv[1:]
+with open(d + "/plans-log", "a") as f:
+    f.write(json.dumps(args) + "\n")
+if args[:2] != ["depends", "list"]:
+    sys.stderr.write("unknown command\n")
+    sys.exit(2)
+try:
+    plans = json.load(open(d + "/depends.json"))
+except OSError:
+    plans = []
+print(json.dumps({"schema": 1, "farm": "app", "plans": plans, "problems": []}))
+'''
 SHELL = '#!/bin/sh\n# a login shell without the login: runs the command it gets with -lc\nexec /bin/sh -c "$2"\n'
 
 
@@ -99,6 +115,8 @@ class Scratch(unittest.TestCase):
         for name in ("hal2-cli-agents", "hal2-cli-git"):
             (self.bin / name).write_text(FAKE)
             (self.bin / name).chmod(0o755)
+        (self.bin / "hal2-cli-plans").write_text(PLANS)
+        (self.bin / "hal2-cli-plans").chmod(0o755)
         (self.bin / "fakeshell").write_text(SHELL)
         (self.bin / "fakeshell").chmod(0o755)
         (self.bin / "git").symlink_to(shutil.which("git"))
@@ -113,6 +131,10 @@ class Scratch(unittest.TestCase):
 
     def config(self, **cfg):
         (self.fake / "cfg.json").write_text(json.dumps({"help": HELP, **cfg}))
+
+    def graph(self, *plans):
+        """The plans `hal2-cli-plans depends list` answers (the live graph: a test rewrites it to move a plan)."""
+        (self.fake / "depends.json").write_text(json.dumps(list(plans)))
 
     def sessions(self, *sessions):
         (self.fake / "sessions.json").write_text(json.dumps([

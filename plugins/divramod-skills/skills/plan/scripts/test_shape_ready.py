@@ -3,6 +3,8 @@ touches and the machine resources, 99-uat never ready, D19's who; and `prompt <r
 step file. On a temp repository and on hal2-core's golden fixture, read in place."""
 import unittest
 
+import parallel  # noqa: F401  (puts the skills unit's scripts/ on the import path)
+import servant_testkit
 import shape_ready
 from shape_testing import TempPlan, fixture
 
@@ -79,6 +81,7 @@ class ReadyTest(TempPlan):
         self.plan("step", "add", "2", "Parse", "--size", "60k")
         self.edit_subplan(folder, 2, who="field 31")
         (self.root / "plans/LEAD").write_text("07 0001-deploy-the-hub 02-cli\n")
+        self.env["HAL2_CLI_PLANS"] = str(servant_testkit.install(self))  # the fake `servant show` (plan 0594)
         self.assertEqual(list(self.plan("ready", "--json")["steps"]), ["02-cli"])
 
 

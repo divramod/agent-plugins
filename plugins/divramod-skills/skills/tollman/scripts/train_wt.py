@@ -14,12 +14,16 @@ The tollman's own field only starts it (its head is the worktree's start) and ne
   files in the yard)
 - `drop`: the worktree and its branch removed once the proof is empty (a breakup, the asleep round's drop, a landed
   train); otherwise kept and why said, never forced. Then `sweep`: origin's train branches no local branch holds
-  and whose tip is in the barn deleted with a lease, in a detached push (L55)
+  and whose tip is in the barn deleted with a lease, in a detached push (L55); so is a numbered run `train-<n>-<a>`
+  of a train that no longer stands (broken up, cleared) once `foreign` finds nothing of it lost (plan 0610 step 9)
 - `later`: a landed train's worktree is dropped after the next train formed, outside the round (L135: a `git worktree
   remove` of a full build tree took 6+ min inside the round and held train 29 back): the chain's end starts one
   detached `train_wt.py drop-left` (setsid, never nohup: L111), which `drop`s every train worktree beside the field
   but the standing train's and those made after it started, one run at a time (a lock), its lines in
   `train-drop.log`; the prune duty's `retry` starts it again while one is left (a failed drop never blocks a train)
+
+- names (hal2 plan 0610 D18): run_names.py; with the train's number `add` reuses the kept `tollman-train` on
+  `train-<n>-1` (never removed: warm cache), its `drop` deletes only the branch, `to_run` renames it per run
 
   train_wt.py later --repo <field>                      start the detached drop run, return at once
   train_wt.py drop-left --repo <field> --since <epoch>  the run itself (what `later` starts)
@@ -37,13 +41,15 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import lead_marker
 import mtm_scan
+import run_names
 import train_state
 from carrier import KEEPALIVE, Done, git
+from run_names import CARRIER, FIX, KEPT, carrier_name
 from tick import act, default_ref
 
 PREFIX = "tollman-train-"
 CURRENT = "CURRENT_PLAN"  # the pointer's name (hal2 plan 0409 step 12)
-OWN_FIX = PREFIX + "fix"
+OWN_FIX = run_names.OWN_FIX
 OWN_COMMITS = ("chore(wagon-train)", "chore(generated)", "chore(yard)")  # what only a train commits
 MAX = 64  # hal2-git's longest slot name (L104)
 SPAWN = subprocess.Popen  # sweep's detached push (a test runs it to its end)
@@ -54,8 +60,20 @@ RETRY = 3600  # the prune duty starts the drop run again at most this often whil
 
 
 def is_train(slot) -> bool:
-    """A train's worktree (and branch); `tollman-train-fix` is the tollman's own fix branch (orders.OWN_FIX), none."""
-    return str(slot or "").startswith(PREFIX) and slot != OWN_FIX
+    """A train's worktree or carrier branch: the kept `tollman-train`, a `train-<n>-<a>`, a plan-named
+    `tollman-train-...` of before; a fix or resolve branch (`tollman-train-fix`, `tollman-train-<n>-<a>-fix`): none."""
+    s = str(slot or "")
+    return s == KEPT or bool(CARRIER.match(s)) or (s.startswith(PREFIX) and s != OWN_FIX and not FIX.match(s))
+
+
+def to_run(top: str, n, a) -> Done:
+    """The kept carrier's branch renamed to run `a`'s `train-<n>-<a>` (ROLE.md: a red run's fixes go into the next
+    run's carrier); a carrier on another name (a plan-named train) or on that name already: nothing."""
+    current, want = git(top, "branch", "--show-current")[1], carrier_name(n, a)
+    if current == want or not CARRIER.match(current):
+        return 0, ""
+    code, out = git(top, "branch", "-m", want)
+    return (0, f"carrier {current} is {want} now") if code == 0 else (1, f"carrier {current} not renamed: {out[-200:]}")
 
 
 def ours(slot, own: str) -> bool:
@@ -138,6 +156,8 @@ def drop(wt: str) -> Done:
     if why := unsaved(wt):
         return 1, f"worktree {path.name} kept (never delete unsaved work): {'; '.join(why)}"
     main, branch = mtm_scan.main_checkout(wt), git(wt, "branch", "--show-current")[1]
+    if path.name == KEPT:  # the kept carrier: its folder stays (warm cache), only the branch goes
+        return clear_kept(wt, main, branch)
     code, out = git(main, "worktree", "remove", str(path))
     if code:
         return 1, f"worktree {path.name} not removed: {out[-200:]}"
@@ -146,14 +166,32 @@ def drop(wt: str) -> Done:
     return 0, f"worktree {path.name} dropped" + (f", its branch kept: {out[-200:]}" if code else "") + swept
 
 
+def clear_kept(wt: str, main: str, branch: str) -> Done:
+    """`drop` of the kept `tollman-train` (proven already): detached, its branch deleted, the folder kept."""
+    if branch:
+        code, out = git(wt, "checkout", "-q", "--detach")
+        if code:
+            return 1, f"worktree {KEPT} kept, its branch {branch} too: not detached: {out[-200:]}"
+        code, out = git(main, "branch", "-D", branch)
+        if code:
+            return 1, f"worktree {KEPT} detached, its branch {branch} kept: {out[-200:]}"
+    return 0, f"worktree {KEPT} kept for the next train, its branch {branch or '-'} dropped" + sweep(main)
+
+
 def landed(main: str) -> dict[str, str]:
     """{branch: tip} of origin's train branches as this repository last saw them (no network) that no local branch
-    holds any more and whose tip is in the barn: a landed or dropped train's, nothing of it lost (L55)."""
-    code, out = git(main, "for-each-ref", "--format=%(refname:lstrip=3) %(objectname)", f"refs/remotes/origin/{PREFIX}*")
+    holds any more and whose tip is in the barn: a landed or dropped train's, nothing of it lost (L55). A run of a
+    numbered train that no longer stands too, when every commit of it is a merge, a train's own or on another origin
+    branch (`foreign`: the never-delete-unsaved-work proof): a broken-up train's run."""
+    code, out = git(main, "for-each-ref", "--format=%(refname:lstrip=3) %(objectname)",
+                    f"refs/remotes/origin/{PREFIX}*", "refs/remotes/origin/train-*")
     barn, found = default_ref(main), {}
+    standing = (train_state.standing(train_state.lines(main)) or {}).get("number")
     for branch, tip in (line.split() for line in (out.splitlines() if code == 0 else []) if len(line.split()) == 2):
-        if is_train(branch) and git(main, "rev-parse", "-q", "--verify", f"refs/heads/{branch}")[0] \
-                and git(main, "merge-base", "--is-ancestor", tip, barn)[0] == 0:
+        if not is_train(branch) or not git(main, "rev-parse", "-q", "--verify", f"refs/heads/{branch}")[0]:
+            continue
+        if git(main, "merge-base", "--is-ancestor", tip, barn)[0] == 0 or (
+                (run := CARRIER.match(branch)) and int(run[1]) != standing and not foreign(main, tip, branch)):
             found[branch] = tip
     return found
 
@@ -171,18 +209,23 @@ def sweep(main: str) -> str:
     return f"; origin's landed train branches deleted: {', '.join(sorted(gone))}"
 
 
-def add(top: str, cars: list[dict]) -> Done:
-    """The train's worktree beside the field `top`, on a new branch at `top`'s head: (0, its path) or (1, why)."""
-    wt = Path(top).parent / name(cars)
+def add(top: str, cars: list[dict], number: int | None = None) -> Done:
+    """The train's worktree beside the field `top`, on a new branch at `top`'s head: (0, its path) or (1, why). With
+    the train's `number` the kept `tollman-train` on `train-<number>-1` (made once, then reused: its build caches stay
+    warm), else the plan-named worktree of the same-named branch (`name`)."""
+    wt = Path(top).parent / (KEPT if number else name(cars))
+    branch = carrier_name(number, 1) if number else wt.name
     git(top, "worktree", "prune")
     if wt.exists() and (left := drop(str(wt)))[0]:
         return 1, f"a train's worktree is left from before, no train formed: {left[1]}"
-    if git(top, "rev-parse", "-q", "--verify", f"refs/heads/{wt.name}")[0] == 0:  # a branch without its worktree
-        if why := foreign(top, f"refs/heads/{wt.name}", wt.name):
-            return 1, f"branch {wt.name} is left from before and kept (never delete unsaved work): {why[0]}"
-        git(top, "branch", "-D", wt.name)
-    code, out = git(top, "worktree", "add", "-q", "-b", wt.name, str(wt), "HEAD")
-    return (0, str(wt)) if code == 0 else (1, f"worktree {wt.name} not added: {out[-300:]}")
+    if git(top, "rev-parse", "-q", "--verify", f"refs/heads/{branch}")[0] == 0:  # a branch without its worktree
+        if why := foreign(top, f"refs/heads/{branch}", branch):
+            return 1, f"branch {branch} is left from before and kept (never delete unsaved work): {why[0]}"
+        git(top, "branch", "-D", branch)
+    head = git(top, "rev-parse", "HEAD")[1]
+    code, out = git(str(wt), "checkout", "-q", "-B", branch, head) if wt.is_dir() else \
+        git(top, "worktree", "add", "-q", "-b", branch, str(wt), head)
+    return (0, str(wt)) if code == 0 else (1, f"worktree {wt.name} not on {branch}: {out[-300:]}")
 
 
 def leftovers(top: str, train: dict | None) -> list[Path]:

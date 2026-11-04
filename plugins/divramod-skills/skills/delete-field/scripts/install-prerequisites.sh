@@ -20,7 +20,7 @@ for tool in hal2-cli-agents hal2-cli-git; do
     if ! command -v cargo >/dev/null 2>&1; then
       echo "install Rust first (https://rustup.rs), then rerun this script" >&2
     elif [ -d "$HOME/a/hal2/code/rust/apps/$tool" ]; then
-      cargo install --path "$HOME/a/hal2/code/rust/apps/$tool"
+      cargo install --path "$HOME/a/hal2/code/rust/apps/$tool" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$tool"
     else
       cargo install --git https://github.com/divramod/hal2 "$tool"
     fi

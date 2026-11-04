@@ -58,7 +58,7 @@ class Riding(YardFarm):
         self.crop("07", {"seven.txt": "7"}, plan="0294-tollman-role")
         self.round()
         self.assertEqual(self.last, [("form", "run", "-"), ("yard-left", "record", FARMER)])
-        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.carrier()}",
+        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.branch()}",
                                                 "chore(yard): 1 file from the yard"], "before the wagons' merges")
         self.assertEqual((self.cw / "plans/CURRENT_PLAN").read_text(), "yard + 0294-tollman-role\n")
         self.assertEqual(self.gate.calls, [["worktree", "queue", "train", self.carrier(), "07", "--train", "1", "--attempt", "1"]], "the mark names only fields")
@@ -110,7 +110,7 @@ class Riding(YardFarm):
                                            f"again\nchain link 1: breakup -, form -, yard-left {FARMER}\n"
                                            "chain stops: a landing started\n"), "in the same call (plan 0333 step 6)")
         self.assertTrue(self.gate.of("07")["ready"], "the wagon keeps its place")
-        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.carrier()}"], "the train without the yard")
+        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.branch()}"], "the train without the yard")
         self.assertEqual((self.state()[-4:], self.train()["yard"], self.yard()),
                          ([("unhitched", "yard"), ("cleared", self.carrier()), ("formed", self.carrier()), ("started", self.carrier())], [], self.before))
         self.assertIn("docs/note.md (unhitched from a red train: it stays until it changes)", self.notes()[-1])
@@ -154,7 +154,7 @@ class Skipping(YardFarm):
         self.assertIn("(yard): the yard's uncommitted work is not brought in: the yard is on side, not on main. "
                       "Nothing there was changed.", self.notes()[0])
         self.assertEqual((self.first_parents(), self.state(), self.yard()[0]),
-                         ([f"Merge branch '07' into {self.carrier()}"], [("formed", self.carrier()), ("started", self.carrier())], self.before[0]))
+                         ([f"Merge branch '07' into {self.branch()}"], [("formed", self.carrier()), ("started", self.carrier())], self.before[0]))
 
 
 if __name__ == "__main__":

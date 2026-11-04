@@ -12,7 +12,7 @@ import learnings
 
 LEGACY = """# tollman learnings (hal2)
 
-Read at the start of every `/tollman act` and applied.
+Read at the start of every `/continue` and applied.
 
 ## 2026-10-14 · The carrier's remote branch keeps a dead train
 
@@ -122,12 +122,12 @@ class Learnings(unittest.TestCase):
         return code, out.getvalue()
 
     def test_cli(self):
-        code, out = self.run_cli("add", "--case", "Red train", "--cause", "a car", "--rule", "unhitch it",
+        code, out = self.run_cli("add", "--case", "Red train", "--cause", "a car", "--rule", "rerun it",
                                  "--code", "y", "--field", "Start=2026-10-14")
         self.assertEqual((code, out), (0, "L1 red-train\n"))
         self.assertIn("L1 · ", self.run_cli("untaken")[1])
         self.assertEqual(self.run_cli("untaken", "--code", "n")[1], "")
-        self.assertEqual(self.run_cli("rules")[1], "L1 red-train: unhitch it\n")
+        self.assertEqual(self.run_cli("rules")[1], "L1 red-train: rerun it\n")
         self.assertIn('"slug": "red-train"', self.run_cli("untaken", "--json")[1])
         self.assertEqual(self.run_cli("mark-taken", "1", "--plan", "0313")[0], 0)
         self.assertEqual(self.run_cli("mark-taken", "9")[0], 1)

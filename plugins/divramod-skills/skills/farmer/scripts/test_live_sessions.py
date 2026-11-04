@@ -1,6 +1,6 @@
 """Hal2 plan 0412 step 1 (tollman learning L65): the orphan rule sees every live session of a field.
 
-Replays 2026-10-20: the tollman's boss started `/handoff c` nine times into fields 01, 02, 04 and 11 that held
+Replays 2026-10-20: the tollman's boss started `/continue` nine times into fields 01, 02, 04 and 11 that held
 terminal-host sessions. The rounds that did it read `hal2-cli-agents list --json` under heavy load and got nothing
 back (`last-scan.json` 20:30, summaries 15:14 and 20:25: every field's agent none, the rounds around them 10-14), and
 an unreadable list read as "no session anywhere". The fixtures are shaped like the real list (`t:<id>` panes under the
@@ -13,7 +13,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import unit_scripts  # noqa: F401  (the skills unit's scripts/ on the import path)
 import live_sessions
+import servant_testkit
 import mtm_scan as scan
 
 HOME = "/Users/mod/.hal/git/worktree/hal2"
@@ -101,6 +103,9 @@ class Lookup(unittest.TestCase):
 
 class Replay(unittest.TestCase):
     """The scan of 2026-10-20 20:30: fields 01, 02, 04 hold terminal-host sessions, 11 holds none."""
+
+    def setUp(self):
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
 
     def scan(self, home: str, agents):
         answers = lambda args, cwd=None: agents if args == ["hal2-cli-agents", "list", "--json"] else None

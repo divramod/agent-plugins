@@ -22,12 +22,50 @@ def run(branch, status="in_progress") -> dict:
     return {"workflow": "merge-to-main", "status": status, "branch": branch, "sha": "abc", "url": f"https://x/{branch}"}
 
 
-def build(queue, runs=None, mode=None, raw=True):
+def build(queue, runs=None, mode=None, raw=True, graph=None):
     got = {"queue": queue, "mode": mode or {"mode": "production"}} if raw else None
-    with mock.patch.object(ts, "raw_queue", return_value=got):
+    with mock.patch.object(ts, "raw_queue", return_value=got), mock.patch.object(src, "depends", return_value=graph):
         title, sections = vt.view({"repo": "/x", "runs": runs, "mode": None}, CTX)
     assert title == "proj · tollman"
     return {s["heading"].split(" (")[0]: s for s in sections}
+
+
+READY = {"at": "2026-11-03T03:49:56Z", "head": "569bd17a9b98", "by": "x"}
+
+
+def node(plan, field, *links) -> dict:
+    return {"plan": plan, "slug": "x", "field": field, "depends_on": list(links), "dependents": []}
+
+
+def link(plan, field, state) -> dict:
+    return {"plan": plan, "slug": "x", "field": field, "state": state, "reached": state == "main"}
+
+
+class Depends(unittest.TestCase):
+    """Plan 0595 step 15: the train page says why a hitched wagon rides after another or waits (D17)."""
+
+    def test_a_dependent_wagon_rides_after_its_hitched_dependency(self):
+        q = [ticket("05", 1, ready=READY), ticket("07", 2, ready=READY)]
+        graph = {595: node(595, "05", link(707, "07", "hitched")), 707: node(707, "07")}
+        got = build(q, graph=graph)
+        self.assertEqual([r[4] for r in got["Ready wagons"]["rows"]], ["rides after 07 (0707)", ""])
+
+    def test_a_dependent_wagon_waits_for_a_dependency_that_is_not_hitched(self):
+        q = [ticket("38", 1, ready=READY, waits_for="03")]
+        graph = {601: node(601, "38", link(514, "21", "pushed"), link(500, "09", "main"))}
+        got = build(q, graph=graph)
+        self.assertEqual(got["Ready wagons"]["rows"][0][4], "waits for 03; waits for 0514 (pushed)")
+
+    def test_a_dependency_riding_in_a_train_counts_as_hitched(self):
+        q = [ticket("tollman-proj", 0, holding=True, train={"carrier": "tollman-proj", "cars": [{"field": "07"}], "at": "t"}),
+             ticket("05", 1, ready=READY)]
+        graph = {595: node(595, "05", link(707, "07", "hitched"))}
+        self.assertEqual(build(q, graph=graph)["Ready wagons"]["rows"][0][4], "rides after 07 (0707)")
+
+    def test_no_graph_or_no_dependency_leaves_the_note_as_it_was(self):
+        q = [ticket("05", 1, ready=READY)]
+        self.assertEqual(build(q)["Ready wagons"]["rows"][0][4], "")
+        self.assertEqual(build(q, graph={595: node(595, "05", link(500, "09", "main"))})["Ready wagons"]["rows"][0][4], "")
 
 
 class Sections(unittest.TestCase):
@@ -45,6 +83,12 @@ class Sections(unittest.TestCase):
         self.assertEqual(got["Waiting in order"]["rows"], [[2, "05", "waiting", ""], [3, "07", "waiting", "smuggle"]])
         self.assertEqual(got["Open land runs"]["rows"], [["tollman-proj", "merge-to-main", "in_progress", "https://x/land/tollman-proj"],
                                                           ["08", "merge-to-main", "queued", "https://x/land/08"]])
+
+    def test_a_milestone_ticket_shows_the_queue_s_label(self):
+        label = {"kind": "milestone", "n": 1, "of": 2, "label": "milestone 1/2"}
+        q = [ticket("05", 1, plan={"number": 593, "hitch": label}), ticket("07", 2, plan={"hitch": {"kind": "complete"}})]
+        got = build(q)
+        self.assertEqual(got["Waiting in order"]["rows"], [[1, "05", "waiting", "milestone 1/2"], [2, "07", "waiting", ""]])
 
     def test_a_train_s_land_run_is_shown_with_its_carrier_not_as_a_field(self):
         q = [ticket("tollman-proj", 0, holding=True, state="active", land_ref="land/train-0383-0365"), ticket("08", 1)]

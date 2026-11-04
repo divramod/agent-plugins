@@ -19,7 +19,7 @@ def held_kinds(actions):
 class Verbs(Trains):
     def test_hold_and_unhold_write_and_remove_the_file_and_status_shows_it(self):
         self.assertIsNone(hold.of(str(self.main)))
-        code, text = self.call("hold", "--why", "CI is being rebuilt")
+        code, text = self.call("hold", "--why", "CI is being rebuilt", "--by", "user", "--words", "the user, 2026-11-04: hold the trains")
         self.assertEqual(code, 0)
         self.assertIn("held: CI is being rebuilt", text)
         self.assertEqual(hold.of(str(self.main))["why"], "CI is being rebuilt")
@@ -30,10 +30,23 @@ class Verbs(Trains):
         self.assertNotIn("held:", self.call("status")[1])
         self.assertEqual(self.call("unhold")[1], "no hold was set\n")
 
+    def test_a_hold_without_the_user_s_words_is_refused(self):
+        """Plan 0610 E21: a session's or farmer's own hold keeps every wagon out, so it needs the user's words."""
+        for args in (["--why", "train 37 waits for field 60"], ["--by", "farmer", "--words", "wait for 60"],
+                     ["--by", "user"], ["--by", "user", "--words", "  "]):
+            code, text = self.call("hold", *args)
+            self.assertEqual(code, 1, args)
+            self.assertIn("only the user's own words set one", text)
+            self.assertIsNone(hold.of(str(self.main)), "nothing held")
+        code, text = self.call("hold", "--by", "user", "--words", "no train rides before every reason is fixed")
+        self.assertEqual(code, 0)
+        self.assertEqual(hold.of(str(self.main))["by"], "user")
+        self.assertIn("the user's words: \"no train rides before every reason is fixed\"", text)
+
 
 class Held(Trains):
     def test_a_running_landing_goes_on_and_is_watched_while_held(self):
-        self.call("hold", "--why", "pause the trains")
+        self.call("hold", "--why", "pause the trains", "--by", "user", "--words", "the user, 2026-11-04: hold the trains")
         self.crop("03", {"three.txt": "3"}, plan="0382-three")
         self.panes["03"] = "%3"
         self.gh.jobs["720"] = [job("d1-01-rust-test", "success"), MERGE]
@@ -46,7 +59,7 @@ class Held(Trains):
     def test_a_held_green_merge_forms_no_next_train_and_unhold_resumes(self):
         self.crop("03", {"three.txt": "3"}, plan="0382-three")
         self.panes["03"] = "%3"
-        self.call("hold", "--why", "no more trains tonight")
+        self.call("hold", "--why", "no more trains tonight", "--by", "user", "--words", "the user, 2026-11-04: hold the trains")
         self.merged()  # the merge job green, the landing's process ended
         self.assertEqual(self.minute(), "", "no chain: nothing to form behind the green merge")
         self.round()  # the round settles the landed train, forms nothing

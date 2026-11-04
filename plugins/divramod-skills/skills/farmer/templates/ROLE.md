@@ -10,6 +10,8 @@ duties:
   watch: "*/15 * * * *"       # sanity-watch: resume abnormal stops
   autoclear: "0 * * * *"      # fix-autoclear: autoclear failures
   queue: "*/15 * * * *"       # queue watch: a stuck merge queue wakes the farmer, a stalled gate rings
+  autopilot: "* * * * *"      # foreman limit: hal2-cli-agents autopilot tick freezes, thaws and starts foremen
+  runners: "* * * * *"        # runner health: hal2-cli-ci runner health, repaired while runner_repair is on
 servant_limit: auto            # farmer-started foremen: auto (by load) or a number at once
 servant_model: opus            # a foreman's coordinator session: model alias or id (default opus)
 servant_effort: medium         # and its effort: low | medium | high | xhigh | max (default medium)

@@ -66,7 +66,7 @@ def unsaved(path: str, slot: str, base: str, refs=None, head: str | None = None)
 
 def marker(path: str) -> dict | None:
     """lead_marker's plans/LEAD with `at`, its mtime: the foreman's `plan.py assign` rewrites it when it reuses the
-    worktree. A malformed marker is {bad: True, error, text}: still marked, never pruned."""
+    worktree. A marker the CLI gives no servant for is {bad: True, error}: still marked, never pruned."""
     lead = lead_marker.marker(path)
     if lead is None:
         return None

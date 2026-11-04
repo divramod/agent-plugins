@@ -17,22 +17,25 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import fake_clis
 import halfway
 import prune_act
+import servant_testkit
 import store
 from fake_clis import jobs, parse
 from test_farmer import git
 
-SIX = ["facts", "phase-1", "stale-pointers", "phase-2", "phase-3", "responses", "report"]  # removals first (0534 D13)
+# the disk phase first (plan 0514 D18), outside the farm lock, in every run without --field or --responses;
+# removals before stale pointers (plan 0534 D13)
+ALL = ["disk", "facts", "phase-1", "stale-pointers", "phase-2", "phase-3", "responses", "report"]
 SHORT = {"free_gb": 100.0, "used_pct": 91.0, "total_gb": 1000.0}
 GOAL = {"free_gb": 300.0, "used_pct": 70.0, "total_gb": 1000.0}
 
 
 class Remove(fake_clis.Farm):
-    def test_rn1_pr1_a_free_field_is_removed_in_its_step_and_the_run_has_the_six_jobs(self):
+    def test_rn1_pr1_a_free_field_is_removed_in_its_step_and_the_run_has_all_jobs(self):
         self.add("23")
         self.free = [10**12, 10**12 + 5 * 10**9]
         code, lines = self.prune()
         self.assertEqual(code, 0, lines)
-        self.assertEqual(jobs(lines), SIX)
+        self.assertEqual(jobs(lines), ALL)
         steps = parse(lines)["phase-1"]
         self.assertEqual([(s[0], s[1]) for s in steps], [("field 23", "success")])
         self.assertIn("removed 23: 5.0 GB freed, free by the proof", steps[0][2])
@@ -98,7 +101,7 @@ class Remove(fake_clis.Farm):
         self.feed(fail_remove=["23"])
         code, lines = self.prune()
         self.assertEqual(code, 1)
-        self.assertEqual(jobs(lines), SIX)
+        self.assertEqual(jobs(lines), ALL)
         steps = {s[0]: s[1] for s in parse(lines)["phase-1"]}
         self.assertEqual(steps, {"field 23": "failure", "field 24": "success"})
         self.assertIn("failed: 23", lines)
@@ -115,6 +118,7 @@ class Remove(fake_clis.Farm):
 class Servant(fake_clis.Farm):
     def setUp(self):
         super().setUp()
+        servant_testkit.install(self)  # the fake hal2-cli-plans reads plans/LEAD (plan 0594)
         lead = self.add("02")
         git(lead, "commit", "-q", "--allow-empty", "-m", "the foreman's plan")
         git(lead, "push", "-q", "origin", "02")
@@ -236,7 +240,7 @@ class DryRun(fake_clis.Farm):
         before = self.tree()
         code, lines = self.prune(dry=True)
         self.assertEqual(code, 0, lines)
-        self.assertEqual(jobs(lines), SIX)
+        self.assertEqual(jobs(lines), ALL)
         out = parse(lines)
         self.assertIn("would clear 13", out["stale-pointers"][0][2][0])
         said = [s[2][0] for s in out["phase-1"]]
@@ -253,8 +257,8 @@ class Lock(fake_clis.Farm):
         with store.farm_lock(str(self.main)):
             code, lines = self.prune()
         self.assertEqual(code, 0)
-        self.assertEqual(len(lines), 1)
-        self.assertRegex(lines[0], rf"^already running: pid {os.getpid()} since ")
+        self.assertEqual(jobs(lines), ["disk"])  # the disk phase never waits for the farm lock (plan 0514 D18)
+        self.assertRegex(lines[-1], rf"^already running: pid {os.getpid()} since ")
         self.assertTrue((self.base / "23").exists())
 
     def test_a_dead_holders_lock_is_taken_over(self):
@@ -267,12 +271,13 @@ class Lock(fake_clis.Farm):
         self.addCleanup(holder.kill)
         self.assertEqual(holder.stdout.readline().strip(), "held")
         code1, lines = self.prune()
-        self.assertTrue(lines[0].startswith(f"already running: pid {holder.pid}"))
+        self.assertEqual(jobs(lines), ["disk"])  # the disk phase never waits for the farm lock (plan 0514 D18)
+        self.assertTrue(lines[-1].startswith(f"already running: pid {holder.pid}"), lines)
         holder.send_signal(signal.SIGKILL)
         holder.wait()
         code2, lines = self.prune()
         self.assertEqual((code1, code2), (0, 0))
-        self.assertEqual(jobs(lines), SIX)
+        self.assertEqual(jobs(lines), ALL)
         self.assertFalse((self.base / "23").exists())
 
 
@@ -288,7 +293,7 @@ def runs_bin() -> str | None:
 
 @unittest.skipUnless(runs_bin(), "no hal2-cli-runs with exec (plan 0377 step 2) on PATH or in this checkout")
 class RealExec(fake_clis.Farm):
-    def test_rn1_rn2_under_hal2_cli_runs_exec_the_six_jobs_and_a_step_per_field(self):
+    def test_rn1_rn2_under_hal2_cli_runs_exec_all_jobs_and_a_step_per_field(self):
         self.add("23")
         env = {**os.environ, "HAL2_STATE_DIR": str(self.tmp / "runs")}
         prune = str(Path(__file__).resolve().parent / "prune.py")
@@ -300,7 +305,7 @@ class RealExec(fake_clis.Farm):
                                text=True, check=True)
         run = json.loads(shown.stdout)["run"]
         self.assertEqual((run["workflow"], run["status"]), ("prune", "success"))
-        self.assertEqual([j["name"] for j in run["jobs"]], SIX)
+        self.assertEqual([j["name"] for j in run["jobs"]], ALL)
         phase1 = next(j for j in run["jobs"] if j["name"] == "phase-1")
         self.assertEqual([(s["name"], s["status"]) for s in phase1["steps"]], [("field 23", "success")])
         self.assertFalse((self.base / "23").exists())

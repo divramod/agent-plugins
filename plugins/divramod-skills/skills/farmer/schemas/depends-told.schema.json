@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A told plan dependency (depends-told.jsonl)",
+  "description": "One line of the farmer's keyed log of told plan dependencies (hal2 plan 0595 step 11; the farmer skill's scripts/lead_depends.py record): the farmer's foreman round told the field of a dependent plan that the plan it waited for reached its `until`. The last line per `key` is the state; an edge is told once.",
+  "type": "object",
+  "required": ["schema", "at", "key", "plan", "dependent", "slot", "state", "until"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", "description": "When it was told, RFC 3339 UTC with Z and whole seconds."},
+    "key": {"type": "string", "pattern": "^depends:[0-9]{4}:[0-9]{4}:.+$", "description": "`depends:<dependency>:<dependent>:<field>`, plan numbers of four digits."},
+    "plan": {"type": "integer", "minimum": 1, "description": "The dependency's plan number."},
+    "dependent": {"type": "integer", "minimum": 1, "description": "The dependent plan's number."},
+    "slot": {"type": "string", "description": "The dependent plan's field (worktree) that was told."},
+    "state": {"type": "string", "description": "The dependency's state when told: pushed, hitched or main."},
+    "until": {"type": "string", "description": "What the edge waits for: pushed or main."}
+  },
+  "additionalProperties": false
+}

@@ -13,7 +13,7 @@ duties:
   checks: "*/2 * * * *"       # landings first: ci-check runs wait behind a landing or train, then run (instructions/checks.md)
   learn: "17 6 * * *"         # once a day: the untaken learnings (learnings.md) go to one foreman as a skill change
 notify: every-round
-session_effort: high        # the session's effort: low | medium | high | xhigh | max (default high, started and restarted at it)
+session_effort: medium      # the session's effort: low | medium | high | xhigh | max (default medium, started and restarted at it)
 ---
 
 # <repo>'s tollman

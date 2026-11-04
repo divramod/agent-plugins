@@ -21,7 +21,17 @@ fix them before dispatching.
 
 ## Milestones
 
-**Milestones** land a plan too big to land once in parts: a row "Milestone n: land ...", whose Needs name what it
-carries and which touches `@land`; before it, every gate job the candidate touches runs green locally, then the
-farmer's (or the user's) "land now" and `/mtm milestone` (the queue is not kept, `CURRENT_PLAN` stays). Only the
-plan's last landing is the plan's own ([Land the plan](#land-the-plan)).
+**Milestones** land a plan too big to land once in parts: a row `Milestone <n>: <what lands>` (hal2 plan 0592 D6-D11),
+in every plan; in a parallel plan its Needs name what it carries and it touches `@land` (added by `parallel.py` for any
+such row). Declare it at write or grill time, or add it later: `plan.py milestone --after <id> [--title ...]` writes
+the row with the next free id at that position (ids never renumbered; milestone numbers rise down the table).
+
+- A step that needs earlier code in main starts its done-when with `after milestone <n>:` (like `after the landing:`);
+  `plan.py ready` keeps it waiting while Milestone n is open. After-landing rows stay last.
+- The hitch kind is hal2-plans' (`plan.py current --json` relays `hitch` from `hal2-cli-plans show --json`; never
+  recomputed here): `complete`, `milestone n/m` (the rows above the last open Milestone n done, none below) or `partial`.
+  `queue ready` refuses `partial`; only the user or the farmer overrides (`--partial --by user|farmer --reason`).
+- Before it, every gate job the candidate touches runs green locally, then the farmer's (or the user's) "land now"
+  and `/mtm milestone` (the queue is not kept, `CURRENT_PLAN` stays), or the hitch where a tollman works. The field
+  stays on its head; after "in the barn" the same foreman runs `/continue`. Only the plan's last landing is the
+  plan's own ([Land the plan](#land-the-plan)).

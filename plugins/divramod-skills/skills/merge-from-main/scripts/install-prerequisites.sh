@@ -17,7 +17,7 @@ if ! command -v hal2-cli-git >/dev/null 2>&1 || ! hal2-cli-git --help | grep -q 
   if ! command -v cargo >/dev/null 2>&1; then
     echo "install Rust first (https://rustup.rs), then rerun this script" >&2
   elif [ -d "$HOME/a/hal2/code/rust/apps/hal2-cli-git" ]; then
-    cargo install --path "$HOME/a/hal2/code/rust/apps/hal2-cli-git"
+    cargo install --path "$HOME/a/hal2/code/rust/apps/hal2-cli-git" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed hal2-cli-git
   else
     cargo install --git https://github.com/divramod/hal2 hal2-cli-git
   fi

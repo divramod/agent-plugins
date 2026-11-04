@@ -1,5 +1,5 @@
-"""Hal2 plan 0383 step 3 (D3, D14): a ticket that leaves the merge queue unmerged is put back on its place, its
-foreman told to return and the trains behind it hold. Real git (test_trains.Crops), the queue as data."""
+"""Hal2 plan 0383 step 3 (D3, D14): a ticket that leaves the merge queue unmerged is put back on its place and its
+foreman told to return; plan 0610 E18: it keeps its place and holds no hitched wagon. Real git (test_trains.Crops), the queue as data."""
 # enforces .adr/merge-queue-policy.md
 
 import os
@@ -51,9 +51,8 @@ class Leavers(tt.Crops):
     def check(self, tickets, priority=(), panes=None, **kw):
         return leavers.check(self.d, TOP, list(tickets), list(priority), panes or {}, "main", **kw)
 
-    def plan(self, tickets, left):
-        return trains.plan(TOP, self.d, list(tickets), [], {}, alive=lambda pid: False, result=lambda m: None,
-                           left=left)
+    def plan(self, tickets):
+        return trains.plan(TOP, self.d, list(tickets), [], {}, alive=lambda pid: False, result=lambda m: None)
 
     def kinds(self, out):
         return [(a["kind"], a["do"], a["slot"]) for a in out]
@@ -62,10 +61,10 @@ class Leavers(tt.Crops):
 class Replay(Leavers):
     """Field 02 ran `worktree stop` and `gh run cancel` while the train of 05 and 07 waited behind it (L36)."""
 
-    def test_the_stopped_and_cancelled_ticket_comes_back_and_the_train_behind_it_holds(self):
+    def test_the_stopped_and_cancelled_ticket_comes_back_and_the_hitched_wagons_ride_on(self):
         first = self.check([head("02", self.wt)] + self.cars)
         self.assertEqual((first["actions"], first["held"]), ([], None), "the first pass only looks")
-        free = self.plan([head("02", self.wt)] + self.cars, None)
+        free = self.plan([head("02", self.wt)] + self.cars)
         self.assertEqual([a["kind"] for a in free if a["do"] == "run"], ["form"], "without the hold the cars ride")
         second = self.check(self.cars, panes=PANES)  # 02's ticket is gone, its crop is not in the barn
         order, tell, note = second["actions"]
@@ -75,17 +74,18 @@ class Replay(Leavers):
         self.assertIn("/merge-to-main", tell["text"])
         self.assertEqual((note["do"], note["kind"]), ("record", "queue-leaver"))
         self.assertEqual((second["held"], [g["slot"] for g in second["gone"]]), ("02", ["02"]))
-        held = self.plan(self.cars, second["held"])
-        self.assertEqual([a for a in held if a["do"] == "run"], [], "train 20 holds: nothing forms, nothing lands")
-        d = trains.draft(self.d, self.cars, "tollman-hal2", "main", "main", left="02")
-        self.assertEqual((d["cars"], [w["field"] for w in d["waiting"]]), ([], ["05", "07"]))
-        self.assertIn("never given up", d["waiting"][0]["why"])
+        rides = self.plan(self.cars)  # plan 0610 E18: a hitch has no process, the leaver holds no hitched wagon
+        self.assertEqual([a["kind"] for a in rides if a["do"] == "run"], ["form"], "05 and 07 ride on")
+        self.assertIn("it keeps its place", note["text"])
         again = self.check(self.cars, panes=PANES)  # the order did not run yet: the same keys, a keyed retry
         self.assertEqual([a["key"] for a in again["actions"]], [a["key"] for a in second["actions"]])
         back = dict(head("02", self.wt), state="held", pid=0, holding=True,
                     reserved={"by": order["argv"][6], "since": "2026-10-19T01:00:00Z"})
         third = self.check([back] + self.cars)  # the ticket is back, reserved by the watch
-        self.assertEqual((third["actions"], third["held"]), ([], "02"), "nothing to put back, the trains still hold")
+        self.assertEqual((third["actions"], third["held"]), ([], "02"), "nothing to put back, it is noted")
+        d = trains.draft(self.d, [dict(back, state="waiting")] + self.cars, "tollman-hal2", "main", "main")
+        self.assertEqual(([c["field"] for c in d["cars"]], d["waiting"]), (["05", "07"], []),
+                         "a place the queue watch put back is no user's reservation: nobody waits behind it")
         taken = self.check([head("02", self.wt)] + self.cars)  # 02's merge-to-main took the place over
         self.assertEqual((taken["actions"], taken["held"]), ([], None), "in motion again: the trains go")
 
@@ -140,14 +140,14 @@ class NoLeaver(Leavers):
 
 
 class Stopped(Leavers):
-    def test_a_stopped_ticket_keeps_its_place_tells_its_foreman_once_and_holds_the_trains(self):
+    def test_a_stopped_ticket_keeps_its_place_tells_its_foreman_once_and_holds_no_wagon(self):
         stopped = head("02", self.wt, state="held", pid=0, hold={"reason": "interrupted", "step": "stopped"})
         out = self.check([stopped] + self.cars, panes=PANES)
         send, note = out["actions"]
         self.assertEqual((send["do"], send["pane"], out["held"]), ("send", "%5", "02"))
         self.assertIn("stopped", send["text"])
         self.assertFalse([a for a in out["actions"] if a["do"] == "run"], "nothing to put back: it is in its place")
-        self.assertFalse([a for a in self.plan([stopped] + self.cars, out["held"]) if a["do"] == "run"])
+        self.assertEqual([a["kind"] for a in self.plan([stopped] + self.cars) if a["do"] == "run"], ["form"])
         self.assertEqual(self.check([stopped] + self.cars, panes=PANES)["actions"][0]["key"], send["key"])
 
 

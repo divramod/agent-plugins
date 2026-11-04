@@ -33,8 +33,7 @@ created: {date}
 
 Each step is detailed in `steps/<n>.md`, written when it becomes next (`plan.py status <n> next`); keep one line
 per step here. Short and concise: this file at most 150 lines, a cell at most 200 characters, links over repeats. The plan lands once, after all its steps
-(`landing: auto`: the plan skill runs `/mtm` then); steps checked only after the landing come last, their done-when
-starting "after the landing: ...". Each step runs in one subagent: `Model` (haiku, sonnet, opus, fable), `Effort`
+(`landing: auto`: the plan skill runs `/mtm` then); no step is checked after the landing (that is a `uat.md` check, `Auto: yes` when code can run it). Each step runs in one subagent: `Model` (haiku, sonnet, opus, fable), `Effort`
 and `Window` (200k, 1m; 1m for the 5.x models) are its own, `Size` its estimated peak context, at most 35% of Window
 (`plan.py check`); `run` above is the coordinator's model, effort and window, the session that never does a step.
 

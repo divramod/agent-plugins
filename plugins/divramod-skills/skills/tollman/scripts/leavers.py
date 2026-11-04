@@ -9,11 +9,16 @@ folder: the placed tickets, the priority list) and finds
 
 - `gone`: a placed ticket that is absent now, whose field's head is not in the barn. It comes back as a reservation
   on its place by one `hal2-cli-git worktree queue order` (the field's own `worktree reserve` or merge-to-main takes
-  it over), its foreman is told once to return, and every train behind it holds until it is back;
+  it over) and its foreman is told once to return;
 - `stopped`: a ticket held by `worktree stop` (hold step `stopped`, plan 0383 step 2): still in its place, so nothing
-  to restore, but it is not in motion: its foreman is told once to return and the trains behind it hold.
+  to restore, but it is not in motion: its foreman is told once to return.
 
-A pure hitch (a `ready` mark, no process, no reservation) is no place: the tollman unhitches those itself. A ticket
+A leaver keeps its place and holds no hitched wagon (plan 0610 E18: a hitch has no process, every hitched wagon
+rides; the user's "never given up", 2026-10-18, keeps only the place): `held` names the first leaver, for the
+board and the dry run, and trains_sort.held_ahead counts no place the queue watch put back.
+
+A pure hitch (a `ready` mark, no process, no reservation) is no place here: it stays hitched, never unhitched (the user,
+2026-11-04: "when a car has hitched, it will never leave the queue again"). A ticket
 whose head is in the barn (landed), whose worktree is gone (removed through the proof), a servant's field and the
 tollman's own field are no leavers. An explicit release, the user's or the farmer's word, is told to the check:
 `leavers.py release <slot>`; the next pass lets that slot go. Every action carries a key, so a pass repeats nothing.
@@ -34,7 +39,7 @@ import mtm_scan
 import roletime
 import trial as trial_merge
 from tick import act, default_ref
-from trains_sort import servant
+from trains_sort import QUEUE_WATCH, servant
 
 ROLE = "tollman"
 SEEN, RELEASED = "queue-seen.json", "queue-released.json"
@@ -42,16 +47,15 @@ SCHEMA = 1
 STOPPED = "stopped"  # the hold step hal2-git gives a landing the user stopped (queue/stopped.rs)
 NOTE = "queue-leaver"  # the board note's kind (board.NOTES)
 HOUR = 3600
-QUEUE_WATCH = "queue watch"
 BY = "{own} (" + QUEUE_WATCH + ": {slots} returned)"
 TEXT = {
     "gone": "your place in the merge queue ended without your crop in the barn ({how}): the tollman put it back, "
-            "reserved, and the trains behind it hold. Run /merge-to-main now and fix your code until its workflow "
+            "reserved; the hitched wagons ride on. Run /merge-to-main now and fix your code until its workflow "
             "passes; only the user or the farmer gives a queued place up.",
-    "stopped": "your landing was stopped; its place in the merge queue is kept and the trains behind it hold. Run "
+    "stopped": "your landing was stopped; its place in the merge queue is kept, the hitched wagons ride on. Run "
                "/merge-to-main again and fix your code until its workflow passes; only the user or the farmer gives "
                "the place up (`hal2-cli-git worktree release`).",
-    "note": "queue: {slot} {what}; trains behind it hold until it is back in motion",
+    "note": "queue: {slot} {what}; it keeps its place, the hitched wagons ride on",
     "stuck": "the tollman could not put the ticket of {slots} back (`{cmd}`): {what}",
 }
 
@@ -142,8 +146,8 @@ def restore(own: str, back: list[dict], order: list[str]) -> dict:
 
 def check(main: str, top: str, tickets: list[dict], priority: list[str], panes: dict, default: str | None = None,
           dry: bool = False) -> dict:
-    """One pass: {"actions", "held": the field the trains hold for | None, "gone", "stopped", "back"} (lists of
-    {slot, worktree, position, seq})."""
+    """One pass: {"actions", "held": the first leaver | None (it holds no hitched wagon, E18), "gone", "stopped",
+    "back"} (lists of {slot, worktree, position, seq})."""
     own, default = Path(top).name, default or default_ref(main)
     snap, here = read(main, SEEN, {}), {t["slot"]: t for t in tickets if t.get("slot")}
     freed, seen = set(read(main, RELEASED, {}).get("slots", [])), {}

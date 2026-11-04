@@ -29,6 +29,9 @@ store is broken, fix the file named). Exit 2: neither the CLI nor the handoff sk
 `--plan <n>` lists another plan's questions. In the store home (hal2 plan 0409: no plan file in the tree) the CLI
 answers from the plan store; the script reads the same.
 
+Hands-on steps for the user (clicks, commands) are manual items, listed by `/work-manual`, not by `/q`; a question that
+needs them links its item (`hal2-cli-plans manual add --from Q<n>`).
+
 ## Record a question
 
 The script only reads. The farmer records its own questions with `farmer.py question add` (farmer skill). Any other session records a new question where `/q` looks: the plan's `questions.md` in the entry form

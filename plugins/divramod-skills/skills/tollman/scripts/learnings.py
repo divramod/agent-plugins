@@ -275,8 +275,12 @@ def _key_of(line):
 
 
 def rules_text(directory):
+    import learnings_clash  # lazy: the check reads this module's parser
+
     def tags(e):
-        return (" [taken]" if e.taken else "") + (" [dropped: not applied]" if e.status == "dropped" else "")
+        hard = learnings_clash.hard(e) if e.status != "dropped" else []
+        return ((" [taken]" if e.taken else "") + (" [dropped: not applied]" if e.status == "dropped" else "")
+                + "".join(f" [clashes with {h}]" for h in hard))
     return "\n".join(f"L{e.n} {e.slug}{tags(e)}: {e.rule or e.case}" for e in read(directory))
 
 

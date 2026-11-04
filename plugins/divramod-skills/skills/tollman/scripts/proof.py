@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """A car's proof before it rides (hal2 plan 0333 step 4, cause A of its analysis.md): 4 of 9 red trains failed on a
 check that runs in seconds in the car's own field. `trains.draft` asks `verdict` after a car's clean trial merge;
-red unhitches the car with the finding lines, wait leaves it waiting, green lets it ride.
+red lets it ride with the finding lines (`proof_red`), fixed in the train by its fix order (proof_orders.py; the
+user, 2026-11-04: never unhitched), wait lets it ride with `proof_unknown` (plan 0610 E16: the pretest and the gate
+run the checks), green lets it ride. A red line the barn's own head shows too is the barn's (`barn_red`, barn_side).
 
 The light checks, run read-only in the field on its hitched head, as the gate runs them:
   names    the field's own `code/python/scripts/names-inventory/main.py check --branch <barn> --root <field>`
@@ -20,12 +22,15 @@ The light checks, run read-only in the field on its hitched head, as the gate ru
   - A field whose checkout moved on from the hitched head is proven on the hitched sha itself in a detached scratch
     worktree (proof_scratch, plan 0490 step 23, D24), with no uncommitted work; the field's checkout is never
     changed. A scratch that cannot be made: `wait` with the reason, never red, never cached. A field at its hitched
-    head is proven in place (the fast path, D9); a field that cannot be read: `wait` ("no proof yet").
+    head is proven in place (the fast path, D9).
   - A check that cannot run (its script or CLI missing, an exit other than 0 or 1, a timeout) is skipped: it never
     makes a car red, the landing's gate still runs it.
   - A finding counts only for a path the crop changed (`<barn>...<head>`) that is clean in the field: what the
     foreman did not commit is not the car's, and a red barn is not the car's either.
-  - The verdict is cached per `<field>:<head>` in the tollman's state folder, `cache/proof/` (the role-folder
+  - A field that is gone or cannot be read is proven on its hitched sha in the scratch made from the main checkout
+    (plan 0610 E13); only without a main checkout it is `wait`.
+  - The verdict is cached per `<field>:<head>` (a red one with the barn's sha: proven again once the barn moved, plan
+    0610 E30) in the tollman's state folder, `cache/proof/` (the role-folder
     record's cache class: never checked, may go at any time; files older than KEEP are pruned); a verdict that left
     findings out for uncommitted work is not cached, the next round looks again.
 """
@@ -154,6 +159,7 @@ def prove(field: str, head: str, barn: str, run=sh, clean: bool = False) -> dict
         out["dropped"] += dropped
     out["state"] = "red" if out["lines"] else "wait" if refused else "green"
     out["lines"] = (out["lines"] or refused)[:SHOWN]
+    out["files"] = files  # what barn_side compares against the barn's own head
     return out
 
 
@@ -166,12 +172,17 @@ def cache_file(cache: Path, field: str, head: str) -> Path:
     return cache / (hashlib.sha256(key.encode()).hexdigest()[:24] + ".json")
 
 
-def cached(cache: Path, field: str, head: str) -> dict | None:
+def cached(cache: Path, field: str, head: str, base: str | None = None) -> dict | None:
+    """The kept verdict of `field:head`; a red one, or one with `barn_red`, only while the barn is at `base` still
+    (plan 0610 E30: a red the barn fixed later is proven again; the barn's own red is the barn's of that head only)."""
     try:
         got = json.loads(cache_file(cache, field, head).read_text())
     except (OSError, ValueError):
         return None
-    return got if got.get("key") == f"{field}:{head}" else None
+    if got.get("key") != f"{field}:{head}" or ((got.get("state") == "red" or got.get("barn_red"))
+                                                and got.get("base") != base):
+        return None
+    return got
 
 
 def keep(cache: Path, field: str, head: str, v: dict, now: float | None = None) -> None:
@@ -195,20 +206,53 @@ def keep(cache: Path, field: str, head: str, v: dict, now: float | None = None) 
 
 def verdict(main: str, field: str, head: str, barn: str, run=sh, cache: Path | None = None) -> dict:
     """Whether the car `field` (its worktree) may ride with its hitched `head`: {state: green | red | wait, lines,
-    checks, ...}. `run` and `cache` are the commands and the state folder's cache unless a test says otherwise."""
+    checks, barn_red, ...}. `run` and `cache` are the commands and the state folder's cache unless a test says
+    otherwise. A field that is gone or unreadable is proven on its hitched sha in the scratch made from the main
+    checkout (plan 0610 E13); a red is checked against the barn's own head (`barn_side`)."""
     at = git(field, "rev-parse", "HEAD", run=run) if Path(field).is_dir() else ""
-    if not at:
+    repo = field if at else main if main and Path(main).is_dir() else ""
+    if not repo:
         return {"state": "wait", "lines": [f"no proof yet: the field is not readable, its hitched head {head[:12]}"],
                 "checks": []}
     cache = cache or cache_dir(main)
-    name = Path(field).name
-    if (hit := cached(cache, name, head)) is not None:
+    name, base = Path(field).name, git(repo, "rev-parse", barn, run=run)
+    if (hit := cached(cache, name, head, base)) is not None:
         return hit
     if at == head:
         v = prove(field, head, barn, run=run)
-    else:  # the foreman committed on after the hitch: the hitched sha in a scratch worktree (D24)
-        v = proof_scratch.prove(field, head, barn, cache.parent / "scratch",
+    else:  # the foreman committed on after the hitch, or the field is gone: the hitched sha in a scratch (D24)
+        v = proof_scratch.prove(repo, head, barn, cache.parent / "scratch",
                                 lambda root, h, b: prove(root, h, b, run=run, clean=True))
-    if v["state"] == "red" or (v["state"] == "green" and not v["dropped"]):  # a refusal is looked at again
-        keep(cache, name, head, v)
+    if v["state"] == "red" and base:
+        v = barn_side(repo, base, v, cache, run)
+    if v["state"] == "red" or (v["state"] == "green" and not v.get("dropped")):  # a refusal is looked at again
+        keep(cache, name, head, {**v, "base": base})
     return v
+
+
+def barn_side(repo: str, base: str, v: dict, cache: Path, run=sh) -> dict:
+    """Field 79 row 13 (plan 0610 D18): the car's red lines that the barn's own head `base` shows too (the same
+    finding, e.g. a key clash the barn holds on all six cars) are the barn's, `barn_red`, never the car's: its fix is
+    the barn's own order (trains.train_actions). The red checks run again in the scratch at the barn's head over the
+    crop's paths; a check that reads only what the crop added (`names`, the ceilings) is the car's. A car with no
+    line left is green."""
+    checks = sorted({ln.split(":", 1)[0] for ln in v["lines"]} - {"names", *proof_light.CEILINGS})
+    files = v.get("files") or []
+    if not checks or not files:
+        return v
+    tag = "barn-" + hashlib.sha256(json.dumps([checks, files]).encode()).hexdigest()[:16]
+    if (got := cached(cache, tag, base, base)) is None:
+        def at_barn(root: str, sha: str, _barn: str) -> dict:
+            lines = []
+            for check in checks:
+                code, text = one(check, root, sha, sha, files, run)
+                lines += [f"{check}: {ln}" for ln in findings(text, set(files), set())[0]] if code == 1 else []
+            return {"state": "red" if lines else "green", "lines": lines}
+        got = proof_scratch.prove(repo, base, base, cache.parent / "scratch", at_barn)
+        if got["state"] != "wait":
+            keep(cache, tag, base, {**got, "base": base})
+    seen = set(got["lines"]) if got["state"] != "wait" else set()
+    if not (theirs := [ln for ln in v["lines"] if ln in seen]):
+        return v
+    mine = [ln for ln in v["lines"] if ln not in seen]
+    return {**v, "state": "red" if mine else "green", "lines": mine, "barn_red": theirs}

@@ -51,10 +51,12 @@ class Wiring:
     `subskills` a duty's subskill folder; `delegates`: its rounds place and follow up delegations (delegation.py);
     `carries(field)`: the role's field holds other fields' commits by design now (the tollman's while a train
     stands, hal2 plan 0294 D22), so the round neither refuses them, merges from main nor commits a role file edit;
-    `session_effort`: the role's session runs at its ROLE.md's `session_effort` (default high), also after a clear
+    `session_effort`: the role's session runs at its ROLE.md's `session_effort` (default medium), also after a clear
     (hal2 plan 0333 D4); `env`: the variables, besides PATH, the timer's unit passes on to the tick (plan 0311);
     `min_tick`: the shortest gap between two ticks (due.loop_cron), 5 minutes unless the role has a duty on a shorter
-    cron (hal2 plan 0383 step 4: the tollman's 1-minute watch)."""
+    cron (hal2 plan 0383 step 4: the tollman's 1-minute watch);
+    `keep(main, items)`: of the wake items `act` would close as seen by the handoff's writer, those that stay open
+    anyway (hal2 plan 0608 D3: the tollman's unordered train-reds); None: none stays."""
     role: str
     cli: Path
     skill: Path
@@ -67,6 +69,7 @@ class Wiring:
     session_effort: bool = False
     env: tuple[str, ...] = ("FARMER_DIR",)
     min_tick: int = 5  # the shortest gap, in minutes, between two ticks the timer may run (the tollman's watch: 1)
+    keep: Callable[[str, list[dict]], list[dict]] | None = None
 
     @property
     def role_file(self) -> str:
@@ -80,8 +83,8 @@ class Wiring:
 
 FARMER = Wiring(
     role=ROLE, cli=Path(__file__).resolve().parent / "farmer.py", skill=Path(__file__).resolve().parents[1],
-    act="/farmer act", handoff="/farmer handoff",
-    duties=("lead", "ci", "prs", "sync", "watch", "autoclear", "queue"),
+    act="/continue", handoff="/farmer handoff",
+    duties=("lead", "ci", "prs", "sync", "watch", "autoclear", "queue", "autopilot", "runners"),
     subskills={"lead": "development-lead", "ci": "ci", "watch": "sanity-watch", "autoclear": "fix-autoclear"},
     delegates=True)
 

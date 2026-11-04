@@ -74,7 +74,7 @@ class Handoff(Repo):
         self.write(dt.datetime.now())
         code, out = self.run_cli("--clear")
         self.assertEqual(code, 0, out)
-        self.assertEqual(self.calls, [("clear-and-continue", "--pane", "%9", "--prompt", "/farmer act",
+        self.assertEqual(self.calls, [("clear-and-continue", "--pane", "%9", "--prompt", "/continue",
                                        "--without-plan", "--detach", "--json", "--session", "s1")])
         # .adr/tollman-decides-trains.md: only a role with Wiring.session_effort (the tollman) passes --effort
         self.assertNotIn("--effort", self.calls[0], "the farmer's clear passes none (hal2 plan 0333)")

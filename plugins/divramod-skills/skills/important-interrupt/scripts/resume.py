@@ -3,30 +3,35 @@
 
 done: exit 1 when no important interrupt is active (no stop record, or one without its `important_interrupt`
 block). Else, in reverse of stop: undo this interrupt's recorded actions (`actions[first_action:]`; an earlier
-stop's actions before them stay as they are), newest first, hal2-daemon's SIGCONT last so its VM node starts again
-only once the CI runner is back; then tell every session the interrupt told, and still live, to continue (the
+stop's actions before them stay as they are), newest first, hal2-daemon's pollers released (or its SIGCONT) last so
+its VM node starts again only once the CI runner is back; then tell every session the interrupt told, and still live, to continue (the
 replies rechecked: a session that never answered the stop, its message maybe held for its user's approval, is
 named); never a session of an earlier hold (D9). Then the record goes to history (stopall.finish); an earlier stop
 that was active before the interrupt gets its own record back, so its sessions stay held. A `done` row goes to the
 log. --dry-run prints every undo and message and changes nothing.
 
-stats: the log's rows (date, kind, seconds to quiet or to done, frozen, stopped, told, paused, silent), then the
-median and the max seconds to quiet of the stops that got quiet; --json prints the same as one object.
+stats: the log's rows (date, kind, seconds to quiet or to done, frozen, stopped, told, paused, silent), each stop's
+measured passes under it (seconds, CPU idle after), then the median and the max seconds to quiet of the stops that
+got quiet; --json prints the same as one object.
 """
 import json
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+import freeze
 import interrupt
 import quiet
+import sources
 
 CONTINUE_TEXT = (
     "All agents may continue: the important interrupt is over. Run the continue skill now. If your pause record "
     "says a merge to main (an mtm landing) was running, run the merge to main again: it adopts the interrupted "
     "landing; never cancel its run or start it from scratch.")
 SIGNALS = ("STOP", "CONT", "TERM")
-FROZEN = ("build", "daemon", "session", "docker")
+FROZEN = ("build", "daemon", "session", "docker", "holder")
+UNDO_TIMEOUT = 60
+THAW_TIMEOUT = 30  # `thaw all` waits for the holders: one stopped before the interrupt would hold it
 
 
 def active(d) -> dict | None:
@@ -42,25 +47,40 @@ def kind(a: dict) -> str:
 
 
 def undo_order(acts: list) -> list:
-    """The actions with an undo, newest first, hal2-daemon last."""
+    """The actions with an undo, newest first, hal2-daemon's pollers and hal2-daemon last."""
     rev = [a for a in reversed(acts) if a.get("undo")]
-    return [a for a in rev if kind(a) != "daemon"] + [a for a in rev if kind(a) == "daemon"]
+    last = ("pollers", "daemon")
+    return [a for a in rev if kind(a) not in last] + [a for a in rev if kind(a) in last]
 
 
-def perform(step, sys_) -> bool:
+def perform(step, sys_, timeout: float = UNDO_TIMEOUT) -> tuple:
+    """(ok, why not): a signal to its pids, or a command under a timeout."""
     if isinstance(step, tuple):
         pids = step[1] if isinstance(step[1], list) else [step[1]]
-        return all([sys_.kill(int(pid), step[0]) for pid in pids])
-    return sys_.run(step)[0] == 0
+        return all([sys_.kill(int(pid), step[0]) for pid in pids]), "gone or failed"
+    code, _, _ = sys_.run(step, timeout=timeout)
+    return code == 0, f"timed out after {timeout:.0f}s" if code == 124 else "gone or failed"
+
+
+def stopped_holders(d) -> list:
+    """The `freeze serve` holders that are stopped (stat T) now: a `thaw all` waits for them."""
+    table = freeze.proc_table(d.sys)
+    return [p["pid"] for p in table.values() if sources.SERVE.search(p["args"]) and p["stat"][:1] == "T"]
 
 
 def undo_machine(d, acts: list, dry: bool) -> list:
-    """Undo each action (or print it with --dry-run); the kinds of what was undone."""
+    """Undo each action (or print it with --dry-run), the holders' SIGCONT before `thaw all` (newest first); a
+    timed-out command is reported and the next undo goes on. The kinds of what was undone."""
     kinds = []
     for a in undo_order(acts):
         step = tuple(a["undo"]) if a["undo"][0] in SIGNALS else a["undo"]
-        ok = True if dry else perform(step, d.sys)
-        d.out(f"{'would undo' if dry else 'undo'} {a['text']}: {quiet.show(step)}{'' if ok else '  (gone or failed)'}")
+        thaw = kind(a) == "wq-freeze"
+        ok, why = (True, "") if dry else perform(step, d.sys, THAW_TIMEOUT if thaw else UNDO_TIMEOUT)
+        d.out(f"{'would undo' if dry else 'undo'} {a['text']}: {quiet.show(step)}{'' if ok else f'  ({why})'}")
+        if not ok and thaw and why.startswith("timed out"):
+            held = stopped_holders(d)
+            d.out("  a workqueue holder stopped before the interrupt holds thaw all: "
+                  f"{', '.join(map(str, held)) or 'none found'}; `kill -CONT <pid>`, then `thaw all` again")
         if ok:
             kinds.append(kind(a))
     return kinds
@@ -173,6 +193,13 @@ def line(r: dict) -> str:
             f"{r.get('told', 0):4} | {r.get('paused', '-')!s:6} | {r.get('silent', 0)}")
 
 
+def steps_line(r: dict) -> str | None:
+    """The run's measured passes (plan 0585 D7): `<step> <seconds>s <idle>%`, one line under the run's row."""
+    parts = [f"{s.get('step')} {s.get('seconds')}s" + ("" if s.get("idle") is None else f" {s['idle']:.0f}%")
+             for s in r.get("steps") or [] if isinstance(s, dict)]
+    return "    " + " · ".join(parts) if parts else None
+
+
 def stats(a, d) -> int:
     log, out = rows(a.last), d.out
     s = summary(log)
@@ -182,6 +209,8 @@ def stats(a, d) -> int:
     out(f"{'date':19} | kind | {'seconds':16} | frozen | stopped | told | paused | silent")
     for r in log:
         out(line(r))
+        if steps_line(r):
+            out(steps_line(r))
     if s["median"] is None:
         out("no stop got quiet yet" if log else f"no runs logged yet ({interrupt.root() / 'log.jsonl'})")
     else:

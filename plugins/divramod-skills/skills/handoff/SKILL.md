@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Write or refresh the handoff (the current plan's committed plans/<plan>/handoff.md; the root HANDOFF.md for a legacy plan or work without a plan) so a fresh session (after /clear or on another machine) can continue the work without re-asking anything — first it records every decision and answer from the conversation in its one durable home (plan, intent doc or ADR), then writes the handoff with the goal, a link to the plan (CURRENT_PLAN or a plan file) and its current step, a Decisions index of every user decision in force (date, quoted words, who relayed it, its home), what is done, the concrete next tasks with a done-when check, traps and open decisions, and the prompt to start the next session with — collects every question of the session (the agent's to the user, the user's not yet answered) with its answer in the plan's committed questions.md, so a clear loses none and the fresh session takes the open ones up first — and commits only those docs. With "continue" (or "resume") it does the reverse: reads the handoff and its plan, checks its decisions against plan, intent doc and handoff itself, reports commits and changes made since it was written, and carries on. Use when the user wants to hand off, wrap up before clearing the session, or pick up where the last session stopped. `/handoff clear` also clears the session and continues on its own (hal2), `/handoff c` continues, `/handoff h` shows help.
+description: Write or refresh the handoff (the current plan's committed plans/<plan>/handoff.md; the root HANDOFF.md for a legacy plan or work without a plan) so a fresh session (after /clear or on another machine) can continue the work without re-asking anything — first it records every decision and answer from the conversation in its one durable home (plan, intent doc or ADR), then writes the handoff with the goal, a link to the plan (CURRENT_PLAN or a plan file) and its current step, a Decisions index of every user decision in force (date, quoted words, who relayed it, its home), what is done, the concrete next tasks with a done-when check, traps and open decisions, and the prompt to start the next session with — collects every question of the session (the agent's to the user, the user's not yet answered) with its answer in the plan's committed questions.md, so a clear loses none and the fresh session takes the open ones up first — and commits only those docs. With "continue" (or "resume") it does the reverse: reads the handoff and its plan, checks its decisions against plan, intent doc and handoff itself, reports commits and changes made since it was written, and carries on. Use when the user wants to hand off, wrap up before clearing the session, or pick up where the last session stopped. `/handoff clear` also clears the session and continues on its own (hal2), `/continue` continues, `/handoff h` shows help.
 ---
 
 # handoff
@@ -37,14 +37,13 @@ else you name; a records problem refuses the apply (exit 1: fix the copy, run it
 | Call | Short | Does |
 |---|---|---|
 | `/handoff` | `/h` | [write](#write): record decisions, collect the session's questions, update `HANDOFF.md` (write it when missing), commit the docs |
-| `/handoff clear` | `/handoff x` | [write](#write), then [clear this session and continue](#clear-and-continue) with `/handoff c` on its own |
-| `/handoff continue`, `/handoff resume` | `/handoff c`, `/c` | [continue](#continue) in a fresh session |
+| `/handoff clear` | `/handoff x` | [write](#write), then [clear this session and continue](#clear-and-continue) with `/continue` on its own |
 | `/handoff help` | `/handoff h` | print this table and stop |
 
 ## Continue
 
-**In a servant's worktree** (`plans/LEAD` holds `<foreman's field> <plan> <step>`, or in a schema 2 plan `<field> <plan> <NN-slug>`, a whole sub-plan whose steps it continues one after another; `decisions.py`
-prints a `foreman:` line) `/handoff c` continues **that one step only**, as the plan skill's [Work as a
+**In a servant's worktree** (`plans/LEAD` exists; `decisions.py` reads the servant state through `hal2-cli-plans servant show --json`, never the file itself, and
+prints a `foreman:` line naming the foreman's field, the plan and **every** step with its status, or a whole sub-plan whose steps it continues one after another; a `finished` servant is removed by its foreman) `/continue` continues **those steps only**, as the plan skill's [Work as a
 servant](../plan/SKILL.md#work-as-a-servant) says: never the plan's next step, never `/mtm`, never an edit of
 `plan.md`; `CURRENT_PLAN` keeps naming the foreman's plan. A masterplan's servant (the marker names the masterplan
 and its row) has that row as its "one step": the row's whole plan, continued from its own root `HANDOFF.md`, each of
@@ -57,7 +56,7 @@ after the landing. When the report is pushed and the foreman told, the work is d
    ```
    When it prints a command, run that skill (`/foreman duties`, `/servant duties`: the skill's duties and the
    repository's `roles/<role>/ROLE.md`, printed only) and work by what it says; the farmer and the tollman load theirs
-   with `/farmer act` and `/tollman act`. The role comes from the checkout, never from the field's number (D16): a field
+   with `/continue` (their `duties` command). The role comes from the checkout, never from the field's number (D16): a field
    holding `plans/LEAD` is a servant's, a field whose current plan has a `plan.md` and no `LEAD` a foreman's
    (`session_role.py` takes get-state's `role.detect` for "is this a field", then reads `plans/LEAD` and the plan).
 0. **Restore the coordinator's values first** (plan 0015's D10: after a clear the plan wins). Before anything else,
@@ -69,9 +68,9 @@ after the landing. When the report is pushed and the foreman told, the work is d
    `session.py`) and decides:
    - `ok` (no plan, a legacy plan, a servant's worktree, no `run`, no difference, only the window differs): go on.
    - `switch` (the model or the effort differs): run its `command` (`hal2-cli-agents switch --model <run's model>
-     --effort <run's effort> --prompt "/handoff c" --detach --json`) and end the turn with one line ("restarting at
-     <model> <effort>, continuing with /handoff c"). hal2 restarts the session in its pane with those flags for this
-     session only (the user's defaults stay) and types `/handoff c` again. The switch refused (no hal2, not in a
+     --effort <run's effort> --prompt "/continue" --detach --json`) and end the turn with one line ("restarting at
+     <model> <effort>, continuing with /continue"). hal2 restarts the session in its pane with those flags for this
+     session only (the user's defaults stay) and types `/continue` again. The switch refused (no hal2, not in a
      pane): go on and name it under the handoff's **Watch out**.
    - `sync` (it still differs after a switch for this same handoff, its `at`): run its `command` (`plan.py run
      --sync`; the session's values win, no second switch) and say so in the first report (step 5).
@@ -132,8 +131,9 @@ masterplan and its `handoff.md`; then, in place of the first **Next** task:
 **A landing named in the handoff** (hal2 plan 0181: a session is cleared although its checkout lands or waits in
 the merge queue; the landing's process goes on across the clear):
 
-- **Next is `/mtm`** for a finished `Landing: auto` plan (it was handed off before its landing started): that is
-  the plan's own landing (the plan skill's "Land the plan"), run it.
+- **Next is `plan.py end`** for a finished `Landing: auto` plan (`land: ready`) that has not run its end: the plan
+  skill's "Land the plan", run it (it pushes as `pushing` and hitches, or names `/mtm`). **Next is `/mtm`** only after
+  `plan.py end` named it (no awake tollman, smuggle mode): the plan's own landing, run it.
 - **A reserve or landing in flight**: look before you start anything (`hal2-cli-git worktree queue --json`). While
   its ticket is waiting or active, its shell's end reaches this session as a task notification: wait for it (and
   work on what does not depend on it), or rerun the same `reserve` (the rerun takes the old ticket's place, the old
@@ -255,7 +255,7 @@ own).
 ### 3b. Persist the coordinator's values
 
 Before a clear the live session wins (plan 0015's D10): a record plan with a `run` key gets the session's model,
-effort and window written into it, so `/handoff c` (Continue step 0) restores them after the clear:
+effort and window written into it, so `/continue` (Continue step 0) restores them after the clear:
 
 ```bash
 python3 <plan-skill-dir>/scripts/plan.py run --sync    # {run, before, live, drift}; writes plan.md when they differ
@@ -289,13 +289,15 @@ Done when: <a check the next session can run>
 
 ## Start with
 
-> /handoff c
+> /continue
 ```
 
+The `Depends on:` line is read from `hal2-cli-plans depends list --plan <p> --json`, never recalled; a wait found now is declared first (`hal2-cli-plans depends add <NNNN> --until pushed|main`) and then listed.
+
 The line under the heading is only a plan of a masterplan's: its row there and the link, written and kept current
-by `where.py --stamp` (words you add after the link stay). Never drop it when you rewrite the body; `/handoff c`
+by `where.py --stamp` (words you add after the link stay). Never drop it when you rewrite the body; `/continue`
 finds the masterplan by it. A masterplan's own handoff names under **Next** the plan that is next (its row and its
-link), which fields run which plan and what its foreman waits for: `/handoff c` there starts from that line.
+link), which fields run which plan and what its foreman waits for: `/continue` there starts from that line.
 
 It holds state only: the goal and the step table are the plan's, the decisions the ledger's, the questions
 `questions.md`'s; link them (`[D4](decisions.md)`), never copy them. It is committed and read on other machines, so
@@ -324,6 +326,7 @@ Farmer: <session name> (<the farmer's repo>)
 ## Plan
 [<plan title>](<relative path>): <done>/<total> done, next: step <n> <step>.
 <one line on anything in the plan that changed or is known to be outdated>
+Depends on: <`hal2-cli-plans depends list --plan <p> --json`: each depends_on (plan, field, state, steps) and dependents, else "none">
 
 ## Decisions
 - <YYYY-MM-DD> "<the user's words>" (<the user | via farmer <id>>) · home: <plan | INTENT.md | .adr/<file>.md>
@@ -351,10 +354,11 @@ Done when: <a check the next session can run>
 - Q<n> (<agent | user>): <the question in one line>
 
 ## Open
+- <open gaps and manual items by count, with `hal2-cli-plans gaps list` and `manual list`>
 - <decisions waiting for the user; unpushed commits; uncommitted changes in other repos>
 
 ## Start the next session with
-> <the exact prompt, e.g. "/handoff continue" or "Read HANDOFF.md and do step 3">
+> <the exact prompt, e.g. "/continue" or "Read HANDOFF.md and do step 3">
 ```
 
 Rules:
@@ -368,13 +372,16 @@ Rules:
   leaves the list (its home marks it superseded). The plan's own autogrill decisions are not listed: they stay in the
   plan. Nothing to list: `- none`. The home stays the source; this list never holds the only copy.
 - The `Farmer:` line only for a session that serves a farmer (a foreman: its role or start prompt names the farmer's
-  session, e.g. `farmer-a4`, and its repository); drop it otherwise. `/handoff c` asks that farmer for forgotten
+  session, e.g. `farmer-a4`, and its repository); drop it otherwise. `/continue` asks that farmer for forgotten
   decisions.
 - Links are relative to the repo root (e.g. `AGENTS.md`, `research/0001-analysis/research.md`) and must point at files
   that exist.
 - **Next** is specific enough that a session without this conversation can start: name files, commands, and the
   first task.
 - Decisions live in their one home (step 1); the handoff indexes them (**Decisions**), it never holds the only copy.
+- **Next** for a plan whose `land` is `ready` (`plan.py current`) is its end, never a hand-written push or hitch:
+  `python3 <plan-skill-dir>/scripts/plan.py end --json`, or `/mtm` when the end already named it; with the run state
+  (`plan.py state`) `pushing` or `hitched` it is the wait for that (hal2 plan 0514 D5).
 - **Next** for plan work is the current step's tasks only; the step list itself stays in the plan. A servant's
   handoff (`plans/LEAD`) names its one step (a masterplan's servant: its row and that row's plan), its brief and its
   foreman under **Plan**, and **Next** ends with the report.
@@ -423,21 +430,21 @@ see below instead).
 ## Clear and continue
 
 `/handoff clear` (and the `plan` skill's hand-off at its context threshold) writes and commits the handoff as above,
-then lets hal2 clear this Claude Code session and type `/handoff c` into the fresh one:
+then lets hal2 clear this Claude Code session and type `/continue` into the fresh one:
 
 1. Stop your background work first (TaskStop every background shell, subagent, workflow and monitor you started;
    the handoff names what must be rerun): their notifications would wake the fresh session. **Never a landing or a
    waiting reserve** (`hal2-cli-git worktree merge-to-main|reserve`, the merge queue policy: a started landing is
    never aborted): it goes on across the clear, the handoff's **Next** names it (the command, the worktree, the ticket's
    state) and its end wakes the fresh session.
-2. Start it and end your turn right after with one line ("clearing, continuing with /handoff c"). Take the command
+2. Start it and end your turn right after with one line ("clearing, continuing with /continue"). Take the command
    from `python3 $S/drift.py --clear`: with a plan's `run` it passes `--effort <run's effort>` (plan 0016's D8:
    hal2 types its `[autoclear] effort` after `/clear` otherwise), without one it is
    ```bash
    hal2-cli-agents clear-and-continue --detach --json    # pane from $TMUX_PANE or $HAL2_TERMINAL, session from $CLAUDE_CODE_SESSION_ID
    ```
    It waits for your turn to end, waits out a draft the user is typing (and the user's own turns), types `/clear`
-   only into an empty prompt, confirms the new session through its hook record, then types `/handoff c`; the
+   only into an empty prompt, confirms the new session through its hook record, then types `/continue`; the
    job shows on the agent in hal2's Agents pane, where it can be cancelled (`--cancel`).
 3. It clears every Claude session, with or without a plan with steps left and with or without a merge-queue ticket
    (hal2 plan 0181; a session that is never idle gets `/clear` and the prompt as queued input). A finished plan

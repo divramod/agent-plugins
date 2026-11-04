@@ -37,9 +37,10 @@ else the queue's; hal2 plan 0360 D75, 0365 D5), `/mtm` hitches nothing: [SKILL.m
 **Smuggle mode** runs the smuggle skill instead, whatever `tollman.sh`
 says. The tollman leaves such an entry out of its trains and sleeps while no hitched entry is in production, and while its
 sleep flag stands (it forms no train and starts no land run; a train already landing goes on). Back
-in production, a field whose hitched head is already in the barn is unhitched and told
+in production, a field whose hitched head is already in the barn is settled as landed by code (closed, never
+unhitched, no question: its ready mark stays and nothing of it is carried again) and told
 `tollman (wagon train): field <NN>'s crop (<head>) is already in the barn (smuggled ...)`: answer it like "in the
-barn" ([after "in the barn"](#after-in-the-barn)); nothing of it is carried again.
+barn" ([after "in the barn"](#after-in-the-barn)).
 
 ## Hitch
 
@@ -73,7 +74,9 @@ and its end waits for "in the barn". The `CURRENT_PLAN` pointer and the plan's h
 
 - Work committed after the hitch rides only when it is pushed and the same command has run again (it moves the
   mark to the new head, the place stays).
-- `hal2-cli-git worktree queue ready --clear [<slot>]` takes the hitch back (the user decides against it).
+- A hitch is forever (`.adr/hitch-is-forever.md`): only the user's own word takes it back (the user runs
+  `hal2-cli-git worktree queue ready --clear [<slot>]`, or the tollman `tollman.py unhitch <slot> --by-user` on the
+  user's words); this session never clears its own mark.
 - The context threshold: a hitched worktree has no landing under way, so hal2's guard stops its session like any
   other. The handoff names the hitch under **Next** (hitched, the head, "after in the barn: `/mfm`, then steps 5
   to 8"); there is no process to keep alive.
@@ -97,7 +100,7 @@ session, without a question (the tollman changes no other worktree).
    `git log --oneline origin/<default>..HEAD` lists only what was committed after the hitched head (and its merge).
 2. SKILL.md [step 5](../SKILL.md#5-finish-the-plan-and-land-it): run the plan's steps whose done-when needed the
    landing, finish each as the plan skill says. Nothing is reserved here, so nothing is released and no lease
-   runs; where step 5 says "back to step 4", hitch again instead: push, `hal2-cli-git worktree queue ready --json`,
+   runs; where step 5 says "back to step 4", hitch the new work instead: push, `hal2-cli-git worktree queue ready --json`,
    report `hitched` and wait for that hitch's own "in the barn". Only then is nothing left.
 3. [Step 6](../SKILL.md#6-clear-the-current-task) as it is. Delete the side branches the default branch now
    contains (`git branch -d <NN>-<topic>`: it refuses an unmerged one, which stays and is named), as a landing of
@@ -117,34 +120,19 @@ the `CURRENT_PLAN` pointer stays, as milestone mode says.
 
 ## Unhitched
 
-The tollman takes a wagon off, clearing its ready mark, and tells its session why. The message's first line is
-one of
+A hitched wagon never leaves the queue (the user, 2026-11-04: "when a car has hitched, it will never leave the queue
+again"): the tollman never unhitches it, never clears its ready mark and never tells a foreman to hitch again. Red
+light gate checks on the hitched head ride as well and come back as a fix order ("A fix order" below); a servant's
+field (`plans/LEAD`) waits, hitched, and its foreman merges its branch. Only the user's own command takes a car out
+of a red train; its message's first line is
 
 ```
-tollman [<id>] (wagon train): field <NN> is unhitched before it rode: its light gate checks are red on <head>: <finding lines> Fix it, push and report it ready again (...)
-tollman [<id>] (wagon train): field <NN> is unhitched from the red train by the user: <why>. Fix it, push and report it ready again (...)
-tollman [<id>] (wagon train): field <NN> is unhitched: a servant's field (30-99) never rides a train, its foreman merges its branch.
+tollman [<id>] (wagon train): field <NN> is out of the red train by the user's own command: <why>. Fix it on your branch `<NN>` (/merge-from-main first), push, then tell the farmer by SendMessage (`farmer-<repo>` in ListAgents) `<NN> fixed <sha>`: the farmer relays it to the user, whose word alone puts it back in the queue; the tollman never touches its hitch.
 ```
 
-for these causes (acked like "in the barn"):
-
-- **red light gate checks** (names, records) on the hitched head, before it rode, with the finding lines (a
-  conflict never unhitches: every hitched wagon rides and is resolved in the train, plan 0522 D18, "A resolve
-  order" below);
-- **taken out of a red train by the user's own command**, with the failing job in the reason (a formed train is
-  frozen, plan 0360 D3: the tollman itself never takes a car out of it; a red train waits for its fix);
-- **a servant's field**: a worktree 30-99 never hitches; its foreman merges its branch.
-
-The work is back with this session, and the rest of the train rides without it. Fix this worktree's own work only:
-
-1. `/mfm`; resolve what conflicts as its **Conflicts** says.
-2. A red job: read its log (`gh run view <run> --log-failed`), reproduce it with
-   `code/bash/scripts/gate/main.sh <job> --branch origin/main` where the repository has it, fix it and see it green.
-3. Commit, push, hitch again (the command above) and report `hitched` with the new head.
-
-Never land the work yourself instead, never ask the tollman to resolve it (it never edits another worktree's
-work), and never leave it unhitched without a word: a cause this session cannot fix is asked of the user, in a
-plan's landing after a notification (`PushNotification`), as SKILL.md's "When to ask" says.
+Then: `/mfm`, run the check that was red (its smallest form: the failing test, build, lint check or CI step), fix it
+on `<NN>`, push and tell the farmer `<NN> fixed <sha>` (no fix order stands: the train was broken up). Never land the
+work yourself; it goes back in the queue only on the user's word.
 
 ## A fix order
 
@@ -159,13 +147,13 @@ and it carries the commands:
 
 1. In this worktree: `git fetch origin <carrier>; git switch -C <NN>-train-fix origin/<carrier>` (`<carrier>` is
    the tollman's field, `tollman-<repo>`: the train with every car and every fix so far).
-2. Reproduce the red job (`code/bash/scripts/gate/main.sh <job> --branch origin/main` where the repository has it),
-   fix it, commit, see it green on that commit: the gate's last line is `gate: <job> green at <sha>`.
+2. Reproduce only what was red, in its smallest form (the failing test, the build, the one lint check or the CI step;
+   never the whole gate job, plan 0610 D6), fix it, commit, see that check green on that commit.
 3. `git push origin <NN>-train-fix`, then answer by SendMessage to the tollman session
    `ack <id>: done fixed <sha>` (the pushed head); for a job the order names as one you run (a heavy one), add the
-   gate's line: `ack <id>: done fixed <sha>: gate: <job> green at <sha>`. The tollman runs `tollman.py fixed`: it
-   checks the sha is on `origin/<NN>-train-fix` and descends from the train's head, proves it green (a light job it
-   runs itself on the sha; a heavy one by your line; plan 0522 D5), merges it into its carrier and lands the same
+   red check's own green: `ack <id>: done fixed <sha>: green: <the check that was red> at <sha>`. The tollman runs
+   `tollman.py fixed`: it checks the sha is on `origin/<NN>-train-fix` and descends from the train's head, proves it
+   green (a light job it runs itself on the sha; a heavy one by your line; plan 0522 D5, 0610 D6), merges it into its carrier and lands the same
    cars plus the fix again. A refused fix comes back with the reason; the order stays open: fix, push, answer again.
 4. Switch back to `<NN>` (`git switch <NN>`) and wait for "in the barn".
 

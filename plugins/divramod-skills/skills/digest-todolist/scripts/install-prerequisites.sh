@@ -20,7 +20,7 @@ for app in hal2-cli-shooter hal2-cli-agents; do
     if ! command -v cargo >/dev/null 2>&1; then
       echo "optional $app needs Rust (https://rustup.rs); shots.py works without it" >&2
     elif [ -d "$HOME/a/hal2/code/rust/apps/$app" ]; then
-      cargo install --path "$HOME/a/hal2/code/rust/apps/$app"
+      cargo install --path "$HOME/a/hal2/code/rust/apps/$app" && "$HOME/a/hal2/code/bash/scripts/codesign-dev/main.sh" --installed "$app"
     else
       cargo install --git https://github.com/divramod/hal2 "$app"
     fi

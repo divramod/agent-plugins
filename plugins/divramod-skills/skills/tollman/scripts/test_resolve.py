@@ -31,7 +31,8 @@ class Resolving(Farm):
     def resolve(self, field, text, conflicted=False):
         """The foreman's part of the order: the side branch from the train's remote head, its own head merged, the
         conflict resolved (or, `conflicted`, its markers committed as they are), pushed, back on its branch."""
-        path, branch, carrier = self.fields[field], f"{field}-train-resolve", self.carrier()
+        r = self.train()["resolve"]  # its systematic branch and base (plan 0610 D18: run_names.py)
+        path, branch, carrier = self.fields[field], r["branch"], r["ref"]
         git(path, "fetch", "-q", "origin", carrier)
         git(path, "switch", "-q", "-C", branch, f"origin/{carrier}")
         self.assertNotEqual(out_code(path, "merge", "-q", self.heads[field]), 0, "it conflicts as the order says")
@@ -63,11 +64,12 @@ class Replay(Resolving):
         self.assertEqual(([c["field"] for c in t["cars"]], t["state"]), (["07", "09", "11"], "resolving"))
         r = t["resolve"]
         self.assertEqual((r["field"], r["id"], r["files"], r["ahead"], r["branch"], r["head"]),
-                         ("09", "09-resolve-1", ["shared.txt"], ["07"], "09-train-resolve", self.heads["09"]))
+                         ("09", "09-resolve-1", ["shared.txt"], ["07"], "09-train-1-1-resolve", self.heads["09"]))
+        self.assertEqual(r["ref"], "train-1-1", "it starts from run 1's carrier on origin")
         self.assertEqual(self.state(), [("formed", self.carrier()), ("resolving", self.carrier())])
         self.assertEqual((self.gate.calls, self.spawned), ([], []), "nothing marked, nothing lands: no push")
-        self.assertEqual(self.subjects()[0], f"Merge branch '07' into {self.carrier()}", "07 is in, 09 waits")
-        self.assertEqual(out(self.main, "ls-remote", "origin", f"refs/heads/{self.carrier()}").split()[0],
+        self.assertEqual(self.subjects()[0], f"Merge branch '07' into {self.branch()}", "07 is in, 09 waits")
+        self.assertEqual(out(self.main, "ls-remote", "origin", f"refs/heads/{self.branch()}").split()[0],
                          r["base"], "the train's head published for the foreman")
 
         self.round()
@@ -75,7 +77,8 @@ class Replay(Resolving):
         ((pane, text),) = self.typed
         self.assertEqual(pane, "%9")
         self.assertRegex(text, r"^tollman \[09-\d+\] \(wagon train\): resolve order 09-resolve-1 for field 09: ")
-        self.assertIn(f"`git merge {self.heads['09']}`", text)
+        self.assertIn(f"09-fix merge {self.heads['09']}`", text)
+        self.assertIn("checkout -B 09-train-1-1-resolve origin/train-1-1", text, "its systematic branch (D18)")
         self.assertIn("conflicts with the cars ahead (07) in shared.txt", text)
         self.round()
         self.assertEqual((self.last, len(self.typed)), ([], 1), "one order for the conflict, never a second")

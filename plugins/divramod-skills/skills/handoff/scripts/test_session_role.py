@@ -1,4 +1,4 @@
-"""Role on `/handoff c` (hal2 plan 0383, D15, D16): a continued foreman or servant loads its role first, by plans/LEAD
+"""Role on `/continue` (hal2 plan 0383, D15, D16): a continued foreman or servant loads its role first, by plans/LEAD
 and the plan, never by the field's number."""
 import json
 import os
@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+ENV = {**os.environ, "HAL2_CLI_AGENTS": "/nonexistent/hal2-cli-agents", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
 
 def git(cwd, *args):
@@ -52,7 +52,7 @@ class SessionRoleTest(unittest.TestCase):
 
     def run_role(self, root, *flags):
         r = subprocess.run([sys.executable, str(HERE / "session_role.py"), "--repo", str(root), *flags],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env={**ENV, **getattr(self, "env", {})})
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.strip()
 
@@ -91,8 +91,19 @@ class SessionRoleTest(unittest.TestCase):
         (farmer / "plans" / "0001-x").mkdir()
         (farmer / "plans" / "0001-x" / "plan.md").write_text("# Plan 1: x\n")
         (farmer / "plans" / "CURRENT_PLAN").write_text("0001-x\n")
-        self.assertEqual(self.run_role(farmer), "")  # /farmer act loads its own
+        self.assertEqual(self.run_role(farmer), "")  # /continue loads its own
         self.assertEqual(json.loads(self.run_role(self.main, "--json")), {"role": None, "command": None})
+
+    def test_hal2_s_rule_wins_a_train_s_field_has_no_role(self):
+        """Plan 0592's D12: the role comes from `hal2-cli-agents role --json`; a field it gives no role loads nothing."""
+        field = self.field("07", plan=True)
+        cli = self.base / "hal2-cli-agents"
+        cli.write_text('#!/bin/sh\necho \'{"schema":1,"role":null,"why":"a train field"}\'\n')
+        cli.chmod(0o755)
+        self.env = {"HAL2_CLI_AGENTS": str(cli)}
+        self.assertEqual(self.run_role(field), "")
+        cli.write_text('#!/bin/sh\necho \'{"schema":1,"role":"servant","why":"a LEAD marker"}\'\n')
+        self.assertEqual(self.run_role(field), "/servant duties")
 
 
 if __name__ == "__main__":

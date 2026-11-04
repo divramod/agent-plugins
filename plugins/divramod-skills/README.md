@@ -15,7 +15,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 
 - [.claude-plugin/plugin.json](.claude-plugin/plugin.json): the Claude Code manifest, every skill listed; its
   `version` is the plugin's ([.codex-plugin/plugin.json](.codex-plugin/plugin.json) keeps the same name and version).
-- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`), `c` (`/handoff continue`), `hv` (`/halverse`), `daily` (`/daybook`), `uat` (`/user-acceptance-tests`), `gp` (`/git-push`) and `d` (`/design`), generated into
+- [aliases.json](aliases.json): the shortcut skills `h` (`/handoff`), `c` (`/continue`), `hv` (`/halverse`), `daily` (`/daybook`), `uat` (`/user-acceptance-tests`), `gp` (`/git-push`) and `d` (`/design`), generated into
   `skills/shortcuts/<name>/` by `scripts/gen-aliases.py`.
 - [docs/selfimprovement/common/](docs/selfimprovement/common/): notes on agent mistakes the skills guard against.
 - [LICENSE](LICENSE): MIT.
@@ -59,7 +59,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 |---|---|
 | [adapt-merge-queue](skills/actions/adapt-merge-queue/SKILL.md) | reorders hal2's merge queue and reserves places |
 | [adr](skills/actions/adr/SKILL.md) | writes and finds decision records in hal2's record format |
-| [c](skills/shortcuts/c/SKILL.md), [h](skills/shortcuts/h/SKILL.md) | shortcuts: `/handoff continue`, `/handoff` |
+| [c](skills/shortcuts/c/SKILL.md), [h](skills/shortcuts/h/SKILL.md) | shortcuts: `/continue`, `/handoff` |
 | [ci-analyzer](skills/actions/ci-analyzer/SKILL.md) | finds CI waste and bottlenecks in the last runs and ranks them |
 | [cleanup](skills/actions/cleanup/SKILL.md) | deletes a worktree's build artifacts |
 | [continue](skills/actions/continue/SKILL.md), [pause](skills/actions/pause/SKILL.md) | pause a session's work and pick it up again |
@@ -93,7 +93,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [restart-claude-code-sessions](skills/actions/restart-claude-code-sessions/SKILL.md) | restarts every running Claude session in place (same pane, same conversation) through `hal2-cli-agents restart --all`, e.g. after a login to another account |
 | [spec](skills/actions/spec/SKILL.md) | writes a feature's spec before its plan: a plan folder with `spec.md` and the design page, no `plan.md`, numbered with the plans (`scripts/spec.py`: `new`, `show`, `list`, `approve`); `/plan new --spec <n>` plans it later |
 | [get-open-questions](skills/actions/get-open-questions/SKILL.md) (alias q) | lists the session's open, answered or all questions in the Q form (`scripts/q.py`) |
-| [get-state](skills/actions/get-state/SKILL.md) (alias s) | opens the session's role page in the browser (`--text` the table of every worktree, the own row marked): `scripts/state.py`, `role.py`, `page.py` (`grid.py`, `table.js`, `table.css`), `serve.py`, `serve_launch.py`, `views.py`, `view_<role>.py` (farmer, foreman, goals, steward, tollman) with `ledger_sources.py`, `steward_sources.py`, `tollman_sources.py`, `state_sources.py`, `state_table.py`, `farmer_link.py` |
+| [get-state](skills/actions/get-state/SKILL.md) (alias s) | prints the farm's working-fields overview table (`--html` opens the session's role page in the browser; `--text` the table of every worktree, the own row marked): `scripts/state.py`, `overview.py`, `overview_sources.py`, `role.py`, `page.py` (`grid.py`, `table.js`, `table.css`), `serve.py`, `serve_launch.py`, `views.py`, `view_<role>.py` (farmer, foreman, goals, steward, tollman) with `ledger_sources.py`, `steward_sources.py`, `tollman_sources.py`, `state_sources.py`, `state_table.py`, `farmer_link.py` |
 | [sanity-watch](skills/actions/sanity-watch/SKILL.md) | resumes sessions that stopped abnormally |
 | [steward](skills/roles/steward/SKILL.md) | the role skill of the session in the main checkout: answer, shots, small work, hand-over to the farmer, daybook |
 | [tell](skills/actions/tell/SKILL.md) | summarizes a URL, file or topic into a note |
@@ -102,6 +102,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [git-push](skills/actions/git-push/SKILL.md) (alias gp) | commits the uncommitted files as Conventional Commits and pushes: `scripts/gp.py` (`scan`, `commit`, `ignore`, `push`) groups them by unit, never commits a secret, asks about ignore-candidates, adds the `Worktree:`/`Plan:`/`Step:` trailers and refuses a default branch that lands through the merge queue |
 | [user-acceptance-tests](skills/actions/user-acceptance-tests/SKILL.md) (alias uat) | walks a plan's UATs with the user, one check per message, and records each verdict through `hal2-cli-plans uat` (`scripts/uat.py`: `list`, `open`, `show`, `next`, `set`; no second tracker) |
 | [find-and-fix-vulnerabilities](skills/actions/find-and-fix-vulnerabilities/SKILL.md) | scans farms, images, VMs, OS updates and servers for vulnerabilities, ranks them (CISA KEV first) and writes one fix plan (`scripts/scan.py`, `collect*.py`, `report.py`, `planwriter.py`) |
+| [work-manual](skills/actions/work-manual/SKILL.md) | walks the user through the open manual items (hands-on work stored in `plans/<plan>/manual/`) of every farm, one at a time, through `hal2-cli-plans manual` (`scripts/wm.py`: `list`, `show`, `done`) |
 | [workqueue-check](skills/actions/workqueue-check/SKILL.md) | compares the work queue's numbers of a window with the window before and the benchmarks with their baseline, ranks what got slower and proposes the fix (`scripts/check.py`, `gather.py`, `findings.py`) |
 
 ## Rules

@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 HERE = Path(__file__).resolve().parent
+os.environ.setdefault("HAL2_OVERLAP", "off")  # the start paths' overlap scan (~25 s) has its own tests
 sys.path.insert(0, str(HERE))
 import checker  # noqa: E402
 import research  # noqa: E402

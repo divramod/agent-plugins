@@ -26,6 +26,7 @@ import engine
 import hold
 import leavers
 import orders
+import run_names
 import train_state
 from engine_farm import out
 from test_early_order import Train20
@@ -126,9 +127,9 @@ class Ended(Train20):
 
     def test_l106_a_fix_left_local_over_30_min_wakes_once(self):
         self.round()
-        path = self.fields["20"]
-        git(path, "fetch", "-q", "origin", self.c)
-        git(path, "switch", "-q", "-C", "20-train-fix", f"origin/{self.c}")
+        path, (branch, base) = self.fields["20"], self.order_of("20")
+        git(path, "fetch", "-q", "origin", base)
+        git(path, "switch", "-q", "-C", branch, f"origin/{base}")
         (path / "code/x/twenty.py").write_text("20, fixed")
         git(path, "commit", "-qam", "fix 20")  # never pushed: the pre-push refused it
         self.ends({"status": "gate_failed", "run": self.url, "red": [{"name": "d1-01-rust-test"}]})
@@ -141,7 +142,7 @@ class Ended(Train20):
         local = out(path, "rev-parse", "HEAD")
         self.assertEqual((wake["kind"], wake["key"]), ("fix-unpushed", f"unpushed:20-fix-1:{local}"))
         self.assertIn("HAL2_PRE_PUSH=0 git push origin", wake["text"])
-        git(path, "push", "-q", "origin", "20-train-fix")
+        git(path, "push", "-q", "origin", branch)
         self.assertEqual(orders.answers(str(self.cw), rows, [], now + dt.timedelta(minutes=31)), [], "pushed: none")
 
 
@@ -158,12 +159,13 @@ class Redundant(Orders):
         self.assertEqual((line["kind"], line["id"], line["sha"], line["redundant"]), ("fixed", "09-fix-1", head, True))
         self.assertEqual((self.train()["state"], out(self.cw, "rev-parse", "HEAD")), ("retry", head), "nothing merged")
 
-    def test_the_order_text_names_the_push_without_pre_push_and_the_whole_red_job(self):
+    def test_the_order_text_names_the_push_without_pre_push_and_only_what_was_red(self):
         self.assertEqual(self.call("order", "07", "--why", "its test fails")[0], 0)
         ((_, msg),) = self.typed
-        for part in ("HAL2_PRE_PUSH=0 git push origin 07-train-fix", "run the whole red job",
-                     "code/bash/scripts/gate/test-select.bats"):
+        for part in (f"HAL2_PRE_PUSH=0 git push origin {self.order_of('07')[0]}", "run only what was red",
+                     "never the whole gate job"):
             self.assertIn(part, msg)
+        self.assertNotIn("run the whole red job", msg, "plan 0610 D6: only what was red")
 
 
 def load_tests(loader, tests, pattern):

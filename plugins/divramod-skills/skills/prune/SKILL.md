@@ -6,13 +6,14 @@ description: Clean a farm's fields (worktrees) by script, shown as a run: idle f
 # prune
 
 `S=<skill-dir>/scripts`, `P="python3 $S/prune.py"`. The script decides and acts; this skill runs it, relays its asks
-and reports. The model never deletes a field, never decides for a foreman (D6), never edits `.hal/prune.toml` unasked.
+and reports. A field whose plan other plans still wait for (`hal2-cli-plans depends list`, a dependent not yet on main) is not free: the proof names them; an older CLI gives one advisory line on stderr. The model never deletes a field, never decides for a foreman (D6), never edits `.hal/prune.toml` unasked.
 
 | Call | Does |
 |---|---|
 | `/prune` | `hal2-cli-runs exec --workflow prune -- $P run`: the real run, a run on the run page |
 | `/prune dry` | the same with `run --dry-run`: says "would ...", changes nothing, takes no lock |
 | `/prune plan` | `$P plan`: the planned actions per job and the facts, no run, no change (`--json` for data) |
+| `$P disk [--dry-run] [--due --json]` | the disk phase alone (below): `--due` only says whether the disk is below its mark; exit 1 when a deletion failed |
 | `... --field NN` | only field NN (repeatable), for any call |
 | `/prune h`, `/prune help` | print this table and stop |
 
@@ -24,6 +25,14 @@ tool it needs is missing (`bash $S/check-prerequisites.sh` names it): report whi
 Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../../.adr/prune-order.md), guide
 [docs/prune.md](../../../../../../../docs/prune.md)):
 
+0. `disk` (plan 0514 step 7, D18; first job of every run, not in a `--field` or `--responses` run): while the disk has
+   less than `[disk] below_gb` free (default 80 GB), the `code/rust/target` of idle fields is deleted, session-less
+   fields first and the oldest build first, until `until_gb` (150 GB) are free. It is never deferred: a workqueue
+   hold or a train only keeps its own field, and it takes its own lock `disk-lock`, not the farm lock, so a long
+   run does not hold it back. Free space is the filesystem's count, read before each deletion (no `du`, no size
+   walk). A busy field (busy agent, a build or test, a workqueue job or hold of it, its landing) is kept; each
+   deletion reads its field again and asks the proof (git-ignored, no tracked file, a real folder inside the field)
+   first. A failed deletion is a row `failure` and exit 1. `prune.py disk` runs only this phase.
 1. `facts` (disk, config, per field kind, session, proof, size; the farm's own fields from `git worktree list
    --porcelain`, never a scratch worktree named like one) runs on every run. A plan
    reads the farm's facts in batches, each on first use: one `ps -A` (cleanup's `busy`), one `git for-each-ref` with
@@ -52,7 +61,7 @@ Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../
 The farmer runs `/prune run` each round through `farmer prune-round` (its ROLE.md task, a disk step first; hal2 plan 0534).
 
 1. Run the call. It prints `run <id>` first on stderr: tell the user the id and that `hal2-cli-runs show <id>` or the
-   CI Runs page shows its jobs (`facts`, `phase-1`, `stale-pointers`, `phase-2`, `phase-3`, `responses`, `report`) and a step
+   CI Runs page shows its jobs (`disk`, `facts`, `phase-1`, `stale-pointers`, `phase-2`, `phase-3`, `responses`, `report`) and a step
    `field <NN>` per action. A real run may take minutes (size walks, removals): run it in the background when the
    harness allows and say so.
 2. Read the `report` job's last lines: the table field, action, bytes, why; free space before and after; the last line
@@ -67,4 +76,5 @@ The farmer runs `/prune run` each round through `farmer prune-round` (its ROLE.m
    `/prune plan` and `/prune dry` print the script's lines as they are.
 
 The farm's thresholds, goal and `trim` paths are `.hal/prune.toml` (keys in the run contract of plan 0377); a missing
-file means the defaults. The tollman runs `/prune`'s script itself when a landed field or the disk calls for it.
+file means the defaults. The farm's `[disk] below_gb` and `until_gb` are in the same file. The tollman runs `/prune`'s script itself when a landed
+field or the disk calls for it, and starts `prune.py disk` in every round the disk is below its mark.

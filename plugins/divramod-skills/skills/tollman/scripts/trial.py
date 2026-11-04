@@ -5,7 +5,8 @@ train engine's since hal2 plan 0294 step 6).
 `merge` merges one head into another with `git merge-tree --write-tree`: nothing is checked out and no ref moves
 (the trial commit dangles until git's gc). `trains.draft` chains them in queue order onto the barn's head with what
 the tollman's field holds: a wagon whose merge is clean rides and the next is tried onto the result; one that
-conflicts is left out with its files, and the trial goes on without it. No file is soft any more: the carrier is
+conflicts rides too, with its files (`conflict`) for its resolve order, and the trial goes on without its head (plan
+0522 D18: no hitched wagon is left out); a trial that cannot run is tried again, then the car rides `untried`. No file is soft any more: the carrier is
 code, and nothing resolves a conflict for a foreman (D10), except one only in generated files, which the train
 writes again (generated.py, hal2 plan 0313 step 8).
 """

@@ -110,8 +110,8 @@ class NeutralTrain(Farm):
         self.assertNotIn("Worktree", last)
         self.assertNotIn("Plan:", last)
         self.assertTrue(last.rstrip("\n").endswith("plans/uats.md"), last)
-        self.assertEqual(sorted(merges), [f"Merge branch '07' into {self.carrier()}",
-                                          f"Merge branch '13' into {self.carrier()}"])
+        self.assertEqual(sorted(merges), [f"Merge branch '07' into {self.branch()}",
+                                          f"Merge branch '13' into {self.branch()}"])
 
     def test_off_with_a_farm_the_trailers_and_the_bodies_as_before(self):
         last, merges = self.formed(kit.FakeCli(self.tmp, OFF))

@@ -55,14 +55,14 @@ class Tables(unittest.TestCase):
 
     def test_shared_columns_in_the_three_tables(self):
         t = tables(row("01", 1, 5))
-        keys = ["wt", "plan", "steps", "done_pct", "brings", "state", "behind", "ahead", "stash", "untracked", "added",
+        keys = ["wt", "plan", "steps", "done_pct", "brings", "state", "depends_on", "dependents", "behind", "ahead", "stash", "untracked", "added",
                 "modified", "deleted"]
         self.assertEqual([c["key"] for c in t["fields"]["columns"]], keys)
         self.assertEqual(t["free"]["columns"], t["fields"]["columns"])
         self.assertEqual([c["key"] for c in t["queue"]["columns"]], ["place"] + keys)
         labels = [c["label"] for c in t["fields"]["columns"]]
         self.assertEqual(labels, ["Field", "Plan", "Steps", "Done %", "What it brings in", "State",
-                                  "↓", "↑", "s", "?", "+", "~", "-"])
+                                  "Depends on", "Dependents", "↓", "↑", "s", "?", "+", "~", "-"])
         self.assertEqual([c["key"] for c in t["fields"]["columns"] if c.get("hidden")], ["done_pct"])
         self.assertEqual({c["key"] for c in t["fields"]["columns"] if c["type"] == "num"} - {"done_pct"},
                          {"behind", "ahead", "stash", "untracked", "added", "modified", "deleted"})

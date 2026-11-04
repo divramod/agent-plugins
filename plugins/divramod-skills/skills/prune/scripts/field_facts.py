@@ -103,7 +103,7 @@ def pointer(field: dict, main: str, lookup=plan_state) -> dict | None:
     """`{plan, state}` for a field with a CURRENT_PLAN, None without; a servant's pointer is its foreman's plan and
     not part of its proof, so it is not looked at."""
     name = pointer_name(field["path"])
-    if name is None or lead_marker.marker(field["path"]) is not None:
+    if name is None or lead_marker.pointers.exists(field["path"], "LEAD"):  # a servant's: existence, no process
         return None
     return {"plan": name, "state": lookup(name, [field["path"], main])}
 

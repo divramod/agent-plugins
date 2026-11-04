@@ -138,6 +138,9 @@ def run_tick(repo: str, dry: bool, as_json: bool, handlers: dict, wiring: roles.
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            if not dry:
+                import duty_health
+                duty_health.busy(repo, wiring)  # a round that does not end defers the duties: said (plan 0514 D17)
             print("busy: another tick runs")
             return 0
         try:
@@ -212,14 +215,20 @@ def follow_cron(repo: str, wiring: roles.Wiring) -> None:
         print(f"timer: loop cron now {check['loop_cron']}")
 
 
-def run_timer(args, wiring: roles.Wiring) -> int:
+def run_timer(args, wiring: roles.Wiring, down=None) -> int:
+    """`timer install|remove|status|enable|disable`. `status --json`, `enable`, `disable` and `install --json` (not a
+    dry run) answer hal2-machine's standard installer contract (timer_standard.py; its install, given the yard as
+    `--repo`, installs the role's own field); `status --detail` is the older JSON (label, loaded, files, mode). `down`: the role's own health check for the contract's `failing`."""
     import timer
     st, name = state(args.repo, wiring), due.repo_name(args.repo)
-    if args.action == "status":
+    detail = getattr(args, "detail", False)
+    if args.action == "status" and (detail or not args.json):
         r = timer.status(name, st, wiring) | {"mode": mode(args.repo, wiring)}
         print(json.dumps(r, indent=1) if args.json else
               f"{r['label']}: {'loaded' if r['loaded'] else 'not loaded'}, cron {r.get('cron', '-')}, mode {r['mode']}")
         return 0
+    if args.action in ("status", "enable", "disable") or (args.action == "install" and args.json and not args.dry_run):
+        return run_standard(args, wiring, st, name, down)
     if args.action == "remove":
         cmds = timer.remove(name, st, args.dry_run, wiring)
     else:
@@ -235,6 +244,37 @@ def run_timer(args, wiring: roles.Wiring) -> int:
             return 2
     print("\n".join(" ".join(c) for c in cmds) if args.dry_run else f"{args.action}: mode {mode(args.repo, wiring)}")
     return 0
+
+
+def run_standard(args, wiring: roles.Wiring, st: Path, name: str, down=None) -> int:
+    """One verb of the standard installer contract: the reply on stdout (one JSON line with `--json`, else a text
+    line), exit 0, 3 not installed, 1 a refused install (never 3 or 4: they are the contract's), 2 a failed system call."""
+    import timer
+    import timer_standard
+
+    def install() -> None:
+        field = roles.slot_dir(args.repo, wiring.role)  # the machine tool names the yard: the role's own field runs it
+        repo = str(field) if field.is_dir() and not roles.is_slot(tick.toplevel(args.repo) or args.repo,
+                                                                  wiring.role) else args.repo
+        code, check = start_check(repo, wiring)
+        if code:
+            raise Refused("\n".join(f"- {x}" for x in check["problems"]))
+        timer.install(name, tick.toplevel(repo), st, check["loop_cron"], False, wiring)
+
+    try:
+        code, r = timer_standard.apply(args.action, name, st, wiring, install, down)
+    except Refused as e:
+        print(f"{wiring.cli.name}: {e}", file=sys.stderr)
+        return 1
+    except (RuntimeError, ValueError) as e:
+        print(f"{wiring.cli.name}: {e}", file=sys.stderr)
+        return 2
+    print(timer_standard.line(r) if args.json else f"{args.action}: {r['state']}: {r['message']}")
+    return code
+
+
+class Refused(RuntimeError):
+    """An install the start check refuses (no role file, not the role's field): its problems, exit 1."""
 
 
 def read_first(main: str, data: dict, wiring: roles.Wiring) -> dict:

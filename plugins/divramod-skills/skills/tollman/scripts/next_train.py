@@ -7,8 +7,10 @@ on the green merge job of the train before (minute.py) and is pretested at once;
    after the merge still running; a run of this train's own earlier start never, plan 0560 D4), the landing waits, polling every POLL seconds, at most MAX_WAIT, one line when
    the runs it waits for change. hal2-git itself waits only while a run's merge job runs (ci/ship.rs). gh failing:
    no run known, no wait. All that wait the train is open (open_train.py, plan 0490 step 20, D21, D23): each poll a
-   newly hitched clean, proven wagon joins it; once the run before has concluded as a whole its cars freeze and the
-   push starts, no join after it (D9: a join never delays the push of a train whose run before has ended).
+   newly hitched wagon joins it, and once more right before the push, also when no run before runs (plan 0610 D17,
+   E4: "take all finished ones into the train" over D9's push first); the push starts after it, no join after the
+   push. A car that joins with a conflict makes the train `resolving`: the wait ends and the push waits for the
+   resolve (open_train.stops).
 2. The post-merge fixes: each open post-merge order the train carries (train_state's `post`: a red after the merge
    of the train before, post_merge.py) whose foreman answered `done fixed <sha>` (orders.answered, the role's log)
    is checked, proven green (orders.proven, never waited for here: the round runs the proof) and merged into the
@@ -58,7 +60,9 @@ def wait(main: str, own: str | dict, sleep=time.sleep, clock=time.monotonic, joi
             lines.append(f"next train: run {ids} still runs after {MAX_WAIT // 3600} h: the landing goes on")
             print(lines[-1], flush=True)
             break
-        lines += join() if join else []
+        if (joined := join() if join else []) and not lands(main):  # a joiner's resolve: the push waits (0610 E5)
+            return lines + joined
+        lines += joined
         sleep(POLL)
     return lines
 
@@ -73,7 +77,7 @@ def merge_posts(top: str, main: str, train: dict) -> list[str]:
         code, text = orders.proven(top, main, o, sha, note, foreground=False)  # proven by the round (plan 0522 D5)
         code, text = (code, text) if code else orders.take(top, main, train, o, sha)
         lines.append(f"fix order {o['id']}: {o['field']}'s fix {sha[:12]} " +
-                     (f"stays open: {text[-200:]}" if code else f"merged into train {train['train']} ({text[:12]})"))
+                     (f"stays open: {text[:400]}" if code else f"merged into train {train['train']} ({text[:12]})"))
         print(lines[-1], flush=True)
     return lines
 
@@ -86,11 +90,18 @@ def before_push(top: str, sleep=time.sleep, clock=time.monotonic) -> list[str]:
         return []
     joins = functools.partial(open_train.take, top, main)  # the open train (plan 0490 step 20)
     lines = wait(main, train, sleep, join=joins)  # never its own earlier start's run (plan 0560 D4, L200)
-    lines += fix_wait.fixes(main, train["train"], lambda: merge_posts(top, main, current(main) or train), joins, sleep,
-                            clock)
-    return lines + merge_posts(top, main, current(main) or train)
+    if lands(main):
+        lines += fix_wait.fixes(main, train["train"], lambda: merge_posts(top, main, current(main) or train), joins,
+                                sleep, clock)
+    lines += joins() if lands(main) else []  # every wagon hitched until now, also with no run before (plan 0610 E4)
+    return lines + (merge_posts(top, main, current(main) or train) if lands(main) else [])
 
 
 def current(main: str) -> dict | None:
     """The train that stands now (a fix merged since changes its `post`)."""
     return train_state.standing(train_state.lines(main))
+
+
+def lands(main: str) -> bool:
+    """Whether the standing train still lands: a car that joined with its resolve order makes it `resolving`."""
+    return (current(main) or {}).get("state") == "landing"

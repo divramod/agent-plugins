@@ -1,12 +1,12 @@
 ---
 name: plan
-description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with the CURRENT_PLAN pointer naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /handoff c on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). A plan of schema 2 (`new --schema 2`, `convert`) is sub-plans with steps (refs `01.03`) and a generated overview. Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
+description: Lean planning for a repo — one self-contained folder per plan, plans/<NNNN>-<slug>/plan.md plus the plan's helper files (goal, context links, a step table with a done-when check, Model, Effort, Window, Size and status per step, decisions), with the CURRENT_PLAN pointer naming the active plan so the statusline shows it; a research plan (research, not implementation) gets the slug <NNNN>-research-<topic>. Create a plan, show where it stands, run it as its coordinator: the session never does a step itself, every step runs in one subagent at its row's Model, Effort and Window, sized under 35% of that window (`plan.py check`), and the coordinator's own model, effort and window persist in plan.md's `run` across a handoff and clear-and-continue. Every new plan gets one autogrill round first, then the offer: run now, another autogrill round, manual grill; once started, it runs step after step autonomously, commits after every step, when the coordinator's context window passes 35% before a new step, hands off, clears its own session and continues with /continue on its own through hal2, and when its last step is done lands itself with /mtm (`Landing: auto`, what `new` writes for an implementation plan; `manual`, every research plan's, waits for the user's /mtm or lands with the implementation plan that follows). Mark steps done, or switch plans. A parallel plan (`new --parallel`: Needs, Touches, Who) runs its independent ready steps as parallel subagents (`ready`). A plan of schema 2 (`new --schema 2`, `convert`) is sub-plans with steps (refs `01.03`) and a generated overview. Execution uses the agent's built-ins (subagents, /goal), not plan machinery. Use when the user wants to plan a feature, asks what's next on the plan, or finishes a step. `/plan h` shows help.
 ---
 
 # plan
 
 One folder per plan, `plans/<NNNN>-<slug>/`: `plan.md` plus any helper file that belongs to the plan (scripts,
-notes, data), so the folder is self-contained; no phase folders, no state files, no gap sub-plans. The plan says *what* and
+notes, data), so the folder is self-contained; no phase folders, no state files. The plan says *what* and
 *in which order*; each step is detailed only when it is next. `S=<skill-dir>/scripts`; every command prints the
 plan as JSON (`slug`, `path`, `research`, `grilled`, `done`, `total`, `next`, `landing`, `land`, `problems`, `steps`).
 
@@ -16,7 +16,7 @@ into a linked `design.md`), written from the plan's seed before any step; the Co
 Ask questions by the global question rule (background first; ~/.claude/CLAUDE.md), recommended option first. A question is listed to the user only on `/q` or when the plan cannot continue without the answer; otherwise it is
 recorded in `questions.md` and the run goes on (the user, 2026-10-13: "they should only list questions, when they cannot continue"), by `hal2-cli-plans questions add "<q>" --option <a> --option <b> --option <c>` and `questions answer <n> "<answer>"`; `plan.py check` reports an open agent question not in the Q form (`questions-q-form`; advisory without the CLI).
 
-**the `CURRENT_PLAN` pointer names what the worktree works on**, so the statusline shows it: `new` and `use` write the
+A gap is `hal2-cli-plans gaps add`, a hands-on step `manual add` ([gaps-manual](references/gaps-manual.md)); a wait on another plan is `hal2-cli-plans depends add <NNNN> --until pushed|main`, checked by `plan.py check` ([dependencies](references/dependencies.md)). **the `CURRENT_PLAN` pointer names what the worktree works on**, so the statusline shows it: `new` and `use` write the
 plan's slug into it. Other work writes it too (a shot `<shotfile>/<n>/<title-slug>`, a task name); then `current`
 fails with "not a plan": list the plans and ask, as in Status. Per-worktree state, never staged or committed: in
 a store-home farm it lives in the checkout's git dir (`hal/`), in the files home in `plans/` (gitignored). After a landing `/mtm` runs `plan.py leave`: it then names the plan's unfinished masterplan or is deleted (also for a plan still in state `spec`, a spec brought in for later).
@@ -80,11 +80,11 @@ manual` (`new --manual-landing`, every research plan, `plan.py landing manual`, 
 
 - no step lands, merges to the default branch or asks for `/mtm` (no "one part per landing"): work that should land
   on its own is a plan of its own;
-- a step whose done-when needs the landed default branch (its install or deploy, a check of the installed binary)
-  starts its done-when with **"after the landing: ..."** (`after_landing` in the JSON) and comes after every other
-  step. `/mtm` finishes it while it still holds the merge queue and lands it too (its step "Finish the plan and
-  land it"), never as a commit of its own after the landing, which would stay on the worktree branch. `problems`
-  names after-landing steps that other steps follow: move them to the end.
+- no step is checked after the landing (hal2 plan 0514 D9, rule `plan-no-after-landing`): a check that needs the
+  landed default branch (an install, a deploy, a CI job of the land run) is a check of `uat.md`, `Auto: yes` when
+  code can run it (`hal2-cli-plans uat auto <NNNN>`), else the user's; `plan.py check` fails an open step whose
+  done-when starts "after the landing". A plan lands once: new work after the landing is a follow-up plan, and a
+  hitched plan is frozen (`plan.py status`/`step add` refuse it; D10).
 
 `land` in the JSON says what the plan's end does: `ready` (auto, no open step before the landing: land now), `wait`
 (auto, steps before the landing still open), `manual` or `none` (a global plan). `next` is the first open step that runs before the landing.
@@ -161,6 +161,8 @@ read it before working on a plan of schema 2; a farm whose plans live in its sto
 | `/plan next` | `/plan n` | [run the plan](#run-the-plan) from its next step to the end, offering `/grill-plan` first |
 | `/plan start` | | the user's go: hand off, [restart this session](#model-effort-and-window-per-step) at the plan's `run` (model, effort, window) through `hal2-cli-agents switch`, which coordinates the plan to its landing without a question |
 | `/plan done [<step>]` | `/plan d [<step>]` | [finish a step](#finish-a-step) after its check passes |
+| `/plan lesson` | | `python3 $S/plan.py lesson add <class> <text> [--plan <NNNN>]` writes a lesson into `references/lessons.md`; `lesson list [--json]` prints them (grill-plan's Auto round reads them) |
+| `/plan end` | | `python3 $S/plan.py end [--dry-run] [--json]`: [the plan's end](#land-the-plan) as code: push (run state `pushing`), then hitch (`hitched`) or name `/mtm` (`done`); a failed push or hitch is `blocked` with why |
 | `/plan prompt <n>` | | `python3 $S/plan.py prompt <n> [--part <k>] [--effort <e>] [--model <m>]`: the Agent call that runs step `<n>` in one subagent ([Run the plan](#run-the-plan)) |
 | `/plan run --sync\|--check` | | `python3 $S/plan.py run --sync`: write the session's live model, effort and window into `run`; `--check`: compare them, write nothing |
 | `/plan convert <plan>... \| --all [--dry-run]`, `/plan migrate` | | `python3 $S/plan.py convert`: an old plan into schema 2 (hal2 plan 0376 design §7: sub-plan `01-<slug>`, `99-uat` from uat.md, put back when its check fails; skips masterplans and plans a field holds; `-g`: after a tar backup); `migrate`: a running schema 1 plan gets Window and Size ([`plan-steps-sized`](#model-effort-and-window-per-step)) |
@@ -210,8 +212,9 @@ names the design id (`login/gui/v2`) in its Task, and the UAT step checks that t
    python3 $S/plan.py new --spec <n>                             # plan a spec in place: steps added, Brief re-seeded
    python3 $S/plan.py new "<title>" --schema 2                  # the one plan shape (default schema 1 until plan 0409)
    ```
-   With `--seed` the seed's words are the start of the Goal and Brief and the seed is marked sent with the plan;
-   a seed it cannot mark (`seed.marked` false, with the reason) never stops the plan.
+   With `--seed` the seed's words start the Goal and Brief and the seed is marked sent; one it cannot mark never
+   stops the plan. `new` runs `hal2-cli-plans overlap` (plan 0593 D16; hits in `overlap.json`, Context, stderr; none:
+   "overlap unchecked"): **settle each hit before the Brief** (build on, wait for, merge into) as a ledger entry with a link; a tie goes to the farmer.
 4. **Write the Brief before any step** (sprout the seed into it): `In`, `Out`, `Must` (what must hold at the
    end) and `Proof` (how it is shown), about ten lines. Write it **without asking** when the seed or the brief
    the session was given already says what is in, what is out and how it is proven; otherwise ask **one round**
@@ -222,7 +225,7 @@ names the design id (`login/gui/v2`) in its Task, and the UAT step checks that t
    its Model, Effort, Window and Size by the [rubric](#model-effort-and-window-per-step)), first step `next`
    (`plan.py status 1 next` writes its `steps/1.md`), the rest empty. A research
    plan's steps end in its research doc (e.g. question and criteria, sources, compare, write `research.md`, record
-   the decision). No step lands; steps checked after the landing come last ("after the landing: ..."). The plan
+   the decision). No step lands and none is checked after the landing (a check that needs the landed branch goes into `uat.md`). The plan
    lands itself at its end (`landing: auto`); when the user wants to land it themselves, `plan.py landing manual`.
    Write the front matter's `description` (one sentence, at most 200 characters: what the plan delivers; `new`
    takes the goal's first sentence) and record the decisions taken so far as entries of `decisions.md`.
@@ -283,7 +286,7 @@ next autogrill estimates it) and writes the three-word `run`.
 **`run` is the coordinator's own** model, effort and window, `run: <model> <effort> <window>` in the front matter (a
 legacy plan: the `Run:` line). `plan.py new` writes the session's live values, `plan.py run --sync` keeps them
 current (at every step boundary and before every `/handoff`), `plan.py run --check` compares them with the session
-and writes nothing. Only three things restart the session at `run`: `/plan start`, a drift `/handoff c` finds (the
+and writes nothing. Only three things restart the session at `run`: `/plan start`, a drift `/continue` finds (the
 handoff skill) and the clear-and-continue, which passes `--effort` from `run` ([Finish a step](#finish-a-step)).
 
 - **The user's defaults never change** (the user, 2026-10-09: "new sessions should always set the effort level to
@@ -291,9 +294,9 @@ handoff skill) and the clear-and-continue, which passes `--effort` from `run` ([
   it as the default every new session starts on); hal2 restarts the session with process-only flags instead.
 - **`/plan start`** is the user's go for the current plan: no grill offer, no question; write the handoff, then
   ```bash
-  hal2-cli-agents switch --model <run's model> --effort <run's effort> --prompt "/handoff c" --detach --json
+  hal2-cli-agents switch --model <run's model> --effort <run's effort> --prompt "/continue" --detach --json
   ```
-  and end the turn with one line ("restarting at <m> <e>, continuing with /handoff c"). hal2 waits for the turn's
+  and end the turn with one line ("restarting at <m> <e>, continuing with /continue"). hal2 waits for the turn's
   end, stops the session by signal and starts it again in the same pane with those flags and the prompt: a fresh
   coordinator that runs the plan to its end and its landing. When `switch` cannot start (no hal2, not in a pane), go on in this session and say so.
 - **A step that fails its done-when** escalates: first the failure goes to the same subagent once (SendMessage: the
@@ -368,7 +371,9 @@ no approval, no plan mode and no per-step grill offer until the plan's end. What
    6. [Finish the step](#finish-a-step): table, notes, commit, `run --sync`, context check. Stop when the context
       check says so, otherwise go on with the next step.
 3. When no step before the landing is left (`land` is `ready`, `manual` or `none`), the plan's end:
-   - `ready`: [land the plan](#land-the-plan) now, in this run: no question, no context check, no handoff.
+   - `ready`: [land the plan](#land-the-plan) now, in this run, with `python3 $S/plan.py end`: no question, no
+     context check, no hand-off before it (the end is a plan script and git, which hal2's guard passes above
+     the threshold; fields 09, 23 and 29 of hal2 plan 0514 lost their push to a hand-off and a silent hook).
    - `manual`: say the plan is done and that the user's `/mtm` (or, for a research plan, the implementation plan
      after it) lands it; never start `/mtm` yourself and ask nothing.
    - `none` (a global plan): say it is done.
@@ -393,8 +398,7 @@ this, before it ends the turn:
    change in a worktree the landing locks.
 4. Only when nothing is left, wait, and say in one line per step why it could not start.
 
-**Milestones** (a row "Milestone n: land ..." that touches `@land`) land a plan too big to land once in parts; only the plan's last landing
-is the plan's own ([Land the plan](#land-the-plan)); the rule: [references/parallel-plans.md](references/parallel-plans.md#milestones).
+**Milestones** (rows `Milestone <n>: <what lands>`, any plan; `plan.py milestone --after <id>` adds one; `hitch` in `plan.py current --json` decides what `/mtm` may hitch): [references/parallel-plans.md](references/parallel-plans.md#milestones).
 
 ## Masterplans
 
@@ -406,40 +410,34 @@ working on a masterplan.
 
 ## Work as a servant
 
-A servant's field (30 to 99) holds its foreman's marker `plans/LEAD`, `<foreman's field> <plan> <step>` (a whole plan
-of a masterplan: `<field> <the masterplan> <its row>`, `CURRENT_PLAN` naming the masterplan; in schema 2 a whole
-sub-plan: `<field> <plan> <NN-slug>`, CURRENT_PLAN the plan); it never deletes it.
-It does its steps, each in a hand (`plan.py prompt <n> --plan <its plan>`), commits them, writes their Notes and
-reports; the foreman merges, checks, marks them (`status <n> done --plan <its plan>`) and brings them in. It never
-edits `plan.md`, marks a step or lands: `plan.py`, mtm's guard and hal2's merge queue refuse it. Once a servant's step
-is in the foreman's branch, the foreman stops it and removes its field and branch at once (`hal2-cli-git worktree
-remove <NN> --remote --stop`, which refuses unsaved work; never 00-09; plan 0360 D78, the
-[foreman](../foreman/SKILL.md)'s duty `remove-servant-fields`).
+A servant's field (30 to 99) holds its foreman's marker `plans/LEAD` (`<field> <plan> <steps>`, steps a comma list
+or a schema 2 `<NN-slug>`), written only by `hal2-cli-plans servant assign <field> --plan <p> --steps <list>`, also
+to give a running servant more steps (`create.py --lead` calls it); never by hand.
+It does its steps in hands (`plan.py prompt <n> --plan <its plan>`), marks a schema 1 step by `hal2-cli-plans
+servant status <n> "in progress"|done`, commits, writes each step's `## Notes` (its memory, merged with its branch)
+and reports; the foreman merges, checks, marks them done and brings them in. It never edits `plan.md`, marks
+another step or lands: `plan.py`, mtm's guard and the merge queue refuse it. Right after the merge the foreman
+runs `hal2-cli-plans servant finish <field> --yes`: steps done, branch merged, Notes written, then it removes the field (refuses unsaved work; never 00-09; the [foreman](../foreman/SKILL.md)'s duty
+`remove-servant-fields`). State: `servant show [<field>] --json`.
 
 A servant of a schema 2 sub-plan takes the whole sub-plan and marks its own steps: [references/one-plan-shape.md](references/one-plan-shape.md#a-servant-of-a-sub-plan).
 
 ## Land the plan
 
 The last step of an auto plan is done (`land: ready`). This is the only time the plan skill starts a landing, and
-only for the plan the user started (also in a session continued with `/handoff c`); never before its last step,
+only for the plan the user started (also in a session continued with `/continue`); never before its last step,
 never for another worktree or session, never again after a landing ended with exit 13 (5 before hal2 plan 0318) `stopped` or `cancelled` by the user (one your own shell tool's
 time limit ended, or exit 13 `interrupted`, its process gone and not the user, is rerun at once: the mtm skill's steps 1 and 4).
 
-1. Check you can land: a worktree on its own branch (in the main checkout or on the default branch there is nothing
-   to land: say so and stop), `problems` empty (else move the after-landing steps to the end, commit, check again).
-2. Commit and sort before the queue is reserved: everything the plan changed is committed (each step committed
-   already); untracked files are junk (gitignore), secrets (gitignore, never commit) or the plan's work (commit);
-   what stays unclear is left untracked, no question, and named in the report.
-3. Run the [mtm](../merge-to-main/SKILL.md) skill from its step 1, as a plan's landing: it lands the work, finishes the
-   after-landing steps, runs `plan.py leave` and reports what landed. Fix and rerun as it says while it holds the queue.
-   Where mtm would ask the user (the attempts limit, a cause you cannot fix), a plan's landing asks nothing: push a
-   notification (`PushNotification`, e.g. "plan 0063: landing holds the merge queue, needs you") and stop with the
-   report; the failed landing keeps holding the queue until the user acts. A successful landing only reports. In a
-   repository with a working, awake tollman (mtm's `scripts/tollman.sh` prints `yes`; `no` while it is asleep: then the plan lands itself), its check before step 1) this
-   `/mtm` hitches instead of landing: the work is reported ready, the session ends its turn, and the plan's end (the
-   after-landing steps, `CURRENT_PLAN` cleared, the report) waits for the tollman's "in the barn". When the
-   worktree's mode is smuggle (`hal2-cli-git worktree queue mode --slot <worktree>` prints `smuggle`: its entry's own
-   mode, else the merge queue's) this `/mtm` smuggles instead (mtm's "Smuggle mode", hal2 plan 0360 D75, D76; 0365 D5): the plan's landing runs the smuggle skill's flow, asking nothing.
+The end is one call, as code (hal2 plan 0514 D5), never a hand-off first: `python3 $S/plan.py end --json`, run in
+the background with a long timeout (the pre-push hook can take 10-50 min). It refuses an open step, a dirty tree
+(commit, then again), a servant's field; pushes as run state `pushing`; then by its `action`
+([references/plan-end.md](references/plan-end.md) has each case): `hitched`: report `hitched: field <NN> rides the
+next train` and end the turn, the rest waits for the tollman's "in the barn" (mtm's after-barn path); `mtm` or
+`smuggle`: run the [mtm](../merge-to-main/SKILL.md) skill from its step 1 as the plan's landing (above the
+threshold: hand off with Next `/mtm` first); `blocked`: fix what its `why` names, commit, `plan.py end` again, else
+push a notification naming the plan and stop. Where mtm would ask the user, a plan's landing asks nothing: push a
+notification and stop with the report; a failed landing keeps holding the queue until the user acts.
 
 ## Finish a step
 
@@ -471,14 +469,15 @@ The coordinator finishes each step its subagent reported:
    ```bash
    python3 $S/context.py            # threshold: hal2's agents.toml [autoclear] step_tokens (a step boundary clears earlier than the guard's ceiling), else its ceiling (tokens/percent), else 35; percent as the statusline shows it
    ```
-   - No step is left that you run now (this was the last step, or only steps checked after the landing remain) and
+   - No step is left that you run now (this was the last step) and
      nothing is left to do after it (a `manual` plan that waits for the user's `/mtm`, a plan that has landed): skip
      the check and never hand off or clear there: its report stays on screen.
    - `stop` is false: continue with the next step, or with the plan's end ("Run the plan" point 3). A `drift`
-     (the session's model or effort is not `run`'s) is fixed at the next `/handoff c`, never by a typed `/model`.
-   - `stop` is true: stop the plan here and hand off. Also before an auto plan's landing (hal2 plan 0181: hal2's
-     guard stops the `/mtm` that would start a landing above the threshold): the handoff's Next is then `/mtm` (the
-     plan's own landing, "Land the plan"), and the continued session lands with a fresh context.
+     (the session's model or effort is not `run`'s) is fixed at the next `/continue`, never by a typed `/model`.
+   - `stop` is true and a step before the landing is left: stop the plan here and hand off. When none is left
+     (`land: ready`), never hand off first: run `plan.py end` ([Land the plan](#land-the-plan)); the guard passes it
+     and the hitch needs no fresh context. Only when it names `/mtm` (a landing of the session's own, which hal2's
+     guard stops above the threshold, hal2 plan 0181) hand off with Next `/mtm`, and the continued session lands.
      1. Stop your background work (TaskStop every background shell, subagent, workflow and monitor you started):
         after a clear their notifications would wake the fresh session. Note in the handoff what was stopped and
         must be rerun. **Never a landing or a waiting reserve** (`hal2-cli-git worktree merge-to-main|reserve`): it
@@ -487,7 +486,7 @@ The coordinator finishes each step its subagent reported:
         with the plan's next step and commits them).
      3. `autoclear` is true: start the automatic clear-and-continue with `run`'s effort (hal2 would type its
         `[autoclear] effort` otherwise), then end your turn with one line saying the session clears and continues
-        with `/handoff c`; do nothing after it (the clear waits for your turn to end, waits out a draft the user
+        with `/continue`; do nothing after it (the clear waits for your turn to end, waits out a draft the user
         types, and never types into a non-empty prompt):
         ```bash
         hal2-cli-agents clear-and-continue --effort <run's effort> --detach --json    # pane from $TMUX_PANE or $HAL2_TERMINAL, session from $CLAUDE_CODE_SESSION_ID
@@ -499,6 +498,6 @@ The coordinator finishes each step its subagent reported:
      points 1-2 (only the hand-off's tools run now; name in the handoff what was cut off), then end your turn: the
      job is already waiting, so skip point 3.
      4. `autoclear` is false (its `autoclear_reason` says why: disabled, not Claude Code, neither in tmux nor a hal2 terminal, no hal2):
-        tell the user to run `/clear` and then `/handoff c` to continue.
+        tell the user to run `/clear` and then `/continue` to continue.
    - `known` is false (not Claude Code, no transcript): judge the fill level yourself and say so; when in doubt,
      stop and hand off as above.

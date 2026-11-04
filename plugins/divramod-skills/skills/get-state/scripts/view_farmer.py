@@ -6,23 +6,28 @@ worktrees), pure: reads `state.collect`'s dict only, no IO, no model call.
   groups of `group_of`), sorted by done percentage, highest first.
 - `free`: the fields with no plan at all, by field number.
 
-All three share one column set (`COLUMNS`): Field | Plan | Steps | Done % (hidden) | What it brings in | State | ↓ ↑ s ?
-+ ~ - (the statusline's numbers, empty when unknown). `table(data, id)` builds one table, so a server can serve
+All three share one column set (`COLUMNS`): Field | Plan | Steps | Done % (hidden) | What it brings in | State | Depends on |
+Dependents | ↓ ↑ s ? + ~ - (the statusline's numbers, empty when unknown). Depends on / Dependents: `0514 (38, pushed)` (plan,
+field, state; plan 0595 step 9); State says `waits for 0514 (open)` while an open dependency holds the plan's next step. `table(data, id)` builds one table, so a server can serve
 `/table/<id>`; a new table is one builder in `TABLES` and its id in `TABLE_IDS`.
 """
 
 import ledger_sources
+import state_run
 import state_table
 
 DEFAULTS = {"plan": "", "plan_number": None, "plan_name": None, "steps_done": None, "steps_total": None,
-            "done_pct": None, "git": None, "agent": None, "queue": None, "waits": [], "own": False, "description": None}
+            "done_pct": None, "git": None, "agent": None, "run_state": None, "wq_wait": None, "queue": None, "waits": [], "own": False, "description": None,
+            "depends_on": [], "dependents": [], "depends_wait": ""}
 NUMBERS = [("behind", "↓"), ("ahead", "↑"), ("stash", "s"), ("untracked", "?"), ("added", "+"), ("modified", "~"),
            ("deleted", "-")]
 COLUMNS = ([{"key": "wt", "label": "Field", "type": "text"}, {"key": "plan", "label": "Plan", "type": "text"},
             {"key": "steps", "label": "Steps", "type": "text"},
             {"key": "done_pct", "label": "Done %", "type": "num", "hidden": True},
             {"key": "brings", "label": "What it brings in", "type": "text"},
-            {"key": "state", "label": "State", "type": "text"}]
+            {"key": "state", "label": "State", "type": "text"},
+            {"key": "depends_on", "label": "Depends on", "type": "text"},
+            {"key": "dependents", "label": "Dependents", "type": "text"}]
            + [{"key": k, "label": label, "type": "num"} for k, label in NUMBERS])
 GROUP_FILTERS = [("done", "Done"), ("one", "One step left"), ("nearly", "Nearly done"), ("rest", "The rest")]
 TABLE_IDS = ["queue", "jobs", "fields", "free", "questions", "decisions"]
@@ -49,6 +54,9 @@ def group_of(row: dict) -> str:
 def state_cell(row: dict, smuggle: bool) -> str:
     out = [state_table.paused_phrase(row["paused"])] if row.get("paused") else []
     out += {"busy": ["busy"], "idle": ["idle"], "none": ["no session"]}.get(row["agent"], [])
+    out += [p] if (p := state_run.phrase(row)) else []
+    if row.get("depends_wait"):
+        out.append(row["depends_wait"])
     q = row["queue"]
     if q:
         out.append("holds the merge queue" if q["holds"] else f"queue {q['position']}")
@@ -77,6 +85,7 @@ def cells(row: dict, smuggle: bool) -> dict:
     git = row["git"] or {}
     return {"wt": row["wt"], "plan": state_table.plan_cell(row) if row["plan"] else "", "steps": state_table.steps_cell(row),
             "done_pct": row["done_pct"], "brings": row.get("description") or "", "state": state_cell(row, smuggle),
+            "depends_on": state_table.depends_cell(row.get("depends_on")), "dependents": state_table.depends_cell(row.get("dependents")),
             **{k: git.get(k) for k, _ in NUMBERS}, "group": group_of(row), "_marked": bool(row.get("own"))}
 
 

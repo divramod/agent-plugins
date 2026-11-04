@@ -1,8 +1,7 @@
 """The farmer skill's helpers, imported from the sibling folder `../../farmer/scripts` by path (hal2 plan 0268, D16).
 
 Each module is optional: without the farmer skill the module is None and the facts it gives are left out (the log's
-asks and acks), while the few git facts the table cannot do without (the main checkout, the worktrees, the plans/LEAD
-marker) have a small fallback here. Appended to sys.path, so the skill's own module names win.
+asks and acks), while the few git facts the table cannot do without (the main checkout, the worktrees) have a small fallback here. Appended to sys.path, so the skill's own module names win.
 """
 
 import importlib
@@ -12,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import pointers as _pointers, sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
+import servant_state  # noqa: E402  (the one reader of a servant's state, plan 0594)
 try:
     FARMER = sibling("farmer") / "scripts"
 except FileNotFoundError:  # the farmer skill is optional here
@@ -29,8 +29,18 @@ def load(name: str):
         return None
 
 
-mtm_scan, acks, logstate, roles, lead_marker = (load(n) for n in ("mtm_scan", "acks", "logstate", "roles", "lead_marker"))
+mtm_scan, acks, logstate, roles, live_sessions, depends_view = (
+    load(n) for n in ("mtm_scan", "acks", "logstate", "roles", "live_sessions", "depends_view"))
 BUSY = mtm_scan.BUSY if mtm_scan else BUSY
+
+
+def is_busy(agent: dict) -> bool:
+    """A session is busy when it works, starts, is blocked on a prompt or has live background work (hal2 plan 0514 D7):
+    the farmer's `live_sessions.is_busy`, so `/s` and the farmer's foreman scan count alike; without the farmer skill only
+    the agent's own state (no background tasks known)."""
+    if live_sessions:
+        return live_sessions.is_busy(agent)
+    return agent.get("state") in BUSY | {"blocked"}
 
 
 def run(args: list[str], cwd: str | Path) -> str:
@@ -74,11 +84,13 @@ def _no_sessions(agents: list[dict]) -> dict[str, dict]:
 agents_by_checkout = mtm_scan.agents_by_checkout if mtm_scan else _no_sessions
 
 
+def servant_of(path: str | Path) -> dict | None:
+    """The `servant` object of the worktree (`hal2-cli-plans servant show --json`, via the shared `servant_state`), None
+    for a field that is no servant's or when the CLI gives none. Only a field holding a LEAD pointer is asked."""
+    return servant_state.of(path) if _pointers(__file__).exists(path, "LEAD") else None
+
+
 def foreman_of(path: str | Path) -> str | None:
-    """The worktree named by the worktree's LEAD marker (`<foreman-slot> <plan> <step>`; the git dir's, else plans/),
-    None without a usable marker."""
-    if lead_marker:
-        m = lead_marker.marker(path)
-        return m.get("slot") if m and not m.get("bad") else None
-    parts = _pointers(__file__).read(path, "LEAD").split()
-    return parts[0] if len(parts) >= 3 and len(parts[0]) == 2 and parts[0].isdigit() else None
+    """The foreman's worktree of the servant in `path`, None otherwise."""
+    found = servant_of(path)
+    return str(found["foreman"]) if found else None

@@ -2,7 +2,9 @@
 the plan carried out, one field at a time, as workflow commands `hal2-cli-runs exec` turns into the run's jobs and
 steps.
 
-Under the farm lock (D14; a second run prints "already running: ..." and exits 0): `facts` (collect, the half-removed
+First, outside the farm lock, the disk phase (disk_phase.py, plan 0514 D18: idle fields' Rust build folders while the
+disk is low, never deferred by a hold or another run; not in a `--field` or `--responses` run). Then under the farm
+lock (D14; a second run prints "already running: ..." and exits 0): `facts` (collect, the half-removed
 fields), `phase-1` (the half-removed first, halfway.py, then the free fields), `stale-pointers` (each cleared, the field
 re-collected; one the clear made free gets its phase-1 action as the next step: hal2 plan 0534 D13, removals first),
 `phase-2` and `phase-3` (only while the disk is short when they start, then on to the goal, the disk read before each
@@ -24,6 +26,7 @@ import prune_act
 import prune_proof
 import responses
 import busy
+import disk_phase
 import sizes
 import store
 from executor_out import PAST, Out, summary, why_not  # noqa: F401  (re-exported)
@@ -34,10 +37,11 @@ def free_bytes(main: str) -> int:
 
 
 class Run:
-    def __init__(self, main: str, only: set[str] | None, dry: bool, out: Out, responses_only: bool = False):
+    def __init__(self, main: str, only: set[str] | None, dry: bool, out: Out, responses_only: bool = False,
+                 rows: list[dict] | None = None):
         self.main, self.only, self.dry, self.out = main, only, dry, out
         self.responses_only = responses_only  # just the watermark's responses (the tollman's start with --responses)
-        self.rows: list[dict] = []
+        self.rows: list[dict] = list(rows or [])  # the disk phase's, which ran before
         self.asks: list[dict] = []
         self.gone: set[str] = set()  # removed, half-removed or left: no later action on them
         self.trimming = False  # phase 2 or 3 started: they go on until the goal (D15)
@@ -281,11 +285,12 @@ class Run:
 
 def run(main: str, only: set[str] | None, dry: bool, out: Out | None = None, responses_only: bool = False) -> int:
     out = out or Out()
+    first = [] if only is not None or responses_only else disk_phase.run(main, dry, out)
     if dry:
-        return Run(main, only, dry, out, responses_only).all()
+        return Run(main, only, dry, out, responses_only, first).all()
     try:
         with store.farm_lock(main):
-            return Run(main, only, dry, out, responses_only).all()
+            return Run(main, only, dry, out, responses_only, first).all()
     except store.Locked as e:
         out.line(f"already running: {e}")
-        return 0
+        return 1 if any(r["status"] == "failure" for r in first) else 0

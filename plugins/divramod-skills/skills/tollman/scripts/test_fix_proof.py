@@ -65,6 +65,23 @@ class Verdict(Case):
         self.assertIn("carries no `gate: <job> green at", self.verdict(jobs=[])[1])
         self.assertEqual(self.verdict(f"fixed: gate: ts-test green at {'a' * 9}", jobs=[]), ("ok", ""))
 
+    def test_the_red_check_s_own_green_proves_it_never_the_whole_job(self):
+        """Plan 0610 D6 (the user: "only what was red"): the failing check's own green line is the proof; the ask
+        names the smallest form and never the whole gate job."""
+        sha = "a" * 12
+        self.assertNotIn("gate/main.sh", self.verdict()[1], "never the whole job asked")
+        self.assertIn(f"green: <that check> at {sha}", self.verdict()[1])
+        test = f"done fixed {sha}: green: cargo nextest run -p hal2-git -E 'test(queue_ready)' at {sha}"
+        self.assertEqual(self.verdict(test)[0], "start", "a check naming no job proves the heavy job; then the light")
+        self.assertEqual(self.verdict(f"green: rust-test hal2_git::queue::ready at {sha}")[0], "start")
+        self.assertIn("no proof for rust-test", self.verdict(f"green: stack-test boot at {sha}",
+                                                            jobs=["rust-test", "stack-test"])[1],
+                      "a check naming another heavy job proves only that one")
+        self.assertIn("no proof for rust-test", self.verdict(f"green: the build at {'b' * 12}")[1], "another commit")
+        self.assertEqual(self.verdict(f"green: the build at {sha}", jobs=[]), ("ok", ""))
+        self.assertTrue(fix_proof.has_line(test) and fix_proof.has_line(f"gate: x green at {sha}"))
+        self.assertFalse(fix_proof.has_line(f"done fixed {sha}"))
+
     def test_the_light_proof_s_result_decides(self):
         line, light = f"gate: rust-test green at {self.SHA}", {"jobs": ["python-lint"]}
         self.assertEqual(self.verdict(line)[0], "start", "no result yet")

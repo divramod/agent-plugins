@@ -6,19 +6,22 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              tollman's field before), `worktree` (its path); `train` (its name, `<car>+<car>@<at>`), `cars`
              ([{field, branch, head, plan}] in the order they are merged), `base` (the field's head before them);
              `pushed` when the carrier's remote branch still held an earlier train and went back on the base, or why
-             it did not (plan 0313 step 14)
+             it did not (plan 0313 step 14); `alone_next`: the alone cars that ride alone in the next train, ahead of
+             every later hitch (trains.owed, plan 0610 D15)
   yard       the yard's work rides as the train's first car (yard.py, step 8): `commit` (in the field; none
              when the barn holds every file as it is), `files` ([{path, hash}]: the hash of what each path
              carried, none for a deletion)
   regenerated  a car's conflicts in generated files took the barn's side (generated.py, plan 0313 step 8):
              `commit` (the train's last, none when nothing differed), `files` (the paths written again), `why`
-  joined     a newly hitched wagon joined the formed train before its push (open_train.py, plan 0490 step 20): `cars`
-             (the one car, as `formed` names them; it counts from then on), `base` and `commit` (the carrier's head
-             before and after it), the pretest of the car's jobs (`result`, `seconds`, `jobs`, `why`)
-  declined   a join undone (open_train.decline): `field`, `head` (never joins this train again), `why`
+  joined     a wagon joined the standing train before its push (open_train.py, train_join.py; plan 0610 D17): `cars`
+             (one car; a riding field's newer head takes its car's place, E10), `base`, `commit`, `merged` (false: the
+             next start merges it), its jobs' pretest (`result`, `seconds`, `jobs`, `why`), `mark` (a refusal)
+  declined   a join undone, before plan 0610 (E6: none now): `field`, `head`, `why`
   resolving  a car whose merge conflicts rides on (plan 0522 D18, resolve.py): `field`, `head`, `files`, `ahead` (the
-             cars merged before it, [] the barn), `base` (the carrier's head), `id`, `branch` (`<NN>-train-resolve`),
-             `unpublished` (why the base is not on origin); the train `resolving` until its `resolved` line
+             cars merged before it, [] the barn), `base` (the carrier's head), `id`, `branch`
+             (`<NN>-train-<n>-<a>-resolve`),
+             `ref` (the remote branch it starts from, `train-<n>-<a>`), `unpublished` (why the base is not on
+             origin); the train `resolving` until its `resolved` line
   resolved   the car's foreman resolved it on the train's branch: `field`, `id`, `sha`, `commit`; the train `formed`
   pretest    the train's pretest before its landing (pretest_train.py, plan 0349 D75): `seconds`, `result`
              (green, red, incomplete, skipped, none), `jobs` ([{job, key, state, seconds, result, why}]: state
@@ -27,6 +30,13 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   started    the landing's process: `pid`, `log`, `land_ref` (the train's own branch, landed on `land/<land_ref>`:
              `train-<number>-<start>`, the mark's `--train/--attempt`, plan 0398; `train-<plan>-...` before it); written again by every restart; after a `retry` also
              `commit`, the empty commit that gives the landing a new candidate and so a fresh run (plan 0313 step 13)
+  roles      the role cars (role_cars.py, plan 0610 D18), once per train right before its first push: `merged`
+             ([{field, head}]: the tollman's and the farmer's branches merged as the train's last cars), `out`
+             ([{field, head, why, times}]: one that did not merge, owed: it rides the next train first, D24); with
+             `place: first` an owed car merged at the forming (or a stopped train's retry); `stop` ({field, head,
+             why}): left out a second time in a row, the train `stopped` until that car merges
+  alone      an alone car (gate_car.py) hitched while the train stood (open_train.owe, plan 0610 D15): `field`, `head`,
+             `why`; it rides alone in the very next train, as the `formed` line's `alone_next` (trains.owed)
   push       the landing's push (engine.land, plan 0560 step 3, D5): `head`, the carrier's HEAD it lands, after the wait and
              the post-merge fixes (head_guard.py: never pushed again once its run is red)
   run        the landing's land run, found by watch.py while it lands (plan 0360 step 5): `run` (its address); the
@@ -35,7 +45,8 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   red        the landing did not land: `status` (the landing's), `run` (the land run's address), `why`; `head` when this
              start pushed (its `push` line's): the head of a red run
   order      a fix order (orders.py, plan 0360 step 6, D6, D29): `field` (a car's, or `main`: the tollman's own),
-             `branch` (`<NN>-train-fix`, `tollman-train-fix`), `base` (the carrier's head it branches from), `why`,
+             `branch` (`<NN>-train-<n>-<a>-fix`, `tollman-train-<n>-<a>-fix`; a train without a number or none:
+             `<NN>-train-fix`, `tollman-train-fix`; run_names.py), `base` (the carrier's head it branches from), `why`,
              `run`, `id`, `jobs` (the gate jobs its fix must turn green: fix_proof.py, plan 0522 D5); open until its
              `fixed` line; one with `also` (an open early order's id) adds its `jobs` and `why` to that order, a
              car's next red job while the run runs (plan 0522 D16). One written while the train lands is *early*
@@ -66,15 +77,7 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
   cleared    the train is no more (a car that did not merge in its form, the user's split or breakup, a leftover
              mark): `why` and `pushed` when the carrier's remote branch went back on the base, or why it did not
 
-`standing` folds the lines into the train that stands, or None between trains: its `state` is `formed` (merged or
-merging, no landing started), `resolving` (a car's conflict waits for its foreman's resolve, `resolve`: frozen), `landing` (its pretest's result in `pretest`), `red` (frozen, waits for its fix or the
-session's retry), `fixing` (red with fix orders open, `orders`: frozen as red; the post-merge orders, `post`, never
-count), `retry` (also once the last order is
-`fixed`: `fixed` true, the merge is the new candidate), `paused` (a smuggle paused its landing, `pauses`: frozen,
-pause.py), or `split` (the user unhitched a car after red: the rest
-forms again). `push` is the train's last push, kept across its starts: `head`, `run` (its land run), `red` (a `red`
-line named its head; head_guard.py). The landing's own output is the text log `train-landing.log`, rewritten by every
-start; `result` is its last JSON line.
+`standing` and the folding: train_fold.py (split out by hal2 plan 0610 step 9, small-files).
 """
 
 import datetime as dt
@@ -87,15 +90,15 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import roletime
+from train_fold import (ORDER_KEYS, RUNNER, YARD, add_cars, carried, fix, land_run, resume,  # noqa: F401
+                        standing, yard_past)  # the callers' `train_state.standing` (and the rest) stay
 
 ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
-YARD = "yard"  # the yard as a car: no field, never in the queue's mark
 KINDS = ("formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run",
-         "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke")
-ORDER_KEYS = ("id", "field", "branch", "base", "why", "run", "at", "jobs")  # an open order's, as its line has them
-RUNNER = "runner"  # a retry's `why` that starts so is the code's after a runner fault (triage.py)
+         "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke",
+         "roles", "alone")
 
 
 def utc(now: dt.datetime | None = None) -> str:
@@ -120,6 +123,14 @@ def next_number(main: str) -> int:
         fh.truncate()
         fh.write(f"{last + 1}\n")
     return last + 1
+
+
+def peek_number(main: str) -> int:
+    """The number `next_number` gives next, read without taking it (a forming names its carrier by it first)."""
+    try:
+        return int((folder(main) / NUMBER).read_text().strip() or 0) + 1
+    except (OSError, ValueError):
+        return 1
 
 
 def append(main: str, kind: str, slot: str, now: dt.datetime | None = None, **keys) -> dict:
@@ -158,135 +169,14 @@ def lines(main: str) -> list[dict]:
     return out
 
 
-def standing(rows: list[dict]) -> dict | None:
-    """The train that stands as the lines say (see the module doc), or None."""
-    train, carry = None, []  # carry: the post-merge orders a train left open, for the next one (plan 0383 D6)
-    for e in rows:
-        kind = e["kind"]
-        if kind == "formed":
-            train = {"train": e.get("train"), "at": e.get("at"), "carrier": e.get("slot"), "cars": e.get("cars", []),
-                     "worktree": e.get("worktree"),
-                     "base": e.get("base"), "number": e.get("number"), "state": "formed", "starts": 0, "pid": None, "unhitched": [], "yard": [],
-                     "runner_retries": 0, "land_run": None, "orders": [], "fixed": False, "pauses": [],
-                     "in_barn": [], "post": carry, "declined": []}
-        elif not train or e.get("train") != train["train"]:
-            continue
-        elif kind == "yard":
-            train["yard"] = e.get("files", [])
-        elif kind == "regenerated":
-            train["regenerated"] = e.get("commit")
-        elif kind == "joined":  # the open train (plan 0490 step 20): a car added before the push
-            train["cars"] = train["cars"] + e.get("cars", [])
-        elif kind == "declined":
-            train["declined"].append({"field": e.get("field"), "head": e.get("head")})
-        elif kind in ("resolving", "resolved"):  # every wagon rides (plan 0522 D18): a conflict waits for its resolve
-            train.update(state=kind.replace("resolved", "formed"), resolve=e if kind == "resolving" else None)
-        elif kind == "pretest":  # incomplete ones in a row: pretest_train.WAITS (plan 0522 D7)
-            waits = (train.get("pretest_waits", 0) + 1) * (e.get("result") == "incomplete")
-            train.update(pretest=e.get("result"), pretest_tree=e.get("tree"), pretest_waits=waits)
-        elif kind == "started":
-            train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"),
-                         land_run=None, fixed=False, since=None, land_ref=e.get("land_ref"), head=None)
-        elif kind == "push":  # plan 0560 step 3: the head this start lands, kept as the train's last push
-            train.update(head=e.get("head"), push={"head": e.get("head"), "run": None, "red": False})
-        elif kind == "run":
-            train["land_run"] = e.get("run")
-            if train.get("push"):
-                train["push"]["run"] = e.get("run")
-        elif kind == "red":  # an early order answers the red: the train is `fixing` at once (plan 0383 D5)
-            if e.get("head") and e["head"] == (train.get("push") or {}).get("head"):  # its run is red (head_guard)
-                train["push"].update(red=True, run=e.get("run") or train["push"]["run"])
-            train.update(state="fixing" if any(o.get("early") for o in train["orders"]) else "red",
-                         status=e.get("status"), run=e.get("run"), why=e.get("why", ""))
-        elif kind in ("order", "fixed"):
-            fix(train, e)
-        elif kind == "pause":
-            train["pauses"].append({k: e.get(k) for k in ("field", "seq", "since", "run")})
-            if train["state"] != "paused":
-                train.update(paused_from=train["state"], state="paused")
-        elif kind == "resumed":
-            if train["state"] == "paused":
-                resume(train)
-        elif kind == "retry":
-            runner = str(e.get("why", "")).startswith(RUNNER)
-            train.update(state="retry", retried=e.get("why", ""), runner_retries=(train["runner_retries"] + 1) * runner)
-        elif kind == "barn":  # a car already in the barn (smuggled, modes.py): a formed train's leaves it (D76)
-            train["in_barn"].append(e.get("slot"))
-            train["cars"] = [c for c in train["cars"] if e.get("how") != "formed" or c["field"] != e.get("slot")]
-        elif kind == "woke":  # a car's foreman started for an order (plan 0522 D21): only recorded
-            pass
-        elif kind == "unhitched":
-            train["unhitched"].append({"field": e.get("slot"), "why": e.get("why", ""), "by": e.get("by")})
-            train["state"] = "split"
-        else:  # landed, cleared: its open post-merge orders ride the next train, a landed one's early ones too
-            train, carry = None, train["post"] + carried(train) * (kind == "landed")
-    return train
-
-
-def carried(train: dict) -> list[dict]:
-    """The early orders of a train that landed green: their red did not hold the merge, so they are post-merge
-    orders now, for the next train (plan 0383 step 6)."""
-    return [{**{k: o.get(k) for k in ORDER_KEYS}, "post": train["train"]}
-            for o in train["orders"] if o.get("early")]
-
-
-def fix(train: dict, e: dict) -> None:
-    """An `order` opens a fix order (the train `fixing`), a `fixed` closes one; the last closed: `retry`. A
-    post-merge order (`post`) only opens and closes: the train's state stays as it is."""
-    post = [o for o in train["post"] if o["id"] != e.get("id")]
-    if e["kind"] == "order" and e.get("post"):
-        train["post"] = post + [{k: e.get(k) for k in (*ORDER_KEYS, "post")}]
-        return
-    if e["kind"] == "fixed" and len(post) < len(train["post"]):
-        train["post"] = post
-        return
-    if e["kind"] == "order" and e.get("also"):  # another red job for an open order (plan 0522 D16): it grows
-        for o in (o for o in train["orders"] if o["id"] == e["also"]):
-            o.update(jobs=list(dict.fromkeys((o.get("jobs") or []) + (e.get("jobs") or []))),
-                     why=f"{o.get('why')}; {e.get('why')}")
-        return
-    if e["kind"] == "order":
-        early = train["state"] == "landing"  # placed while the run runs (plan 0383 D5): the landing goes on
-        train["orders"].append({**{k: e.get(k) for k in ORDER_KEYS},
-                                "early": early})
-        train["state"] = train["state"] if early else "fixing"
-        return
-    train["orders"] = [o for o in train["orders"] if o["id"] != e.get("id")]
-    if not train["orders"]:
-        train.update(state="retry", retried=f"fixed: {e.get('id')}", fixed=True, runner_retries=0)
-
-
-def resume(train: dict) -> dict:
-    """A paused train resumed: its state before the pause, its land run forgotten; watch.py looks for runs created
-    since the pause (`since`), so the cancelled one is never taken for the resumed landing's."""
-    train.update(state=train.pop("paused_from", None) or "landing", land_run=None, resumed=len(train["pauses"]),
-                 since=train["pauses"][-1].get("since"))
-    return train
-
-
-def land_run(rows: list[dict]) -> str | None:
-    """The standing train's land run of its current start (a `run` line after its last `started`), or None."""
-    return (standing(rows) or {}).get("land_run")
-
-
-def yard_past(rows: list[dict]) -> dict:
-    """What yard.sort needs of the past: `carried` ({path: [hash]}: what the yard brought into a train, so a barn
-    file that is the yard's own may be changed by it again) and `refused` ({path: hash}: the files of a yard car a
-    session unhitched from a red train)."""
-    past: dict = {"carried": {}, "refused": {}}
-    for e in rows:
-        for f in e.get("files", []) if e["kind"] == "yard" else []:
-            past["carried"].setdefault(f["path"], []).append(f.get("hash"))
-        for f in e.get("files", []) if e["kind"] == "unhitched" and e.get("slot") == YARD else []:
-            past["refused"][f["path"]] = f.get("hash")
-    return past
-
-
 def carries(top: str) -> bool:
     """The frame's question (roles.Wiring.carries, D22): does the field `top` hold a train now? Since plan 0375 a
     train rides in its own worktree, so the tollman's field holds none (only one formed before still stands in it)."""
     train = standing(lines(mtm_scan.main_checkout(top)))
     return train is not None and train["carrier"] == Path(top).name
+
+
+LANDING_COMMANDS = ("engine.py", "worktree merge-to-main")
 
 
 def alive(pid) -> bool:
@@ -295,7 +185,8 @@ def alive(pid) -> bool:
     if not mtm_scan.pid_alive(pid):
         return False
     command = command_of(pid)
-    return not command or "engine.py" in command
+    # an adopted landing's pid is hal2-git's merge-to-main itself (adopt.py, 2026-11-04): it lives as much as its engine
+    return not command or any(mark in command for mark in LANDING_COMMANDS)
 
 
 def command_of(pid) -> str | None:

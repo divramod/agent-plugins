@@ -12,7 +12,7 @@ no round sends it again), wakes handed to the session's wake.json as a round's (
 `--post <train>`: a car of that landed train is red after its merge; the order rides the train that stands, never
 holds it (post_merge.py, plan 0383 step 6).
 `--job`: a gate job the fix must turn green (else those the `--why` or the train's red names); `fixed` takes the sha
-only proven green: a light job run here on it, a heavy one by its `gate: <job> green at <sha>` line in `--proof`;
+only proven green: a light job run here on it, a heavy one by the red check's `green: <check> at <sha>` line in `--proof` (plan 0610 D6; a gate line also counts);
 `--unproven <why>` is the session's word without proof (fix_proof.py, plan 0522 D5).
 """
 
@@ -24,6 +24,7 @@ import mtm_scan
 import orders
 import roletime
 import own_fix
+import red_claims
 import tick
 import train_state
 import train_wt
@@ -38,10 +39,12 @@ def add_parser(sub) -> None:
     o.add_argument("--smuggle", action="store_true", help="the field smuggled; it rides no car (plan 0360 step 18)")
     o.add_argument("--post", help="the landed train whose run is red after its merge (plan 0383 step 6)")
     o.add_argument("--job", action="append", default=[], help="a gate job the fix must turn green (plan 0522 D5)")
+    o.add_argument("--unit", action="append", default=[],
+                   help="the failing test or file this order is for: one red, one foreman (red_claims.py)")
     f = sub.add_parser("fixed")
     f.add_argument("field")
     f.add_argument("sha", nargs="?")
-    f.add_argument("--proof", default="", help="the answer's text: its `gate: <job> green at <sha>` lines")
+    f.add_argument("--proof", default="", help="the answer's text: its `green: <the red check> at <sha>` lines")
     f.add_argument("--unproven", default="", help="the session's why for taking the fix without proof")
     f.add_argument("--redundant", action="store_true",
                    help="its fix is in the train already: closed on the carrier's head (L56)")
@@ -65,8 +68,8 @@ def main(args, wiring) -> int:
     carrier = train_wt.carrier(top)  # a car's fix merges into the train's worktree (plan 0375 D5)
     if args.cmd == "order":
         code, text, actions = (own_fix.order(top, args.why, args.run) if own else
-                               orders.order(carrier, args.field, args.why, args.run, ctx["panes"],
-                                                 smuggle=args.smuggle, post=args.post, jobs=args.job))
+                               red_claims.order(carrier, args.field, args.why, args.run, ctx["panes"],
+                                                smuggle=args.smuggle, post=args.post, jobs=args.job, units=args.unit))
     else:
         if not (args.sha or args.redundant):
             print("fixed needs <sha> or --redundant")

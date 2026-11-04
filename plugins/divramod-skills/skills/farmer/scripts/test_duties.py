@@ -66,7 +66,7 @@ class Lead(unittest.TestCase):
 
     def test_a_subservant_with_a_broken_marker_is_judged_never_told_to_continue_the_plan(self):
         # Review 1 finding 10: bad but marked, no step to continue.
-        bad = {"bad": True, "text": "x", "error": "plans/LEAD is not `<lead-slot> <plan> <step>`: 'x'"}
+        bad = {"bad": True, "error": "plans/LEAD names no servant: x"}
         going = helper("idle-in-plan", "Tests written.\n\nNext I'll run the gate.", slot="31", lead=bad)
         self.assertEqual(kinds(self.plan(going)), [("wake", "idle-in-plan", "31")])
 
@@ -167,3 +167,76 @@ class Autoclear(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Autopilot(unittest.TestCase):
+    """The foreman limit's duty (hal2 plan 0543 step 24): the Rust tick's report into the frame's acts."""
+
+    def report(self, *changes, tell=None, mode="work"):
+        return {"schema": 1, "repo": "hal2", "mode": mode, "dry_run": True, "working": [], "frozen": [],
+                "changes": list(changes), "tell_tollman": tell}
+
+    def plan(self, report, orders=("44",), **kw):
+        return duties.plan_autopilot({}, ctx(**kw), report=report, orders=list(orders))
+
+    def test_a_quiet_or_unreadable_tick_plans_nothing(self):
+        self.assertEqual(self.plan(self.report()), [])
+        self.assertEqual(self.plan(None), [])
+        self.assertEqual(self.plan({"schema": 2, "changes": [{"action": "freeze", "field": "01"}]}), [])
+
+    def test_a_freeze_runs_the_real_tick_with_the_tollmans_orders_spared(self):
+        acts = self.plan(self.report({"field": "01", "action": "freeze", "why": "w", "argv": []},
+                                     {"field": "03", "action": "thaw", "why": "w", "argv": []}))
+        self.assertEqual(len(acts), 1)
+        self.assertEqual(acts[0]["do"], "run")
+        self.assertEqual(acts[0]["argv"], duties.AUTOPILOT + ["--repo-dir", "/x/hal2", "--spare", "44"])
+        self.assertIn("freeze 01, thaw 03", acts[0]["text"])
+
+    def test_a_start_runs_its_argv_once_per_cool_down(self):
+        argv = ["hal2-cli-git", "worktree", "run", "07"]
+        acts = self.plan(self.report({"field": "07", "action": "start", "why": "top", "argv": argv}))
+        self.assertEqual(kinds(acts), [("run", "start", "07")])
+        self.assertEqual((acts[0]["argv"], acts[0]["window"]), (argv, duties.START_WINDOW))
+        done = {"at": NOW.isoformat(), "key": "autopilot:start:07"}
+        self.assertEqual(kinds(acts, [done]), [], "within 15 min it is not started again")
+
+    def test_the_train_order_goes_to_the_tollman_once_per_hitched_set(self):
+        tell = {"key": "autopilot:train:11,12", "hitched": ["11", "12"], "text": "bring them in"}
+        acts = self.plan(self.report(tell=tell, mode="train"), panes={"tollman-hal2": "%9"})
+        self.assertEqual([(a["do"], a["slot"], a["pane"], a["to"]) for a in acts],
+                         [("send", "tollman-hal2", "%9", "tollman-hal2")])
+        self.assertEqual(kinds(acts, [{"at": NOW.isoformat(), "key": tell["key"]}]), [])
+
+    def test_the_tollmans_orders_of_the_last_six_hours_are_spared(self):
+        now = dt.datetime(2026, 10, 3, 10, 0, tzinfo=dt.timezone.utc)
+        log = [{"at": "2026-10-03T09:00:00Z", "kind": "fix-order", "slot": "44"},
+               {"at": "2026-10-03T03:00:00Z", "kind": "unhitched", "slot": "12"},
+               {"at": "2026-10-03T09:30:00Z", "kind": "train", "slot": "13"},
+               {"at": "2026-10-03T09:30:00Z", "kind": "unhitched", "slot": "tollman-hal2"},
+               {"at": "garbage", "kind": "unhitched", "slot": "15"}]
+        self.assertEqual(duties.tollman_orders(log, now), ["44"])
+
+
+class Runners(unittest.TestCase):
+    """The runner health's run (hal2 plan 0543 step 26): `--repair` only while the farm's switch is on."""
+
+    def test_the_run_repairs_only_while_the_switch_is_on(self):
+        on = duties.plan_runners({}, ctx(), repair=True)
+        self.assertEqual([(a["do"], a["kind"], a["argv"]) for a in on],
+                         [("run", "health", ["hal2-cli-ci", "runner", "health", "--json", "--repair"])])
+        off = duties.plan_runners({}, ctx(), repair=False)
+        self.assertEqual(off[0]["argv"], ["hal2-cli-ci", "runner", "health", "--json"])
+
+    def test_the_switch_is_read_from_the_autopilot_and_on_when_unreadable(self):
+        import subprocess
+        from unittest import mock
+        import bounded
+
+        def shown(farm, code=0):
+            return subprocess.CompletedProcess([], code, stdout=__import__("json").dumps({"farm": farm}), stderr="")
+        with mock.patch.object(bounded, "run", return_value=shown({"runner_repair": False})):
+            self.assertFalse(duties.runner_repair("/x/hal2"))
+        with mock.patch.object(bounded, "run", return_value=shown({}, code=1)):
+            self.assertTrue(duties.runner_repair("/x/hal2"))
+        with mock.patch.object(bounded, "run", side_effect=OSError("no such program")):
+            self.assertTrue(duties.runner_repair("/x/hal2"))

@@ -1,0 +1,13 @@
+# What the farmer skill owns as its own store (docs/access-declarations.md): plan 0593 step 7, the journal that
+# `hal2-cli-plans since` reads. The skill's other stores are still the seed's rows of skill.farmer.
+id = "skill.farmer"
+
+[[state]]
+name = "log"
+home = "node"
+description = "the farmer's journal `roles/farmer/log.jsonl` in its field farmer-<repo>: one JSON line per decision, ask, answer, ack or round action, appended by scripts/mtm_scan.py `log` (gitignored)"
+at = "state:git/worktree/*/farmer-*/roles/farmer/log.jsonl"
+format = "json"
+schema = "code/agents/apps/skills/skills/roles/farmer/schemas/log.schema.json"
+retention = "keep"
+sync = "never"

@@ -9,6 +9,7 @@ from unittest import mock
 import state
 import view_foreman
 import views
+import servant_testkit as kit
 from test_state import Fixture
 
 real = os.path.realpath
@@ -76,6 +77,10 @@ class Foreman(Fixture):
         self.set_tools(mode={"mode": "smuggle"})
         self.assertIn("smuggle mode", self.page("02")[1][0]["items"][-1])
 
+    def test_a_milestone_hitch_shows_in_the_queue_line(self):
+        line = view_foreman.queue_line({"wt": "02", "queue": {"holds": False, "position": 1, "hitch": "milestone 1/2"}}, None)
+        self.assertEqual(line, "Queue: field 02 waits in the merge queue, position 1, hitched as milestone 1/2")
+
     def test_a_finished_plan_has_no_next_step(self):
         text = (self.plan_dir / "plan.md").read_text().replace("| next |", "| done |").replace("|  |", "| done |")
         (self.plan_dir / "plan.md").write_text(text.replace("three | x | |", "three | x | done |"))
@@ -113,16 +118,30 @@ class Foreman(Fixture):
             by = {s["heading"]: s for s in self.page("02")[1]}
         self.assertEqual(by["Progress"]["bar"], [1, 3])
 
+    def servant(self, foreman: str, steps: list, finished: bool = False) -> None:
+        (self.wt / "10/plans").mkdir(exist_ok=True)
+        (self.wt / "10/plans/LEAD").write_text("marker\n")
+        kit.write(self.wt / "10", foreman, "0042-the-answer", steps, finished)
+
     def test_a_servant_shows_its_foremans_plan(self):
-        (self.wt / "10/plans/LEAD").write_text("02 0042-the-answer 3\n")
+        self.servant("02", [("3", "three", "")])
         title, sections = self.page("10", "servant")
         self.assertEqual(title, "proj · servant 10")
         self.assertEqual(sections[0]["heading"], "Plan 0042: the answer")
-        self.assertIn("servant of 02, working step 3", sections[0]["items"])
+        self.assertIn("servant of 02, working step 3 (open)", sections[0]["items"])
         self.assertEqual(sections[1]["bar"], [1, 3])
 
+    def test_a_servant_with_two_steps_shows_each_with_its_status(self):
+        self.servant("02", [("2", "two", "done"), ("3", "three", "in progress")])
+        self.assertIn("servant of 02, working steps 2 (done), 3 (in progress)", self.page("10", "servant")[1][0]["items"])
+
+    def test_a_finished_servant_says_the_foreman_removes_the_field(self):
+        self.servant("02", [("3", "three", "done")], finished=True)
+        self.assertIn("servant of 02, working step 3 (done); finished: the foreman removes this field (servant finish 10)",
+                      self.page("10", "servant")[1][0]["items"])
+
     def test_a_servant_whose_foreman_is_gone_shows_its_own_state(self):
-        (self.wt / "10/plans/LEAD").write_text("07 0042-the-answer 3\n")
+        self.servant("07", [("3", "three", "")])
         title, sections = self.page("10", "servant")
         self.assertEqual(sections[0]["heading"], "Plan")
         self.assertIn("my-shots/3/fix-the-thing", sections[0]["empty"])

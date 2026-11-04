@@ -115,8 +115,8 @@ clear). Keep this true: `$E selfcheck`.
    0181; `plan_guard.rs`'s open plan only goes to the log): the tool is denied once with "run /handoff now" (the
    command of the session's kind, `code/rust/libs/hal2-agents/src/autoclear/kind.rs`: the plain kind `/handoff`,
    `HANDOFF.md` or the current plan's own `plans/<plan>/handoff.md` (hal2 plan 0206: the one written last),
-   `/handoff c`; the role's worktree `farmer-<repo>` `/farmer handoff`, `roles/farmer/handoff.md`,
-   `/farmer act`; agents.toml's `[[autoclear.kinds]]` overrides), the marker
+   `/continue`; the role's worktree `farmer-<repo>` `/farmer handoff`, `roles/farmer/handoff.md`,
+   `/continue`; agents.toml's `[[autoclear.kinds]]` overrides), the marker
    `<state>/agents/autoclear/<session>.guard` is written (stage `soft`) and the job is started detached with
    `--await-handoff`. After it, **hand-off tools pass** (`handoff_tool`: Read/Grep/Glob, the handoff skill,
    Write/Edit of `HANDOFF.md`, `INTENT.md`, `plans/` (a plan's `handoff.md` and its ledgers), `.adr/`, TaskStop, Bash whose every segment starts with a
@@ -149,7 +149,7 @@ clear). Keep this true: `$E selfcheck`.
    failed read-back empties the box), waits for that turn;
    a second turn without a hand-off fails `ignored-soft-stop`) → `clearing` (`i` in vim mode, `/clear` typed and
    read back, Enter; confirmed by a `SessionStart` record, source `clear`) → `continuing` (the effort level, see
-   below; then the kind's prompt, `DEFAULT_PROMPT` `/handoff c`, typed, read back, sent) → `continued`. The job
+   below; then the kind's prompt, `DEFAULT_PROMPT` `/continue`, typed, read back, sent) → `continued`. The job
    needs no open plan (the refusal no-open-plan is gone since plan 0181; `--without-plan` does nothing).
    **Typing goes through the shared guard** (`code/rust/libs/hal2-agents/src/prompt_guard.rs` + `prompt_guard/typing.rs`,
    plan 0231 step 7; replaces the job's own `autoclear/keyboard.rs`): `PromptGuard::prepare()` (marker, INSERT),

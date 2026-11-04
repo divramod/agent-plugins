@@ -51,19 +51,19 @@ class TestGenAliases(unittest.TestCase):
         return json.loads((self.root / ".claude-plugin" / "plugin.json").read_text())
 
     def test_generates_stubs_and_lists_them(self):
-        aliases = {"h": {"skill": "handoff"}, "c": {"skill": "handoff", "args": "continue"}}
+        aliases = {"h": {"skill": "handoff"}, "x": {"skill": "handoff", "args": "clear"}}
         self.assertEqual(self.run_gen(aliases, "--check"), 1)
         self.assertEqual(self.run_gen(aliases), 0)
-        c = self.stub_path("c").read_text()
-        self.assertIn("name: c\n", c)
+        c = self.stub_path("x").read_text()
+        self.assertIn("name: x\n", c)
         self.assertIn("disable-model-invocation: true", c)
-        self.assertIn("`/handoff continue`", c)
+        self.assertIn("`/handoff clear`", c)
         self.assertIn("`/handoff`", self.stub_path("h").read_text())
         self.assertIn("(../handoff/SKILL.md)", c)  # the flat installed form (D19)
         if self.CATEGORIES:
-            self.assertEqual(self.manifest()["skills"], self.listed("actions/handoff", "shortcuts/c", "shortcuts/h"))
+            self.assertEqual(self.manifest()["skills"], self.listed("actions/handoff", "shortcuts/h", "shortcuts/x"))
         else:
-            self.assertEqual(self.manifest()["skills"], self.listed("c", "h", "handoff"))
+            self.assertEqual(self.manifest()["skills"], self.listed("h", "handoff", "x"))
         self.assertIn('"keywords": ["a", "b"]', (self.root / ".claude-plugin" / "plugin.json").read_text())
         self.assertEqual(self.run_gen(aliases, "--check"), 0)
 
