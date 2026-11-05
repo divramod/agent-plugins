@@ -64,7 +64,8 @@ class RedCarrier(Farm):
         dead, ref = self.red_train(), self.ref()  # 11:18:02
         self.refuse(True)  # the red train's end did not put the remote back (here: its breakup's push refused)
         # 11:27:09: split after red; the unhitch call itself breaks the train up (chain.py, plan 0333 step 6)
-        code = self.call("unhitch", "09", "--why", "test_roles.py reads PROTECT", "--by-user", repo=self.main)[0]
+        code = self.call("unhitch", "09", "--why", "test_roles.py reads PROTECT", "--by-user",
+                         "--words", "the user said so", repo=self.main)[0]
         self.assertEqual(code, 0, "the user's own unhitch (plan 0360 D3)")
         self.assertIsNone(self.train(), "the unhitch's chain broke the red train up")
         self.assertIn("still holds the dead train", self.last_line("cleared")["pushed"])

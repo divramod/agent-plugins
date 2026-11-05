@@ -23,7 +23,9 @@ from pathlib import Path
 
 import deliver
 import due
+import handoff_records
 import mtm_scan
+import role_records
 import roles
 import roletime
 import wake
@@ -83,6 +85,9 @@ def show(main: str, wiring: roles.Wiring = roles.FARMER) -> str:
     if f.exists():
         return f"handoff: {f}"
     template = TEMPLATE.replace("# farmer handoff", f"# {wiring.role} handoff", 1)
+    if wiring.state:  # plan 0611 step 6: the state is printed on every wake, so the handoff need not carry it
+        template = template.replace("## DO FIRST\n", f"## DO FIRST\n\n`{wiring.role} state` was printed above: trust it "
+                                    "over this file.\n", 1)
     return f"handoff: {f} (missing: write it with these sections)\n\n{template}"
 
 
@@ -117,6 +122,17 @@ def length_warning(main: str, wiring: roles.Wiring = roles.FARMER) -> str | None
             if n > MAX_LINES else None)
 
 
+def records_problems(main: str, wiring: roles.Wiring = roles.FARMER) -> list[str]:
+    """What is wrong with handoff.md against the role's open records (hal2 plan 0611 step 7, handoff_records.py): an
+    open record not named by its `R<n>`, one said to be done, an open standing order gone against. [] for a role
+    without registered record kinds, without open records or without a handoff."""
+    f = path(main, wiring)
+    if not role_records.load(wiring.role) or not f.exists():
+        return []
+    return handoff_records.problems(f.read_text(), role_records.open_(main, wiring.role),
+                                    role_records.CONTRA.get(wiring.role, {}))
+
+
 def fresh(main: str, now: dt.datetime, wiring: roles.Wiring = roles.FARMER) -> str | None:
     """None when handoff.md was written for this handoff (after the pending one was asked for, else within
     HANDOFF_TIMEOUT), else why not."""
@@ -149,6 +165,8 @@ def clear(top: str, main: str, now: dt.datetime, wiring: roles.Wiring = roles.FA
         return 1, why
     if long := length_warning(main, wiring):
         print(long, file=sys.stderr)
+    if bad := records_problems(main, wiring):  # before mark_seen: a refused clear closes no wake item
+        return 1, f"{path(main, wiring)} fails its records, fix it first:\n" + "\n".join(f"  {b}" for b in bad)
     pane = wake.farmer_pane(top)
     if not pane:
         return 1, f"no {role} session"

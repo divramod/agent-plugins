@@ -9,7 +9,9 @@ adopts its run); a fix merged after it, or the barn merged in, is a new tree and
 is never cached), its `retry --skip-pretest` writes a `skipped` line with the tree in its place (a red that is the
 Mac's, not a car's: engine_car.retry). Incomplete (the budget cut a job, the gate did not answer: plan 0522 D7): no
 landing starts, one JSON line `{"status": "pretest_incomplete", "message": ...}`; trains.settle starts the landing
-again (its markers keep what was green) up to WAITS times in a row, then wakes the session as a red train. Red: one
+again (its markers keep what was green) up to WAITS times in a row, then wakes the session as a red train. Before
+that, an incomplete pretest, or one skipped because it broke, is run once more with twice its budget (plan 0623 D3,
+`retry_worthy`; the line says `retried`): a green retry blocks nothing, a second skip pushes as before. Red: one
 JSON line on stdout, which the landing's log keeps as its result (train_state.result), and no landing starts; every
 red job is named, each with its first error line and its suspects (plan 0522 D14: one wake, one fix order per car
 for all its reds):
@@ -43,6 +45,7 @@ from tick import default_ref
 LOG = "train-pretest.log"
 STATUS = "pretest_red"
 INCOMPLETE = "pretest_incomplete"  # trains.py's PRETEST_WAIT
+RETRY_SCALE = 2  # the one retry of an incomplete or broken pretest runs with twice the gate wait and job budget
 WAITS = 3  # incomplete pretests in a row that start the landing again by code (trains.settle), then the wake
 BLAME_SECONDS = 60
 
@@ -68,17 +71,19 @@ def before_landing(top: str) -> bool:
     tree = pretest.git(top, "rev-parse", "HEAD^{tree}")
     if not train or not due(train, tree):
         return False
-    state, progress = train_state.folder(main), {}
+    state = train_state.folder(main)
     with sigterm_exits(), local_load.Phase() as phase:  # what the pretest costs the machine (plan 0472 step 4)
-        try:
-            r = pretest.pretest(top, state, default_ref(top), state / LOG, progress=progress)
-        except Exception as e:  # noqa: BLE001  (a broken pretest is no red train, unless a red was already known)
-            r = {"result": "red" if progress.get("red") else "skipped", "seconds": 0, "jobs": [],
-                 "why": f"the pretest broke: {e}"[:300]}
+        r, progress = attempt(top, state)
+        retried = retry_worthy(r)
+        if retried:  # plan 0623 D3: once more with twice the budget before the train pushes without it or waits
+            print(f"pretest: {r['result']} in {r['seconds']} s ({r['why']}): once more with twice the budget",
+                  flush=True)
+            first, (r, progress) = r, attempt(top, state, RETRY_SCALE)
+            r = {**r, "seconds": round(first["seconds"] + r["seconds"], 1)}
     with contextlib.suppress(OSError):
         train_state.append(main, "pretest", Path(top).name, train=train["train"], seconds=r["seconds"],
                            result=r["result"], jobs=r["jobs"], why=r["why"] or None, local=phase.record(),
-                           tree=tree or None)
+                           tree=tree or None, retried=True if retried else None)
     print(f"pretest: {r['result']} in {r['seconds']} s" + (f" ({r['why']})" if r["why"] else ""), flush=True)
     if r["result"] == "incomplete":
         print(json.dumps({"status": INCOMPLETE, "message": f"pretest incomplete: {r['why']}"[:300]}), flush=True)
@@ -99,6 +104,23 @@ def before_landing(top: str) -> bool:
     print(json.dumps({"status": STATUS, "red": red, "suspects": every, "message": f"pretest: {told}"[:600]}),
           flush=True)
     return True
+
+
+def attempt(top: str, state: Path, scale: float = 1.0) -> tuple[dict, dict]:
+    """One pretest run (its budget times `scale`) and its progress; a broken one is no red train, unless a red was
+    already known."""
+    progress: dict = {}
+    try:
+        return pretest.pretest(top, state, default_ref(top), state / LOG, progress=progress, scale=scale), progress
+    except Exception as e:  # noqa: BLE001
+        return {"result": "red" if progress.get("red") else "skipped", "seconds": 0, "jobs": [],
+                "why": f"the pretest broke: {e}"[:300]}, progress
+
+
+def retry_worthy(r: dict) -> bool:
+    """Whether a pretest is run once more: it ended incomplete (the gate did not answer, the budget cut a job) or
+    skipped because it broke. A skip with another reason (no build, a job changed files, the Mac's tool) is final."""
+    return r["result"] == "incomplete" or (r["result"] == "skipped" and str(r["why"]).startswith("the pretest broke"))
 
 
 def due(train: dict, tree: str) -> bool:

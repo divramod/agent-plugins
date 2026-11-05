@@ -35,6 +35,9 @@ def command(args, rest: list[str], cli) -> int:
         return triage_cli.main(args)
     if args.cmd in hold.VERBS:
         return hold.main(args)
+    if args.cmd == "standing":
+        import standing
+        return standing.main(args)
     if args.cmd in modes.VERBS:
         return modes.main(args)
     if args.cmd in ("order", "fixed"):
@@ -43,9 +46,19 @@ def command(args, rest: list[str], cli) -> int:
     if args.cmd.startswith("resolve"):
         import resolve
         return resolve.main(args, wiring)
+    if args.cmd == "state":
+        import state_cmd
+        d = state_cmd.of(args.repo)
+        print(json.dumps(d, indent=1)) if args.json else print(state_cmd.show(d))
+        return 0
     if args.cmd in ("join", "cars"):
         import train_join
         return train_join.main(args)
+    if args.cmd == "restart":
+        import foreman_wake
+        code, text = foreman_wake.restart(args.repo, args.field, args.why)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
     if args.cmd == "train":
         import trains_dry
         d = trains_dry.dry_run(args.repo)
@@ -53,7 +66,8 @@ def command(args, rest: list[str], cli) -> int:
         return 0
     if args.cmd in ("unhitch", "retry"):
         import engine_car
-        code, text = (engine_car.unhitch(args.repo, args.field, args.why, user=args.by_user) if args.cmd == "unhitch"
+        code, text = (engine_car.unhitch(args.repo, args.field, args.why, user=args.by_user, words=args.words)
+                      if args.cmd == "unhitch"
                       else engine_car.retry(args.repo, args.why, skip_pretest=args.skip_pretest))
         print(text, file=sys.stderr if code else sys.stdout)
         return code or (go_on(args.repo, wiring) if args.cmd == "unhitch" else 0)

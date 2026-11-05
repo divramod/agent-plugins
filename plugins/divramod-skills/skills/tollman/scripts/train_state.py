@@ -37,6 +37,10 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              why}): left out a second time in a row, the train `stopped` until that car merges
   alone      an alone car (gate_car.py) hitched while the train stood (open_train.owe, plan 0610 D15): `field`, `head`,
              `why`; it rides alone in the very next train, as the `formed` line's `alone_next` (trains.owed)
+  attempt    a restart got past its alive, adopt and hold checks and started nothing (engine.restart, hal2 plan 0620
+             D5): it went red on a car's light checks (proof_red) or its fresh commit, branch or mark was refused;
+             `attempt`, the number it raises the train's to (train_fold.attempt: a `started` line raises it too),
+             which keys the round's restart `retry:<train>:<attempt>`
   push       the landing's push (engine.land, plan 0560 step 3, D5): `head`, the carrier's HEAD it lands, after the wait and
              the post-merge fixes (head_guard.py: never pushed again once its run is red)
   run        the landing's land run, found by watch.py while it lands (plan 0360 step 5): `run` (its address); the
@@ -90,15 +94,15 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import roletime
-from train_fold import (ORDER_KEYS, RUNNER, YARD, add_cars, carried, fix, land_run, resume,  # noqa: F401
-                        standing, yard_past)  # the callers' `train_state.standing` (and the rest) stay
+from train_fold import (ORDER_KEYS, RUNNER, YARD, add_cars, attempt, carried, fix, land_run, restart_key,  # noqa: F401
+                        resume, standing, yard_past)  # the callers' `train_state.standing` (and the rest) stay
 
 ROLE = "tollman"
 FILE, LOG, NUMBER = "train.jsonl", "train-landing.log", "train-number"
 SCHEMA = 1
 KINDS = ("formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run",
          "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke",
-         "roles", "alone")
+         "roles", "alone", "attempt")
 
 
 def utc(now: dt.datetime | None = None) -> str:
@@ -146,6 +150,11 @@ def append(main: str, kind: str, slot: str, now: dt.datetime | None = None, **ke
         os.close(fd)
     __import__("board").safely(main, f"train state {kind}", board_line, line)  # lazily: a quiet pass loads no board
     return line
+
+
+def attempted(main: str, field: str, train: dict, now: dt.datetime | None = None) -> dict:
+    """The `attempt` line of a restart past its checks that started nothing (plan 0620 D5): its key raised by one."""
+    return append(main, "attempt", field, now, train=train["train"], attempt=attempt(train) + 1)
 
 
 def board_line(main: str, line: dict) -> None:

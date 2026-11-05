@@ -27,7 +27,11 @@
   tollman.py join <field> [--car <json>] | cars [--json] [--repo <dir>]
       a hitched head joins the standing train, never a hand merge; the cars and every hitched wagon with where it
       stands, by code: what every status answer reads (train_join.py, plan 0610 D8, D17)
-  tollman.py unhitch <field> --why <text> [--by-user] [--repo <dir>]
+  tollman.py state [--json] [--repo <dir>]
+      what is true now, by code: the train and its cars, the hitched wagons with their reasons, the open fix orders,
+      every open record with what closes it, the standing orders; printed by `act` on every wake and after a clear,
+      before the handoff (state_cmd.py, schemas/state.schema.json, plan 0611 step 6)
+  tollman.py unhitch <field> --why <text> [--by-user --words <the user's words>] [--repo <dir>]
       take the ready mark of a wagon that rides no train. A car of a formed train is refused: the train is frozen
       (plan 0360 D3, frozen.py), a red one waits for its fix (D7). Only the user's own `--by-user` (never the
       session's) takes a car of a red train out; the duty `trains` then goes on in the same call (chain.py): the
@@ -37,6 +41,9 @@
       the duty `trains` again, right now, link after link until a wait (chain.py, plan 0333 step 6): what an
       unhitch after red and a round that finds a train landed run, so the next train forms in the same call.
       Only in timer mode, behind the tick lock (`--in-tick`: the round that holds it calls)
+  tollman.py restart <field> --why <text> [--repo <dir>]
+      start the field's foreman session (the orphan guard, never a paused field): a `woke` line and a `restart`
+      record, open until a live session is seen there (foreman_wake.py, plan 0611)
   tollman.py retry --why <text> [--skip-pretest] [--repo <dir>]
       a red train lands again as it is at the next round (a flaky gate); `--skip-pretest`: without its pretest (a
       red pretest that is the Mac's, not a car's); a runner fault the round retries by code (triage_cli.py)
@@ -70,7 +77,7 @@
       the queue's two modes and the flag (modes.py, plan 0360 step 25): what the round saw; a car or hitch already in
       the barn when the tollman wakes from smuggle mode or its flag (a `barn` line; a hitch cleared, a formed train's
       car out)
-  tollman.py hold [--why <text>] [--repo <dir>] | unhold [--repo <dir>]
+  tollman.py hold --by user --words <..> [--why <text>] | unhold --by user --words <..> [--repo <dir>]
       hold the trains (hold.py, plan 0383 step 7): no train forms, restarts or lands, also not the green merge job's
       next train; the watch, the leavers check, the orders and the board go on and a landing that runs is never cut.
       `status` and each round's `held` line show `held: <why>`; unhold lets the trains form at the next round
@@ -141,11 +148,17 @@ def keep(main: str, items: list[dict]) -> list[dict]:
     return keep_reds.unordered(main, items)
 
 
+def state_text(main: str) -> str:
+    """The state of the tollman as text (state_cmd.py), printed by `act` before the handoff's DO FIRST."""
+    import state_cmd
+    return state_cmd.text(main)
+
+
 WIRING = roles.Wiring(
     role="tollman", cli=HERE / "tollman.py", skill=HERE.parent,
     act="/continue", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred", "watch", "wagons"),
     subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=carries, keep=keep,
-    session_effort=True, min_tick=1)  # min_tick: the duty `watch` ticks every minute (plan 0383 step 4, D4)
+    session_effort=True, min_tick=1, state=state_text)  # min_tick: the duty `watch` ticks every minute (plan 0383 step 4, D4)
 
 
 def status(repo: str, now: dt.datetime | None = None) -> dict:
@@ -165,10 +178,12 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
         t.add_argument("--repo", default=os.getcwd())
         return p
     import checks_cli
+    import foreman_wake
     import hold
     import modes
     import orders_cli
     import resolve
+    import standing
     import train_join
     import wagons
     import triage_cli
@@ -186,8 +201,10 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     train = sub.add_parser("train")
     train.add_argument("--dry-run", action="store_true", required=True)
     train.add_argument("--json", action="store_true")
+    sub.add_parser("state").add_argument("--json", action="store_true")
     sub.add_parser("unhitch").add_argument("field")
     sub.choices["unhitch"].add_argument("--by-user", action="store_true")  # the user's own command (plan 0360 D3)
+    sub.choices["unhitch"].add_argument("--words", default="", help="the user's own words (plan 0611 D13)")
     sub.add_parser("chain").add_argument("--in-tick", action="store_true")
     sub.add_parser("retry").add_argument("--skip-pretest", action="store_true")
     for name in ("unhitch", "retry"):
@@ -199,9 +216,11 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     orders_cli.add_parser(sub)  # plan 0360 step 6
     modes.add_parser(sub)  # plan 0360 step 25, the switch: plan 0375
     hold.add_parser(sub)  # plan 0383 step 7
+    standing.add_parser(sub)  # plan 0611 step 5
     resolve.add_parser(sub)  # plan 0522 D18
     wagons.add_arguments(sub.add_parser("wagons"), repo=False)
     train_join.add_parser(sub)  # plan 0610 D8, D17
+    foreman_wake.add_parser(sub)  # plan 0611 step 3
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())
     checks_cli.add_parser(sub)  # its commands take their own --repo
@@ -256,7 +275,22 @@ def tick(args) -> int:
     if not args.dry_run:
         board.safely(main_dir, "messages and acks", board.sync, faults=faults)
         role_cli.after_sync(args.repo, WIRING, faults, before, code)
+        if code not in (2, 4):  # a round ran (not refused): its records closed by code (plan 0611 step 4)
+            sweep(main_dir, args.json)
     return code
+
+
+def sweep(main_dir: str, as_json: bool) -> None:
+    """The records whose closer sees them done closed, the old ones pruned (records_close.run); one line per close
+    in the round's text (none in --json); a sweep that fails is said on stderr, the round's exit stays."""
+    import records_close
+    try:
+        lines = records_close.run(main_dir)
+    except Exception as exc:  # noqa: BLE001  (the records stay open: the next round sweeps again)
+        print(f"tollman.py: the records sweep failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return
+    if lines and not as_json:
+        print("\n".join(f"record {line}" for line in lines))
 
 
 if __name__ == "__main__":

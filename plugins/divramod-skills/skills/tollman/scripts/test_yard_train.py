@@ -105,7 +105,8 @@ class Riding(YardFarm):
         code, text = self.call("unhitch", "yard", "--why", "its record is malformed", repo=self.main)
         self.assertEqual(code, 1, "the session's unhitch of a frozen train's car is refused (plan 0360 D3)")
         self.assertIn("frozen (plan 0360 D3)", text)
-        code, text = self.call("unhitch", "yard", "--why", "its record is malformed", "--by-user", repo=self.main)
+        code, text = self.call("unhitch", "yard", "--why", "its record is malformed", "--by-user",
+                               "--words", "the user said so", repo=self.main)
         self.assertEqual((code, text), (0, "yard unhitched: its record is malformed; the rest of the train forms "
                                            f"again\nchain link 1: breakup -, form -, yard-left {FARMER}\n"
                                            "chain stops: a landing started\n"), "in the same call (plan 0333 step 6)")

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tollman.py state --json",
+  "description": "What is true now, by code (hal2 plan 0611 step 6; scripts/state_cmd.py): the train and its cars (train_cars.py), the hitched wagons, the hold, the open fix orders, the open records with what closes each, the standing orders.",
+  "type": "object",
+  "required": ["schema", "at", "train", "cars", "hitched", "held", "orders", "records", "standing"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "at": {"type": "string", "description": "RFC 3339 UTC with `Z` and whole seconds."},
+    "train": {"type": ["object", "null"], "required": ["train", "state", "carrier", "pushed", "open"],
+              "description": "The standing train as `tollman.py cars` gives it, null when none stands."},
+    "cars": {"type": "array", "items": {"type": "object", "required": ["field", "head", "plan", "in_branch"]}},
+    "hitched": {"type": "array", "items": {"type": "object", "required": ["field", "head", "where", "why"]}},
+    "held": {"type": ["object", "null"], "required": ["why", "at", "by", "words", "record"],
+             "description": "The hold (a standing order `hold`, else a legacy hold.json), null when nothing is held."},
+    "orders": {"type": "array", "items": {
+      "type": "object", "required": ["id", "field", "branch", "jobs", "post", "early", "record"],
+      "properties": {"id": {"type": "string"}, "field": {"type": "string"}, "branch": {"type": "string"},
+                     "jobs": {"type": "array", "items": {"type": "string"}},
+                     "post": {"type": "boolean", "description": "A post-merge order the train carries."},
+                     "early": {"type": "boolean"},
+                     "record": {"type": ["string", "null"], "pattern": "^R[0-9]+$"}}}},
+    "records": {"type": "array", "items": {
+      "type": "object", "required": ["id", "type", "slot", "what", "at", "by", "waits_for"],
+      "properties": {"id": {"type": "string", "pattern": "^R[0-9]+$"}, "type": {"type": "string"},
+                     "slot": {"type": "string"}, "what": {"type": "string"}, "at": {"type": "string"},
+                     "by": {"enum": ["tollman", "code", "user"]},
+                     "waits_for": {"type": "string", "description": "The kind's closer: the code that closes it, or `user`."}}}},
+    "standing": {"type": "array", "items": {
+      "type": "object", "required": ["id", "rule", "value", "words", "at"],
+      "properties": {"id": {"type": "string", "pattern": "^R[0-9]+$"}, "rule": {"type": "string"},
+                     "value": {"type": "string"}, "words": {"type": "string"}, "at": {"type": "string"}}}}
+  },
+  "additionalProperties": false
+}

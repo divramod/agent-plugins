@@ -4,7 +4,8 @@
   acks.py instruct <slot> <text> [--decision <id>]... [--repo <dir>] [--json]
       stamp a message the farmer sends itself (SendMessage): prints it with its id, logs the `ask-ack`; with
       --decision (a prefix of a `decision` entry's id) also a `decision-link`, so a foreman naming the user's
-      decision by this id has it in a decision check (skills plan 0010)
+      decision by this id has it in a decision check (skills plan 0010); a role with a `question` record type
+      (role_records.py: the tollman's) opens one, named by the `ask-ack` (hal2 plan 0611)
   acks.py ack <id> started|done|refused [<why>...] [--repo <dir>]
       record a session's ack when its message arrives
   acks.py open [--repo <dir>] [--json]
@@ -79,6 +80,15 @@ def stamp_send(a: dict, main: str, role: str = roles.ROLE) -> None:
     ack_id = next_id(mtm_scan.entries(mtm_scan.state_dir(main, role) / "log.jsonl"), a["slot"])
     a.update(ack_id=ack_id, text=stamp(a["text"], ack_id, role))
     mtm_scan.log(main, ask_entry(a["slot"], ack_id, a["text"], a.get("pane"), "tick"), role)
+
+
+def question(main: str, role: str, slot: str, ack_id: str, text: str) -> None:
+    """A role that keeps a `question` record type (role_records, hal2 plan 0611) opens one per instruction it sends,
+    naming its `ask-ack`: open until the answer's ack (or its void) is seen by code."""
+    import role_records
+    if "question" in role_records.load(role):
+        role_records.add(main, role, "question", slot, f"asked {slot}: {(text.splitlines() or [''])[0][:200]}", role,
+                         event={"file": "log.jsonl", "kind": "ask-ack", "id": ack_id}, ack=ack_id)
 
 
 def instructions(log: list[dict]) -> dict[str, dict]:
@@ -181,6 +191,7 @@ def main(argv: list[str]) -> int:
         ack_id = next_id(log, args.slot)
         text = stamp(args.text, ack_id, role)
         mtm_scan.log(main_dir, ask_entry(args.slot, ack_id, text, None, role), role)
+        question(main_dir, role, args.slot, ack_id, args.text)
         for d in relays:
             mtm_scan.log(main_dir, {"kind": "decision-link", "slot": args.slot, "what": f"{d} relayed as {ack_id}",
                                     "note": "", "decision": d, "ack": ack_id, "by": role}, role)

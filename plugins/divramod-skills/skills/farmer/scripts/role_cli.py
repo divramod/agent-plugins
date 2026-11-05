@@ -300,7 +300,11 @@ def run_wake(args, wiring: roles.Wiring) -> int:
         return 0
     closed = wake.close_older(main, handoff.written(main, wiring), wiring)
     data = read_first(main, wake.read(main, wiring), wiring)
+    if wiring.state and not args.json:  # what is true now, before the handoff's words (plan 0611 step 6, D6)
+        print(f"{wiring.state(main)}\n")
     if handoff.path(main, wiring).exists() and not args.json:
+        for bad in handoff.records_problems(main, wiring):  # the handoff against the open records (plan 0611 step 7)
+            print(f"warning: {bad}", file=sys.stderr)
         first = handoff.do_first(main, wiring)
         if first:  # without the section the handoff's item 0 names the file
             print(f"DO FIRST (from {handoff.path(main, wiring)}):\n{first}\n")

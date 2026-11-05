@@ -6,7 +6,7 @@
   "required": ["schema", "at", "kind", "slot"],
   "properties": {
     "schema": {"type": "integer", "minimum": 1, "maximum": 1},
-    "kind": {"enum": ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke", "roles", "alone"]},
+    "kind": {"enum": ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push", "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared", "woke", "roles", "alone", "attempt"]},
     "train": {"type": "string", "minLength": 1, "description": "The train's name, `<car>+<car>@<formed at>`."},
     "number": {"type": "integer", "minimum": 1, "description": "A formed line: the train's number (hal2 plan 0398 D4, train_state.next_number), which names its land branch `land/train-<number>-<start>`; none on a train formed before it."},
     "cars": {
@@ -20,6 +20,7 @@
     "out": {"type": "array", "items": {"type": "object"}, "description": "A roles line: the role cars that did not merge into the train, [{field, head, why, times}]: owed, each rides the next train first; `times` its leave-outs in a row (role_cars.py, hal2 plan 0610 D24)."},
     "place": {"enum": ["first"], "description": "A roles line: `first` for an owed role car merged first at the forming or at a stopped train's retry (role_cars.py, hal2 plan 0610 D24); none: the train's last cars before its first push."},
     "stop": {"type": "object", "description": "A roles line: {field, head, why} of a role car left out a second time in a row; the train is `stopped`, never pushed, until that car merges (role_cars.py, hal2 plan 0610 D24)."},
+    "attempt": {"type": "integer", "minimum": 1, "description": "An attempt line: the number a restart past its alive, adopt and hold checks that started nothing (proof_red, a refused mark) raised the train's attempt to (engine.restart, hal2 plan 0620 D5; a started line raises it too); it keys the round's restart `retry:<train>:<attempt>` (train_fold.attempt; a state without it reads `starts`)."},
     "pid": {"type": "integer", "minimum": 1, "description": "The landing's detached process."},
     "log": {"type": "string", "description": "The landing's output file."},
     "land_ref": {"type": "string", "pattern": "^train-[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 195, "description": "A started line: the train's own branch, landed on `land/<land_ref>`: `train-<number>-<start>` picked by merge-to-main from the mark's `--train/--attempt` (plan 0398), or, on a train without a number, the plan-named branch given as `--land-ref` (train_branch.py, plan 0383 D2)."},

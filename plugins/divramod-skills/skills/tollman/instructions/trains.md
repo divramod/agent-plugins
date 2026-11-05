@@ -8,8 +8,9 @@ checks (names, records; the records CLI is the candidate's own build when the ca
 check that cannot be decided rides with `proof_unknown`, never a wake. A standing train keeps its cars (plan 0360 D3,
 D7): a wagon that hitches meanwhile joins it until its push starts, with its fix or resolve order when it needs one
 (plan 0610 D17), and no wait limit ends a waiting or red train; the session's `unhitch` of its car and
-`engine.py breakup` are refused. `--by-user` is the user's word, typed or relayed by the farmer as "the user decided";
-you never pass it on your own judgment. You get what needs judgment. Check it
+`engine.py breakup` are refused. `--by-user` is the user's word (with `--words`), typed or relayed by the farmer as "the user decided";
+you never pass it on your own judgment. You get what needs judgment. A reserved ticket's `ready` (L146) is read from
+`hal2-cli-git worktree queue --json` by a JSON parser or from `tollman.py train --dry-run`, never a grep of the line. Check it
 is still true (`python3 $S/tollman.py train --dry-run`, `hal2-cli-git worktree queue --json`), act, then log it:
 `python3 $K/farmer/scripts/mtm_scan.py record <kind> <slot> "<what you did>" --note "<why>" --role tollman`.
 
@@ -45,12 +46,12 @@ for its `fixed` line, a died landing whose run runs is watched; neither wakes yo
 
 **Reading a red** (rules from the learnings; check each before you name a car or order main):
 
+- **A failing test of code no car changed** (L150): before a car order, diff the failing test's module and spec against
+  main. When they are the barn's, say "barn flake" in the order (the car may fix it where it hits it) and note it to the farmer.
 - **Mac green, Linux red around git repos** (L42): name the default branch in the order's why (`git init --initial-branch=main`,
   proved with `GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null`).
 - **A test no car touches** (L57, L115): run the failing test on the barn (tollman-hal2) first; red there is `order main`.
   Green there: diff the `hal2-core` libs it calls (process, fs, testing) against main; the car that changed them gets the order.
-- **A race in the assert** (L82): read the failing assert against the code before any retry; a send-then-signal race is
-  the barn's, `order main` with your own fix, never a retry. A retry only for a timeout or a runner fault.
 - **A barn test red on mac-vm-a that no car touches** (L90, L118: bash-test timeouts, host-runner-linux test 48):
   one retry of the same train; red twice: `order main` (raise the test's wait) or a board note to the farmer.
 - **An f3 desktop install red naming no car** (L99): board note for the farmer and tell the user the app is down; never a
@@ -61,6 +62,11 @@ for its `fixed` line, a died landing whose run runs is watched; neither wakes yo
   `apps/hal2-cli-workqueue/tests/it/binary.rs`, `a_live_holder_past_the_cap_beats_on_but_holds_nobody` in
   `libs/hal2-workqueue/tests/it/holder.rs`): load-flaky, no car's; place it with `flaky_brief.py`, never a fix order
   and never field 10.
+
+- **A local phase on a loaded Mac** (L149): the workqueue's landing hold covers it (`workqueue_hold.py`); never renice
+  other fields' processes. Start the round at once after a `fixed`.
+- **A fix is proven by its own red light jobs** (L153, `fix_proof.py`) before `fixed`; with the pretest on it runs
+  them. No local sweep of every light job before a push (the user, 2026-10-31).
 
 **Composition, order and the alone rule are yours** ([wagon-master-decides-trains](https://github.com/divramod/hal2/blob/main/.adr/wagon-master-decides-trains.md)): which wagons ride together, in what order,
 what rides alone. Decide by the trial merge and the queue order (a tie goes to the wagon that hitched first), record it

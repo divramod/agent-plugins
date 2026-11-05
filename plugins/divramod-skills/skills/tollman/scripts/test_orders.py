@@ -199,6 +199,15 @@ class Orders(Red):
         self.assertIn("frozen (plan 0360 D3)", text)
         self.assertEqual(json.loads(json.dumps(self.train()["orders"]))[0]["id"], "07-fix-1")
 
+    def test_a_retry_train_takes_a_car_s_order_and_is_fixing(self):
+        """Plan 0620 D6 (L254: car 74 joined train 53 in retry and `order` refused it): a `retry` train takes it."""
+        self.assertEqual(self.call("retry", "--why", "flaky")[0], 0)
+        self.assertEqual(self.train()["state"], "retry")
+        code, text = self.call("order", "07", "--why", "proof: names red")
+        self.assertEqual((code, self.train()["state"]), (0, "fixing"), text)
+        self.assertEqual([o["field"] for o in self.train()["orders"]], ["07"])
+        self.assertEqual(self.call("order", "11", "--why", "x")[0], 1, "still only a car of the train")
+
     def test_a_smuggling_field_gets_an_order_only_with_smuggle(self):
         """Plan 0360 step 18 (D61, D62): the smuggle that conflicts with or broke the train is ordered by code."""
         self.assertEqual(self.call("order", "03", "--why", "x")[0], 1, "03 rides no car")

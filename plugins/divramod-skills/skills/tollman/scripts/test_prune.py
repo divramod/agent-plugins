@@ -396,3 +396,37 @@ class Detached(Fake):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnderTrain(Fake):
+    """Plan 0623 D2 (L147), prune run 20261030T185542: free disk 28 then 16 GB, train 32 building, 0 B freed. Under 30 GB
+    free the phase-2 trims of the idle fields the building train does not carry go on; a car's field stays deferred."""
+    TRAIN = {"train": "t1", "state": "landing", "land_run": None, "pid": 4242, "carrier": "32",
+             "cars": [{"field": "05"}, {"field": "06"}]}
+
+    def held_plan(self, free_gb):
+        trims = [todo(s, "trim", paths=["t"]) for s in ("04", "05")]
+        d = data([field("04"), field("05")], free_gb=free_gb, **{"phase-2": {"skipped": "deferred", "actions": [], "held": trims}})
+        d["plan"]["busy"] = d["facts"]["busy"] = "deferred: train building (train t1 in its local phase)"
+        return d
+
+    def building(self, train=None):
+        return mock.patch.multiple(
+            prune.train_state, standing=mock.Mock(return_value=train), lines=mock.Mock(return_value=[]),
+            alive=mock.Mock(return_value=True))
+
+    def test_an_idle_field_outside_the_train_is_trimmed_a_car_is_not(self):
+        for free in (28.0, 16.0):
+            with self.building(dict(self.TRAIN)):
+                got = self.round(self.held_plan(free))
+            self.assertEqual(self.kinds(got), [("trim", "run", "04")], f"{free} GB free: only the field outside the train")
+            self.assertEqual(got[0]["argv"][-4:], ["--field", "04", "--outside-train", "04"])
+
+    def test_at_30_gb_and_above_nothing_changes(self):
+        with self.building(dict(self.TRAIN)):
+            self.assertEqual(self.kinds(self.round(self.held_plan(30.0))), [])
+
+    def test_a_hold_with_no_standing_train_defers_every_field(self):
+        self.held.return_value = "deferred: train building (hold h1 of field 31, holding)"
+        with self.building(None):
+            self.assertEqual(self.kinds(self.round(self.held_plan(16.0))), [], "membership unknown: the safe default")

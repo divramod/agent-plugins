@@ -1,10 +1,13 @@
 """The independent recheck of a triage verdict (hal2 plan 0490 step 1, D11, D12): `recheck` recomputes kind and owner
 from the verdict's evidence alone, never from the first verdict: the transient fault and the build-phase timeout
-are read again from the evidence's lines (a running job's step: its duration at the limit, L137), a spec must stand in them, a car owner must be a car of the train and a
-repeat never a car's. `settle` keeps a verdict both agree on and turns any other into `unsure` (no field, what
-disagrees named): the code never sends a guess (the record security-findings' recheck by recompute)."""
+are read again from the evidence's lines (a running job's step: its duration at the limit, L137), a spec (or a
+failing test's file as the log names it, L195) must stand in them, a car owner must be a car of the train and a repeat
+never a car's, a scratch finding no car touches the runner's (L151). `settle` keeps a verdict both agree on and turns
+any other into `unsure` (no field, what disagrees named): the code never sends a guess (the record security-findings'
+recheck by recompute)."""
 
 import run_triage_read as read
+import scratch_red
 import transient
 
 QUIET = ("needs-red", "runner", "flake")
@@ -35,6 +38,12 @@ def owned(e: dict) -> str | None:
     return field
 
 
+def tested(e: dict, text: str) -> bool:
+    """A file verdict without a spec whose failing test's log form stands in the evidence's lines (L195)."""
+    named = (e.get("owner") or {}).get("test")
+    return bool(e.get("file") and named and named in text)
+
+
 def recheck(e: dict) -> tuple[str, str | None]:
     """(kind, owner) from the evidence alone; `unsure` where the evidence does not carry the placement."""
     text = "\n".join(e.get("lines") or [])
@@ -42,12 +51,16 @@ def recheck(e: dict) -> tuple[str, str | None]:
         return "needs-red", None
     if transient.TRANSIENT.search(text) or e.get("unserved"):
         return "runner", None
+    if (s := e.get("scratch")) and s.get("paths") and not s.get("touched") and scratch_red.read(text):  # L151
+        return "runner", None
     if e.get("green_on") or (not read.TIMEOUT.search(text) and read.budget_only(e.get("lines") or [])):
         return "flake", None
     if e.get("spec"):
         if e["spec"] not in text:
             return "unsure", None
         why, owner = "file", owned(e)
+    elif not read.TIMEOUT.search(text) and not read.at_build_limit(e.get("step"), e.get("secs")) and tested(e, text):
+        why, owner = "file", owned(e)  # L195: a failing test's file, its log form in the lines
     elif read.TIMEOUT.search(text) or read.at_build_limit(e.get("step"), e.get("secs")) or \
             (e.get("pipeline") or {}).get("cars"):
         why, owner = "pipeline", pipeline(e)

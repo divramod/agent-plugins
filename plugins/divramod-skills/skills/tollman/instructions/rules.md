@@ -28,7 +28,7 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
    2026-11-04): a conflicting wagon and one with red light checks ride and are resolved or fixed in the train (plan
    0522 D18, plan 0610); only a servant's field and a head already in the barn are no cars, and they wait hitched.
    A list of fields from the farmer or the user says who should hitch, never who leaves; only the user's own
-   `--by-user` takes a wagon out (typed by the user, or relayed by the farmer as "the user decided"). To pause all trains on the user's words, `tollman.py hold --by user --words "<the user's words>" --why <text>` (`unhold` ends it; a hold without the user's words is refused, plan 0610 E21): no
+   `--by-user --words "<the user's words>"` takes a wagon out (typed by the user, or relayed by the farmer as "the user decided"; without words refused; it is a record, `tollman.py state`). To pause all trains on the user's words, `tollman.py hold --by user --words "<the user's words>" --why <text>` (`unhold --by user --words ...` ends it; a hold without the user's words is refused, plan 0610 E21): no
    train forms or lands, a landing that runs goes on, the watch and the board go on; never unload the timer for it.
 2. **No branch leaves the queue before it is merged** ("a place in the queue is never given up, until the branch is
    fixed"). A ticket that holds the gate or waits keeps its place through a red run, a fix, a `worktree stop` or a
@@ -79,8 +79,7 @@ Before a train is formed, started, restarted after a fix or pushed ("read the ru
    0490); the fix rides first as the next train's lead car, and that train's post-merge jobs must be green
    before any further train departs. The code holds the push (`fix_wait.py`, D22): until each red of the run
    before has its fix car or a named reason (`fix_wait.py reason --run <id> --why ...`); past its timeout a
-   `push-waits` wake, never a push. Forming and pretesting the next train early goes on; a red that names no car is a
-   board note for the farmer, never a hold.
+   `push-waits` wake, never a push. Forming and pretesting the next train early goes on.
 7. A hitched wagon rides the next train, or joins the standing one until its push starts: nothing waits for a train
    that could have formed (once at least 10 fields are hitched, ROLE.md, the user's minimum; the alone car forms at
    once). Only the user's named exceptions wait (a servant's field, a smuggle entry, asleep, a reserved place, the

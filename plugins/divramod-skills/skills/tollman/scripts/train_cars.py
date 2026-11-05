@@ -33,7 +33,7 @@ FLAGS = ("conflict", "proof_red", "pretest_red", "proof_unknown", "untried", "ca
 
 def of(repo: str) -> dict:
     """The cars and the hitched (the module doc)."""
-    import trains  # MIN_HITCHED; loaded only by this command
+    import trains  # the minimum; loaded only by this command
     main = mtm_scan.main_checkout(repo)
     own = mtm_scan.roles.slot_dir(main, train_state.ROLE).name
     rows = train_state.lines(main)
@@ -60,7 +60,7 @@ def of(repo: str) -> dict:
         if not h or field == own or train_wt.is_train(field):
             continue
         out["hitched"].append({"field": field, "head": h, **where(train, out["train"], field, h, heads, waits, holds,
-                                                                  n, trains.MIN_HITCHED, main)})
+                                                                  n, trains.minimum(main), main)})
     return out
 
 

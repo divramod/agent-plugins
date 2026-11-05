@@ -32,6 +32,17 @@ schema = "schemas/checks.schema.json"
 description = "The held-back check runs (hal2 plan 0306, the duty `checks`: scripts/checks.py): one line per deferral, dispatch, cancel and supersede. ci-check's `checks defer` and `checks dispatched` append to it, the duty's `checks cancel` and `checks dispatch` too; one write per line under O_APPEND."
 
 [[files]]
+path = "records.jsonl"
+kind = "event-log"
+schema = "schemas/records.schema.json"
+description = "The tollman's records (hal2 plan 0611, farmer/scripts/role_records.py): what it promised or has open, one line per `open` and per `close`, written by the code that does the action and closed by code seeing the fact. Append-only under O_APPEND; retention window 30 days, an open record is never pruned (a record closed over 30 days ago goes with both its lines, by rename under records.lock)."
+
+[[files]]
+path = "records-number"
+kind = "scalar"
+description = "The last record number given (role_records.py): the next record is R plus this plus one; a pruned record's number is never reused."
+
+[[files]]
 path = "train-landing.log"
 kind = "text-log"
 description = "The output of the train's landing (hal2-cli-git worktree merge-to-main --json), rewritten by every start."
@@ -85,7 +96,7 @@ description = "A board writer's announced take of board.lock, `board.lock.<pid>`
 [[files]]
 path = "*.lock"
 kind = "lock"
-description = "tick.lock (the round), board.lock (the board's writers take turns on it), wagons.lock (the wagon store's writers) and train-drop.lock (one drop run of the train worktrees at a time), held with flock; empty, or while held one farm-lock record {schema, pid, taken} naming the holder (hal2 plan 0561): a freeze spares that process until the lock is released."
+description = "tick.lock (the round), board.lock (the board's writers take turns on it), records.lock (the records' writers and prune, role_records.py), wagons.lock (the wagon store's writers) and train-drop.lock (one drop run of the train worktrees at a time), held with flock; empty, or while held one farm-lock record {schema, pid, taken} naming the holder (hal2 plan 0561): a freeze spares that process until the lock is released."
 
 [[files]]
 path = "tick.log*"

@@ -27,7 +27,7 @@ the train. Replaces unhitch-after-red and breakup (the user's own `--by-user` st
   the same cars plus the fixes on a new candidate (the merge; no empty retry commit, engine.fresh). A refused answer
   keeps the order open and tells the foreman why.
 - plan 0490 step 10: `fixed` takes a landing whose process is gone as ended (L47, L108: `still_lands`), `--redundant`
-  (L56); the texts' PUSH and PROOF (orders_text.py; L84, L85, L106, L113); a fix left local over 30 min wakes once (L106)
+  (L56); the texts' PUSH and PROOF (orders_text.py; L84, L106, L113); a fix left local over 30 min wakes once (L106)
 - `answers`: the round reads the foreman's ack (`acks.py ack <id> done fixed <sha>[: <green lines>]`, the message's
   ack id found by its `fix order <id>`), starts the light jobs' proof detached and, once it is decided, runs
   `tollman.py fixed` by code (deterministic first).
@@ -44,6 +44,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import fix_proof
 import generated
 import mtm_scan
+import records_kinds
 import run_names
 import train_state
 from carrier import Done, git
@@ -85,8 +86,8 @@ def refusal(train: dict | None, field: str, smuggle: bool, post: str | None) -> 
     """Why no order for `field` can be placed on the standing `train`, or ""."""
     if post:  # a post-merge order rides any train that stands, whatever its state (it never holds it)
         return "" if train else "no train stands: a post-merge red's fix rides the foreman's next harvest"
-    if not train or train["state"] not in ("red", "fixing", "landing"):
-        return f"no red or landing train stands ({(train or {}).get('state', 'none')}): a fix order needs one"
+    if not train or train["state"] not in ("red", "fixing", "retry", "landing"):  # retry: plan 0620 D6
+        return f"no red, retry or landing train stands ({(train or {}).get('state', 'none')}): a fix order needs one"
     if field != MAIN and not smuggle and field not in [c["field"] for c in train["cars"]]:
         return f"{field} rides no car of train {train['train']}: `order <car field>` or `order main`"
     return ""
@@ -121,6 +122,9 @@ def order(top: str, field: str, why: str, run: str | None, panes: dict, now=None
     fixwt = str(Path(top).parent / run_names.fix_worktree(field))
     train_state.append(main, "order", Path(top).name, now, train=train["train"], field=field, branch=branch, base=base,
                        why=why, run=run or train.get("run"), id=oid, post=post, jobs=jobs or None, units=units or None)
+    records_kinds.add(main, "fix-order", field, f"fix order {oid}: {field} fixes train {train['train']}: {why}",
+                      event=records_kinds.train_event("order", id=oid), now=now, order=oid, train=train["train"],
+                      branch=branch, post=post, jobs=jobs or None)
     words = {"id": oid, "field": field, "train": train["train"],
              "red": why if early or post else train.get("why") or train.get("status"), "early": TEXT["early"] * early,
              "run": run or train.get("run") or "none", "why": why, "carrier": carrier, "branch": branch,

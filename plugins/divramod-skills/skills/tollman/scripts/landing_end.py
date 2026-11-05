@@ -15,7 +15,8 @@ The user's three events of a running land run, as the pass's outputs:
    own: .adr/landings-survive-their-process.md, merge-queue-policy rule 1), the round's settle no longer sees a
    landing train and writes no second red. While the train is `fixing` the pass plans the foremen's `fixed` answers
    (`orders.answers`); once it is `retry` (every fix in: `fixed`, or the session's or a runner's retry) and the last
-   start's process is gone, `restart` pushes it with the round's own key (`retry:<train>:<starts>`): one push.
+   start's process is gone, `restart` pushes it with the round's own key (`retry:<train>:<attempt>`,
+   train_fold.restart_key: every restart past its checks raises it, a proof_red one too, hal2 plan 0620 D5): one push.
    Green: 2. forms the next train.
 
 Only the pass plans these (a round's trains duty settles, answers and restarts itself). In smuggle mode none.
@@ -59,7 +60,7 @@ def push(top: str, main: str, train: dict) -> list[dict]:
     if train_state.alive(train.get("pid")) or hold.of(main):
         return []
     import trains
-    return [trains.run("restart", "-", f"retry:{train['train']}:{train['starts']}", "restart", top,
+    return [trains.run("restart", "-", train_state.restart_key(train), "restart", top,
                        text=f"train {train['train']} lands again")]
 
 

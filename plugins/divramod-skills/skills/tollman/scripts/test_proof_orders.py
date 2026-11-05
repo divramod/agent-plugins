@@ -108,6 +108,28 @@ class Actions(unittest.TestCase):
         self.assertEqual(trains.plan("/no/such/farm/tollman-hal2", "/no/such/farm", [], [clean, red], {},
                                      alive=lambda p: False, result=lambda m: None), [], "any other red waits as before")
 
+    def test_a_retry_round_places_an_unordered_proof_red_car_s_order_before_its_restart(self):
+        """Plan 0620 D6 (L254, car 74 of train 53): a car with red light checks and no order in a `retry` train gets
+        its order this round and no restart; once ordered (and fixed), the round restarts."""
+        name, at = self.TRAIN["train"], {"schema": 1, "at": tt.AT, "slot": "tollman-hal2"}
+        cars = [dict(self.TRAIN["cars"][1]), dict(self.TRAIN["cars"][0])]  # 09 rode clean, 07 joined with proof_red
+        rows = [{**at, "kind": "formed", "train": name, "cars": cars, "base": "b" * 40},
+                {**at, "kind": "red", "train": name, "status": "gate_failed", "why": "rust-test"},
+                {**at, "kind": "retry", "train": name, "why": "flaky"}]
+
+        def plan(rows):
+            return trains.plan("/no/such/farm/tollman-hal2", "/no/such/farm", [], rows, {}, alive=lambda p: False,
+                               result=lambda m: None)
+        self.assertEqual(train_state.standing(rows)["state"], "retry")
+        acts = plan(rows)
+        self.assertEqual([(a["kind"], a.get("slot")) for a in acts], [("proof-order", "07")], "its order, no restart")
+        fixed = rows + [{**at, "kind": "order", "train": name, "field": "07", "id": "07-fix-1"},
+                        {**at, "kind": "fixed", "train": name, "field": "07", "id": "07-fix-1"}]
+        self.assertEqual(train_state.standing(fixed)["state"], "retry")
+        self.assertEqual([a["kind"] for a in plan(fixed)], ["restart"], "ordered and fixed: the restart")
+        clean = [dict(rows[0], cars=[cars[0]]), *rows[1:]]
+        self.assertEqual([a["kind"] for a in plan(clean)], ["restart"], "no proof_red car: the restart as before")
+
 
 class NeverLeaves(Farm):
     """The user, 2026-11-04: "when a car has hitched, it will never leave the queue again". No path of the train
@@ -130,7 +152,8 @@ class NeverLeaves(Farm):
         self.assertEqual(code, 1, text)
         self.assertIn("never leave the queue again", text)
         self.assertTrue(self.gate.of("31")["ready"])
-        self.assertEqual(engine_car.unhitch(str(self.main), "31", "the user's word", user=True)[0], 0)
+        self.assertEqual(engine_car.unhitch(str(self.main), "31", "the user's word", user=True,
+                                            words="the user said so")[0], 0)
         self.assertIsNone(self.gate.of("31"), "only the user's own command takes it")
 
     def test_no_train_code_clears_a_ready_mark_or_says_hitch_again(self):

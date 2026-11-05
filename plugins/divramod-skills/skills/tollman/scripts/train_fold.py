@@ -9,7 +9,9 @@ count), `retry` (also once the last order is
 `fixed`: `fixed` true, the merge is the new candidate), `paused` (a smuggle paused its landing, `pauses`: frozen,
 pause.py), `stopped` (a role car left out twice in a row, plan 0610 D24, `stop`: frozen, never pushed, role_cars.py),
 or `split` (the user unhitched a car after red: the rest forms again). `push` is the train's last push, kept across its starts: `head`, `run` (its land run), `red` (a `red`
-line named its head; head_guard.py). The landing's own output is the text log `train-landing.log`, rewritten by every
+line named its head; head_guard.py). `attempt` counts the restarts that got past their checks (hal2 plan 0620 D5): each
+`started` line raises it with `starts`, each `attempt` line (a restart that started nothing: proof_red, a refused mark)
+alone; `attempt(train)` numbers the round's `retry:` key. The landing's own output is the text log `train-landing.log`, rewritten by every
 start; `result` is its last JSON line.
 """
 
@@ -26,7 +28,7 @@ def standing(rows: list[dict]) -> dict | None:
         if kind == "formed":
             train = {"train": e.get("train"), "at": e.get("at"), "carrier": e.get("slot"), "cars": e.get("cars", []),
                      "worktree": e.get("worktree"),
-                     "base": e.get("base"), "number": e.get("number"), "state": "formed", "starts": 0, "pid": None, "unhitched": [], "yard": [],
+                     "base": e.get("base"), "number": e.get("number"), "state": "formed", "starts": 0, "attempt": 0, "pid": None, "unhitched": [], "yard": [],
                      "runner_retries": 0, "land_run": None, "orders": [], "fixed": False, "pauses": [],
                      "in_barn": [], "post": carry, "declined": []}
         elif not train or e.get("train") != train["train"]:
@@ -44,8 +46,11 @@ def standing(rows: list[dict]) -> dict | None:
         elif kind == "pretest":  # incomplete ones in a row: pretest_train.WAITS (plan 0522 D7)
             waits = (train.get("pretest_waits", 0) + 1) * (e.get("result") == "incomplete")
             train.update(pretest=e.get("result"), pretest_tree=e.get("tree"), pretest_waits=waits)
+        elif kind == "attempt":  # a restart past its checks that started nothing (plan 0620 D5): its own key
+            train["attempt"] = attempt(train) + 1
         elif kind == "started":
             train.update(state="landing", pid=e.get("pid"), starts=train["starts"] + 1, started=e.get("at"),
+                         attempt=attempt(train) + 1,
                          land_run=None, fixed=False, since=None, land_ref=e.get("land_ref"), head=None)
         elif kind == "push":  # plan 0560 step 3: the head this start lands, kept as the train's last push
             train.update(head=e.get("head"), push={"head": e.get("head"), "run": None, "red": False})
@@ -86,6 +91,18 @@ def standing(rows: list[dict]) -> dict | None:
         else:  # landed, cleared: its open post-merge orders ride the next train, a landed one's early ones too
             train, carry = None, train["post"] + carried(train) * (kind == "landed")
     return train
+
+
+def attempt(train: dict) -> int:
+    """The number of the train's restart key `retry:<train>:<n>` (plan 0620 D2, D5): its starts and its restarts
+    that started nothing; a state without `attempt` reads `starts` (an old train keeps its key)."""
+    return train["attempt"] if train.get("attempt") is not None else train.get("starts") or 0
+
+
+def restart_key(train: dict) -> str:
+    """The round's key of a restart (trains.plan, landing_end.push): `retry:<train>:<attempt>` for a train in
+    `retry`, new after every restart past its checks (plan 0620 D5); `resume:<train>` for one formed, never started."""
+    return f"retry:{train['train']}:{attempt(train)}" if train["state"] == "retry" else f"resume:{train['train']}"
 
 
 def add_cars(cars: list[dict], new: list[dict]) -> list[dict]:

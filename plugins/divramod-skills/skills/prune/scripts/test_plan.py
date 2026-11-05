@@ -163,6 +163,33 @@ class TrainBuilding(unittest.TestCase):
         self.assertTrue(acts(p, "phase-2") or acts(p, "phase-3"))
 
 
+class TrimUnderTrain(unittest.TestCase):
+    """Plan 0623 D2 (L147; prune run 20261030T185542: 28 then 16 GB free, a train building, 0 B freed): under 30 GB free
+    phase 2 trims the fields the caller says the train does not carry; a car's field is held back, nothing else changes."""
+    WAIT = TrainBuilding.WAIT
+
+    def p(self, free_gb, outside):
+        fs = [field("04", sizes=None), field("05", sessions=[sess(120)]), field("13", sizes=None)]
+        return planner.plan({**farm(*fs, free_gb=free_gb), "busy": self.WAIT}, outside=outside)
+
+    def test_the_field_outside_the_train_is_trimmed_a_car_is_held(self):
+        for free in (28, 16):
+            p = self.p(free, {"04"})
+            self.assertEqual(acts(p, "phase-2"), [("04", "trim")], free)
+            self.assertEqual([a["field"] for a in p["jobs"]["phase-2"]["held"]], ["13"], "a car's field")
+            self.assertEqual(acts(p, "phase-3"), [], "only phase 2")
+            self.assertEqual(acts(p, "phase-1"), [])
+
+    def test_unknown_membership_trims_nothing(self):
+        p = self.p(16, None)
+        self.assertEqual((acts(p, "phase-2"), p["jobs"]["phase-2"]["skipped"]), ([], self.WAIT))
+
+    def test_at_30_gb_the_hold_defers_everything(self):
+        p = self.p(30, {"04"})
+        self.assertEqual((acts(p, "phase-2"), p["jobs"]["phase-2"]["skipped"]), ([], self.WAIT))
+        self.assertNotIn("held", p["jobs"]["phase-2"])
+
+
 class Busy(unittest.TestCase):
     def test_pr10_a_building_or_busy_field_is_trimmed_in_no_phase(self):
         fs = [field("26", building=True), field("27", sessions=[sess(120, "working")]),

@@ -262,7 +262,7 @@ class Hooks(Board):
         red = board.lines(self.main_dir(), "red")[0]
         self.assertEqual((red["cars"], red["status"], red["run"]), (["07", "09"], "gate_failed", "https://github.com/x/runs/9"))
         self.assertIn("gate_failed", red["text"])
-        self.assertEqual(self.call("unhitch", "09", "--why", "its test fails", "--by-user", repo=self.main)[0], 0)
+        self.assertEqual(self.call("unhitch", "09", "--why", "its test fails", "--by-user", "--words", "unhitch 09, the user said", repo=self.main)[0], 0)
         (gone,) = board.lines(self.main_dir(), "unhitched")
         self.assertEqual((gone["from"], gone["to"], gone["text"], gone["slot"]), (OWN, "09", "its test fails", "09"))
         self.assertEqual(gone["train"], red["train"], "a car of the red train")

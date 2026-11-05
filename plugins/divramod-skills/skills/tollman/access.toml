@@ -1,0 +1,13 @@
+# What the tollman skill owns as its own store (docs/access-declarations.md): plan 0611 step 2, its records.
+# The skill's other stores are still the seed's rows of skill.tollman.
+id = "skill.tollman"
+
+[[state]]
+name = "records"
+home = "node"
+description = "the tollman's records `roles/tollman/records.jsonl` in its field tollman-<repo>: what it promised or has open, one JSON line per open and per close, appended by code (farmer/scripts/role_records.py), gitignored; an open record is never pruned"
+at = "state:git/worktree/*/tollman-*/roles/tollman/records.jsonl"
+format = "json"
+schema = "code/agents/apps/skills/skills/roles/tollman/schemas/records.schema.json"
+retention = "window 30"
+sync = "never"

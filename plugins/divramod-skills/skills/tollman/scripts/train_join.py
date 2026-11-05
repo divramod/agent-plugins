@@ -28,6 +28,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import modes
 import mtm_scan
 import open_train
+import records_kinds
 import train_branch
 import train_state
 import train_wt
@@ -70,7 +71,8 @@ def join(repo: str, field: str, car: dict | None = None, now=None) -> Done:
         return 1, f"train {name} is {state}: nothing joins it now; field {field} rides the next train"
     if gone := train_wt.astray(top, train):
         return 1, gone
-    if car is None:
+    hand = car is None
+    if hand:
         doc = mtm_scan.run_json(mtm_scan.QUEUE, main) or {}
         tickets = doc.get("queue", [])
         d = open_train.draft(main, top, train, tickets, modes.of(doc)) or {"cars": [], "waiting": []}
@@ -84,7 +86,12 @@ def join(repo: str, field: str, car: dict | None = None, now=None) -> Done:
             return 1, f"field {field} does not join train {name}: {why}"
     if car["field"] != field:
         return 1, f"the car names field {car['field']}, not {field}"
-    return record(top, main, train, car, now)
+    code, text = record(top, main, train, car, now)
+    if hand and not code:  # the session's join: open until the car is in the train (plan 0611)
+        records_kinds.add(main, "hand-merge", field, f"field {field} ({car['head'][:12]}) joined train {name} by hand",
+                          event=records_kinds.train_event("joined", train=name, field=field), now=now, train=name,
+                          head=car["head"])
+    return code, text
 
 
 def owe(repo: str, field: str, car: dict, now=None) -> Done:

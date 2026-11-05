@@ -108,6 +108,21 @@ class Open(Farm):
         order = [e for e in train_state.lines(str(self.main)) if e["kind"] == "order"][-1]
         self.assertEqual((order["field"], order["jobs"], self.train()["state"]), ("11", ["python-lint"], "fixing"))
 
+    def test_a_joiner_with_red_light_checks_in_a_retry_train_is_ordered_before_the_restart(self):
+        """Plan 0620 D6 (L254: car 74 joined train 53, which stood in retry, and got no order): joined while red, the
+        train put to `retry` before its order was placed, the round orders it and starts nothing past it."""
+        self.crop("11", {"eleven.txt": "11"})
+        with mock.patch.object(trains, "PROVE", lambda main, field, head, barn: {
+                "state": "red", "lines": ["names: eleven.txt"]} if field.endswith("/11") else GREEN):
+            self.round()
+            self.assertEqual(self.train()["cars"][-1]["proof_red"], ["names: eleven.txt"])
+            self.assertEqual(self.call("retry", "--why", "flaky")[0], 0)
+            starts = self.train()["starts"]
+            self.round()
+        order = [e for e in train_state.lines(str(self.main)) if e["kind"] == "order"][-1]
+        self.assertEqual((order["field"], self.train()["state"], self.train()["starts"]), ("11", "fixing", starts),
+                         "its order, never a restart past it")
+
     def test_a_riding_car_s_newer_head_joins_as_its_update(self):
         """E10: 09 hitched again on a newer head while its train is red: its car's place, merged by the next start."""
         path = self.fields["09"]

@@ -5,15 +5,17 @@ merge job's next train in `minute.py`, the user's unhitch) returns one `held` li
 the watch (the minute pass, the live land run's events, leavers.check), fix orders and their answers, the
 settling of a landing that landed or ended (never its restart, L107), and a landing that runs: it is never cut
 (merge-queue-policy); engine.py reads the hold again right before a start and before the push (L88). It
-replaces unloading the timer. The hold is `hold.json` (`why`, `at`, `by`, `words`) in the tollman's state folder;
-`status` shows `held: <why>`.
+replaces unloading the timer. The hold is an open `hold` standing order of the records store (standing.py, plan 0611
+step 5: `why` its value, `at`, `by`, `words`, `record` its R<n>); a `hold.json` of before is read as a legacy hold
+until the next `hold` or `unhold` removes it. `status` shows `held: <why>`.
 
 A hold keeps every hitched wagon out of a train, so it is the user's alone (plan 0610 E21; the record
 hitch-is-forever): `--by user --words "<the user's words>"`, typed by the user or relayed by the farmer as "the user
-decided" (~/.adr/tollman-follows-the-farmer.md). A session's or farmer's own hold, without them, is refused.
+decided" (~/.adr/tollman-follows-the-farmer.md). A session's or farmer's own hold, without them, is refused; so is an `unhold` without them: the user's hold ends
+only on the user's relayed words (D13).
 
   tollman.py hold --by user --words <the user's words> [--why <text>] [--repo <dir>]     hold the trains
-  tollman.py unhold [--repo <dir>]                  let them form again (the next round, or `tollman.py chain`)
+  tollman.py unhold --by user --words <the user's words> [--repo <dir>]   let them form again (the next round, or `chain`)
 """
 
 import json
@@ -32,13 +34,24 @@ def path(main: str):
     return mtm_scan.state_dir(main, train_state.ROLE) / FILE
 
 
-def of(main: str) -> dict | None:
-    """The hold ({why, at}) or None: nothing held (also when the state folder is not there)."""
+def legacy(main: str) -> dict | None:
+    """The hold.json of before the records ({why, at, by, words}), or None."""
     try:
         doc = json.loads(path(main).read_text())
     except (OSError, ValueError):
         return None
     return doc if isinstance(doc, dict) else None
+
+
+def of(main: str) -> dict | None:
+    """The hold ({why, at, by, words, record}) or None: nothing held (also when the state folder is not there). The
+    open `hold` standing order; else a legacy hold.json."""
+    import standing
+    rec = standing.of(main, "hold")
+    if rec:
+        return {"why": rec.get("value") or "", "at": rec["at"], "by": rec["by"], "words": rec.get("words", ""),
+                "record": rec["id"]}
+    return legacy(main)
 
 
 USER = "user"  # the only `--by` a hold takes (E21)
@@ -88,21 +101,27 @@ def add_parser(sub) -> None:
     h.add_argument("--why", default="")
     h.add_argument("--by", default="", help="who holds: only `user` (plan 0610 E21)")
     h.add_argument("--words", default="", help="the user's own words for the hold")
-    sub.add_parser("unhold")
+    u = sub.add_parser("unhold")
+    u.add_argument("--by", default="", help="who: only `user` (D13)")
+    u.add_argument("--words", default="", help="the user's own words for ending the hold")
 
 
 def main(args) -> int:
+    import standing
     main_dir = mtm_scan.main_checkout(args.repo)
-    f = path(main_dir)
     if args.cmd == "hold":
         if why := refusal(args.by, args.words):
             print(why)
             return 1
-        doc = {"why": args.why, "at": train_state.utc(), "by": USER, "words": args.words.strip()}
-        f.write_text(json.dumps(doc) + "\n")
+        standing.add(main_dir, "hold", args.why, args.words)
+        path(main_dir).unlink(missing_ok=True)  # the legacy file is migrated by this write
         print(text(of(main_dir)))
         return 0
+    if why := standing.refusal(args.by, args.words):
+        print(why.replace("a standing order", "ending a hold"))
+        return 1
     held = of(main_dir)
-    f.unlink(missing_ok=True)
+    standing.revoke_rule(main_dir, "hold", args.words)
+    path(main_dir).unlink(missing_ok=True)
     print("the trains are held no more: they form at the next round" if held else "no hold was set", file=sys.stdout)
     return 0

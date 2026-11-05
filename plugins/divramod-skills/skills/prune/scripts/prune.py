@@ -10,6 +10,8 @@
       `hal2-cli-runs exec --workflow prune -- prune.py run`; `--dry-run` changes nothing ("would ...").
       `--responses`: only the disk watermark's responses (plan 0472 D2: `tart prune --entries caches`, the caches of
       `.hal/prune.toml`'s `[caches] paths`), when the disk is still above the goal and no train builds.
+      `--outside-train NN`: field NN (also a `--field`) is not carried by the train that builds: while under 30 GB are
+      free, phase 2 trims it despite the train's hold (plan 0623 D2, L147; no muck out, removal or response).
       Exit 0 done or another run holds the farm lock ("already running: ..."), 1 an action failed, 2 a tool missing.
       A run without `--field` and `--responses` starts with the disk phase (below).
   prune.py disk [--dry-run] [--due] [--json] [--repo DIR]
@@ -49,7 +51,8 @@ def cmd_plan(args) -> int:
 
 def cmd_run(args) -> int:
     only = set() if args.responses else set(args.field) or None  # an empty set: no field, just the responses
-    return executor.run(mtm_scan.main_checkout(args.repo), only, args.dry_run, responses_only=args.responses)
+    return executor.run(mtm_scan.main_checkout(args.repo), only, args.dry_run, responses_only=args.responses,
+                        outside=set(args.outside_train) or None)
 
 
 def cmd_disk(args) -> int:
@@ -74,6 +77,10 @@ def main(argv: list[str]) -> int:
     r.add_argument("--responses", action="store_true", help="only the disk watermark's responses (tart cache, caches)")
     for x in (p, r):
         x.add_argument("--field", action="append", default=[], metavar="NN", help="only this field (repeatable)")
+    r.add_argument("--outside-train", action="append", default=[], metavar="NN",
+                   help="a --field the building train does not carry (the tollman's word): phase 2 trims it under a "
+                        "train's hold while under 30 GB are free (repeatable)")
+    for x in (p, r):
         x.add_argument("--repo", default=".")
     d = sub.add_parser("disk", help="the disk phase alone: idle fields' Rust build folders while the disk is low")
     d.add_argument("--dry-run", action="store_true", help="change nothing, say what would be deleted")

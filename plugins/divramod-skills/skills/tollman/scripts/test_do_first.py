@@ -6,6 +6,7 @@ shown again after the tollman's clear although the handoff's writer had seen the
 import datetime as dt
 import json
 import os
+import types
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (puts the farmer skill's scripts on the path)
@@ -13,6 +14,8 @@ import deliver
 import handoff
 import red_orders
 import roletime
+import state_cmd
+import train_cars
 import tick
 import train_state
 import wake
@@ -62,7 +65,8 @@ class DoFirst(Frame):
         self.hand_over({"wake": [tick.act("trains", "train-red", "wake", "-", text="train 21 red", key="train-red:21")]}, 20)
         code, out = self.call("act")
         self.assertEqual(code, 0)
-        self.assertTrue(out.startswith("DO FIRST (from "), out)
+        self.assertTrue(out.startswith("tollman state:"), out)  # plan 0611 step 6: the state is printed first
+        self.assertLess(out.index("tollman state:"), out.index("DO FIRST (from "))
         self.assertIn("Rerun train 20 once; then check the runners.", out)
         self.assertLess(out.index("Rerun train 20"), out.index("train-red"))
         self.assertNotIn("train 20 red", out)
@@ -234,6 +238,12 @@ class UnorderedRedsStay(Frame):
         self.assertEqual(self.texts(), ["train 51 red"])
 
     def test_train_jsonl_is_read_once_per_act_and_only_for_a_candidate(self):
+        # the state printed before DO FIRST (plan 0611 step 6) reads train.jsonl through its own module name: not counted here
+        own = types.SimpleNamespace(**vars(train_state))  # a copy, so the counting patch below misses it
+        for mod in (state_cmd, train_cars):
+            patch = mock.patch.object(mod, "train_state", own)
+            patch.start()
+            self.addCleanup(patch.stop)
         with mock.patch.object(train_state, "lines", wraps=train_state.lines) as lines:
             self.act(tick.act("trains", "fix-refused", "wake", "09", text="x"))
             self.assertEqual(lines.call_count, 0)

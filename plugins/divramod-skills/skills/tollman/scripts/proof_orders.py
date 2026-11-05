@@ -6,7 +6,8 @@ a car with `proof_red` (proof.py's finding lines), and:
   order of this train yet (it formed so, or joined so: plan 0610 E5; a red join pretest adds `pretest_red`, E6) makes
   the train red before its landing starts or pushes, status `proof_red` (STATUS), so nothing is pushed while a light
   check is red;
-- `actions` (trains.plan, each round while a train is `red` or `fixing`, whatever its red): per such car its fix order
+- `actions` (trains.plan, each round while a train is `red` or `fixing`, whatever its red, and through `pending` while
+  it is `retry`: a car that joined so then is ordered before the restart, plan 0620 D6): per such car its fix order
   by code, `tollman.py order <car> --why "proof: ..." --job <gate job>` (orders.py through red_claims.py: an acked
   message, the fix on `<NN>-train-<n>-<a>-fix` from `origin/train-<n>-<a>` (run_names.py), answered `done fixed
   <sha>`, merged into the carrier
@@ -82,3 +83,10 @@ def actions(top: str, main: str, train: dict, rows: list[dict]) -> list[dict]:
         out.append(act("trains", "proof-order", "run", field, key=f"proof-order:{name}:{field}", window=WEEK,
                        argv=argv, on_fail=[stuck], text=f"train {name}: fix order to {field} for its red light checks"))
     return out
+
+
+def pending(top: str, main: str, train: dict, rows: list[dict]) -> list[dict]:
+    """A `retry` train's round before its restart (plan 0620 D6): `actions` when one of them places a fix order (a car
+    that joined with red light checks while the train stood in retry), else none and the restart goes on."""
+    acts = actions(top, main, train, rows)
+    return acts if any(a["kind"] == "proof-order" for a in acts) else []

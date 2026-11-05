@@ -1,0 +1,57 @@
+c2-09-records-check	[05] gate records-check	2026-11-01T00:40:24.9750061Z [05] 🎬 00:40:24
+c2-09-records-check	[05] gate records-check	2026-11-01T00:40:25.0194334Z gate: records-check (packages: all; targets: all)
+c2-09-records-check	[05] gate records-check	2026-11-01T00:40:25.0300689Z [00:40:25] phase build: start
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:03.3208006Z [00:41:03] phase build: 38s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:03.3276240Z [00:41:03] phase check: start
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:16.6663280Z commit-message: checked by `hal2-cli-records commit-msg`, not here
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:16.6666614Z shotfile: checked by `hal2-cli-shooter check`, not here
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:16.6667285Z ok: 2003 records, 2003 valid, 0 legacy, 2837 shaped, 0 problems
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:16.6787087Z [00:41:16] phase check: 13s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:23.3639484Z [00:41:23] phase state-map: start
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:23.6529613Z ok: 61 declarations, the map current (736 stores); 58 shared stores without a schema, ceiling 58
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:23.6624903Z [00:41:23] phase state-map: 0s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:41:23.7099062Z [00:41:23] phase state-scratch: start
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2138968Z hal2-cli-state: 1 problems:
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2358987Z   code/rust/libs/hal2-workqueue: a suite failed: cargo nextest run -p hal2-workqueue:
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2499929Z 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2648916Z     test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 226 filtered out; finished in 2.21s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2649566Z 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2828959Z   stderr ───
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.2963533Z 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3154900Z     thread 'budget::a_history_page_of_a_20k_line_day_within_budget' (459704) panicked at libs/hal2-workqueue/tests/it/budget.rs:141:5:
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3228602Z     over budget: ["HistoryPage"]
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3408831Z     note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3579773Z 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3778924Z   Cancelling due to test failure: 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.3898999Z ────────────
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4034544Z      Summary [   2.487s] 14/238 tests run: 13 passed, 1 failed, 2 skipped
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4057281Z         FAIL [   2.392s] ( 14/238) hal2-workqueue::it budget::a_history_page_of_a_20k_line_day_within_budget
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4152170Z warning: 224/238 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4228535Z error: test run failed
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4348662Z hint: declare the store (docs/access-declarations.md) or stop writing it
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4488537Z [00:46:30] phase state-scratch: failed after 307s (exit 10)
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4596462Z phase state-scratch: failed (exit 10)
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4798350Z gate records-check: 1 phase failed: state-scratch
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4888629Z phases of main.sh (total 366s):
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.4968851Z   build                    38s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5148563Z   check                    13s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5188517Z   index                    2s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5298519Z   intent                   2s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5388443Z   generated                2s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5529050Z   uats                     0s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5658583Z   roles                    1s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5838721Z   changelog                0s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.5953317Z   state-map                0s
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6148936Z   state-scratch            307s (failed, exit 10)
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6308867Z gate: unit hal2-records: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6398683Z gate: unit hal2-cli-records: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6538983Z gate: unit hal2-plans: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6658757Z gate: unit hal2-cli-plans: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6758489Z gate: unit hal2-roles: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6868853Z gate: unit hal2-cli-roles: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.6978410Z gate: unit hal2-changelog: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.7108494Z gate: unit hal2-cli-changelog: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.7228587Z gate: unit hal2-state: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.7338465Z gate: unit hal2-cli-state: failed 
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.7443059Z ##[error]Process completed with exit code 10.
+c2-09-records-check	[05] gate records-check	2026-11-01T00:46:30.8610779Z [05] 💥 00:46:30 ⏳ 00:06:06

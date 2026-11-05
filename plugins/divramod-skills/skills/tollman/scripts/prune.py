@@ -42,6 +42,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import barn
 import mtm_scan
 import prune_ask
+import prune_train
 import roletime
 import tick
 import train_state
@@ -118,21 +119,22 @@ def running(main: str, now: float | None = None) -> bool:
         return False
 
 
-def launch_argv(main: str, slot: str, fields: list[str], responses: bool = False) -> list[str]:
+def launch_argv(main: str, slot: str, fields: list[str], responses: bool = False, outside: list[str] = ()) -> list[str]:
     run = [sys.executable, str(script()), "run", "--repo", main] + [x for f in fields for x in ("--field", f)] \
-        + (["--responses"] if responses else [])
+        + [x for f in outside for x in ("--outside-train", f)] + (["--responses"] if responses else [])
     if shutil.which("hal2-cli-runs"):
         return ["hal2-cli-runs", "exec", "--workflow", "prune", "--slot", slot, "--trigger",
                 "the tollman's duty prune", "--"] + run
     return run
 
 
-def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen, responses: bool = False) -> int:
+def start(main: str, slot: str, fields: list[str], spawn=subprocess.Popen, responses: bool = False,
+          outside: list[str] = ()) -> int:
     """`prune.py start`: the detached run of /prune, its pid kept; one at a time."""
     if running(main):
         print("prune run already going")
         return 0
-    argv = launch_argv(main, slot, fields, responses)
+    argv = launch_argv(main, slot, fields, responses, outside)
     folder = state(main)
     with (folder / RUN_LOG).open("w") as out:
         p = spawn(argv, cwd=main, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
@@ -241,8 +243,12 @@ def plan(item: dict, ctx: dict, data: dict | None = None, landed: dict | None = 
     todo = tick.fresh(wanted(data["plan"], heads), ctx.get("log", []), ctx["now"])
     mass = ("trim", "clean", "response")  # mass deletes: they wait for the gap between trains
     hold = building(main) if data["plan"].get("short") or any(a["kind"] in mass for a in todo) else None
-    if hold:
-        todo = [a for a in todo if a["kind"] not in mass]
+    outside: list[str] = []
+    if hold:  # L147 (plan 0623 D2): under /prune's train_trim_gb free, phase 2 still trims the fields outside the train
+        free = prune_train.outside_trims(main, data)
+        outside = sorted({a["field"] for a in free})
+        todo = [a for a in todo if a["kind"] not in mass] + tick.fresh(
+            wanted({"jobs": {"phase-2": {"actions": free}}}, heads), ctx.get("log", []), ctx["now"])
     first = next((a for a in todo if a["kind"] == "remove"), None)  # one removal per round, the cars first
     todo = [a for a in todo if a["kind"] != "remove" or a is first]
     out = []
@@ -251,7 +257,7 @@ def plan(item: dict, ctx: dict, data: dict | None = None, landed: dict | None = 
         todo[0] = {**todo[0], "do": "run", "cwd": main, "on_fail": [failed("prune.py start failed")],
                    "argv": [sys.executable, str(Path(__file__).resolve()), "start", "--repo", main,
                             "--slot", Path(ctx.get("top", main)).name] + [x for f in fields for x in ("--field", f)]
-                            + (["--responses"] if not fields else [])}
+                            + [x for f in outside for x in ("--outside-train", f)] + (["--responses"] if not fields else [])}
         out = todo
     elif asked:  # no run starts this round: the next round's plan is asked now (a run's start makes it stale)
         out = ask_next(main, ctx)
@@ -272,6 +278,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--repo", default=".")
     p.add_argument("--slot")
     p.add_argument("--field", action="append", default=[])
+    p.add_argument("--outside-train", action="append", default=[], metavar="NN", help="a --field the building train does not carry")
     p.add_argument("--responses", action="store_true", help="the run does only /prune's watermark responses")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
@@ -285,7 +292,7 @@ def main(argv: list[str]) -> int:
         return 2
     if args.cmd == "plan":
         return subprocess.call([sys.executable, str(prune), "plan", "--repo", main_dir, *(["--json"] * args.json)])
-    return start(main_dir, args.slot or Path(args.repo).resolve().name, args.field, responses=args.responses)
+    return start(main_dir, args.slot or Path(args.repo).resolve().name, args.field, responses=args.responses, outside=args.outside_train)
 
 
 if __name__ == "__main__":

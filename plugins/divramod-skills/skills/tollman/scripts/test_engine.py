@@ -177,7 +177,9 @@ class Forming(Farm):
         code, text = engine.form(str(self.wm), [{"field": "07", "branch": "07", "head": head, "plan": ""}])
         self.assertEqual(code, 1, text)
         self.assertIn("was not marked: refused: 07", text)
-        self.assertEqual((self.state(), self.train()["state"], self.spawned), ([("formed", self.carrier())], "formed", []))
+        self.assertEqual((self.state(), self.train()["state"], self.spawned),
+                         ([("formed", self.carrier()), ("attempt", self.carrier())], "formed", []),
+                         "a try that started nothing raises the attempt (plan 0620 D5)")
         self.assertEqual(engine.form(str(self.wm), [])[0], 0, "a train stands: no second one")
         self.gate.refuse = ""
         r = self.round()
@@ -319,7 +321,8 @@ class Standing(Farm):
         # now the unhitch's own call breaks the train up, tells 09's foreman and forms the rest; since plan 0360 D3
         # only the user's own unhitch (`--by-user`) takes a car out of the frozen train (class Frozen).
         self.panes = {"09": "%9"}
-        code, text = self.call("unhitch", "09", "--why", "its test fails", "--by-user", repo=self.main)
+        code, text = self.call("unhitch", "09", "--why", "its test fails", "--by-user",
+                               "--words", "the user said so", repo=self.main)
         self.assertEqual((code, text), (0, "09 unhitched: its test fails; the rest of the train forms again\n"
                                            "chain link 1: breakup -, unhitched 09, form -\n"
                                            "chain stops: a landing started\n"))
@@ -385,6 +388,43 @@ class Standing(Farm):
                          "marked before every start, the attempt counting the starts")
         self.assertEqual(self.train()["land_ref"], "train-1-2")
 
+    def test_a_restart_red_on_a_car_s_light_checks_raises_the_attempt_and_the_fixed_train_restarts(self):
+        """Plan 0620 D5 (L254, train 53): the restart goes red (proof_red) before its start, so `starts` stays; its
+        `attempt` line keys the next round anew, and once the car is fixed that round restarts the train. The car's
+        light checks turn red after the round's plan (D6's `pending` saw none, else it orders the car first), so the
+        restart's own `red_line` catches it."""
+        self.ends({"status": "gate_failed", "message": "red"})
+        self.round()
+        self.assertEqual(self.call("retry", "--why", "flaky")[0], 0)
+        name = self.train()["train"]
+        self.assertEqual(train_state.restart_key(self.train()), f"retry:{name}:1")
+        with mock.patch.object(engine.proof_orders, "red_cars",
+                               lambda train: [dict(train["cars"][1], proof_red=["names: nine.txt"])]), \
+                mock.patch.object(engine.proof_orders, "pending", lambda *a: []):
+            self.round()
+        t = self.train()
+        self.assertEqual((self.last, t["state"], t["status"], t["starts"], t["attempt"], len(self.spawned)),
+                         ([("restart", "run", "-")], "red", "proof_red", 1, 2, 1), "no start, the attempt raised")
+        self.assertEqual(self.state()[-2:], [("red", self.carrier()), ("attempt", self.carrier())])
+        main = str(self.main)
+        train_state.append(main, "order", self.carrier(), train=name, field="09", branch="09-train-fix",
+                           base=t["base"], why="proof", id="09-fix-1")
+        train_state.append(main, "fixed", self.carrier(), train=name, field="09", id="09-fix-1", sha="f" * 40,
+                           commit=out(self.cw, "rev-parse", "HEAD"))
+        self.assertEqual(train_state.restart_key(self.train()), f"retry:{name}:2", "never the used key :1")
+        self.round()
+        t = self.train()
+        self.assertEqual((self.last, t["state"], t["starts"], t["attempt"], len(self.spawned)),
+                         ([("restart", "run", "-")], "landing", 2, 3, 2), "the next round restarts the fixed train")
+
+    def test_a_refused_mark_raises_the_attempt_too(self):
+        """Plan 0620 D5: a restart past its checks that starts nothing (its mark refused) keys its next try anew."""
+        self.ends(None)
+        before = self.train()["attempt"]
+        with mock.patch.object(engine, "cli", lambda args, cwd: (1, "refused")):
+            code, text = engine.restart(str(self.wm))
+        self.assertEqual((code, self.train()["attempt"], self.train()["starts"]), (1, before + 1, 1), text)
+
     def test_an_interrupted_landing_is_started_again_and_adopts_its_run(self):
         self.ends(None)  # the process gone without a word
         self.round()
@@ -449,7 +489,8 @@ class Frozen(Farm):
 
     def test_the_user_s_own_unhitch_still_breaks_a_red_train_up(self):
         self.red()
-        code, text = self.call("unhitch", "09", "--why", "the user's word", "--by-user", repo=self.main)
+        code, text = self.call("unhitch", "09", "--why", "the user's word", "--by-user",
+                               "--words", "the user said so", repo=self.main)
         self.assertEqual(code, 0, text)
         self.assertIn("chain link 1: breakup -, unhitched 09, form -", text)
         self.assertEqual(self.state()[-4:], [("unhitched", "09"), ("cleared", "tollman-train"),
@@ -472,7 +513,8 @@ class Frozen(Farm):
         self.assertEqual(self.call("retry", "--why", "flaky")[0], 1)
         self.round()
         self.assertEqual((self.last, self.train()["state"]), ([], "fixing"))
-        code, text = self.call("unhitch", "09", "--why", "the user's word", "--by-user", repo=self.main)
+        code, text = self.call("unhitch", "09", "--why", "the user's word", "--by-user",
+                               "--words", "the user said so", repo=self.main)
         self.assertEqual(code, 0, text)
         self.assertEqual([c["field"] for c in self.train()["cars"]], ["07"])
 

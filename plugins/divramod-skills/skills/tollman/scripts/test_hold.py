@@ -25,10 +25,12 @@ class Verbs(Trains):
         self.assertEqual(hold.of(str(self.main))["why"], "CI is being rebuilt")
         self.assertIn("held: CI is being rebuilt", self.call("status")[1])
         self.assertEqual(self.call("status", "--json")[0], 0)
-        code, text = self.call("unhold")
+        code, text = self.call("unhold", "--by", "user", "--words", "the user, 2026-11-04: let them form")
         self.assertEqual((code, hold.of(str(self.main))), (0, None))
         self.assertNotIn("held:", self.call("status")[1])
-        self.assertEqual(self.call("unhold")[1], "no hold was set\n")
+        self.assertEqual(self.call("unhold", "--by", "user", "--words", "the user, 2026-11-04: let them form")[1],
+                         "no hold was set\n")
+        self.assertEqual(self.call("unhold")[0], 1, "plan 0611 D13: an unhold needs the user's words")
 
     def test_a_hold_without_the_user_s_words_is_refused(self):
         """Plan 0610 E21: a session's or farmer's own hold keeps every wagon out, so it needs the user's words."""
@@ -69,7 +71,7 @@ class Held(Trains):
         self.assertTrue(any(a["kind"] == "held" for a in self.round()["planned"]), "one held line each round")
         self.assertEqual(self.call("chain")[0], 0)
         self.assertEqual((self.train(), len(self.spawned)), (None, 1), "the chain forms nothing either")
-        self.call("unhold")
+        self.call("unhold", "--by", "user", "--words", "the user, 2026-11-04: let them form")
         self.round()
         t = self.train()
         self.assertEqual(([c["field"] for c in t["cars"]], t["state"], len(self.spawned)), (["03"], "landing", 2))

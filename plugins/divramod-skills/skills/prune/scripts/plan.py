@@ -21,6 +21,7 @@ STALE, PHASE1, PHASE2, PHASE3 = "stale-pointers", "phase-1", "phase-2", "phase-3
 RESPONSES = "responses"  # after the trims, still above the goal: Tart's OCI cache, the listed caches (plan 0472 D2)
 JOBS = (PHASE1, STALE, PHASE2, PHASE3, RESPONSES)  # removals first (plan 0534 D13)
 FINISHED_STATES = ("finished", "missing")
+TRAIN_TRIM_GB = 30  # under it phase 2 trims go on while a train builds, for the fields the caller says it does not carry
 
 
 def lower(f: dict) -> int:
@@ -93,9 +94,22 @@ def skipped(on: bool, short: bool, disk: dict, flag: str) -> str | None:
     return None if on else f"switched off in .hal/prune.toml ({flag})"
 
 
-def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None) -> dict:
-    """The jobs and actions for `facts` (`only`: just those fields, the barn's cars, D12). Pure: the same facts give the
-    same plan; `facts["now_ms"]` is the clock the proof used."""
+def under_train(name: str, cands: list[dict], cfg: dict, why: str, cars: list[str], outside: set[str] | None) -> tuple[list, list]:
+    """Plan 0623 D2 (L147): while a train builds and the disk has under TRAIN_TRIM_GB free, phase 2 still trims. The trims
+    for `outside` (the fields the caller says the building train does not carry) are `(actions, [])`; the others are
+    `([], held)`: listed for the caller to sort by the train's fields, run by nobody here. Only phase 2: no muck out,
+    no removal, no response."""
+    if name != PHASE2:
+        return [], []
+    every = trims(ordered(cands, cars), cfg, why)
+    mine = [a for a in every if outside is not None and a["field"] in outside]
+    return mine, [a for a in every if a not in mine]
+
+
+def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None, outside: set[str] | None = None) -> dict:
+    """The jobs and actions for `facts` (`only`: just those fields, the barn's cars, D12; `outside`: fields the building
+    train does not carry, trimmed in phase 2 under its hold when the disk is under TRAIN_TRIM_GB). Pure: the same facts
+    give the same plan; `facts["now_ms"]` is the clock the proof used."""
     now_ms = now_ms if now_ms is not None else facts.get("now_ms", 0)
     fs = [f for f in facts["fields"] if only is None or f["slot"] in only]
     cfg, disk, cars = facts["config"], facts["disk"], facts.get("cars", [])
@@ -115,14 +129,20 @@ def plan(facts: dict, only: set[str] | None = None, now_ms: float | None = None)
     for name, cands, flag, why in ((PHASE2, p2, "trim_session_less", "session-less, not free"),
                                    (PHASE3, p3, "trim_idle_live", "idle live field")):
         off = skipped(cfg["phases"][flag], short, disk, flag)
-        off = wait if wait and off is None else off
-        acts = [] if off else trims(ordered(cands, cars), cfg, why)
+        held = []
+        if wait and off is None:
+            acts, held = under_train(name, cands, cfg, why, cars, outside) if disk["free_gb"] < TRAIN_TRIM_GB else ([], [])
+            off = None if acts else wait
+        else:
+            acts = [] if off else trims(ordered(cands, cars), cfg, why)
         jobs[name] = {"skipped": off or (None if acts else "no candidate"), "actions": acts, "until_goal": True}
+        if held:
+            jobs[name]["held"] = held  # phase 2 under a hold: the trims the caller may run for fields outside the train
     jobs[RESPONSES] = responses_job(facts.get("responses", []), short, disk, wait)
     acted = {a["field"] for j in jobs.values() for a in j["actions"]} | {f["slot"] for f in cleared}
     left = [{"field": f["slot"], "why": f.get("proof") or (wait if wait and f["free"] else "nothing to do")}
             for f in fs if f["slot"] not in acted]
-    return {"short": short, "goal_met": farm_facts.goal_met(disk, cfg), "disk": disk, "goal": cfg["goal"], "busy": wait, "jobs": jobs, "left": left}
+    return {"short": short, "goal_met": farm_facts.goal_met(disk, cfg), "disk": disk, "goal": cfg["goal"], "busy": wait, "train_trim_gb": TRAIN_TRIM_GB, "jobs": jobs, "left": left}
 
 
 def responses_job(found: list[dict], short: bool, disk: dict, wait: str | None) -> dict:

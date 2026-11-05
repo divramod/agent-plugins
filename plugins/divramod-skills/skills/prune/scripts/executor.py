@@ -38,8 +38,9 @@ def free_bytes(main: str) -> int:
 
 class Run:
     def __init__(self, main: str, only: set[str] | None, dry: bool, out: Out, responses_only: bool = False,
-                 rows: list[dict] | None = None):
+                 rows: list[dict] | None = None, outside: set[str] | None = None):
         self.main, self.only, self.dry, self.out = main, only, dry, out
+        self.outside = outside  # fields the building train does not carry (the tollman's word): phase 2 trims them under a hold
         self.responses_only = responses_only  # just the watermark's responses (the tollman's start with --responses)
         self.rows: list[dict] = list(rows or [])  # the disk phase's, which ran before
         self.asks: list[dict] = []
@@ -53,7 +54,7 @@ class Run:
         else:
             self.phase1_job()
             self.stale_job()
-            self.plan = planner.plan(self.found, self.only)  # the trims see the cleared pointers
+            self.plan = planner.plan(self.found, self.only, outside=self.outside)  # the trims see the cleared pointers
             for name in (planner.PHASE2, planner.PHASE3):
                 self.trim_job(name)
         self.responses_job()
@@ -97,7 +98,7 @@ class Run:
         if f is None:
             return None, "no longer a field of this farm"
         self.found["fields"] = [x if x["slot"] != f["slot"] else f for x in self.found["fields"]]
-        p = planner.plan({**fresh, "disk": self.found["disk"]}, {a["field"]})
+        p = planner.plan({**fresh, "disk": self.found["disk"]}, {a["field"]}, outside=self.outside)
         b = next((x for x in p["jobs"][job]["actions"] if x["field"] == a["field"]), None)
         if b is not None and b["action"] == a["action"]:
             return b, ""
@@ -159,10 +160,11 @@ class Run:
             if a["field"] in self.gone:
                 continue
             wait = None if self.dry else busy.reason(self.main)  # a hold may start between two trims
-            if wait:
+            d = facts.disk(self.main) if not self.dry else None
+            if wait and not (self.outside and a["field"] in self.outside and name == planner.PHASE2
+                             and d["free_gb"] < planner.TRAIN_TRIM_GB):  # plan 0623 D2: phase 2 outside the train
                 self.out.line(f"stopped: {wait}")
                 break
-            d = facts.disk(self.main) if not self.dry else None
             if d and facts.goal_met(d, cfg):
                 self.out.line(f"stopped: goal met ({d['free_gb']:g} GB free, {d['used_pct']:g}% used)")
                 break
@@ -283,14 +285,15 @@ class Run:
                       f"{'to free' if self.dry else 'freed'}, {len(self.asks)} asks")
 
 
-def run(main: str, only: set[str] | None, dry: bool, out: Out | None = None, responses_only: bool = False) -> int:
+def run(main: str, only: set[str] | None, dry: bool, out: Out | None = None, responses_only: bool = False,
+        outside: set[str] | None = None) -> int:
     out = out or Out()
     first = [] if only is not None or responses_only else disk_phase.run(main, dry, out)
     if dry:
-        return Run(main, only, dry, out, responses_only, first).all()
+        return Run(main, only, dry, out, responses_only, first, outside).all()
     try:
         with store.farm_lock(main):
-            return Run(main, only, dry, out, responses_only, first).all()
+            return Run(main, only, dry, out, responses_only, first, outside).all()
     except store.Locked as e:
         out.line(f"already running: {e}")
         return 1 if any(r["status"] == "failure" for r in first) else 0

@@ -500,5 +500,37 @@
    "code/typescript/apps/hal9k-desktop/e2e/electron/workqueue.spec.ts",
    "code/typescript/apps/hal9k-desktop/e2e/electron/typing-results.spec.ts"
   ]
+ },
+ "36": {
+  "train": "36",
+  "base": "a623ee87d3ac068c3173968d6e37fc9c6c1c1523",
+  "cars": [
+   {
+    "field": "05",
+    "plan": "0428-mac-vm-bash-test",
+    "files": [
+     "code/bash/scripts/gate/jobs/records-check.sh"
+    ]
+   },
+   {
+    "field": "48",
+    "plan": "0531-no-inline-tests",
+    "files": [
+     "code/rust/libs/hal2-workqueue/tests/it/budget.rs",
+     "code/rust/libs/hal2-workqueue/src/slots.rs"
+    ]
+   }
+  ],
+  "owners": {
+   "code/rust/libs/hal2-workqueue/tests/it/budget.rs": {
+    "sha": "e500b1fe23a725b953a6b4aa43530a0822dbd48e",
+    "worktree": "48",
+    "plan": "0531-no-inline-tests",
+    "subject": "fix(0531|16): train 36: workqueue slot cap race, two load budgets widened by HAL_BUDGET_FACTOR"
+   }
+  },
+  "paths": [
+   "code/rust/libs/hal2-workqueue/tests/it/budget.rs"
+  ]
  }
 }

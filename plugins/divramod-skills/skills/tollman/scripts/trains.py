@@ -28,7 +28,8 @@ plan 0360 step 5; early_order.py, plan 0383 step 5). Landed: every car's foreman
 (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest before the
 push, `pretest_red`: pretest_train.py): triage (triage.py, train_red.py): a runner fault lands the same cars again on
 a fresh run by code; the barn's or a car's red is one wake, then nothing until the session's `retry`; the train
-waits for its fix. An incomplete pretest (`pretest_incomplete`: the budget cut a job or the gate did not answer, plan
+waits for its fix (a `retry` round places a proof_red car's fix order first; its restart key is
+`retry:<train>:<attempt>`, train_fold.restart_key, plan 0620 D2, D5, D6). An incomplete pretest (`pretest_incomplete`: the budget cut a job or the gate did not answer, plan
 0522 D7): the same landing again, up to PRETEST_WAITS in a row, then red as above.
 Interrupted (the process gone without a result): the same
 landing again, it adopts the run, but while its land run still runs it is only watched, settled at the run's end
@@ -80,8 +81,7 @@ from trains_sort import HELD, base_of, current_plan, held_ahead, held_for, serva
 QUEUE = mtm_scan.QUEUE  # the queue read; defined with mtm_scan.run_json so a minute pass needs no trains
 ROLE = "tollman"
 TRAIN = ROLE + " (wagon train)"
-ENGINE, TOLLMAN = Path(__file__).with_name("engine.py"), Path(__file__).with_name("tollman.py")
-ROLE_CARS = Path(__file__).with_name("role_cars.py")  # a stopped train's retry (plan 0610 D24)
+ENGINE, TOLLMAN, ROLE_CARS = (Path(__file__).with_name(f"{n}.py") for n in ("engine", "tollman", "role_cars"))  # 0610 D24
 GONE = "worktree-gone"  # the board note's kind (board.NOTES)
 PROVE = proof.verdict  # (main, field, head, barn) -> {state: green | red | wait, lines}; a test fakes it
 MAX_STARTS = 5  # an interrupted landing is started again this often, then the train is red (it stands, D7)
@@ -113,6 +113,12 @@ TEXT = {
     **pause.TEXT, **smuggled.TEXT,  # paused, resumed, resume_conflict, smuggled_red (plan 0360 step 18)
     **modes.TEXT,  # in_barn (plan 0360 step 25)
 }
+
+
+def minimum(main: str) -> int:
+    """The hitched fields a train needs: the user's open `minimum` standing order (standing.py), else MIN_HITCHED."""
+    import standing
+    return standing.value(main, "minimum", MIN_HITCHED)
 
 
 def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mode: dict | None = None,
@@ -257,9 +263,10 @@ def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict
         return pre + [hold.line(held)]
     joins = join_actions(top, main, train, queue, mode)  # until its push (plan 0610 D17): before every start
     if train and train["state"] in ("retry", "formed"):  # formed, never started: the same train, never a re-draft
-        key = f"retry:{train['train']}:{train['starts']}" if train["state"] == "retry" else f"resume:{train['train']}"
-        return joins + [run("restart", "-", key, "restart", top, text=f"train {train['train']} lands again",
-                            **({"window": RESUME_WINDOW} if train["state"] == "formed" else {}))]
+        key = train_state.restart_key(train)  # retry: new after every restart past its checks (plan 0620 D5)
+        first = proof_orders.pending(top, main, train, rows) if train["state"] == "retry" else []  # a joiner's (D6)
+        return joins + (first or [run("restart", "-", key, "restart", top, text=f"train {train['train']} lands again",
+                                      **({"window": RESUME_WINDOW} if train["state"] == "formed" else {}))])
     if train and train["state"] in ("red", "fixing", "resolving"):  # a car with red light checks: its fix order
         return joins + proof_orders.actions(top, main, train, rows) * (train["state"] != "resolving")
     if train and train["state"] == "stopped":  # a role car left out twice in a row (plan 0610 D24): tried again
@@ -314,7 +321,7 @@ def handler(item: dict, ctx: dict) -> list[dict]:
                           default_ref(main), bool(ctx.get("dry")))  # a leaver is put back; it holds no wagon (E18)
     out = turn + leave["actions"] + early_order.once(ctx, plan(top, main, tickets, rows, panes, mode=mode,
                                                                sleep_flag=flag, held=hold.of(main), log=log,
-                                                               minimum=MIN_HITCHED))
+                                                               minimum=minimum(main)))
     watched = watch_events.state(main)  # the 1-minute watch's run: its post-merge red is post_merge.py's
     return foreman_wake.gate(out + yard_report.settled_actions(main, rows, panes) + stack_red.watch(
         top, main, rows, panes, log, watched=None if watched.get("closed") else str(watched.get("run") or "")) \

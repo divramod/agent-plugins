@@ -8,6 +8,8 @@ readers, shared per round: gh_runs; git in the main checkout), `of` does both fo
   landing has ended, trains.settle lands the same cars again on a fresh run (train_red.py)
   Also a red job no runner served (gh gives it no step: L64) and a red only of a latency budget or a test's time
   limit (run_triage_read.budget_only, L13: load on the shared host): one fresh run, a repeat counts as runner retries
+  Also a records-check red only of files left under the real roots that no car's files could write (scratch_red.py,
+  L151: another job of the shared runner user wrote them)
 - `main`: the barn is red, not a car: the same job (stack_red.bare: the job without its matrix alias and position)
   is red in the newest completed land run of another worktree that started before the train was formed (the landing
   workflow's first, a `skipped` run never: watch.of_setting, L134), and that run's
@@ -33,6 +35,7 @@ import job_error
 import mtm_ci
 import mtm_scan
 import run_triage_read
+import scratch_red
 import smuggled
 import stack_red
 import transient
@@ -70,6 +73,8 @@ def classify(run: dict, red: list[dict], logs: str, history: dict) -> dict:
         hit = next(t for t in lines if run_triage_read.BUDGET.search(t))
         return {"kind": "runner", "evidence": {**base, "match": "budget: " + hit.strip()[:200], "budget": True}}
     tests = mtm_scan.failing_tests(tail)
+    if not tests and (scratch := scratch_red.runner(scratch_red.read(tail), history.get("cars") or [])):  # L151
+        return {"kind": "runner", "evidence": {**base, "match": scratch_red.match(scratch), "scratch": scratch}}
     if hit := smuggled.touched(history.get("smuggles"), tail, tests):
         return {"kind": "smuggled", "evidence": {**base, "slot": hit["slot"], "files": hit["hits"], "tests": tests,
                                                  "jobs": ci_scan.failed_jobs(red) or names, "tail": tail[-TAIL:]}}

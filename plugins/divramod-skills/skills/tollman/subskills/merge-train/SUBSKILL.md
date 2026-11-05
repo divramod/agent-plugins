@@ -63,7 +63,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    next train. A train formed but never started is started as it is (the cars the field
    lacks merged first); a queue mark naming other cars is marked again at the next start; no wait limit ends a
    waiting or red train. The session's `unhitch` of a car and `engine.py breakup` are refused; only the user's own
-   command (`--by-user`) takes a car out or gives the train up.
+   command (`--by-user --words ...`, a `user-order` record) takes a car out or gives the train up.
 6. **State**: every change of the train is a line of `train.jsonl` (`formed`, `resolving`, `resolved`, `started`, `run`, `red`, `order`, `fixed`, `pause`, `resumed`, `retry`, `unhitched`,
    `landed`, `cleared`) and of the message board. A train that stands is no waiter for the boss and its field holds
    the cars' commits; between trains the field equals the barn.
@@ -78,7 +78,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    wake (`train-failed`, `main_red` or `car_red`, with the evidence: red jobs, failing tests, each car's files, the
    log's tail; `tollman.py triage <run>` prints it) and nothing else; the train stays as
    it is and waits for its fix (the session's fix order, below), or the session's `retry --why` (the same train lands again, on a fresh land run: an
-   empty retry commit gives it a new candidate, plan 0313 step 13). Only the user's word (`unhitch <field> --why --by-user`)
+   empty retry commit gives it a new candidate, plan 0313 step 13). Only the user's word (`unhitch <field> --why --by-user --words ...`)
    takes a car out (the same call breaks the train up and forms the rest). An interrupted landing (its process gone)
    is started again at once and adopts its run, at most 5 times; then the train is red and waits as above.
    **The fix order** (plan 0360 D6, D29; `orders.py`) replaces unhitch-after-red and breakup: `tollman.py order

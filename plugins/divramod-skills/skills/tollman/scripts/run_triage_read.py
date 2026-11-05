@@ -9,9 +9,12 @@ data, no IO. run_triage.py places what these find; run_triage_gather.py fetches 
   (`runner-image-linux`); each with its log lines, found by the log's step column, else by the task log's
   `[NN] 🎬` .. `[NN] 💥` markers
 - `facts`: what a unit's lines say: the error lines, the failing specs (Playwright's `✘ ... › <spec>:<line>`) and
-  tests (mtm_scan.failing_tests), a build-phase timeout (docker compose's limit, exit 124), a transient fault
-  (transient.TRANSIENT), the runner, a budget-only failure (`budget_only`, L13) and a job no runner served
-  (`unserved`, L64)
+  tests (mtm_scan.failing_tests, which never reads nextest's padded counter `( 14/238)` as a test), the failing
+  tests' files as the log names them (`files`, L195: a Rust panic's path, a bats `in test file <path>`, a nextest name
+  `<crate>[::<binary>] <module>::<test>`), a build-phase timeout (docker compose's limit, exit 124), a transient fault
+  (transient.TRANSIENT), the runner, a budget-only failure (`budget_only`, L13), a job no runner served
+  (`unserved`, L64) and a state-scratch finding of files left under the real roots (`scratch`, scratch_red.py, L151)
+- `candidates`: a test file's log form as repository path suffixes, the most specific first (L195)
 """
 
 import re
@@ -20,6 +23,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import job_error
 import mtm_ci
 import mtm_scan
+import scratch_red
 import stack_red
 import transient
 
@@ -47,6 +51,12 @@ BUDGET = re.compile(r"over budget:|^\s*FAIL\s+\S+: p50 .*\(budget \d|p95=\S+ ms,
 FRAME = re.compile(r"##\[error\]Process completed|✘|^failed now|gate: unit .* failed|^\s*FAILED|FAIL \[|panicked at|"
                    r"exit code \d+")
 LINES = 12  # a unit's error lines kept as evidence
+# L195: where a failing test's file stands in a log: a Rust panic's location (`panicked at <path>:<line>`, the old
+# `panicked at '<msg>', <path>:<line>` too), bats' `(in test file <path>, line <n>)`, nextest's `FAIL [ <t>s]
+# (<i>/<n>) <crate>[::<binary>] <module path>::<test>` (its counter padded: `( 14/238)`)
+TEST_FILE = (re.compile(r"panicked at (?:'.*', )?(?P<name>[\w./-]+\.rs):\d+"),
+             re.compile(r"\(in test file (?P<name>\S+?), line \d+\)"),
+             re.compile(r"FAIL \[\s*[\d.]+s\] (?:\(\s*\d+/\s*\d+\)\s+)?(?P<name>[\w-]+(?:::[\w/-]+)? [\w:]+)"))
 
 
 def at_build_limit(step: str | None, secs) -> int | None:
@@ -186,16 +196,45 @@ def specs(lines: list[str]) -> list[dict]:
     return list(found.values())
 
 
+def test_files(text: str) -> list[str]:
+    """The failing tests' files as the log names them (TEST_FILE), the paths first, each once, in the log's order."""
+    out: list[str] = []
+    for pattern in TEST_FILE:
+        out += [m["name"] for m in pattern.finditer(text or "") if m["name"] not in out]
+    return out
+
+
+def candidates(name: str) -> list[str]:
+    """The repository path suffixes a test file's log form stands for, the most specific first: a path as it is; a
+    nextest name `<crate>::<binary> <mods>::<test>` its integration test's module file (`<crate>/tests/<binary>/
+    <mods>.rs`, `.../mod.rs`; without mods `<crate>/tests/<binary>.rs`, `.../main.rs`), `<crate> <mods>::<test>` (a
+    lib's unit test) or `<crate>::bin/<x> ...` its source module (`<crate>/src/<mods>.rs`, `.../mod.rs`, an inline
+    `tests` module's parent after it)."""
+    head, _, test = name.partition(" ")
+    if not test:
+        return [name] if "/" in name or "." in name else []
+    crate, _, binary = head.partition("::")
+    mods = test.split("::")[:-1]
+    if binary and not binary.startswith("bin/"):
+        base = f"{crate}/tests/{binary}"
+        return [f"{base}/{'/'.join(mods)}.rs", f"{base}/{'/'.join(mods)}/mod.rs"] if mods else [f"{base}.rs",
+                                                                                                 f"{base}/main.rs"]
+    out = []
+    for m in (mods, mods[:-1] if mods[-1:] == ["tests"] else []):
+        out += [f"{crate}/src/{'/'.join(m)}.rs", f"{crate}/src/{'/'.join(m)}/mod.rs"] if m else []
+    return out or ([f"{crate}/src/{binary}.rs", f"{crate}/src/{binary}/main.rs"] if binary else [f"{crate}/src/lib.rs"])
+
+
 def facts(lines: list[str]) -> dict:
     """What a unit's lines say (see the module doc); `errors` all its error lines, the transient one included."""
     text = "\n".join(lines)
     hit = transient.TRANSIENT.search(text)
     errors = [t for t in lines if (ERRORS.search(t) and not NOISE.match(t)) or (hit and hit[0] in t)
-              or BUDGET.search(t)]
+              or BUDGET.search(t) or scratch_red.STRAY.search(t) or scratch_red.SUITE.search(t)]
     runner, timeout = RUNNER.search(text), bool(TIMEOUT.search(text))
-    return {"errors": errors, "specs": specs(lines), "tests": mtm_scan.failing_tests(text),
+    return {"errors": errors, "specs": specs(lines), "tests": mtm_scan.failing_tests(text), "files": test_files(text),
             "timeout": timeout, "transient": hit[0] if hit else "", "runner": runner[1] if runner else "",
-            "budget": not timeout and budget_only(lines)}
+            "budget": not timeout and budget_only(lines), "scratch": scratch_red.read(text)}
 
 
 def evidence_lines(errors: list[str], spec: dict | None, others: list[dict]) -> list[str]:

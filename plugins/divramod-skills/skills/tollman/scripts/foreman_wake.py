@@ -168,6 +168,36 @@ def start(argv: list[str] | None = None, guard=None) -> int:
     return code
 
 
+def restart(repo: str, field: str, why: str, guard=None, now=None) -> tuple[int, str]:
+    """`tollman.py restart <field> --why <text>` (hal2 plan 0611): the field's session started as an order's start is
+    (the orphan guard around `hal2-cli-git worktree run <NN> --agent claude --detach`), a `woke` line and a `restart`
+    record, open until a live session is seen there; a paused field is never started (paused-fields-never-woken)."""
+    import field_pause
+    import records_kinds
+    main = mtm_scan.main_checkout(repo)
+    if pause := field_pause.load(main).get(field):
+        why = pause.get("why") or "no reason given"
+        return 1, f"field {field} is paused ({why}): never started; the farmer resumes it"
+    if guard is None:
+        import orphan_start
+        guard = orphan_start.main
+    code = guard(["--path", str(field_path(main, field)), "--slot", field, "--main", main, "--role", train_state.ROLE,
+                  "--", "hal2-cli-git", "worktree", "run", field, "--agent", "claude", "--detach"])
+    if code:
+        return code, f"field {field} not started (exit {code}): the guard's line says why"
+    train = (train_state.standing(train_state.lines(main)) or {}).get("train")
+    train_state.append(main, "woke", field, now, train=train, field=field, id=f"restart-{field}", why=f"restart: {why}")
+    r = records_kinds.add(main, "restart", field, f"field {field} restarted: {why}", now=now, of="session",
+                          event=records_kinds.train_event("woke", field=field, id=f"restart-{field}"), train=train)
+    return 0, f"field {field} started ({r['id']}): {why}"
+
+
+def add_parser(sub) -> None:
+    r = sub.add_parser("restart")
+    r.add_argument("field")
+    r.add_argument("--why", required=True)
+
+
 if __name__ == "__main__":
     if sys.argv[1:2] != ["start"]:
         sys.exit("usage: foreman_wake.py start --path <dir> --slot <NN> --main <yard> --order <id> --need <kind> "

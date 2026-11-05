@@ -43,8 +43,10 @@ round takes it as it is: no check of what it holds, no merge-from-main, no commi
 """
 
 import datetime as dt
+import fnmatch
 import importlib
 import json
+import posixpath
 import subprocess
 import time
 from contextlib import contextmanager
@@ -109,7 +111,7 @@ def default_ref(repo: str) -> str:
 
 def slot_problem(repo: str, wiring: roles.Wiring = roles.FARMER) -> str | None:
     """None when `repo` is the role's worktree (`<role>-<project>`) holding nothing but changes of its role files
-    (`wiring.role_files`), else why not."""
+    (`wiring.role_files`) or of the files its folder's .gitignore keeps (`wiring.committed_files`), else why not."""
     top, role = toplevel(repo), wiring.role
     if top and Path(top).name == role:
         return (f"the {role}'s worktree {top} is not migrated to {roles.slot_name(top, role)}: "
@@ -121,7 +123,9 @@ def slot_problem(repo: str, wiring: roles.Wiring = roles.FARMER) -> str | None:
         return None
     changed = set(git(top, "diff", "--name-only", f"{default_ref(top)}...HEAD").split())
     changed |= {line[3:].strip() for line in git(top, "status", "--porcelain", "-uall").splitlines()}
-    other = sorted(changed - {*wiring.role_files, ""})
+    kept = wiring.committed_files(top)
+    other = sorted(f for f in changed - {*wiring.role_files, ""}
+                   if not any(posixpath.dirname(f) == posixpath.dirname(k) and fnmatch.fnmatchcase(f, k) for k in kept))
     return f"the {role}'s worktree holds more than {wiring.role_file}: {', '.join(other)}" if other else None
 
 

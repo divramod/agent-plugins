@@ -163,6 +163,41 @@ class Landing(Farm):
         self.assertEqual((code, self.pretests()[0]["result"]), (0, "skipped"))
         self.assertTrue((self.tmp / "landed").exists())
 
+    def retried(self, *results):
+        """Land with `pretest.pretest` faked to return `results` in turn; the scale each call got, the code."""
+        config(self.cw / pretest.CONFIG, ["python-lint"])
+        scales = []
+
+        def fake(*a, scale=1.0, **k):
+            scales.append(scale)
+            return {"seconds": 5, "jobs": [], "base": "b", "head": "h", "errors": {}, **results[len(scales) - 1]}
+        with mock.patch.object(pretest, "pretest", side_effect=fake):
+            return self.land()[0], scales
+
+    def test_a_skipped_pretest_is_retried_once_with_twice_the_budget_and_a_green_retry_blocks_nothing(self):
+        """Plan 0623 D3, train 32: the pretest skipped under load, 'the gate did not answer'."""
+        skip = {"result": "skipped", "why": "the pretest broke: the gate did not answer"}
+        code, scales = self.retried(skip, {"result": "green", "why": ""})
+        self.assertEqual((code, scales), (0, [1.0, 2]))
+        self.assertEqual([(e["result"], e.get("retried"), e["seconds"]) for e in self.pretests()],
+                         [("green", True, 10.0)])
+
+    def test_a_second_skip_pushes_as_before(self):
+        skip = {"result": "skipped", "why": "the pretest broke: the gate did not answer"}
+        code, scales = self.retried(skip, skip)
+        self.assertEqual((code, scales), (0, [1.0, 2]), "exactly one retry")
+        self.assertTrue((self.tmp / "landed").exists())
+        self.assertEqual([(e["result"], e.get("retried")) for e in self.pretests()], [("skipped", True)])
+
+    def test_an_incomplete_pretest_is_retried(self):
+        code, scales = self.retried({"result": "incomplete", "why": "budget cut"}, {"result": "green", "why": ""})
+        self.assertEqual((code, scales), (0, [1.0, 2]))
+
+    def test_another_skip_is_final(self):
+        code, scales = self.retried({"result": "skipped", "why": "a job changed files"})
+        self.assertEqual(scales, [1.0], "no retry for a skip that is no breakage")
+        self.assertNotIn("retried", self.pretests()[-1])
+
     def test_without_a_config_the_landing_goes_on_and_a_green_train_is_not_pretested_again(self):
         code, out = self.land()
         self.assertEqual(code, 0)
@@ -232,7 +267,7 @@ class Landing(Farm):
         self.assertEqual(local["marks"][1]["ops_s"], 50.0)
 
     def test_no_train_no_pretest(self):
-        self.assertEqual(engine.breakup(str(self.wm), "test", user=True)[0], 0)
+        self.assertEqual(engine.breakup(str(self.wm), "test", user=True, words="the user said so")[0], 0)
         self.assertFalse(pretest_train.before_landing(str(self.wm)))
         self.assertEqual(len(self.pretests()), 0)
 

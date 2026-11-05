@@ -46,7 +46,8 @@ class CarrierPush(Farm):
         self.gate.of(self.carrier()).update(state="held", train=None, hold={"reason": "failed"})
         self.round()
         self.assertEqual(self.train()["state"], "red")
-        code, text = self.call("unhitch", "06", "--why", "the names check", "--by-user", repo=self.main)
+        code, text = self.call("unhitch", "06", "--why", "the names check", "--by-user",
+                               "--words", "the user said so", repo=self.main)
         # split after red, in the unhitch's own call (plan 0333 step 6): breakup, then the train of 07 alone forms
         self.assertEqual(code, 0, text)
         self.assertIn("chain link 1: breakup -, unhitched 06, form -\nchain stops: a landing started", text)
@@ -63,7 +64,7 @@ class CarrierPush(Farm):
         self.round()
         self.assertIsNone(self.remote(self.ref()))
         self.alive.clear()
-        code, text = engine.breakup(str(self.wm), "its landing never started", user=True)
+        code, text = engine.breakup(str(self.wm), "its landing never started", user=True, words="the user said so")
         self.assertEqual((code, text), (0, "train " + self.cleared()["train"] + " broken up: its landing never started; "
                                            "worktree tollman-train kept for the next train, its branch "
                                            "train-1-1 dropped"))
@@ -80,7 +81,7 @@ class CarrierPush(Farm):
         hook.write_text("#!/bin/sh\necho 'refused by the test' >&2\nexit 1\n")
         os.chmod(hook, 0o755)
         self.alive.clear()
-        code, text = engine.breakup(str(self.wm), "its landing never started", user=True)
+        code, text = engine.breakup(str(self.wm), "its landing never started", user=True, words="the user said so")
         self.assertEqual(code, 0, text)
         self.assertIn(f"origin's {ref} still holds the dead train {dead[:12]}, not pushed", text)
         self.assertIn("pre-receive hook declined", self.cleared()["pushed"])

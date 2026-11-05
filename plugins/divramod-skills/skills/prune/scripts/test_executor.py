@@ -196,6 +196,21 @@ class Trim(fake_clis.Farm):
         self.assertEqual(out["phase-3"], [])
         self.assertTrue(any(x.startswith("skipped: goal met") for x in lines))
 
+    def test_plan_0623_d2_under_30_gb_a_train_building_trims_the_field_outside_it_not_a_car(self):
+        for slot in ("25", "26"):
+            git(self.add(slot), "commit", "-q", "--allow-empty", "-m", "work")  # not free: phase 2's
+            self.target(slot)
+        self.busy = "deferred: train building (train t1 in its local phase)"
+        for free, trimmed in ((16.0, True), (60.0, False)):  # 60 GB: still short, but over the train's 30
+            self.disk = {**SHORT, "free_gb": free}
+            lines: list[str] = []
+            code = fake_clis.executor.run(str(self.main), {"25", "26"}, False, fake_clis.executor.Out(lines.append), outside={"25"})
+            self.assertEqual(code, 0, lines)
+            self.assertEqual(not (self.base / "25/code/rust/target").exists(), trimmed, f"{free} GB free: {lines}")
+            self.assertTrue((self.base / "26/code/rust/target").exists(), "a car's field is never trimmed under the hold")
+            if trimmed:
+                self.target("25")  # the next round starts with the folder back
+
     def test_pr10_a_running_build_skips_the_trim(self):
         self.add("03")
         self.target("03", "target")

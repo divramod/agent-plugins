@@ -25,7 +25,7 @@ its `run` actions; none waits for CI.
       resolve_train.merge_rest (a conflict waits `resolving` with its resolve order); 75 while the last start's
       process lives after its red was taken (plan 0522 D17); a train with a car whose light checks are red and that
       has no fix order yet goes `red` (`proof_red`) instead, its fix orders first (proof_orders.py, the user
-      2026-11-04: every hitched wagon rides)
+      2026-11-04: every hitched wagon rides); one past its checks that starts nothing: `attempt` (plan 0620 D5)
   engine.py land [--land-ref <train-...>] [--repo <field>]
       the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
       `pretest_red` and no landing starts), then the wait until the land run before has finished and the answered
@@ -43,7 +43,7 @@ its `run` actions; none waits for CI.
       yard's carried files dropped where still the same, the yard fast-forwarded; a store farm's `sync --if-due landing`
   engine.py red --status <status> [--run <url>] [--why <text>] [--repo <field>]
       the landing did not land; the train waits, frozen, for its fix or the session's `retry` (no wait limit, D7)
-  engine.py breakup --why <text> [--by-user] [--repo <field>]
+  engine.py breakup --why <text> [--by-user --words <the user's words>] [--repo <field>]
       without a train: a leftover mark cleared. A train that stands is frozen (plan 0360 D3, frozen.py): refused,
       unless `--by-user`, the user's own command: then it is no more: its mark cleared, the queue its failed landing
       holds released, the field back on the head it had before the cars, and its remote branch too (carrier.py)
@@ -147,8 +147,15 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
     if frozen.lacking(top, train):
         import resolve_train  # a form that died between its lines, a car joined outside a landing (plan 0610 D17):
         return resolve_train.merge_rest(top, now)  # merged in order, a conflict waits `resolving`; then this again
-    if red := proof_orders.red_line(main, field, train, now):
-        return 0, red  # a car's light checks are red: fixed in the train first (proof_orders.py), never pushed so
+    red = proof_orders.red_line(main, field, train, now)  # a car's light checks are red: fixed in the train first
+    code, text = (0, red) if red else start(main, field, train, top, now)  # (proof_orders.py), never pushed so
+    if red or code:  # plan 0620 D5: a try that started nothing raises the attempt, so the next round's key is new
+        train_state.attempted(main, field, train, now)
+    return code, text
+
+
+def start(main: str, field: str, train: dict, top: str, now: dt.datetime | None = None) -> Done:
+    """`restart` past its checks and its cars' light checks: the train marked and its landing spawned."""
     code, commit = fresh(top, train) if train["state"] == "retry" and not train["fixed"] else (0, None)  # a fix merged
     if code:
         return 1, f"train {train['train']} was not retried: {commit[-300:]}"
@@ -236,12 +243,23 @@ def red(top: str, status: str, run: str | None = None, why: str = "", now: dt.da
     return 0, f"train {train['train']} is red ({status}): frozen, it waits for its fix or `retry` (plan 0360 D3, D7)"
 
 
-def breakup(top: str, why: str, now: dt.datetime | None = None, user: bool = False) -> Done:
-    """The verb: a leftover mark cleared; a train that stands only on the user's own word (frozen.py)."""
-    train = here(top)[2]
+def breakup(top: str, why: str, now: dt.datetime | None = None, user: bool = False, words: str = "") -> Done:
+    """The verb: a leftover mark cleared; a train that stands only on the user's own word (frozen.py), `--words`
+    with it (plan 0611 D13), save the round's breakup of a train the user split (its unhitch is the record)."""
+    main, _, train, _ = here(top)
     if train and not user:
         return 1, frozen.refused(train, "a breakup")
-    return clear(top, why, now)
+    split = bool(train) and train["state"] == "split" and frozen.by_user(train)
+    if user and not words.strip() and not split:
+        return 1, "no breakup: `--by-user` needs `--words \"<the user's words>\"` (plan 0611 D13)"
+    code, text = clear(top, why, now)
+    if user and words.strip() and not code:
+        import records_kinds  # the user's order, open until code sees its effect (plan 0611)
+        name = (train or {}).get("train")
+        records_kinds.add(main, "user-order", (train or {}).get("carrier") or "-", f"break up train {name}: {why}",
+                          "user", records_kinds.train_event("cleared", train=name), now, words=words.strip(),
+                          train=name, order="breakup")
+    return code, text
 
 
 def clear(top: str, why: str, now: dt.datetime | None = None) -> Done:
@@ -293,6 +311,7 @@ def main(argv: list[str]) -> int:
         sub.choices[verb].add_argument("--why", required=True)
     for verb in ("breakup", "unhitch"):  # the user's own command (plan 0360 D3), never the session's
         sub.choices[verb].add_argument("--by-user", action="store_true")
+        sub.choices[verb].add_argument("--words", default="", help="the user's own words (plan 0611 D13)")
     sub.choices["retry"].add_argument("--skip-pretest", action="store_true")
     a = p.parse_args(argv)
     found, shown = git(a.repo, "rev-parse", "--show-toplevel")
@@ -305,8 +324,8 @@ def main(argv: list[str]) -> int:
     import engine_car  # its verbs call back into this module (here, cli)
     code, text = {"form": lambda: form(top, a.cars, alone_next=a.alone_next), "restart": lambda: restart(top),
                   "landed": lambda: landed(top, a.run, a.commit), "red": lambda: red(top, a.status, a.run, a.why),
-                  "breakup": lambda: breakup(top, a.why, user=a.by_user),
-                  "unhitch": lambda: engine_car.unhitch(top, a.field, a.why, user=a.by_user),
+                  "breakup": lambda: breakup(top, a.why, user=a.by_user, words=a.words),
+                  "unhitch": lambda: engine_car.unhitch(top, a.field, a.why, user=a.by_user, words=a.words),
                   "retry": lambda: engine_car.retry(top, a.why, skip_pretest=a.skip_pretest)}[a.verb]()
     print(text)
     return code

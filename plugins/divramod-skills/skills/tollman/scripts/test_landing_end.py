@@ -110,6 +110,18 @@ class Ends(Farm):
                          "the new start's process gone without a word: the round adopts (interrupted), never the pass")
         self.assertEqual(self.keys("red"), [f"red:{self.name}:1"], "one red line")
 
+    def test_the_push_keys_by_the_attempt(self):
+        """Plan 0620 D5: the pass pushes a retry train with the round's key, `retry:<train>:<attempt>`; a restart
+        that started nothing (proof_red) raised it, so the fixed train's push is never the used key."""
+        self.fix("09")
+        self.fix("07")
+        self.alive.clear()
+        self.assertEqual([a["key"] for a in landing_end.push(str(self.wm), str(self.main), self.train())],
+                         [f"retry:{self.name}:1"])
+        train_state.append(str(self.main), "attempt", self.carrier(), train=self.name, attempt=2)
+        self.assertEqual([a["key"] for a in landing_end.push(str(self.wm), str(self.main), self.train())],
+                         [f"retry:{self.name}:2"])
+
     def test_a_restart_while_the_last_start_s_process_lives_waits_offline(self):
         self.finish()
         self.minute()

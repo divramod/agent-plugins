@@ -535,6 +535,30 @@ class Frozen(unittest.TestCase):
         again = self.plan(rows + [fixed])
         self.assertEqual((shape(again), again[0]["key"]), ([("restart", "run", "-")], f"retry:{TRAIN['train']}:1"))
 
+    def test_a_restart_red_on_a_car_s_light_checks_keys_the_next_round_anew(self):
+        """Plan 0620 D5 (L254, train 53): a restart that went red on a car's light checks (proof_red) raised no
+        `starts`, so its fixed train kept the used key `retry:<train>:1` and never restarted. Its `attempt` line
+        raises the attempt: once the car is fixed the round's key is new."""
+        rows = [self.FORMED, self.STARTED, self.line("red", status="gate_failed"), self.line("retry", why="flaky")]
+        self.assertEqual(self.plan(rows)[0]["key"], f"retry:{TRAIN['train']}:1")
+        rows += [self.line("attempt", attempt=2), self.line("red", status="proof_red", why="light gate checks red: 09"),
+                 self.line("order", field="09", branch="09-train-fix", base="b" * 40, why="x", id="09-fix-1"),
+                 self.line("fixed", field="09", id="09-fix-1", sha="c" * 40, commit="d" * 40)]
+        t = train_state.standing(rows)
+        self.assertEqual((t["state"], t["starts"], t["attempt"]), ("retry", 1, 2), "the attempt, never the starts")
+        again = self.plan(rows)
+        self.assertEqual((shape(again), again[0]["key"]), ([("restart", "run", "-")], f"retry:{TRAIN['train']}:2"))
+        t = train_state.standing(rows + [self.STARTED])
+        self.assertEqual((t["starts"], t["attempt"]), (2, 3), "a start raises both")
+
+    def test_a_state_without_attempt_keys_by_starts(self):
+        """Plan 0620 D5: an old train (no `attempt` in its state) keeps its key `retry:<train>:<starts>`."""
+        old = {k: v for k, v in dict(TRAIN, state="retry", starts=2).items() if k != "attempt"}
+        self.assertEqual(train_state.restart_key(old), f"retry:{TRAIN['train']}:2")
+        self.assertEqual(train_state.restart_key(dict(old, state="formed")), f"resume:{TRAIN['train']}")
+        t = train_state.standing([self.FORMED, self.STARTED, self.line("red", status="gate_failed"), self.STARTED])
+        self.assertEqual((t["starts"], t["attempt"]), (2, 2), "lines without `attempt`: the starts")
+
     def test_no_wait_limit_ends_a_red_train(self):
         """D7: a red train a week old still stands, and its round neither re-runs nor wakes anything."""
         red = self.line("red", status="gate_failed")
@@ -619,7 +643,8 @@ class State(unittest.TestCase):
         self.assertEqual(train_state.utc(aware), "2026-10-13T10:00:05Z")
         kinds = ["formed", "yard", "regenerated", "joined", "declined", "resolving", "resolved", "pretest", "started", "push",
                  "run", "red", "order", "fixed", "pause", "resumed", "retry", "unhitched", "barn", "landed", "cleared",
-                 "woke", "roles", "alone"]  # the role cars and an owed alone car (plan 0610 D18, D15)
+                 "woke", "roles", "alone", "attempt"]  # the role cars, an owed alone car (plan 0610 D18, D15), a try
+        # that started nothing (plan 0620 D5)
         self.assertEqual(json.loads(json.dumps(train_state.KINDS)), kinds)
         schema = json.loads((Path(__file__).resolve().parent.parent / "schemas/train.schema.json").read_text())
         self.assertEqual(schema["properties"]["kind"]["enum"], kinds, "the schema names every kind train_state writes")

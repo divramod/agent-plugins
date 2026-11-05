@@ -20,6 +20,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
 import orders
+import records_kinds
 import train_state
 from carrier import git
 from tick import act
@@ -63,6 +64,8 @@ def order(top: str, why: str, run: str | None, now=None) -> tuple[int, str, list
     oid = orders.next_id(rows, orders.MAIN)
     train_state.append(main, "order", carrier, now, field=orders.MAIN, branch=orders.OWN_FIX, base=base, why=why,
                        run=run, id=oid)
+    records_kinds.add(main, "fix-order", orders.MAIN, f"fix order {oid}: the tollman's hand fixes the barn: {why}",
+                      event=records_kinds.train_event("order", id=oid), now=now, order=oid, branch=orders.OWN_FIX)
     words = {"id": oid, "why": why, "run": run or "none", "branch": orders.OWN_FIX, "base": base[:12],
              "carrier": carrier}
     a = act("trains", "fix-order-main", "wake", key=f"order:next:{oid}", text=TEXT["order"].format(**words),

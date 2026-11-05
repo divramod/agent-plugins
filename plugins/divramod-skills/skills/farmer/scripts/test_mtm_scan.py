@@ -37,6 +37,12 @@ class FailingTests(unittest.TestCase):
                "  FAIL [  3.1s] (1/2) hal2-ffi::terminal_agents a_terminal_agent_is_left_to_the_app\n")
         self.assertEqual(scan.failing_tests(msg), ["hal2-ffi::terminal_agents a_terminal_agent_is_left_to_the_app"])
 
+    def test_a_padded_nextest_counter_is_no_test_name(self):
+        # Plan 0495: nextest pads its counter to the total's width; it named the phantom test `( 9962`.
+        msg = ("        FAIL [   0.032s] ( 9962/10217) hal9k-shortcuts alfred_peek::tests::a_preview\n"
+               "    test alfred_peek::tests::a_preview ... FAILED\n")
+        self.assertEqual(scan.failing_tests(msg), ["hal9k-shortcuts alfred_peek::tests::a_preview"])
+
     def test_landing_start_from_its_id(self):
         self.assertAlmostEqual(
             scan.landing_start("2026-10-03T02-33-17.591Z-12"),

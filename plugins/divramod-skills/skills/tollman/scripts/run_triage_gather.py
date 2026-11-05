@@ -1,11 +1,11 @@
-"""The reading of a finished land run for its triage (hal2 plan 0490 step 1, D3): gh through the farmer's readers
-(the round's shared run list and jobs, gh_runs: a completed run's jobs come from the cache), the run's one
-`--log-failed` and, only when a red unit may repeat, the failed log of each previous land run that was red (at most
-PREVIOUS; the wiring hands in the signatures it kept, `kept`, so a run it triaged is not read again); git in the main
-checkout for the workflow's `needs` at the run's commit, the content (tree) of the other runs, the failing specs'
-newest commits, the cars' files (triage.car_files) and, when a car changed a workflow, the cars that moved a job's
-lane (proof_lanes.moved_by, L83, L87). The runs are the landing workflow's first (watch.of_setting), never a
-`skipped` one (L134). `of` gathers and triages. No gate job runs here, ever (D12)."""
+"""The reading of a finished land run for its triage (hal2 plan 0490 step 1, D3): gh through the farmer's readers (the
+round's shared run list and jobs, gh_runs: a completed run's jobs come from the cache), the run's one `--log-failed`
+and, only when a red unit may repeat, the failed log of each previous land run that was red (at most PREVIOUS; the
+wiring hands in the signatures it kept, `kept`, so a run it triaged is not read again); git in the main checkout for the
+workflow's `needs` at the run's commit, the content (tree) of the other runs, the newest commits of the failing specs
+and of the failing tests' files (L195), the cars' files (triage.car_files) and, when a car changed a workflow, the cars
+that moved a job's lane (proof_lanes.moved_by, L83, L87). The runs are the landing workflow's first (watch.of_setting),
+never a `skipped` one (L134). `of` gathers and triages. No gate job runs here, ever (D12)."""
 
 from pathlib import Path
 
@@ -73,13 +73,24 @@ def others(main: str, runs: list[dict], me: dict, fetch) -> list[dict]:
     return [{"id": rid, "green": sorted(read.green_units(got.get(rid) or []))} for rid in ids]
 
 
+def listed(main: str, sha: str | None) -> list[str]:
+    """The repository's files at the run's commit (`git ls-tree`), else the main checkout's (`git ls-files`)."""
+    code, out = triage.git(main, "ls-tree", "-r", "--name-only", sha) if sha else (1, "")
+    if code != 0:
+        code, out = triage.git(main, "ls-files")
+    return out.splitlines() if code == 0 else []
+
+
 def owners(main: str, sha: str, units: list[dict]) -> tuple[list[str], dict]:
-    """(the repository paths of the failing specs, {path: the newest commit touching it at `sha`})."""
-    names = [s for u in units for s in read.facts(u["lines"])["specs"]]
-    if not names:
+    """(the repository paths of the failing specs and of the failing tests' files (L195), {path: the newest commit
+    touching it at `sha`})."""
+    found = [read.facts(u["lines"]) for u in units]
+    specs, tests = [s for f in found for s in f["specs"]], [t for f in found for t in f["files"]]
+    if not specs and not tests:
         return [], {}
-    code, listed = triage.git(main, "ls-files")
-    paths = sorted({p for s in names if (p := run_triage.resolve(s, listed.splitlines() if code == 0 else []))})
+    files = listed(main, sha)
+    paths = sorted({p for s in specs if (p := run_triage.resolve(s, files))}
+                   | {p for t in tests if (p := run_triage.resolve_test(t, files))})
     out = {}
     for p in paths:
         code, line = triage.git(main, "log", "-1", *LOG, sha or "HEAD", "--", p)

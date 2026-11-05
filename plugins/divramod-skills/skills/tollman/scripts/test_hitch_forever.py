@@ -13,6 +13,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
+import mtm_scan
 import engine_car
 import modes
 import orders_text
@@ -52,6 +53,16 @@ def scripts(*endings: str) -> list[Path]:
             if not f.name.startswith("test_")]
 
 
+def setUpModule():
+    """The records the tollman's commands write (plan 0611) go to a scratch folder, never `/no/such/farm`'s
+    `tollman-farm` field under the hal root (train 55, state-scratch)."""
+    tmp = Path(tempfile.mkdtemp())
+    patch = mock.patch.object(mtm_scan, "state_dir", lambda main, role="farmer": tmp / role)
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+    unittest.addModuleCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+
+
 class Callers(unittest.TestCase):
     def test_only_the_users_unhitch_clears_a_ready_mark(self):
         found = {(f, fn) for p in scripts(".py") for f, fn, _ in clears(p)}
@@ -77,7 +88,7 @@ class Unhitch(unittest.TestCase):
         with mock.patch.object(engine, "here", return_value=("/no/such/farm", "tollman-hal2", train, self.TOP)), \
                 mock.patch.object(engine, "cli", side_effect=lambda args, cwd: calls.append(args) or (0, "{}")), \
                 mock.patch.object(engine_car.train_state, "append"):
-            return engine_car.unhitch(self.TOP, "07", "its test fails", user=user), calls
+            return engine_car.unhitch(self.TOP, "07", "its test fails", user=user, words="unhitch it, the user said"), calls
 
     def test_a_session_never_unhitches_a_waiting_hitch(self):
         (code, text), calls = self.run_it()

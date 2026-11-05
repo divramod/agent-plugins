@@ -167,10 +167,11 @@ def unfold(entry: dict) -> dict[str, dict]:
 
 
 def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None = None, gate: Path | None = None,
-            progress: dict | None = None, only: set[str] | None = None) -> dict:
+            progress: dict | None = None, only: set[str] | None = None, scale: float = 1.0) -> dict:
     """The pretest of the field `top`'s HEAD (the module doc), its markers below `state`: {result, seconds, jobs, why,
     errors, log, base, head}; the jobs' output in `log`, rewritten. `progress["red"]` names a red job as soon as one
-    is. `only`: the jobs that may run, the others `not needed` (a car that joined an open train: open_train.check)."""
+    is. `only`: the jobs that may run, the others `not needed` (a car that joined an open train: open_train.check).
+    `scale` multiplies the gate's wait (GATE_SECONDS) and the jobs' budget: the one retry runs with 2 (plan 0623 D3)."""
     began, gate = time.monotonic(), gate or Path(top) / GATE
     cfg, why = read_config(config or Path(top) / CONFIG)
     head = git(top, "rev-parse", "HEAD")
@@ -178,7 +179,7 @@ def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None
     done, jobs = {"result": "none", "seconds": 0, "jobs": [], "why": why, "log": str(log), "base": base,
                   "head": head, "errors": {}}, []
     if cfg:
-        asked, cli = time.monotonic() + GATE_SECONDS, installed_cli(top)
+        asked, cli = time.monotonic() + GATE_SECONDS * scale, installed_cli(top)
         try:
             known = gate_jobs(top, gate, max(1.0, asked - time.monotonic()), cli)
             chosen = plan(top, gate, base, head, max(1.0, asked - time.monotonic()), salt(), cli)
@@ -188,7 +189,7 @@ def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
             done.update(result="incomplete", why=f"the gate did not answer: {e}"[:300])
         else:
-            deadline = time.monotonic() + cfg["budget"]
+            deadline = time.monotonic() + cfg["budget"] * scale
             done.update(judge(top, gate, state, cfg, known, chosen, base, head, deadline, progress, cli))
             jobs = done.pop("rows")
     with contextlib.suppress(OSError):

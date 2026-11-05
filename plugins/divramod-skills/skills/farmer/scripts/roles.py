@@ -56,7 +56,9 @@ class Wiring:
     `min_tick`: the shortest gap between two ticks (due.loop_cron), 5 minutes unless the role has a duty on a shorter
     cron (hal2 plan 0383 step 4: the tollman's 1-minute watch);
     `keep(main, items)`: of the wake items `act` would close as seen by the handoff's writer, those that stay open
-    anyway (hal2 plan 0608 D3: the tollman's unordered train-reds); None: none stays."""
+    anyway (hal2 plan 0608 D3: the tollman's unordered train-reds); None: none stays;
+    `state(main)`: the role's state as text, printed by `act` before the handoff's DO FIRST on every wake and after a
+    clear (hal2 plan 0611 step 6: the tollman's train, open records, standing orders); None: none."""
     role: str
     cli: Path
     skill: Path
@@ -70,6 +72,7 @@ class Wiring:
     env: tuple[str, ...] = ("FARMER_DIR",)
     min_tick: int = 5  # the shortest gap, in minutes, between two ticks the timer may run (the tollman's watch: 1)
     keep: Callable[[str, list[dict]], list[dict]] | None = None
+    state: Callable[[str], str] | None = None
 
     @property
     def role_file(self) -> str:
@@ -79,6 +82,15 @@ class Wiring:
     def role_files(self) -> tuple[str, str]:
         """What the role's field may change: its role file and the role folder's .gitignore."""
         return self.role_file, f"roles/{self.role}/.gitignore"
+
+    def committed_files(self, top: str) -> tuple[str, ...]:
+        """The paths the role folder's own .gitignore keeps (`!<pattern>` lines), repo-relative; read at every call
+        (the user may edit the file); none when it is missing."""
+        try:
+            lines = (Path(top) / f"roles/{self.role}/.gitignore").read_text().splitlines()
+        except OSError:
+            return ()
+        return tuple(f"roles/{self.role}/{x[1:]}" for x in (ln.strip() for ln in lines) if x.startswith("!") and len(x) > 1)
 
 
 FARMER = Wiring(

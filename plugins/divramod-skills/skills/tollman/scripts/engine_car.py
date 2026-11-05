@@ -1,7 +1,7 @@
 """The train engine's verbs on a car and on a red train (hal2 plan 0294 step 6, plan 0360 D3; moved out of engine.py
 by plan 0375 step 4): `engine.py unhitch` and `engine.py retry`, also `tollman.py unhitch|retry`.
 
-  engine.py unhitch <field> --why <text> [--by-user] [--repo <dir>]
+  engine.py unhitch <field> --why <text> [--by-user --words <the user's words>] [--repo <dir>]
       only the user's own command (`--by-user`; the user, 2026-11-04: "when a car has hitched, it will never leave the
       queue again"): take a field's ready mark (`worktree queue ready <field> --clear`). A car of
       a train that stands is refused (D3); a running landing is never stopped. Only the user's own `--by-user`
@@ -28,7 +28,8 @@ import train_state
 from carrier import Done
 
 
-def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, user: bool = False) -> Done:
+def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, user: bool = False,
+            words: str = "") -> Done:
     main, _, train, _ = engine.here(repo)
     its = train["yard"] if train and field == train_state.YARD else None  # the yard's car: no ticket to clear
     if field == train_state.YARD and not its:
@@ -42,11 +43,17 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
     if not user:  # the user, 2026-11-04: "when a car has hitched, it will never leave the queue again"
         return 1, (f"{field} is not unhitched: a hitched wagon never leaves the queue (the user, 2026-11-04: \"when a "
                    "car has hitched, it will never leave the queue again\"); only the user's own `--by-user` does it")
+    if not words.strip():  # plan 0611 D13: the user's order is a record that carries the user's own words
+        return 1, f"{field} is not unhitched: `--by-user` needs `--words \"<the user's words>\"` (plan 0611 D13)"
     code, out = (0, "") if its else engine.cli(["worktree", "queue", "ready", field, "--clear", "--json"], main)
     if code:
         return 1, f"{field} was not unhitched: {out[-300:]}"
     train_state.append(main, "unhitched", field, now, train=train["train"] if car else None, why=why, files=its,
                        by=frozen.USER if car else None)
+    import records_kinds  # plan 0611: the user's order, open until code sees its effect
+    records_kinds.add(main, "user-order", field, f"unhitch {field} (the user): {why}", "user",
+                      records_kinds.train_event("unhitched", train=train["train"] if car else None, field=field), now,
+                      words=words.strip(), train=train["train"] if car else None, order="unhitch")
     return 0, f"{field} unhitched: {why}" + ("; the rest of the train forms again" if car else "")
 
 
@@ -61,6 +68,9 @@ def retry(repo: str, why: str, now: dt.datetime | None = None, skip_pretest: boo
         train_state.append(main, "pretest", train["carrier"], now, train=train["train"], seconds=0, result="skipped",
                            jobs=[], why=f"skipped by the session: {why}", tree=None if code else tree or None)
     train_state.append(main, "retry", train["carrier"], now, train=train["train"], why=why)
+    import records_kinds  # plan 0611: the restart promised, open until the train's next `started` line
+    records_kinds.add(main, "restart", train["carrier"], f"train {train['train']} lands again: {why}", "tollman",
+                      records_kinds.train_event("retry", train=train["train"]), now, train=train["train"], of="train")
     return 0, f"train {train['train']} lands again at the next round{' without its pretest' * skip_pretest}: {why}"
 
 

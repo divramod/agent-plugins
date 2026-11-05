@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One line of a role's records (records.jsonl)",
+  "description": "A promise, order or hand action of the role (hal2 plan 0611; farmer/scripts/role_records.py): an `open` line when it happens, a `close` line when code sees it done. The open set is the fold of the log. The type's own keys (ack, order, head, train, rule, value, words, ...) ride on the open line.",
+  "type": "object",
+  "required": ["schema", "at", "kind", "slot", "record", "by"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "at": {"type": "string", "description": "RFC 3339 UTC with `Z` and whole seconds."},
+    "kind": {"enum": ["open", "close"]},
+    "slot": {"type": "string", "minLength": 1, "description": "The field the record concerns, `main`, or `-`."},
+    "record": {"type": "string", "pattern": "^R[0-9]+$", "description": "The record's number `R<n>`, never reused (the counter `records-number`); not `id`, which the role-folder envelope reserves for `<slot>-<n>`."},
+    "type": {"type": "string", "minLength": 1, "description": "An open line: the role's record type (fix-order, user-order, hand-merge, restart, question, standing for the tollman)."},
+    "what": {"type": "string", "minLength": 1, "description": "An open line: one line saying what is open."},
+    "by": {"enum": ["tollman", "code", "user"], "description": "Who wrote the line: the role's session, code, or the user's own words."},
+    "event": {"type": "object", "description": "An open line: the train or log line written in the same call, {file, kind, id|key}."},
+    "how": {"type": "string", "minLength": 1, "description": "A close line: the closer's name, `user`, or a way the type allows (`void`)."},
+    "evidence": {"type": "string", "minLength": 1, "description": "A close line: the fact read (an ack id, a `landed` line's time, a session id)."}
+  },
+  "additionalProperties": true
+}
