@@ -4,10 +4,13 @@ one field of step 3's facts (`{slot, path, sessions, ...}`), each called by exec
 files deleted; the executor journals a removal (halfway.py) so a killed one is resumed.
 
 - `remove`: the field's resting sessions stopped by signal (delete-field's stop.py through `hal2-cli-agents stop`,
-  never a typed `/exit`), then `hal2-cli-git worktree remove NN --remote`; a servant's `--force`, then origin/NN
-  deleted once it is in origin/<foreman> (hal2's `--remote` only deletes a branch origin's default branch contains).
+  never a typed `/exit`), its kept fix worktree `<NN>-fix` removed (`git worktree remove`, never forced: the proof
+  checked it, prune_proof.fix_unsaved), then `hal2-cli-git worktree remove NN --remote`; a servant's `--force`, then
+  origin/NN deleted once it is in origin/<foreman> (hal2's `--remote` only deletes a branch origin's default branch
+  contains).
 - `clean`: muck out (the cleanup skill's own set) or trim (the config's paths): `cleanup.py busy` (a build running
-  skips it), then `cleanup.py delete --worktree <path> [<path in the field>...]`.
+  skips it), then `cleanup.py delete --worktree <path> [<path in the field>...]`; a trim (only while the disk is
+  short) also mucks out the field's `<NN>-fix` (hal2 plan 0604 D11), a muck out of the field leaves it warm.
 
 A hand returns (status, text): status `success`, `failure` or `skipped` (the workflow command's end of a step).
 """
@@ -18,7 +21,7 @@ import sys
 from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
-from prune_proof import CLEANUP, git, ref_exists
+from prune_proof import CLEANUP, fix_of, git, ref_exists
 from skillpath import sibling
 
 STOP = sibling("delete-field") / "scripts/stop.py"
@@ -66,7 +69,13 @@ def remove(main: str, field: dict, foreman: str | None, panes: list[str]) -> tup
     problem = end_sessions(main, panes)
     if problem:
         return "skipped", problem
-    return remove_cmd(main, field["slot"], foreman)
+    fix = fix_of(field["path"], field["slot"])
+    if fix:  # the field's kept fix worktree goes first, never forced (the proof checked it)
+        code, text = run(["git", "worktree", "remove", fix], main)
+        if code:
+            return "skipped", f"its fix worktree {Path(fix).name} not removed: {text[-300:]}"
+    state, text = remove_cmd(main, field["slot"], foreman)
+    return state, (f"removed its fix worktree {Path(fix).name}\n" if fix else "") + text
 
 
 def remove_cmd(main: str, slot: str, foreman: str | None, force: bool = False) -> tuple[str, str]:
@@ -108,7 +117,11 @@ def clean(field: dict, paths: list[str] | None) -> tuple[str, str]:
     if code == 1:
         return "skipped", f"a build or test runs in it: {text.splitlines()[0] if text else ''}"
     todo = None if paths is None else [p for p in paths if (Path(path) / p).exists() or (Path(path) / p).is_symlink()]
-    if todo == []:
+    fix = fix_of(path, field["slot"]) if paths is not None and field.get("slot") else None
+    if todo == [] and not fix:
         return "success", f"nothing to trim: {', '.join(paths or [])} not there"
-    code, text = cleanup(path, "delete", *(todo or []))
+    code, text = cleanup(path, "delete", *(todo or [])) if todo != [] else (0, f"nothing to trim in {field['slot']}")
+    if fix and cleanup(fix, "busy")[0] != 1:  # a trim mucks out the fix worktree too (the disk is short)
+        more, out = cleanup(fix, "delete")
+        code, text = code or more, f"{text}\n{Path(fix).name}: {out}".strip()
     return status(code), text

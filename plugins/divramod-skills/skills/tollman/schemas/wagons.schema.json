@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One fact of a wagon's train state (wagons.jsonl)",
+  "description": "A fact about a wagon of the standing train (hal2 plan 0604 step 7, D11; scripts/wagon_store.py), append-only: the status (entering, ready, boarded, hitched) is never stored, wagons.py computes it from these facts and git. `slot` is the wagon's field (`14`, `farmer-hal2`, `yard`); lines written before plan 0604 have `field` instead and are rewritten once by `wagon_store.py migrate`.",
+  "type": "object",
+  "required": ["schema", "kind", "slot", "at"],
+  "properties": {
+    "schema": {"type": "integer", "minimum": 1, "maximum": 1},
+    "kind": {"enum": ["order", "answer", "need", "close"]},
+    "slot": {"type": "string", "minLength": 1, "description": "The wagon's field."},
+    "at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", "description": "RFC 3339 UTC with Z and whole seconds."},
+    "by": {"type": "string", "description": "Who wrote it: `ingest` (read from log.jsonl or train.jsonl) or `tollman` (by hand)."},
+    "id": {"type": "string", "description": "An order's id (the ack id of the message); an answer or a close names the order it is for; a need from train.jsonl carries the train line's id when it has one."},
+    "ack": {"enum": ["started", "done", "refused"], "description": "An answer: the foreman's word."},
+    "sha": {"type": "string", "minLength": 7, "description": "An answer (done): the commit it named; a need: the commit that must reach the carrier."},
+    "why": {"type": "string", "description": "A need or close: the reason."}
+  }
+}

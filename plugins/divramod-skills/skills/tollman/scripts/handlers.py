@@ -56,4 +56,5 @@ HANDLERS: dict = Handlers({
     "duty:mtm": "boss.handler", "duty:trains": "trains.handler", "duty:checks": "checks.handler",
     "duty:learn": "learn.handler", "duty:prune": "prune.handler",  # prune: plan 0360 step 7 (D30)
     "duty:mainred": "mainred.handler",  # a red main: plan 0360 step 8 (D9, D29, D30)
+    "duty:wagons": "wagons_duty.handler",  # the wagon table every 20 minutes: plan 0604 step 7 (L225)
     "duty:watch": "minute.handler"})  # the 1-minute watch of the land run: plan 0383 step 4 (D4)

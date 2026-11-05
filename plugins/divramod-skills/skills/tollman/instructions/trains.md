@@ -57,6 +57,10 @@ for its `fixed` line, a died landing whose run runs is watched; neither wakes yo
   fix order, never a rerun (it restarts the user's app).
 - **A red naming a shared test cache or fixture** (L133: seed, scratch tree): the car that changed the helper owns it, not
   the test file's owner; order it at once, it is no runner fault.
+- **A red only in hal2-cli-workqueue's load-sensitive tests** (L140: `run_and_status_keep_their_budgets` in
+  `apps/hal2-cli-workqueue/tests/it/binary.rs`, `a_live_holder_past_the_cap_beats_on_but_holds_nobody` in
+  `libs/hal2-workqueue/tests/it/holder.rs`): load-flaky, no car's; place it with `flaky_brief.py`, never a fix order
+  and never field 10.
 
 **Composition, order and the alone rule are yours** ([wagon-master-decides-trains](https://github.com/divramod/hal2/blob/main/.adr/wagon-master-decides-trains.md)): which wagons ride together, in what order,
 what rides alone. Decide by the trial merge and the queue order (a tie goes to the wagon that hitched first), record it

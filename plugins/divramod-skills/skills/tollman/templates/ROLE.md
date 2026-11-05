@@ -12,6 +12,7 @@ duties:
   watch: "* * * * *"          # every minute, silent: leavers of the merge queue, the live land run's events (job failed, merge job green, workflow finished)
   checks: "*/2 * * * *"       # landings first: ci-check runs wait behind a landing or train, then run (instructions/checks.md)
   learn: "17 6 * * *"         # once a day: the untaken learnings (learnings.md) go to one foreman as a skill change
+  wagons: "*/20 * * * *"      # the wagons' store: each hitched wagon's state, the barn's and the trains' cars (wagons.py)
 notify: every-round
 session_effort: medium      # the session's effort: low | medium | high | xhigh | max (default medium, started and restarted at it)
 ---

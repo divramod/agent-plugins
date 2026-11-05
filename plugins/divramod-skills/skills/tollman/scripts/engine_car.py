@@ -11,7 +11,11 @@ by plan 0375 step 4): `engine.py unhitch` and `engine.py retry`, also `tollman.p
       a red train lands again as it is (a flaky gate), on a fresh land run: the next `restart` commits an empty
       `chore(wagon-train): ... (retry <n>)` on the carrier, so the candidate is new and the red run never adopted
       again; `--skip-pretest`: a `skipped` pretest line with the why first, so its landing starts without the pretest
-      (a red pretest that is the Mac's, not a car's)
+      (a red pretest that is the Mac's, not a car's). A train still `landing` whose landing's process is gone (or
+      ends within orders.WAIT s of its finished run) is red for it: the red line is written as `fixed` writes it
+      (orders.still_lands, L139: train 31's retry came before the round's red line). A refusal names the train's
+      state and its open orders; a post-merge order never blocks a retry. A retry never touches a mark (a hitch is
+      forever).
 """
 
 import datetime as dt
@@ -19,6 +23,7 @@ import datetime as dt
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import engine
 import frozen
+import orders
 import train_state
 from carrier import Done
 
@@ -47,11 +52,27 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
 
 def retry(repo: str, why: str, now: dt.datetime | None = None, skip_pretest: bool = False) -> Done:
     main, _, train, top = engine.here(repo)
+    wait = orders.still_lands(top, main, train, now) if train and train["state"] == "landing" else ""
+    train = train if wait or not train or train["state"] != "landing" else engine.here(repo)[2]  # its red line (L139)
     if not train or train["state"] != "red":
-        return 1, "no red train without open fix orders stands: nothing to land again (a fix is `tollman.py fixed`)"
+        return 1, refusal(train, wait)
     if skip_pretest:  # the session's word: this red is the Mac's (pretest_train.before_landing lets it through)
         code, tree = engine.git(top, "rev-parse", "HEAD^{tree}")  # this tree only: a later fix is pretested (0522)
         train_state.append(main, "pretest", train["carrier"], now, train=train["train"], seconds=0, result="skipped",
                            jobs=[], why=f"skipped by the session: {why}", tree=None if code else tree or None)
     train_state.append(main, "retry", train["carrier"], now, train=train["train"], why=why)
     return 0, f"train {train['train']} lands again at the next round{' without its pretest' * skip_pretest}: {why}"
+
+
+def refusal(train: dict | None, wait: str = "") -> str:
+    """Why `retry` lands nothing: no train, or its state with the open fix orders and post-merge orders (L139: a post
+    order rides the train and never blocks a retry; an open fix order's `fixed` lands the cars again)."""
+    if not train:
+        return "no train stands: nothing to land again"
+    ids = lambda rows: ", ".join(o.get("id") or "?" for o in rows) or "none"  # noqa: E731
+    why = f"train {train['train']} is {train['state']}" + (f" ({wait})" if wait else "")
+    fix = ("; its open fix orders: " + ids(train.get("orders") or []) + " (their `tollman.py fixed` lands the cars "
+           "again)") if train.get("orders") else ""
+    post = ("; its post-merge orders " + ids(train.get("post") or []) + " ride it and never block a retry"
+            ) if train.get("post") else ""
+    return f"{why}: only a red train lands again by retry{fix}{post}"

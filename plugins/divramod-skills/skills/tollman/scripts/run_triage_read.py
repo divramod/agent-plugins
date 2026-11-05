@@ -33,6 +33,11 @@ NOISE = re.compile(r"^##\[error\]Process completed with exit code \d+\.$")
 SPEC = re.compile(r"✘\s+\d+\s+\[[^\]]+\]\s+›\s+(?P<file>\S+\.(?:spec|test)\.[tj]sx?):(?P<line>\d+)")
 SPEC_PATH = re.compile(r"failed now \(attempt \d+\): \S+ › (?P<path>\S+\.(?:spec|test)\.[tj]sx?) ›")
 TIMEOUT = re.compile(r"phase (?:build|up): failed after \d+s \(exit 124\)")
+# L137: compose's build phase limits (utils/docker-compose/*/local/up.sh: 600 s on a warm cache, 1800 s on a cold
+# one) and the step's own work around its build (run 41053462810 on az02: [06] 666 s, [07] 765 s, both `phase build:
+# failed after 600s (exit 124)`): a stack step red this long ended at the limit, its log a 404 until the job ends
+BUILD_LIMITS, BUILD_SLACK = (600, 1800), 300
+STACK_STEP = re.compile(r"^(?:\[\d+\]\s*)?gate stack-test \S+$")
 RUNNER = re.compile(r"Runner name: '([^']+)'")
 # L13: a latency budget missed (hal2-core's budgets.rs `FAIL <call>: ... (budget N ms`, its tests' `over budget:`,
 # hal9k-e2e's `p95=... ms, budget N ms`) or a test's own time limit: load on the shared host, never a build phase's
@@ -42,6 +47,14 @@ BUDGET = re.compile(r"over budget:|^\s*FAIL\s+\S+: p50 .*\(budget \d|p95=\S+ ms,
 FRAME = re.compile(r"##\[error\]Process completed|✘|^failed now|gate: unit .* failed|^\s*FAILED|FAIL \[|panicked at|"
                    r"exit code \d+")
 LINES = 12  # a unit's error lines kept as evidence
+
+
+def at_build_limit(step: str | None, secs) -> int | None:
+    """The build-phase limit a red `gate stack-test <part>` step of a running job ended at (L137), by its duration
+    alone: from the limit to BUILD_SLACK s past it; else None."""
+    if not STACK_STEP.match((step or "").strip()) or not isinstance(secs, (int, float)):
+        return None
+    return next((limit for limit in BUILD_LIMITS if limit <= secs < limit + BUILD_SLACK), None)
 
 
 def counted(jobs: list[dict]) -> list[dict]:

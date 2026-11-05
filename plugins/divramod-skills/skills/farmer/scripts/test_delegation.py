@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 import delegation
+import delegation_round
 import mtm_scan
 import tick
 
@@ -47,8 +48,12 @@ class Ledger(unittest.TestCase):
             return 0, json.dumps({"slot": "18"})
 
         agent = lambda pane: {"pane_id": pane, "session_id": "s" + pane.strip("%")}
+        self.sessions = None  # the agent list `live_sessions.read` gives; None: unreadable, every running entry counts
+        self.paused = {}  # the fields `field_pause.load` gives
         for p in (mock.patch.object(mtm_scan, "DATA", self.tmp), mock.patch.object(delegation, "call", call),
-                  mock.patch.object(delegation.deliver, "agent", agent)):
+                  mock.patch.object(delegation.deliver, "agent", agent),
+                  mock.patch.object(delegation_round.live_sessions, "read", lambda: self.sessions),
+                  mock.patch.object(delegation_round.field_pause, "load", lambda main: self.paused)):
             p.start()
             self.addCleanup(p.stop)
 

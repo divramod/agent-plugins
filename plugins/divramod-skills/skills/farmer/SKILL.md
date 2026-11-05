@@ -274,6 +274,11 @@ that branch only when the barn already holds the plan; otherwise the log line sa
 deletes it once the plan is in the barn and the field is gone. A delegation of a transplanted field follows it
 (`scripts/transplants.py`): it stays `running`, now in the target, never `landed`, its session left alone.
 
+Each tick reconciles the running delegations (hal2 plan 0618: `scripts/delegation_sync.py` judges, `delegation_round.py`
+gathers and applies): `landed` (its plan is on main), `gone` (its field is removed) or `moved` (its field holds another
+plan), written once; only foremen whose field is unpaused and holds a live session count for the limit. The one-off
+run of the same code by hand: `python3 $S/delegation.py reconcile [--dry-run] [--json] [--limit <n>]` (`scripts/delegation_cli.py`).
+
 It **never**:
 
 - changes, commits or lands anything in its own branch (except committing the user's `roles/farmer/ROLE.md`);

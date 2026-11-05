@@ -6,6 +6,9 @@ branch lacks, no change, no CURRENT_PLAN pointer, no merge queue ticket or boss 
 starting, blocked), no session active in the last 30 minutes (10-99), no build running in it (cleanup's `busy`) and no
 open question to the user (the tollman's log and the farmer's). A field marked `plans/LEAD` (a servant's) is measured
 against its foreman's branch instead (`subservant_refusal`). Never main, a role field or a name that is not two digits.
+A field's kept fix worktree `<NN>-fix` beside it (the tollman's train fixes, hal2 plan 0604 D11; `fix_of`) is part of
+it: a change or a commit there that the default branch lacks keeps the field (its fix branches `<NN>-train-*` are
+side branches already); it is never a field of its own and goes only with its field (prune_act.remove).
 """
 
 import re
@@ -97,6 +100,23 @@ def sessions(agents: list[dict] | None, path: str) -> list[dict]:
             and live_sessions.live(a)]
 
 
+def fix_of(path: str, slot: str) -> str | None:
+    """The field's kept fix worktree `<parent>/<NN>-fix` (plan 0604 D11) when there is one, else None."""
+    fix = Path(path).parent / f"{slot}-fix"
+    return str(fix) if (fix / ".git").exists() else None
+
+
+def fix_unsaved(path: str, slot: str, base: str) -> list[str]:
+    """What the field's fix worktree holds that `base` lacks: a change, or commits on its HEAD."""
+    fix = fix_of(path, slot)
+    if not fix:
+        return []
+    ahead = git(fix, "rev-list", "--count", f"{base}..HEAD")
+    why = [f"{ahead} commit(s) not on {base}"] * bool(ahead and ahead != "0")
+    why += ["uncommitted changes"] * bool(git(fix, "status", "--porcelain"))
+    return [f"its fix worktree {Path(fix).name}: {w}" for w in why]
+
+
 def held(slot: str, ctx: dict) -> str | None:
     """A queue ticket, a boss pause or an open question to the user (the tollman's log and the farmer's)."""
     if slot in ctx.get("waiting", set()) | ctx.get("landing", set()):
@@ -118,7 +138,8 @@ def refusal(w: dict, ctx: dict, agents: list[dict] | None, now_ms: float, build=
     lead = marker(path)
     if lead is not None:
         return subservant_refusal(w, lead, ctx, agents, now_ms, build)
-    why = unsaved(path, slot, base() if base else refs.base if refs else tick.default_ref(path), refs, w.get("head"))
+    default = base() if base else refs.base if refs else tick.default_ref(path)
+    why = unsaved(path, slot, default, refs, w.get("head")) + fix_unsaved(path, slot, default)
     if why:
         return "; ".join(why)
     why = held(slot, ctx)

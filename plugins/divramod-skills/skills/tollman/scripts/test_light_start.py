@@ -90,9 +90,10 @@ class Deferred(unittest.TestCase):
         import minute
         import prune
         import trains
+        import wagons_duty
         want = {"duty:mtm": boss.handler, "duty:trains": trains.handler, "duty:checks": checks.handler,
                 "duty:learn": learn.handler, "duty:prune": prune.handler, "duty:mainred": mainred.handler,
-                "duty:watch": minute.handler}
+                "duty:watch": minute.handler, "duty:wagons": wagons_duty.handler}
         self.assertEqual(set(tollman.HANDLERS), set(want))
         for item, handler in want.items():
             self.assertIs(tollman.HANDLERS[item], handler, item)

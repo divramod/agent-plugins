@@ -39,6 +39,10 @@ Fixed in code, not judgment (the record [.adr/prune-order.md](../../../../../../
    `%(ahead-behind:origin/<default>)` and one `hal2-cli-plans list --json` serve all fields; a case a batch cannot
    answer (a HEAD that is no branch tip, a plan only the field knows) is asked per field as before, and every
    action's proof re-reads its one field (no sizes, no responses).
+   A field's kept fix worktree `<NN>-fix` (plan 0604: a foreman's `<NN>-train-<n>-<a>-fix|-resolve` is worked there)
+   is read beside the field: unsaved work in it keeps the field, it is removed before the field (never forced) and
+   mucked out only with a trim, while the disk is short. The tollman's kept `tollman-train` and `tollman-fix` are
+   no fields and stay.
 2. `phase-1`: fields the proof calls free: 10-99 removed (an idle session stopped by signal first), 00-09 only mucked
    out, the last train's cars first, then the biggest. Then `stale-pointers`: a `CURRENT_PLAN` naming a finished or
    missing plan on a field with nothing unsaved and no session is cleared, one step per field, and a field that

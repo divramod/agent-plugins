@@ -28,6 +28,13 @@ class IsField(unittest.TestCase):
         self.assertFalse(field_root.is_field({"path": str(ROOT / "trainfix"), "branch": "tollman-train-0432"}, MAIN))
         self.assertFalse(field_root.is_field({"path": str(ROOT / "tollman-train-0432"), "branch": "x"}, MAIN))
 
+    def test_plan_0604_carriers_and_kept_fix_worktrees_are_none(self):
+        for path, branch in (("tollman-train", "train-7-1"), ("07-fix", "07-train-7-1-fix"), ("07-fix", "07-train-7-2-resolve"),
+                             ("tollman-fix", "tollman-train-7-1-fix"), ("tollman-train", "tollman-train-7-1"),
+                             ("07-fix", None), ("x", "train-12-3")):
+            self.assertFalse(field_root.is_field({"path": str(ROOT / path), "branch": branch}, MAIN), (path, branch))
+        self.assertTrue(field_root.is_field({"path": str(ROOT / "07"), "branch": "07-ui"}, MAIN))
+
     def test_beside_or_inside_the_main_checkout_still_counts(self):
         self.assertTrue(field_root.is_field({"path": str(HOME / "a/04"), "branch": "04"}, MAIN))
         self.assertTrue(field_root.is_field({"path": MAIN + "/04", "branch": "04"}, MAIN))

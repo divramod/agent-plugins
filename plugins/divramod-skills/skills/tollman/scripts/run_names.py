@@ -14,12 +14,15 @@ warm cache is also really important"). A train without a number (formed before p
 """
 
 import re
+from pathlib import Path
 
 KEPT = "tollman-train"  # the carrier's kept worktree
 OWN_FIX = "tollman-train-fix"  # the legacy own fix branch
 MAIN = "main"  # orders.MAIN: the tollman's own fix order
 CARRIER = re.compile(r"^train-([1-9]\d*)-([1-9]\d*)$")
 FIX = re.compile(r"^(\d{2}|tollman)-train-[1-9]\d*-[1-9]\d*-(fix|resolve)$")
+KEPT_WORKTREES = re.compile(r"^(tollman-train|tollman-fix|\d{2}-fix)$")
+TRAINISH = re.compile(r"train|^tollman-.*fix$|-resolve$")  # a name that looks like train work
 RAN = ("landing", "red", "fixing", "paused")  # a train whose last start is the run a fix starts from
 
 
@@ -65,3 +68,40 @@ def base_of(branch: str) -> str | None:
     """The carrier's run `train-<n>-<a>` a systematic fix or resolve branch starts from, None for a legacy name."""
     m = FIX.match(branch) and re.search(r"-(train-[1-9]\d*-[1-9]\d*)-(?:fix|resolve)$", branch)
     return m.group(1) if m else None
+
+
+def parse(name) -> dict | None:
+    """{'kind': carrier|fix|resolve, 'n', 'a', 'field'?} of a systematic name (`refs/heads/`, `origin/` stripped)."""
+    name = str(name or "").removeprefix("refs/heads/").removeprefix("origin/")
+    if m := CARRIER.match(name):
+        return {"kind": "carrier", "n": int(m[1]), "a": int(m[2])}
+    if FIX.match(name):
+        field, n, a, kind = re.fullmatch(r"(\d{2}|tollman)-train-(\d+)-(\d+)-(fix|resolve)", name).groups()
+        return {"kind": kind, "n": int(n), "a": int(a), "field": field}
+    return None
+
+
+def off_standard(names) -> list[str]:
+    """The train-like names that are no systematic branch or kept worktree name, sorted."""
+    return sorted({n for n in names if TRAINISH.search(n) and parse(n) is None and not KEPT_WORKTREES.match(n)})
+
+
+def repo_names(root) -> dict[str, set[str]]:
+    """{name: {origin, local, worktree}} of the repository at `root` (carrier.git's bounded runs; a failed call adds
+    nothing)."""
+    from carrier import git  # lazily: the names themselves need no git
+
+    def run(*args):
+        code, out = git(str(root), *args)
+        return "" if code else out
+
+    out: dict[str, set[str]] = {}
+    for line in run("ls-remote", "--heads", "origin").splitlines():
+        if "\t" in line:
+            out.setdefault(line.split("\t")[1].removeprefix("refs/heads/"), set()).add("origin")
+    for b in run("for-each-ref", "--format=%(refname:short)", "refs/heads").split():
+        out.setdefault(b, set()).add("local")
+    for line in run("worktree", "list", "--porcelain").splitlines():
+        if line.startswith("worktree "):
+            out.setdefault(Path(line[9:]).name, set()).add("worktree")
+    return out

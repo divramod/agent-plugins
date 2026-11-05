@@ -57,6 +57,22 @@ class Scan(Slots):
             self.assertIn("1 commit(s) not on origin/main", self.why()["06"])
         self.assertEqual(ref.call_count, 1)
 
+    def test_a_field_s_kept_fix_worktree_is_part_of_it_and_never_a_field(self):
+        """Plan 0604 D11: `13-fix` (the tollman's train fixes) is no field; its change or commit keeps field 13."""
+        fix = self.base / "13-fix"
+        git(self.main, "worktree", "add", "-q", "-b", "13-train-7-1-fix", str(fix), "origin/main")
+        self.assertNotIn("13-fix", self.why())
+        self.assertIsNone(self.why()["13"], "a clean fix worktree on the barn's commits keeps nothing")
+        (fix / "wip.txt").write_text("x")
+        self.assertEqual(self.why()["13"], "its fix worktree 13-fix: uncommitted changes")
+        (fix / "wip.txt").unlink()
+        git(fix, "checkout", "-q", "--detach")
+        git(fix, "commit", "-q", "--allow-empty", "-m", "fix")
+        self.assertEqual(self.why()["13"], "its fix worktree 13-fix: 1 commit(s) not on origin/main")
+        git(fix, "switch", "-q", "13-train-7-1-fix")
+        git(fix, "commit", "-q", "--allow-empty", "-m", "fix")
+        self.assertIn("side branch 13-train-7-1-fix: 1 commit(s) not on origin/main", self.why()["13"])
+
     def test_a_ticket_a_pause_an_open_ask_a_busy_agent_a_build(self):
         self.assertIn("ticket", self.why({"waiting": {"13"}})["13"])
         self.assertIn("ticket", self.why({"landing": {"13"}})["13"])

@@ -6,7 +6,9 @@ of theirs. Pure rule over data; run_triage_step_act.py reads and acts. The kinds
 - `runner`: a setup step of the runner (`Set up job`, checkout, tools, ...), or a job no runner name serves: nobody
 - `unsure`: the same unit red in an earlier land run (a repeat, L131: never a car's, its cause needs the log), or a
   gate step red within QUICK seconds (no test ran: the log tells why): nothing ordered, the job's end decides
-- `pipeline`: a car changed `.github/workflows/` or the gate: run_triage.pipeline_owner
+- `pipeline`: a stack step red at compose's build-phase limit (run_triage_read.at_build_limit, L137: a runner's
+  slowness or the pipeline's, never a car's, a repeat too: at once, the field owning the pipeline unless a car
+  changed it), or a car changed `.github/workflows/` or the gate: run_triage.pipeline_owner
 - `car`: the one car whose files the unit names (a folder named like the unit's part, or its gate job's file), or,
   none named, the only car of a train without the yard's car (early_order.culprit's rule)
 - `unplaced`: any other step (no `gate <job> [<part>]` step), or no car named: nothing ordered, the job's end decides
@@ -75,6 +77,11 @@ def kind_of(ev: dict, u: dict, e: dict, ctx: dict) -> tuple[str, dict, str | Non
     """(kind, owner record, what is missing) of the step red (see the module doc)."""
     if SETUP.match(task(ev["step"])) or not ev.get("runner"):
         return "runner", {}, None
+    if limit := read.at_build_limit(ev["step"], ev.get("secs")):
+        e["lines"].append(f"the step ended at compose's {limit} s build-phase limit (L137): the runner's or the "
+                          "pipeline's, never a car's")
+        e["pipeline"] = piped = run_triage.pipeline_owner(ctx, ev["job"])
+        return "pipeline", piped, piped.get("missing")
     if rid := repeat_of(u["unit"], ctx.get("previous")):
         e["repeat_of"] = rid
         return "unsure", {}, f"the cause of a repeat of run {rid} (L131, never a car's): the job's log at its end"

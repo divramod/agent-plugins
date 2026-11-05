@@ -13,11 +13,14 @@ The light checks, run read-only in the field on its hitched head, as the gate ru
            `.adr/`, `docs/` or a `*.md` file
   lanes    proof_lanes.check, when the crop changes a `.github/workflows/` file (plan 0490 step 7, L70): a job routed
            to runs-on labels the barn's runner list lacks rides only when a runner with them is online on GitHub
+  pin      proof_pin.check, when the crop changes `.hal/records.toml` (plan 0614 step 2, L53): a `checker` pin above
+           the head's own hal2-records crate version is red, "pin the current version", never a wait to install
   keys, skills, env-readers, state-roots-count, nodes, state
            proof_light (plan 0490 step 8: L61, L100, L102, L119, L126), each only when the crop touches its inputs
 
-  - A records check that refuses (exit 10: the installed checker is older than the head's `checker`, L54) is no
-    proof: the car waits with the refusal line, never rides green; the verdict is not cached.
+  - A records check that refuses (exit 10: the checker run is older than the head's `checker`, L54) is no proof:
+    the car waits with the refusal line, never rides green; the verdict is not cached. A pin above the head's own
+    crate is the `pin` check's red, which wins (L53): no CLI is installed to get past it.
 
   - A field whose checkout moved on from the hitched head is proven on the hitched sha itself in a detached scratch
     worktree (proof_scratch, plan 0490 step 23, D24), with no uncommitted work; the field's checkout is never
@@ -48,6 +51,7 @@ import mtm_scan
 import own_cli
 import proof_lanes
 import proof_light
+import proof_pin
 import proof_scratch
 
 ROLE = "tollman"
@@ -93,7 +97,8 @@ def checks_for(files: list[str]) -> list[str]:
     """The light checks a crop's paths call for: the names check always, the records check for docs and records, the
     lanes check for a workflow, proof_light's for their inputs (the ceilings, which need the files' text: prove)."""
     return (["names"] + (["records"] if any(DOCS.search(f) for f in files) else [])
-            + (["lanes"] if any(proof_lanes.WORKFLOW.match(f) for f in files) else []) + proof_light.by_path(files))
+            + (["lanes"] if any(proof_lanes.WORKFLOW.match(f) for f in files) else [])
+            + (["pin"] if proof_pin.wanted(files) else []) + proof_light.by_path(files))
 
 
 def build_run(run):
@@ -130,6 +135,8 @@ def one(check: str, field: str, barn: str, head: str, files: list[str], run, gre
     """One check's (exit, output) in the field."""
     if check == "lanes":
         return proof_lanes.check(field, barn, head, files, run)
+    if check == "pin":
+        return proof_pin.check(field, head, run)
     if check not in ("names", "records"):
         return proof_light.check(check, field, barn, head, files, run, build_run(run), grew)
     argv = argv_of(check, field, barn, head, run=run)
@@ -147,8 +154,8 @@ def prove(field: str, head: str, barn: str, run=sh, clean: bool = False) -> dict
         code, text = one(check, field, barn, head, files, run, grew.get(check))
         if check == "records" and code == REFUSED:
             first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
-            refused.append(f"no proof yet: the records check refused (exit {REFUSED}, the installed checker is older "
-                           f"than the head's `checker`; install the newer hal2-cli-records): {first}"[:400])
+            refused.append(f"no proof yet: the records check refused (exit {REFUSED}, the checker run is older than "
+                           f"the head's `checker`; the landing's gate runs the candidate's own build): {first}"[:400])
             continue
         if code not in (0, 1):
             out["skipped"].append(check)

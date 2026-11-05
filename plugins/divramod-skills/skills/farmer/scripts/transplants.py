@@ -1,7 +1,7 @@
 """Where a field's work went (hal2 plan 0286, D26). The farmer's delegations ledger names a servant's field (`slot`)
 and no plan, so after `/transplant` moved the foreman to another field the old field looks like a landed one: no
 plan, no commits ahead. `moved` follows the transplants hal2-git recorded (`hal2-cli-git worktree transplants
---json`) from the entry's field to the field its foreman works in now; `delegation.follow_up` keeps such an entry
+--json`) from the entry's field to the field its foreman works in now; `delegation_round.follow_up` keeps such an entry
 `running` there, and its session is not stopped.
 
 Only a transplant that reached `driven` or `arrived` moved the work; a `prepared` or `cancelled` one moved nothing. A

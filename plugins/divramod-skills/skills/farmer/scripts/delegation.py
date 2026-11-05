@@ -29,12 +29,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import delegation_round
 import deliver
 import due
 import mtm_scan
 import roles
 import roletime
-import transplants
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
@@ -55,7 +55,6 @@ FROM = 0  # the first worktree a farmer-started session may work in (plan 0270, 
 TO = 99  # the last one: a foreman works in any field, its role comes from plans/LEAD, not the number (plan 0383, D16)
 NO_FIELD = f"no free field {FROM:02d}-{TO:02d}"
 NO_FREE_EXIT = 3  # create.py: no free and clean worktree in its range
-SETTLE = dt.timedelta(minutes=30)  # a foreman younger than this has not started its plan yet
 ROLE = Path(__file__).resolve().parents[1] / "templates" / "SERVANT-ROLE.md"
 # Plan 0016's D7, verbatim: the same sentence in the plan skill and every foreman prompt (grep for it).
 COORDINATOR = ("You are the plan's coordinator: you never do a step yourself; each step runs in one subagent at its "
@@ -90,13 +89,17 @@ def ledger_file(main: str) -> Path:
     return mtm_scan.state_dir(main) / "delegations.jsonl"
 
 
+def lines(main: str) -> list[dict]:
+    """The ledger's notes, oldest first."""
+    f = ledger_file(main)
+    return [json.loads(line) for line in f.read_text().splitlines()] if f.exists() else []
+
+
 def ledger(main: str) -> dict[str, dict]:
     """The latest entry per key."""
-    f, out = ledger_file(main), {}
-    if f.exists():
-        for line in f.read_text().splitlines():
-            e = json.loads(line)
-            out[e["key"]] = {**out.get(e["key"], {}), **e}
+    out = {}
+    for e in lines(main):
+        out[e["key"]] = {**out.get(e["key"], {}), **e}
     return out
 
 
@@ -262,20 +265,21 @@ def has_room(limit: int | str, running: int) -> bool:
     return machine_load() < AUTO_LOAD if limit == "auto" else running < limit
 
 
-def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, values: dict | None = None) -> dict:
+def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, values: dict | None = None,
+             busy: int | None = None) -> dict:
     """Hand one `delegate` action to a foreman at `values` (model, effort; `servant_values`), or keep it waiting at
-    the limit. Returns what happened. `now` naive (local) or aware (roletime)."""
+    the limit. Returns what happened. `now` naive (local) or aware (roletime). `busy`: how many foremen use capacity
+    (delegation_round.capacity, D6); without it every running entry of the ledger counts."""
     now, held = roletime.aware(now), ledger(main)
     if a.get("key") in held and held[a["key"]].get("state") in ("running", "landed"):
         return {"key": a["key"], "state": "in-hand", "slot": held[a["key"]].get("slot")}
-    running = [e for e in held.values() if e.get("state") == "running"]
     given = (a.get("brief") or {}).get("brief_file")
     brief = Path(given) if given else write_brief(a, main, now) if not dry else Path("<brief>")
     if not given and not dry:
         overlap_note(a, main, brief)
     # A direct instruction (`prompt`, `role_task`) instead of a plan; kept on a waiting entry for its later start.
     own = {k: a[k] for k in ("prompt", "role_task") if a.get(k)}
-    if not has_room(limit, len(running)):
+    if not has_room(limit, sum(e.get("state") == "running" for e in held.values()) if busy is None else busy):
         result = {"key": a["key"], "state": "waiting", "brief": str(brief), "title": a["text"], **own}
     else:
         role = write_role(main, brief, a["text"][:80], now, a.get("role_task")) if not dry else Path("<role>")
@@ -302,41 +306,16 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
 
 def follow_up(main: str, slots: dict[str, dict], limit: int | str, dry: bool, now: dt.datetime,
               values: dict | None = None) -> list[dict]:
-    """Running foremen whose worktree holds nothing any more have landed: recorded, their session stopped; one whose
-    field a transplant moved (transplants.py) stays running in the target.
-    `slots`: worktree → {"plan": CURRENT_PLAN text, "ahead": commits not on main}. Waiting briefs start when there
-    is room. `now` naive (local) or aware; an entry whose `at` does not parse is left as it is (roletime)."""
-    now, done, moves = roletime.aware(now), [], []
-    for key, e in ledger(main).items():
-        if e.get("state") != "running" or not e.get("slot"):
-            continue
-        at = roletime.parse(e.get("at"))
-        if at is None:
-            continue
-        to = transplants.moved(main, e["slot"], at, call)  # plan 0286 D26: the foreman moved on, it did not land
-        if to:
-            moves.append({"key": key, "state": "running", "slot": to, "from": e["slot"]})
-            continue
-        s, age = slots.get(e["slot"], {}), now - at
-        if age > SETTLE and not s.get("plan") and not s.get("ahead"):
-            done.append({"key": key, "state": "landed", "slot": e["slot"], "stop": STOP + [e["slot"], "--repo", main]})
-    for d in done:
-        if not dry:
-            call(d["stop"], main)  # refuses a busy session: then it stays, nothing lost
-            note(main, {"key": d["key"], "state": "landed", "slot": d["slot"]}, now)
-            mtm_scan.log(main, {"kind": "landed", "slot": d["slot"], "what": "the foreman's plan has landed",
-                                "note": "session stopped when idle", "by": "tick", "key": d["key"]})
-    for m in moves:  # the delegation follows its field: running in the target, its session left alone
-        if not dry:
-            note(main, m, now)
-            mtm_scan.log(main, {"kind": "transplant", "slot": m["slot"], "by": "tick", "key": m["key"],
-                                "what": f"the servant's field moved from {m['from']}",
-                                "note": "still running; the delegation follows the target"})
-    done += moves
-    waiting = [{"key": k, "text": e["title"], "brief": {"brief_file": e["brief"]}, "duty": "farmer",
-                "kind": "waiting", "slot": "-", **{f: e[f] for f in ("prompt", "role_task") if e.get(f)}}
-               for k, e in ledger(main).items() if e.get("state") == "waiting"]
-    running = sum(1 for e in ledger(main).values() if e.get("state") == "running")
-    # auto: one at a time, the load shows a new foreman only after a while
-    room = int(has_room(limit, running)) if limit == "auto" else limit - running
-    return done + [delegate(w, main, limit, dry, now, values) for w in waiting[:max(room, 0)]]
+    """Reconcile the running foremen (plan 0618, delegation_round.py): a landed one recorded and its idle session
+    stopped, one whose field is gone or holds another plan recorded `gone` or `moved`, one whose field a transplant
+    moved (transplants.py) running on in the target. `slots`: worktree → {"plan": CURRENT_PLAN text, "ahead": commits
+    not on main, "path"} (tick.slot_state). Waiting briefs start when there is room. `now` naive (local) or aware; an
+    entry whose `at` does not parse is left as it is (roletime)."""
+    now = roletime.aware(now)
+    return (delegation_round.follow_up(main, slots, dry, now)
+            + delegation_round.place(main, slots, limit, dry, now, values))
+
+
+if __name__ == "__main__":  # `delegation.py reconcile ...`: the one-off migration (delegation_cli.py)
+    import delegation_cli
+    sys.exit(delegation_cli.main())

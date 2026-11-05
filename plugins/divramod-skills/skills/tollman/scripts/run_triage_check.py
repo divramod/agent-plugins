@@ -1,6 +1,6 @@
 """The independent recheck of a triage verdict (hal2 plan 0490 step 1, D11, D12): `recheck` recomputes kind and owner
 from the verdict's evidence alone, never from the first verdict: the transient fault and the build-phase timeout
-are read again from the evidence's lines, a spec must stand in them, a car owner must be a car of the train and a
+are read again from the evidence's lines (a running job's step: its duration at the limit, L137), a spec must stand in them, a car owner must be a car of the train and a
 repeat never a car's. `settle` keeps a verdict both agree on and turns any other into `unsure` (no field, what
 disagrees named): the code never sends a guess (the record security-findings' recheck by recompute)."""
 
@@ -48,7 +48,8 @@ def recheck(e: dict) -> tuple[str, str | None]:
         if e["spec"] not in text:
             return "unsure", None
         why, owner = "file", owned(e)
-    elif read.TIMEOUT.search(text) or (e.get("pipeline") or {}).get("cars"):
+    elif read.TIMEOUT.search(text) or read.at_build_limit(e.get("step"), e.get("secs")) or \
+            (e.get("pipeline") or {}).get("cars"):
         why, owner = "pipeline", pipeline(e)
     elif e.get("culprit") and not e.get("repeat_of") and e["culprit"] in (e.get("cars") or []):
         why, owner = "car", e["culprit"]

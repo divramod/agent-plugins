@@ -40,6 +40,21 @@ class Hands(Slots):
         self.assertIn("%7: not stopped: draft", text)
         self.assertEqual(self.calls, [])
 
+    def test_the_field_s_kept_fix_worktree_goes_first_never_forced(self):
+        """Plan 0604 D11: `13-fix` is removed with its field, by `git worktree remove` without `--force`."""
+        git(self.main, "worktree", "add", "-q", "-b", "13-train-7-1-fix", str(self.base / "13-fix"), "origin/main")
+        status, text = prune_act.remove(str(self.main), self.field, None, [])
+        self.assertEqual((status, text), ("success", "removed its fix worktree 13-fix\nremoved"))
+        self.assertEqual(self.calls, [["git", "worktree", "remove", str(self.base / "13-fix")],
+                                      ["hal2-cli-git", "worktree", "remove", "13", "--remote"]])
+
+    def test_a_fix_worktree_git_will_not_remove_skips_the_field(self):
+        git(self.main, "worktree", "add", "-q", "-b", "13-train-7-1-fix", str(self.base / "13-fix"), "origin/main")
+        with mock.patch.object(prune_act, "run", side_effect=lambda argv, cwd: self.calls.append(argv) or (1, "dirty")):
+            status, text = prune_act.remove(str(self.main), self.field, None, [])
+        self.assertEqual((status, text), ("skipped", "its fix worktree 13-fix not removed: dirty"))
+        self.assertEqual(len(self.calls), 1, "the field stays")
+
     def test_a_resumed_removal_is_forced(self):
         prune_act.remove_cmd(str(self.main), "13", None, force=True)
         self.assertEqual(self.calls, [["hal2-cli-git", "worktree", "remove", "13", "--remote", "--force"]])
@@ -67,6 +82,24 @@ class Clean(Slots):
             status, text = prune_act.clean({"path": str(self.base / "03")}, None)
         self.assertEqual(status, "success", text)
         self.assertFalse((self.base / "03/target").exists())
+
+    def test_a_trim_mucks_out_the_fix_worktree_too_a_muck_out_leaves_it(self):
+        """Plan 0604 D11: `03-fix` keeps its build cache warm; only a trim (the disk is short) mucks it out."""
+        fix = self.base / "03-fix"
+        (self.main / ".gitignore").write_text("target/\n")
+        git(self.main, "add", ".gitignore")
+        git(self.main, "commit", "-qm", "ignore")
+        git(self.main, "worktree", "add", "-q", "-b", "03-train-7-1-fix", str(fix), "HEAD")
+        (fix / "target").mkdir()
+        (fix / "target/x.o").write_text("x")
+        field = {"slot": "03", "path": str(self.base / "03")}
+        with mock.patch.dict("os.environ", {"HAL_CLEANUP_CLI": ""}):
+            self.assertEqual(prune_act.clean(field, None)[0], "success")
+            self.assertTrue((fix / "target/x.o").exists(), "a muck out of the field leaves its fix worktree warm")
+            status, text = prune_act.clean(field, ["code/rust/target"])
+        self.assertEqual(status, "success", text)
+        self.assertIn("03-fix:", text)
+        self.assertFalse((fix / "target").exists())
 
     def test_a_trim_path_that_is_not_there_is_nothing_to_do(self):
         with mock.patch.dict("os.environ", {"HAL_CLEANUP_CLI": ""}):

@@ -20,6 +20,10 @@
       the train that stands and the next one as the queue allows it now: the cars in order, the unhitched with
       their reasons, who waits, alone or not (trains.py's steps 1 to 4), and what the yard would give it: the
       files placed and those left with their reasons (yard.py). Nothing is written, merged or sent
+  tollman.py wagons [--no-fetch] [--json] [--repo <dir>]
+      the train's wagon table (wagons.py, hal2 plan 0604 step 7, L225): wt | plan | name | steps | status, status
+      entering | ready | boarded | hitched computed from the store `wagons.jsonl` (wagon_store.py) and git; the duty
+      `wagons` (cron `*/20`) prints it into the tick's output, no model call
   tollman.py join <field> [--car <json>] | cars [--json] [--repo <dir>]
       a hitched head joins the standing train, never a hand merge; the cars and every hitched wagon with where it
       stands, by code: what every status answer reads (train_join.py, plan 0610 D8, D17)
@@ -139,7 +143,7 @@ def keep(main: str, items: list[dict]) -> list[dict]:
 
 WIRING = roles.Wiring(
     role="tollman", cli=HERE / "tollman.py", skill=HERE.parent,
-    act="/continue", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred", "watch"),
+    act="/continue", handoff="/tollman handoff", duties=("mtm", "trains", "checks", "learn", "prune", "mainred", "watch", "wagons"),
     subskills={"mtm": "merge-to-main-boss", "trains": "merge-train"}, carries=carries, keep=keep,
     session_effort=True, min_tick=1)  # min_tick: the duty `watch` ticks every minute (plan 0383 step 4, D4)
 
@@ -166,6 +170,7 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     import orders_cli
     import resolve
     import train_join
+    import wagons
     import triage_cli
     for name in ("start-check", "tick", "status", "act", "timer"):
         sub.add_parser(name).add_argument("--json", action="store_true")
@@ -195,6 +200,7 @@ def parser(tick_only: bool = False) -> argparse.ArgumentParser:
     modes.add_parser(sub)  # plan 0360 step 25, the switch: plan 0375
     hold.add_parser(sub)  # plan 0383 step 7
     resolve.add_parser(sub)  # plan 0522 D18
+    wagons.add_arguments(sub.add_parser("wagons"), repo=False)
     train_join.add_parser(sub)  # plan 0610 D8, D17
     for x in sub.choices.values():
         x.add_argument("--repo", default=os.getcwd())

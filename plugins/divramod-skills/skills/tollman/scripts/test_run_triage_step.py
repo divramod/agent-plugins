@@ -197,5 +197,34 @@ class Verdict(unittest.TestCase):
         self.assertEqual(step.target(EV, landing, {"train": "next", "state": "formed"}), "next")
 
 
+AZ02 = "x64_vps_azure_d4as-v7_02_linux-ubuntu_26.04_host_a"
+
+
+class BuildLimit(Watch):
+    """L137, run 41053462810 (2026-10-30, d1-01-stack-test on az02): [06] gate stack-test hub-e2e red after 666 s and
+    [07] web-e2e after 765 s while [13] still ran; the job's log (a 404 until the job ended) said `phase build:
+    failed after 600s (exit 124)` for both: compose's build limit, the runner's slowness, never a car's."""
+
+    def context(self, top, main, train, ctx, standing, doc):
+        return {**super().context(top, main, train, ctx, standing, doc), "pipeline_field": "80"}
+
+    def test_l137_a_stack_step_red_at_the_build_limit_is_pipeline_at_once(self):
+        self.panes["80"] = "%80"
+        self.set_jobs(api_job(runner=AZ02, end="2026-10-30T13:21:06Z"))  # 13:10:00 + 666 s, [13] runs
+        (order,) = self.orders(self.tick())
+        self.assertEqual(order["slot"], "80", "the field owning the pipeline, never car 02 whose files hub-e2e names")
+        (kept,) = wire.state(str(self.main))["runs"][0]["steps"]
+        self.assertEqual((kept["owner"], kept["target"], kept["ordered"]), ("80", "current", True), "at once")
+        for red, secs in (("[06] gate stack-test hub-e2e", 666), ("[07] gate stack-test web-e2e", 765)):
+            v = step.verdict({**EV, "step": red, "runner": AZ02, "secs": secs}, {**CTX, "pipeline_field": "80"})
+            self.assertEqual((v["kind"], v["owner"], v["recheck"]), ("pipeline", "80", "agrees"), red)
+        repeat = {**CTX, "pipeline_field": "80", "previous": [{"id": "700", "units": {"stack-test/hub-e2e": {}}}]}
+        self.assertEqual(step.verdict({**EV, "runner": AZ02, "secs": 666}, repeat)["owner"], "80", "a repeat too")
+        self.assertEqual(step.verdict({**EV, "runner": AZ02, "secs": 666}, CTX)["missing"],
+                         "the field owning the pipeline (no car changed .github/workflows/ or the gate)")
+        for other in ({**EV, "secs": 400}, {**EV, "secs": 960}, {**EV, "step": "[03] gate rust-test", "secs": 666}):
+            self.assertNotEqual(step.verdict(other, {**CTX, "pipeline_field": "80"})["kind"], "pipeline", other)
+
+
 if __name__ == "__main__":
     unittest.main()

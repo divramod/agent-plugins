@@ -113,5 +113,43 @@ class RetryFreshRun(Farm):
         self.assertEqual((self.last, out(self.cw, "rev-parse", "HEAD")), ([], head))
 
 
+class Train31(Farm):
+    """L139, 2026-10-30 (the tollman's train.jsonl, UTC): train 31 carried post-merge order 25-fix-1 (13:55Z); its
+    land run ended red at 14:00 on a flaky hal2-cli-tmux contract test, its landing's process gone; the session's
+    `retry` at 14:17 was refused "no red train without open fix orders" because the round's red line came only at
+    14:20:15: the train was still `landing`, and the refusal blamed fix orders it did not have."""
+
+    def setUp(self):
+        super().setUp()
+        self.crop("09", {"nine.txt": "9"}, plan="0274-masterplan-halverse-plugin")
+
+    def post_order(self):
+        train_state.append(str(self.main), "order", self.carrier(), train=self.train()["train"], id="25-fix-1",
+                           field="25", branch="25-train-30-1-fix", base="b" * 40, why="post-merge fix", post="30")
+
+    def test_l139_retry_of_a_landing_whose_run_ended_lands_it_again(self):
+        self.round()  # formed, started: `landing`
+        self.post_order()  # 13:55: a post-merge order rides the train
+        tickets = [dict(t) for t in self.gate.tickets]
+        self.alive.add(self.train()["pid"])  # its landing runs: a retry refuses, naming the state and the post order
+        code, text = self.call("retry", "--why", "flaky hal2-cli-tmux contract test")
+        self.assertEqual(code, 1, text)
+        self.assertIn(f"train {self.train()['train']} is landing (the train's land run still runs", text)
+        self.assertIn("post-merge orders 25-fix-1 ride it and never block a retry", text)
+        self.assertNotIn("without open fix orders", text)
+        self.ends({"status": "gate_failed", "run": f"https://github.com/divramod/hal2/actions/runs/{RED}",
+                   "red": [{"name": "d1-01-rust-test"}]})  # 14:00: the run ended red, the process gone
+        self.assertEqual(self.train()["state"], "landing", "14:17: the round's red line has not come yet")
+        code, text = self.call("retry", "--why", "flaky hal2-cli-tmux contract test")  # 14:17
+        self.assertEqual(code, 0, text)
+        kinds = [e["kind"] for e in train_state.lines(str(self.main))][-2:]
+        self.assertEqual(kinds, ["red", "retry"], "the red line by retry (as `fixed` writes it), then the retry")
+        train = self.train()
+        self.assertEqual((train["state"], [o["id"] for o in train["post"]]), ("retry", ["25-fix-1"]))
+        self.assertEqual(self.gate.tickets, tickets, "a retry never touches a mark (hitch-is-forever)")
+        self.round()
+        self.assertEqual((self.last, self.train()["starts"]), ([("restart", "run", "-")], 2))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -200,6 +200,15 @@ class Names(unittest.TestCase):
                       "tollman-fix", "07-fix", "tollman-hal2", "07", None):
             self.assertFalse(train_wt.is_train(other), other)
 
+    def test_parse_and_off_standard_read_the_systematic_names(self):
+        self.assertEqual(run_names.parse("origin/train-7-2"), {"kind": "carrier", "n": 7, "a": 2})
+        self.assertEqual(run_names.parse("14-train-7-2-fix"), {"kind": "fix", "n": 7, "a": 2, "field": "14"})
+        self.assertEqual(run_names.parse("tollman-train-7-2-resolve")["kind"], "resolve")
+        for no in ("train-7", "07-train-fix", "land/train-7-2", "tollman-train", "", None):
+            self.assertIsNone(run_names.parse(no), no)
+        names = ["train-7-1", "14-fix", "tollman-train", "07-train-fix", "tollman-train-big", "main", "x-resolve"]
+        self.assertEqual(run_names.off_standard(names), ["07-train-fix", "tollman-train-big", "x-resolve"])
+
     def test_the_names_are_the_yard_s_train_names(self):
         yard = yard_names()
         if yard is None:

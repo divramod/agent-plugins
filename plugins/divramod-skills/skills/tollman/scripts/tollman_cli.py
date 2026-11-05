@@ -17,6 +17,10 @@ def command(args, rest: list[str], cli) -> int:
         import checks_cli
         args.argv = rest
         return checks_cli.main(args, status, wiring)
+    if args.cmd == "wagons":
+        import wagons
+        print(wagons.run(args.repo, do_fetch=not args.no_fetch, as_json=args.json))
+        return 0
     if args.cmd == "start-check":
         return role_cli.print_start_check(*role_cli.start_check(args.repo, wiring), args.json)
     if args.cmd == "status":

@@ -390,7 +390,7 @@ def slot_state(main: str) -> dict[str, dict]:
     import lead_marker
     out = {}
     for w in mtm_scan.field_worktrees(main):
-        out[Path(w["path"]).name] = {"plan": lead_marker.current_plan(w["path"]),
+        out[Path(w["path"]).name] = {"plan": lead_marker.current_plan(w["path"]), "path": w["path"],
                                      "ahead": mtm_scan.unmerged(w["path"], "main")}
     return out
 
@@ -398,11 +398,16 @@ def slot_state(main: str) -> dict[str, dict]:
 def delegate_all(main: str, out: dict, dry: bool, now: dt.datetime) -> None:
     """Place this round's delegations (planned ones in a dry run), then follow up on the running foremen."""
     import delegation
+    import delegation_round
     settings = out.get("settings") or {}
     limit, values = delegation.parse_limit(settings.get("servant_limit")), delegation.servant_values(settings)
     todo = [a for a in out["planned"] if a["do"] == "delegate"] if dry else out.get("delegate", [])
-    out["delegations"] = [delegation.delegate(a, main, limit, dry, now, values) for a in todo]
-    out["delegations"] += delegation.follow_up(main, slot_state(main), limit, dry, now, values)
+    slots = slot_state(main)
+    busy, out["delegations"] = delegation_round.capacity(main, slots, limit) if todo else None, []
+    for a in todo:  # the working count (plan 0618, D6), one more for each foreman started here
+        out["delegations"].append(delegation.delegate(a, main, limit, dry, now, values, busy=busy))
+        busy = None if busy is None else busy + (out["delegations"][-1].get("state") == "running")
+    out["delegations"] += delegation.follow_up(main, slots, limit, dry, now, values)
 
 
 def summarize(main: str, top: str, out: dict, wiring: roles.Wiring = roles.FARMER, graph: dict | None = ...) -> None:

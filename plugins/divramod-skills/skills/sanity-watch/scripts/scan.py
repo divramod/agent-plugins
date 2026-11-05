@@ -19,7 +19,7 @@ day chronicle, the hook records, terminal orphans), Claude Code's transcripts (a
 under ~/skills/sanity-watch/. A session that rests while a background task of its own lives (a
 shell, a monitor, a subagent whose transcript moved in the last 20 min) waits, it has not
 stopped (a plan's coordinator waiting on its step's subagent); one whose subagents are all dead
-is F14. A session in a `tollman-train-*` field (a train's carrier, the tollman's) is skipped: never an incident,
+is F14. A session in a train carrier's field (`train-<n>-<a>`, the kept `tollman-train`/`tollman-fix`, or the legacy `tollman-train-*`; the tollman's) is skipped: never an incident,
 never resumed. While the machine is quiet (hal2's marker, plan 0442 D11) a scan finds nothing: Quiet now stopped the
 sessions on purpose. Exit 0 on success, 2 when a tool is missing.
 """
@@ -229,13 +229,17 @@ def paused_fields(project: str) -> dict[str, dict]:
     return {f["field"]: f for f in fields if isinstance(f, dict) and f.get("field")} if isinstance(fields, list) else {}
 
 
-TRAIN_FIELD_PREFIX = "tollman-train-"  # a train's carrier field: no session runs there (tollman L107, hal2 plan 0490)
+TRAIN_FIELD_PREFIX = "tollman-train"  # the kept carrier worktree and the legacy `tollman-train-*` carriers
+TRAIN_FIELD = re.compile(r"^(train-\d+-\d+|tollman-fix)$")  # plan 0604: a carrier, the kept tollman fix worktree (a foreman's `<NN>-fix` is none: hal2-git)
+# a train's carrier field: no session runs there (tollman L107, hal2 plan 0490, plan 0604)
 
 
 def in_train_field(*places) -> bool:
-    """Whether any of `places` (a field name, a checkout or worktree path) is a `tollman-train-*` field: its engine
-    owns it, so a session there is never an incident, never resumed (`hal2-cli-git worktree run` refuses it, too)."""
-    return any(str(p or "").rstrip("/").rsplit("/", 1)[-1].startswith(TRAIN_FIELD_PREFIX) for p in places)
+    """Whether any of `places` (a field name, a checkout or worktree path) is a train field (`train-<n>-<a>`,
+    `tollman-train`, `tollman-fix`, the legacy `tollman-train-*`): the tollman's engine owns it, so a
+    session there is never an incident, never resumed (`hal2-cli-git worktree run` refuses it, too)."""
+    names = [str(p or "").rstrip("/").rsplit("/", 1)[-1] for p in places]
+    return any(n.startswith(TRAIN_FIELD_PREFIX) or TRAIN_FIELD.match(n) for n in names)
 
 
 def hold_paused(found: list[dict], paused: dict[str, dict]) -> None:

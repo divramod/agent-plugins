@@ -123,6 +123,11 @@ far as the user can see.
 The tick does these steps as code (`delegation.py`), and `python3 $S/farmer.py delegate --brief <file> --title
 <title>` does them for a brief you wrote. By hand only when both fail.
 
+A ledger gone stale (running entries whose plan landed, whose field is gone or reused) is reconciled by the tick
+(`delegation_sync.py` the verdicts, `delegation_round.py` the facts and the write); by hand, the same code:
+`python3 $S/delegation.py reconcile --dry-run` lists every entry's verdict and the running and working counts before and
+after, without `--dry-run` it applies them (`delegation_cli.py`; `FARMER_DIR` points it at a copy of the state).
+
 The farmer fixes nothing itself. When a duty finds something to change (a red workflow, a test to disable, a gate
 script, a recurring failure class, a rule patch in `pending/`), it delegates:
 

@@ -283,6 +283,12 @@ class TrainField(unittest.TestCase):
         self.assertTrue(scan.in_train_field(None, f"/home/u/.hal/git/worktree/hal2/{self.TRAIN}/"))
         self.assertFalse(scan.in_train_field("01", "/w/01", None, "tollman-hal2"))
 
+    def test_the_names_of_plan_0604(self):
+        for name in ("train-7-1", "tollman-train", "tollman-fix"):
+            self.assertTrue(scan.in_train_field(name), name)
+            self.assertTrue(scan.in_train_field(None, f"/home/u/.hal/git/worktree/hal2/{name}/"), name)
+        self.assertFalse(scan.in_train_field("07", "train", "07-ui", "/w/trains", "07-fix"))  # a foreman's kept worktree: hal2-git admits it
+
     def test_a_failed_session_in_a_train_field_is_no_incident(self):
         train = agent(slot=self.TRAIN, session="s9", checkout=f"/w/{self.TRAIN}")
         event = {**failed_event("s9"), "cwd": f"/w/{self.TRAIN}"}

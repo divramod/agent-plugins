@@ -9,6 +9,7 @@ from pathlib import Path
 import proof
 import proof_keys
 import proof_light
+import proof_pin
 from test_proof import Field
 
 HALVERSE = 'id = "hal2.halverse"\n[[contributes.commands]]\nid = "hal2.halverse.find"\nkeys = ["cmd-shift-f2"]\n'
@@ -59,6 +60,24 @@ class Refused(Light):
         self.assertIn("refused (exit 10", v["lines"][0])
         self.assertIn("checker >=0.8.0", v["lines"][0])
         self.assertEqual(list(self.cache.glob("*.json")), [], "a refusal is looked at again next round")
+
+    def test_l53_a_pin_above_the_head_s_own_crate_is_red_never_a_wait_to_install(self):
+        """L53, train 8 (2026-10-20): car 07 pinned checker >=0.8.0, the version its own landing's bump would give
+        hal2-records (0.7.0 at its head); the 0.7.0 checker refused it and the proof said "install the newer"."""
+        self.names_script()
+        self.restock({proof_pin.CRATE: '[package]\nname = "hal2-records"\nversion = "0.7.0"\n'})
+        self.g("merge", "-q", "main")  # the crate at 0.7.0 in the barn the crop left
+        head = self.commit({"plans/0376-x/plan.md": "x\n", proof_pin.PIN: 'checker = ">=0.8.0"\n'})
+        self.answers["records"] = (10, "error: this binary 0.7.0 is older than the repository's checker >=0.8.0")
+        v = self.verdict(head)
+        self.assertEqual((v["state"], len(v["lines"])), ("red", 1), v["lines"])
+        self.assertTrue(v["lines"][0].startswith("pin: .hal/records.toml: checker pin `>=0.8.0` is above the head's "
+                                                 "own hal2-records crate version 0.7.0"), v["lines"][0])
+        self.assertIn("pin the current version (`>=0.7.0`) in this landing", v["lines"][0])
+        self.assertNotIn("install the newer", " ".join(v["lines"]))
+        self.assertNotIn("barn_red", v, "the barn's own pin is not above its crate: the car's red")
+        self.assertEqual(proof_pin.check(self.d, self.commit({proof_pin.PIN: 'checker = ">=0.7.0"\n'}), self.run_),
+                         (0, ""), "the current version is no red")
 
     def test_a_red_finding_wins_over_a_refusal(self):
         self.names_script()
