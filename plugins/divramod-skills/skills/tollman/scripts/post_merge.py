@@ -89,7 +89,7 @@ def actions(top: str, main: str, train: dict, url: str, rid: str, jobs: list[dic
                          "nobody ordered")]
     wake = act("trains", "train-red", "wake", key=f"train-red:{rid}", evidence={**verdict, "train": train},
                text=train_red.text(verdict, train, "is in the barn, but red after its merge", jobs_text, url))
-    field = early_order.culprit(train, verdict)
+    field = early_order.culprit(train, verdict, main=main)
     if not field:
         return [wake]
     why = (why or early_order.why_of(main, rid, reds, verdict["evidence"].get("tail")))[:300]

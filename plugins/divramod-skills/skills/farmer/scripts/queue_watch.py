@@ -12,10 +12,17 @@ Findings, read from `hal2-cli-git worktree queue --json` (only the front of the 
 further back that idles is harmless):
 
   IDLE-RESERVATION  a place at the front with no landing running (no live pid, no running harvest), reserved or
-                    without a pid, while others wait > 15 min
+                    without a pid, while others wait > 15 min; never the tollman's train between its red run and its
+                    rerun (open fix orders, a fixed-wait: `train_between_runs`, plan 0695 D43; a started landing
+                    finishes, merge-queue-policy), which is busy and gets no advice to clear its reservation
   DEAD-HOLDER       the same, but the holder had a pid that is gone
-  STALLED-GATE      the holder's landing sits in one step > 45 min (a gate stuck on its runner)
+  STALLED-GATE      the holder's landing sits in one step > 45 min AND its gate does not move: no job started or
+                    finished for MOVE_MIN, or a job queued beside an idle runner with its labels (queue_gate.py;
+                    all runners busy and jobs finishing is a slow lane, no finding; gate unreadable: by time alone)
   NOT-MOVING        the same holder's landing runs > 60 min with others waiting
+  STALLED-PUSH      the holder's landing or train is still in its local phase (merge-from-main, candidate, own-cli,
+                    push: no land run yet, `run_url` empty) > 20 min (hal2 plan 0695 step 20, D25, tollman L259);
+                    alarmed once as soon as the next tick still sees it (push only, `queue-stalled-push`)
 
 The duty (`plan_queue`, `farmer.HANDLERS["duty:queue"]`) keeps each finding's first-seen time in the farmer's state
 folder (`queue-watch.json`: `{schema 1, at, findings: {<KIND> <repo>/<worktree>: {kind, repo, slot, first_seen,  names-ok: the queue JSON key
@@ -35,19 +42,26 @@ from pathlib import Path
 
 import bounded
 import mtm_scan
+import queue_gate
 import roletime
+from skillpath import sibling
 
 IDLE_MIN, STEP_MIN, HOLD_MIN = 15, 45, 60
+LOCAL_MIN = 20  # a landing without its land run (the local phase) this long is stalled
+ALARM_AFTER = {"STALLED-PUSH": 0}  # kinds that alarm at their second sighting, not after ALARM_MIN
 ALARM_MIN = 30  # a finding lasting this long reaches the user (alarm.py)
 SCHEMA = 1
 FILE = "queue-watch.json"
 QUEUE = ["hal2-cli-git", "worktree", "queue", "--json"]
 ALARM = Path(__file__).resolve().parent / "alarm.py"
+TOLLMAN = sibling("tollman") / "scripts" / "tollman.py"
 CASE = {"STALLED-GATE": "runner-down"}  # the one finding that is a stuck case; the others push only
 FIX = {
-    "IDLE-RESERVATION": "clear the order and tell the field it gets first place when ready",
+    "IDLE-RESERVATION": "clear the order and tell the field it gets first place when ready (never a started "
+                        "landing's or a train's between its runs)",
     "DEAD-HOLDER": "tell the field to run /mtm again",
     "STALLED-GATE": "look at its run, a runner problem: fix the runner",
+    "STALLED-PUSH": "look at its local phase (own-cli build, push): a load or a hung command, tell the field",
     "NOT-MOVING": "find out why: one of the others, or a red gate",
 }
 _UNSET = object()
@@ -65,8 +79,36 @@ def finding(kind: str, head: dict, line: str) -> dict:
             "line": f"{kind} {repo}/{slot}: {line}", "fix": FIX[kind]}
 
 
-def findings(queue: list[dict], now: dt.datetime, alive=mtm_scan.pid_alive) -> list[dict]:
-    """The queue's findings at `now` (aware); `alive(pid) -> bool` asks whether the holder's process lives."""
+def gate_stalled(state: dict | None) -> bool:
+    """Whether a gate's state (queue_gate.gate_state) is a stall; unknown (None) counts as one: judged by time alone."""
+    if state is None:
+        return True
+    idle = state.get("idle_min")
+    return bool(state.get("waits_beside_idle")) or idle is None or idle > queue_gate.MOVE_MIN
+
+
+TRAIN_OPEN = ("red", "fixing", "retry")  # a train's states between its red run and its rerun (train_fold)
+
+
+def train_between_runs(main: str, runner=None) -> bool:
+    """Is the tollman's train between its red run and its rerun: in the state `red`, `fixing` or `retry`, or with open
+    fix orders (`tollman.py state --json`, schema 1)? Unreadable: no. `runner(argv, cwd) -> stdout` for tests."""
+    argv = [sys.executable, str(TOLLMAN), "state", "--json", "--repo", main]
+    try:
+        out = runner(argv, main) if runner else bounded.run(argv, cwd=main).stdout
+        doc = json.loads(out)
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    train = doc.get("train")
+    return bool((isinstance(train, dict) and train.get("state") in TRAIN_OPEN) or doc.get("orders"))
+
+
+def findings(queue: list[dict], now: dt.datetime, alive=mtm_scan.pid_alive, gate=None, between=None) -> list[dict]:
+    """The queue's findings at `now` (aware); `alive(pid) -> bool` asks whether the holder's process lives;
+    `gate(run_url) -> state | None` reads the land run's gate (None: not asked, STALLED-GATE by time alone);
+    `between() -> bool` whether a train waits for its rerun (asked only when the tollman's train would be idle)."""
     if not queue:
         return []
     now, head, waiting = roletime.aware(now), queue[0], queue[1:]
@@ -77,9 +119,16 @@ def findings(queue: list[dict], now: dt.datetime, alive=mtm_scan.pid_alive) -> l
     if waiting and not running and not alive(head.get("pid")) and oldest > IDLE_MIN:
         idle = head.get("reserved") or (head.get("hold") or {}).get("reason") == "reserved" or not head.get("pid")
         kind = "IDLE-RESERVATION" if idle else "DEAD-HOLDER"
-        out.append(finding(kind, head, f"holds the front with no landing running while {len(waiting)} wait "
-                                       f"(oldest {oldest:.0f} min): {FIX[kind]}"))
-    if running and mins(h.get("step_started"), now) > STEP_MIN:
+        train = str(head.get("slot") or "").startswith("tollman") and between is not None and between()
+        if not (train and kind == "IDLE-RESERVATION"):  # a train between its runs is busy (plan 0695 D43)
+            out.append(finding(kind, head, f"holds the front with no landing running while {len(waiting)} wait "
+                                           f"(oldest {oldest:.0f} min): {FIX[kind]}"))
+    if running and not h.get("run_url") and mins(h.get("started"), now) > LOCAL_MIN:
+        out.append(finding("STALLED-PUSH", head, f"local phase ({h.get('step')}) for "
+                                                 f"{mins(h.get('started'), now):.0f} min, no land run yet: "
+                                                 f"{FIX['STALLED-PUSH']}"))
+    if (running and h.get("run_url") and mins(h.get("step_started"), now) > STEP_MIN
+            and gate_stalled(gate(h["run_url"]) if gate else None)):
         out.append(finding("STALLED-GATE", head, f"step {h.get('step')} for {mins(h.get('step_started'), now):.0f} "
                                                  f"min, {h.get('jobs_green')}/{h.get('jobs')} jobs green, "
                                                  f"{h.get('run_url')}"))
@@ -156,7 +205,7 @@ def track(kept: dict, found: list[dict], now: dt.datetime) -> tuple[dict, list[d
                  "alarmed": old.get("alarmed") if first else None, "line": f["line"]}
         if first is None:
             new.append({**f, "first_seen": entry["first_seen"]})
-        elif not entry["alarmed"] and mins(first, now) > ALARM_MIN:
+        elif not entry["alarmed"] and mins(first, now) > ALARM_AFTER.get(f["kind"], ALARM_MIN):
             entry["alarmed"] = roletime.stamp(now)
             due.append({**f, "first_seen": first, "minutes": round(mins(first, now))})
         out[f["key"]] = entry
@@ -169,7 +218,7 @@ def alarm_argv(f: dict, main: str) -> list[str]:
     return [sys.executable, str(ALARM), case, reason, "--repo", main, "--slot", f["slot"]]
 
 
-def plan_queue(item: dict, ctx: dict, queue=_UNSET, alive=mtm_scan.pid_alive) -> list[dict]:
+def plan_queue(item: dict, ctx: dict, queue=_UNSET, alive=mtm_scan.pid_alive, gate=_UNSET) -> list[dict]:
     """The duty's acts: a wake per new finding, an alarm run per finding past ALARM_MIN; the state saved unless the
     round is dry. The queue is the round's (`ctx["queue_doc"]`, tick.context), else read here; unreadable: no acts."""
     from tick import act
@@ -178,7 +227,10 @@ def plan_queue(item: dict, ctx: dict, queue=_UNSET, alive=mtm_scan.pid_alive) ->
         queue = tickets(ctx["queue_doc"])[0] if "queue_doc" in ctx else read_queue(main)[0]
     if queue is None:
         return []
-    kept, new, due = track(load(main), findings(queue, ctx["now"], alive), ctx["now"])
+    if gate is _UNSET:  # read lazily, only for a gate past STEP_MIN (two GETs); a dry round asks GitHub too
+        gate = lambda url: queue_gate.gate_state(url, ctx["now"], mtm_scan.run_json, main)  # noqa: E731
+    between = ctx.get("train_between") or (lambda: train_between_runs(main))
+    kept, new, due = track(load(main), findings(queue, ctx["now"], alive, gate, between), ctx["now"])
     if not ctx.get("dry"):
         save(main, kept, ctx["now"])
     out = [act("queue", f["kind"].lower(), "wake", "-", key=f"queue:{f['key']}:{f['first_seen']}",
@@ -188,7 +240,7 @@ def plan_queue(item: dict, ctx: dict, queue=_UNSET, alive=mtm_scan.pid_alive) ->
     return out
 
 
-def main(argv: list[str] | None = None, runner=None, now: dt.datetime | None = None) -> int:
+def main(argv: list[str] | None = None, runner=None, now: dt.datetime | None = None, gate=_UNSET) -> int:
     p = argparse.ArgumentParser(prog="queue_watch.py", description="The merge queue's findings, read-only.")
     p.add_argument("--repo-dir", default=os.getcwd(), help="any checkout of the farm")
     p.add_argument("--json", action="store_true", help="the lines as a JSON list")
@@ -197,7 +249,10 @@ def main(argv: list[str] | None = None, runner=None, now: dt.datetime | None = N
     if queue is None:
         print(f"QUEUE-UNREADABLE {args.repo_dir}: {why}")
         return 2
-    lines = [f["line"] for f in findings(queue, now or roletime.utcnow())]
+    when = now or roletime.utcnow()
+    if gate is _UNSET:
+        gate = lambda url: queue_gate.gate_state(url, when, mtm_scan.run_json, args.repo_dir)  # noqa: E731
+    lines = [f["line"] for f in findings(queue, when, gate=gate)]
     print(json.dumps(lines) if args.json else "\n".join(lines), end="\n" if args.json or lines else "")
     return 1 if lines else 0
 

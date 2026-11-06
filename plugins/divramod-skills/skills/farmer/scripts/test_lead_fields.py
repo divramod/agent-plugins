@@ -18,6 +18,13 @@ FIXTURE = json.loads((Path(__file__).parent / "testdata/lead-0930/fields.json").
 DONE_PLAN = "# Plan\n\n| # | Step | Status |\n|---|---|---|\n| 1 | a | done |\n| 2 | b | done |\n"
 OPEN_PLAN = DONE_PLAN.replace("| 2 | b | done |", "| 2 | b | next |")
 
+def setUpModule():
+    """No test of the scan asks the real `hal2-cli-git worktree paused` (plan 0695 D46: the scan reads the marks)."""
+    patch = mock.patch.object(lead_scan.field_pause, "load", return_value={})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
+
 
 class Farm:
     """Scratch fields under `<tmp>/worktree/<repo>/<NN>` (no git: nothing reads as ahead of main, never `landed`)."""

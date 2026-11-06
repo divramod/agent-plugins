@@ -147,7 +147,7 @@ def restart(top: str, now: dt.datetime | None = None) -> Done:
     if frozen.lacking(top, train):
         import resolve_train  # a form that died between its lines, a car joined outside a landing (plan 0610 D17):
         return resolve_train.merge_rest(top, now)  # merged in order, a conflict waits `resolving`; then this again
-    red = proof_orders.red_line(main, field, train, now)  # a car's light checks are red: fixed in the train first
+    red = proof_orders.red_line(main, field, train, now, top)  # a car's light checks are red: fixed in the train first
     code, text = (0, red) if red else start(main, field, train, top, now)  # (proof_orders.py), never pushed so
     if red or code:  # plan 0620 D5: a try that started nothing raises the attempt, so the next round's key is new
         train_state.attempted(main, field, train, now)

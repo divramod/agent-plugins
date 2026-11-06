@@ -12,6 +12,13 @@ import lead_scan as lead
 import worktree_farm
 from test_farmer import git
 
+def setUpModule():
+    """No test of the scan asks the real `hal2-cli-git worktree paused` (plan 0695 D46: the scan reads the marks)."""
+    patch = mock.patch.object(lead.field_pause, "load", return_value={})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
+
 
 def agent(**over):
     base = {"state": "done", "since": int((time.time() - 3600) * 1000), "plan": "", "context_percent": 20}
@@ -57,6 +64,43 @@ class Classify(unittest.TestCase):
 
 
 LEAD = {"slot": "02", "plan": "0149-hal9k", "step": "7", "steps": [{"n": "7", "title": "", "status": ""}], "finished": False}
+
+
+class Paused(unittest.TestCase):
+    """Plan 0695 D29, D46: a field the user stopped (its pause mark, a soft stop's included) reads as paused."""
+
+    PAUSE = {"by": "user", "why": "soft stop from the Agents view", "since": "2026-11-05T19:31:00Z"}
+
+    def test_a_paused_field_is_never_asks_nor_idle_in_plan(self):
+        for said in ("Which option do you want?", "Step 6 done.", ""):
+            for state in ("done", "idle", "sleeping", "working", "blocked", "failed"):
+                a = agent(state=state, slot="45", plan="0688 x", paused=self.PAUSE, context_percent=95,
+                          since=int((time.time() - 9000) * 1000))
+                kind, why = lead.classify(a, said, time.time())
+                self.assertEqual(kind, "paused", (state, said))
+                self.assertIn("paused (user's stop)", why)
+                self.assertIn("field 45 paused by user", why)
+
+    def test_the_scan_reads_the_pause_mark_once_and_the_duty_plans_nothing_for_it(self):
+        import duties
+        with tempfile.TemporaryDirectory() as d:
+            for s in ("45", "46"):
+                (Path(d) / s).mkdir()
+            agents = [agent(project="/x/hal2", session_id=f"s{s}", slot=s, checkout=str(Path(d) / s), plan="0688 x",
+                            pane_id=f"%{s}") for s in ("45", "46")]
+            with mock.patch.object(lead, "run_json", return_value=agents), \
+                    mock.patch.object(lead, "main_checkout", return_value="/x/hal2"), \
+                    mock.patch.object(lead, "handled", return_value=set()), \
+                    mock.patch.object(lead.field_pause, "load", return_value={"45": self.PAUSE}) as load, \
+                    mock.patch.object(lead, "PROJECTS", Path(d) / "projects"):
+                got = lead.scan(d, False)
+        self.assertEqual(load.call_count, 1)
+        self.assertEqual([(h["slot"], h["kind"]) for h in got["needs_help"]],
+                         [("45", "paused"), ("46", "idle-in-plan")])
+        ctx = {"top": "/x/farmer", "main": "/x/hal2", "now": __import__("datetime").datetime(2026, 11, 5, 20, 0),
+               "log": [], "duties": {"lead"}, "panes": {}, "agents_by_pane": {}, "landing": set()}
+        planned = duties.plan_lead({}, ctx, got)
+        self.assertEqual([(a["slot"], a["do"]) for a in planned], [("46", "wake")], "nothing woken or sent to 45")
 
 
 class Subservant(unittest.TestCase):

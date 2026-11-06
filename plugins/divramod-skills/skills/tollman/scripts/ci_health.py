@@ -2,7 +2,7 @@
 """CI/CD health, the tollman's duty (hal2 plan 0383 step 11, D12, D13): every pass of the 1-minute `watch` checks all
 runners of `.github/hal2-runners.toml` (ci_fleet.py) and prints one line for each *new* problem; a healthy fleet prints
 nothing, so a quiet minute costs no model call. The printed line wakes the tollman's session, which acts on it
-(instructions/ci-health.md). Two kinds of problem, none of them a rule the code cannot judge:
+(instructions/ci-health.md). One kind of problem, no rule the code cannot judge:
 
 1. **A queued job nobody serves.** A queued job of an unfinished landing run (`self-hosted`) whose labels no online
    runner carries. A runner counts as online when GitHub lists it online and its machine is not parked or stopped
@@ -14,13 +14,12 @@ nothing, so a quiet minute costs no model call. The printed line wakes the tollm
      `vm`, the line carries the fix-tart doctor's findings
    - any other runner offline `HOST_GRACE` (180 s, the supervisor's restart grace) after the job queued: `offline`
    - no runner of hal2-runners.toml has the labels: `unserved` after `HOST_GRACE`
-2. **A pipeline host runner offline** `HOST_GRACE` seconds (kind `host`, carrying a label of PIPELINE: `hal2`,
-   `hal2-gate`, `hal2-stack`, `mac-host-hal2`, `hal2-mac-host`), its machine not parked or waking, no job waiting for it (that is 1.);
-   the hand-started runners (the Mac's VM and Docker runners, `hal2-linux-host`, `hal2-windows-host`) are no problem
-   while idle.
+
+An idle host runner offline with no queued job that needs it is no problem and wakes nobody (plan 0695 row 26, D40 T4:
+the supervisor restarts or parks it); only the queued job that waits for it (1.) is.
 
 A problem prints once while it lasts (`ci-health.json` in the tollman's state folder: first seen and told, each told
-key with its time); a host runner's that clears and comes back is new. A queued job's is told once for its run's life
+key with its time); A queued job's is told once for its run's life
 (RUN_LIFE, keyed by the job's id in its run): one that flaps clear and back between passes never wakes again (L72). The runners GitHub lists are asked once a pass and only when a check needs them
 (plan 0480 D2); GitHub not answering judges nothing. `check(..., dry=True)` writes nothing.
 """
@@ -43,7 +42,6 @@ SCHEMA = 1
 DUTY = "ci-health"  # the actions' duty: a wake that reads instructions/ci-health.md; minute.py prints its text
 VM_GRACE = 300
 HOST_GRACE = 180
-PIPELINE = {"hal2", "hal2-gate", "hal2-stack", "mac-host-hal2", "hal2-mac-host"}
 HOURS = "2"  # the window of the doctor
 RUN_LIFE = dt.timedelta(hours=6)  # a land run's longest life (next_train.MAX_WAIT): a job's problem is told once in it
 
@@ -128,7 +126,7 @@ def problems(main: str, now: dt.datetime) -> list[dict] | None:
 
 def look(main: str, now: dt.datetime, gh) -> list[dict]:
     """`problems` with the runners `gh()` (it raises Unanswered)."""
-    runners, fleet, out, served = ci_fleet.catalog(main), ci_fleet.power(), [], set()
+    runners, fleet, out = ci_fleet.catalog(main), ci_fleet.power(), []
     train: list[list[dict]] = []  # the standing train's own runners, read for the first job the barn's cannot serve
     for job in ci_fleet.queued_jobs(mtm_scan.run_json, main):
         if "self-hosted" not in job["labels"]:
@@ -139,20 +137,15 @@ def look(main: str, now: dt.datetime, gh) -> list[dict]:
             cands = [r for r in train[0] if job["labels"] <= r["labels"]]
         created = ci_fleet.parse_time(job["created"])
         p = job_problem(job, cands, gh, fleet, (now - created).total_seconds() if created else 0)
-        served |= {r["code"] for r in cands}
         if p:
             out.append({**p, "age": (now - created).total_seconds() if created else 0})
-    for r in runners:
-        if r["kind"] == "host" and r["labels"] & PIPELINE and r["code"] not in served and r["labels"]:
-            if not asleep(fleet, r) and not online(gh, fleet, r):
-                out.append({"kind": "host-offline", "key": f"offline:{r['code']}", "code": r["code"]})
+    # D40 T4 (plan 0695 row 26): an idle host runner offline with no queued job that needs it is no problem and wakes
+    # nobody (the supervisor restarts or parks it); only a queued job that waits for it is (job_problem, above).
     return out
 
 
 def line(p: dict, main: str) -> str:
     """The one line of a new problem."""
-    if p["kind"] == "host-offline":
-        return f"runners: host runner {p['code']} is offline for {int(p['age'] // 60)} min (the supervisor restarts it)"
     j = p["job"]
     what = f"job {j['name']} (run {j['run']}, queued {clock(j['created'])})"
     need = ",".join(sorted(j["labels"] - {"self-hosted"}))
@@ -185,10 +178,7 @@ def check(top: str, main: str, now: dt.datetime | None = None, dry: bool = False
     state, stamp = leavers.read(main, FILE, {}), roletime.stamp(now)
     old, told = state.get("first") or {}, kept(state.get("told"), now, stamp)
     first = {p["key"]: old.get(p["key"], stamp) for p in found}
-    for p in found:
-        if p["kind"] == "host-offline":
-            p["age"] = (now - ci_fleet.parse_time(first[p["key"]])).total_seconds()
-    ripe = [p for p in found if p["kind"] != "host-offline" or p["age"] >= HOST_GRACE]
+    ripe = found
     wake = [p for p in ripe if p["kind"] == "wake"]
     if not dry:
         for p in wake:

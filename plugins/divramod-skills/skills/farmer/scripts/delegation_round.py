@@ -12,6 +12,7 @@ import datetime as dt
 import re
 from pathlib import Path
 
+import delegation_order
 import delegation_sync as sync
 import field_pause
 import live_sessions
@@ -125,15 +126,19 @@ def working_facts(main: str, slots: dict[str, dict]) -> dict:
 
 def place(main: str, slots: dict[str, dict], limit: int | str, dry: bool, now: dt.datetime, values: dict | None) -> list[dict]:
     """Start the waiting briefs while there is room, counting only the working foremen (D6); `auto`: one a round.
-    Returns each delegation's result."""
+    The start order is delegation_order's (`--before`, else oldest first). A brief flagged `user` (the user's own order, hal2 plan 0695 D41 H5) skips the queue: it starts first and needs no
+    room. Returns each delegation's result."""
     import delegation
     waiting = [{"key": k, "text": e["title"], "brief": {"brief_file": e["brief"]}, "duty": "farmer",
-                "kind": "waiting", "slot": "-", **{f: e[f] for f in ("prompt", "role_task") if e.get(f)}}
+                "kind": "waiting", "slot": "-", **{f: e[f] for f in ("prompt", "role_task", "user", "before") if e.get(f)}}
                for k, e in delegation.ledger(main).items() if e.get("state") == "waiting"]
+    ordered = delegation_order.order(waiting)
+    users = [w for w in ordered if w.get("user")]
+    queued = [w for w in ordered if not w.get("user")]
     busy = capacity(main, slots, limit) if waiting else None
     room = int(delegation.has_room(limit, 0)) if busy is None else limit - busy
     out = []
-    for w in waiting[:max(room, 0)]:
+    for w in users + queued[:max(room, 0)]:
         out.append(delegation.delegate(w, main, limit, dry, now, values, busy=busy))
         busy = busy + (out[-1].get("state") == "running") if busy is not None else None
     return out

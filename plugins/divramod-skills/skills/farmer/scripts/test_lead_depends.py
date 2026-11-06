@@ -28,6 +28,13 @@ NOW = dt.datetime(2026, 11, 3, 14, 0, tzinfo=dt.timezone.utc)
 CHECKER = next((str(Path(d) / "hal2-cli-roles") for d in os.environ.get("PATH", "").split(os.pathsep)
                 if (Path(d) / "hal2-cli-roles").is_file()), None)
 
+def setUpModule():
+    """No test of the scan asks the real `hal2-cli-git worktree paused` (plan 0695 D46: the scan reads the marks)."""
+    patch = mock.patch.object(lead_scan.field_pause, "load", return_value={})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
+
 
 def link(state="pushed", reached=True, **over):
     return {"plan": 514, "slug": "0514-x", "field": "38", "steps": ["22-27", "36"], "needs": ["3"], "until": "pushed",

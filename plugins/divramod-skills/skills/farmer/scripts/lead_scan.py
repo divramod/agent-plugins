@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import bounded
+import field_pause
 import lead_fields
 import lead_marker
 import live_sessions
@@ -101,6 +102,8 @@ background = live_sessions.background  # one definition, shared with `/s` (hal2 
 def classify(agent: dict, said: str, now: float) -> tuple[str, str] | None:
     """(kind, why) for a session that needs help, else None."""
     state, since = agent.get("state"), (agent.get("since") or 0) / 1000
+    if agent.get("paused"):  # the user's stop (a pause mark, plan 0695 D29, D46): never "asks", never woken or sent to
+        return "paused", f"paused (user's stop): {field_pause.reason(agent.get('slot') or '-', agent['paused'])}"
     if state == "working" and agent.get("slot") not in (None, "main") and not agent.get("current_plan"):
         return "no-plan", "works without a CURRENT_PLAN pointer naming its task"
     age = int(now - since) if since else 0
@@ -164,11 +167,12 @@ def scan(repo: str, show_all: bool, queue_doc: dict | None = None) -> dict:
     agents = agents.get("agents", []) if isinstance(agents, dict) else agents
     own, done = os.environ.get("CLAUDE_CODE_SESSION_ID"), handled(main, now)
     default, out, src = lead_marker.default_ref(main), [], None
+    paused = field_pause.load(main)  # the user's stops: one reader, the pause mark (D46)
     for a in agents:
         if a.get("project") != main or not a.get("session_id") or a.get("session_id") == own:
             continue
         checkout = Path(a.get("checkout") or a.get("cwd") or "/nonexistent")  # the field by its path (D16)
-        a = with_marker(a, checkout, agents, default)
+        a = {**with_marker(a, checkout, agents, default), "paused": paused.get(str(a.get("slot")))}
         if a.get("state") in ("done", "idle", "sleeping") and not a["lead"] and a.get("slot") not in (None, "main"):
             src = src if src is not None else lead_fields.sources(main, queue_doc, run_json)
             a["field"] = lead_fields.facts(a, checkout, src, default)
@@ -188,7 +192,7 @@ def scan(repo: str, show_all: bool, queue_doc: dict | None = None) -> dict:
             "context_percent": a.get("context_percent"), "field": a.get("field"),
             "handled": key in done, "said": said[-1200:],
         })
-    order = {"blocked": 0, "asks": 1, "failed": 2, "idle-in-plan": 3, "context-high": 4, "no-plan": 5,
+    order = {"paused": -1, "blocked": 0, "asks": 1, "failed": 2, "idle-in-plan": 3, "context-high": 4, "no-plan": 5,
              **{k: 6 + i for i, k in enumerate(lead_fields.KINDS)}}
     out.sort(key=lambda x: (order[x["kind"]], x["slot"] or ""))
     return {"repo": main, "sessions": len(agents), "needs_help": out}

@@ -216,7 +216,9 @@ def start(prompt: str, main: str, dry: bool, values: dict | None = None) -> dict
     flags = ["--model", values["model"], "--effort", values["effort"]]
     code, out = call(FREE + ["--repo", main], main)
     free = (json.loads(out).get("worktrees") or []) if code == 0 and out.strip() else []
-    for w in sorted((w for w in free if servant_slot(w.get("slot"), w.get("worktree"))), key=lambda w: int(w["slot"])):
+    paused = delegation_round.field_pause.load(main)  # a paused field gets no send (D42 1), whatever else is free
+    for w in sorted((w for w in free if servant_slot(w.get("slot"), w.get("worktree")) and str(w.get("slot")) not in paused),
+                    key=lambda w: int(w["slot"])):
         pane = w.get("pane") or next(iter(w.get("panes") or []), None)  # free.py lists `panes`
         if not pane:
             continue
@@ -267,8 +269,9 @@ def has_room(limit: int | str, running: int) -> bool:
 def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, values: dict | None = None,
              busy: int | None = None) -> dict:
     """Hand one `delegate` action to a foreman at `values` (model, effort; `servant_values`), or keep it waiting at
-    the limit. Returns what happened. `now` naive (local) or aware (roletime). `busy`: how many foremen use capacity
-    (delegation_round.capacity, D6); without it every running entry of the ledger counts."""
+    the limit (never a `user` one, the user's own order: hal2 plan 0695 D41 H5). Returns what happened. `now` naive
+    (local) or aware (roletime). `busy`: how many foremen use capacity (delegation_round.capacity, D6); without it
+    every running entry of the ledger counts."""
     now, held = roletime.aware(now), ledger(main)
     if a.get("key") in held and held[a["key"]].get("state") in ("running", "landed"):
         return {"key": a["key"], "state": "in-hand", "slot": held[a["key"]].get("slot")}
@@ -277,12 +280,15 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
     if not given and not dry:
         overlap_note(a, main, brief)
     # A direct instruction (`prompt`, `role_task`) instead of a plan; kept on a waiting entry for its later start.
-    own = {k: a[k] for k in ("prompt", "role_task") if a.get(k)}
+    own = {k: a[k] for k in ("prompt", "role_task", "user", "before") if a.get(k)}
     used = sum(e.get("state") == "running" for e in held.values()) if busy is None else busy
-    if not has_room(limit, used):
-        result = {"key": a["key"], "state": "waiting", "reason": f"the machine load is at {AUTO_LOAD} or more" if limit == "auto"
-                  else f"at the limit: {used} of {limit} foremen busy",
-                  "brief": str(brief), "title": a["text"], **own}
+    others = [k for k, e in held.items() if e.get("state") == "waiting" and k != a.get("key")]
+    jumps = bool(others) and held.get(a.get("key"), {}).get("state") != "waiting"  # older waiters start first (row 25)
+    if not a.get("user") and (jumps or not has_room(limit, used)):
+        reason = ("older delegations wait first" if jumps and has_room(limit, used)
+                  else f"the machine load is at {AUTO_LOAD} or more" if limit == "auto"
+                  else f"at the limit: {used} of {limit} foremen busy")
+        result = {"key": a["key"], "state": "waiting", "reason": reason, "brief": str(brief), "title": a["text"], **own}
     else:
         role = write_role(main, brief, a["text"][:80], now, a.get("role_task")) if not dry else Path("<role>")
         prompt = a.get("prompt", PROMPT).format(repo=Path(main).name, farmer_slot=roles.slot_name(main), brief=brief, title=a["text"][:80], role=role)
@@ -293,7 +299,7 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
         else:
             state = "error" if "error" in started else "planned" if dry else "running"
             result = {"key": a["key"], "state": state, "brief": str(brief), "role": str(role), "title": a["text"],
-                      **started}
+                      **started, **({"user": True} if a.get("user") else {})}
     again = held.get(a.get("key"), {})  # a waiting entry retried for the same reason is neither noted nor logged again
     if result.get("reason") and again.get("state") == "waiting" and again.get("reason") == result["reason"]:
         return result

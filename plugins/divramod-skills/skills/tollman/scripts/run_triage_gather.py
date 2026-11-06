@@ -153,6 +153,8 @@ def gather(main: str, train: dict, url: str, panes: dict | None = None, pipeline
     cars = triage.car_files(main, train)
     ctx = {"graph": workflow_graph(main, sha, [j.get("name", "") for j in jobs]), "paths": paths, "owners": commits,
            "cars": cars, "moved": moved(main, train, cars), "yard": train.get("yard") or [], "live": set(panes or {}),
+           "main": main, "base": train.get("base"), "orders": train.get("orders") or [],
+           "heads": [{"field": c.get("field"), "head": c.get("head")} for c in train.get("cars") or []],
            "plans": running, "pipeline_field": pipeline_field, "gate_jobs": gate_jobs(main),
            "previous": earlier if earlier is not None else (previous(main, runs, me, fetch, kept) if units else []),
            "others": others(main, runs, me, fetch) if units else [],

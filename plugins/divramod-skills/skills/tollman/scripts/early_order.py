@@ -16,7 +16,11 @@ order per red job and car (plan 0608 D4); a red, or a failure of it, no single c
 - the culprit (`culprit`): the only car of a train without the yard's car, else the one car (the yard counts as one)
   whose files the job's red names (`names`: a path in its log, a path in its log that ends a car's file, as a test
   runner names `gate/test-abort.bats` for `code/bash/scripts/gate/test-abort.bats`, or a file's stem in a failing
-  test); none or two or more: unclear. The early order splits the red (`split`, plan 0608 D4; train 51's run 2 had
+  test) or a failing test named by its name only, whose test file or unit a car's files hold (red_tests.py, plan
+  0714, L262: bats `not ok <n> <name>`, unittest `FAIL: <test> (<id>)`); none or two or more: unclear, unless exactly
+  one car's open early order of the train already names the failing test, its test file or its unit in its why
+  (`linked`, plan 0714 D5: a second red job of a cause already ordered joins that order as an `also`, orders.py).
+  The early order splits the red (`split`, plan 0608 D4; train 51's run 2 had
   four cars' failures in one job and ordered nobody): each runner's red line with up to 3 after it, cut at the next,
   is one failure, the ones naming a failing test (`crate::bin test` of nextest) grouped per test; each failure naming
   exactly one car is that car's, the rest the session's; a line naming no car, test or path (`error: test run
@@ -41,6 +45,7 @@ from pathlib import Path
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import job_error
 import mtm_ci
+import red_tests
 import smuggled
 import stack_red
 import train_red
@@ -65,6 +70,24 @@ def names(files: list[str], tail: str | None, tests: list[str]) -> bool:
     return any(f.endswith(t) for f in files for t in tails)
 
 
+def cars_named(rows: list[dict], text: str, tests: list[str], repo: red_tests.Repo | None = None) -> list[str]:
+    """The slots of `rows` the red `text` names: by a file of theirs in the log (`names`) or by the test file or
+    unit of a failing test named by its name only (red_tests.py, plan 0714 D3: bats `not ok` and unittest `FAIL`)."""
+    slots = {r["slot"] for r in rows if names(r["files"], text, tests)} | red_tests.owners(rows, text, repo)
+    return [r["slot"] for r in rows if r["slot"] in slots]
+
+
+def linked(train: dict, rows: list[dict], text: str, repo: red_tests.Repo | None = None) -> str | None:
+    """The one car whose open early order of `train` already names the cause of the failure `text` (plan 0714 D5,
+    L262): its test's name or id, test file or unit, as the order's why holds them; None for none or several. The
+    red is then that car's: `order` to it is an `also` on the open order (orders.py)."""
+    slots = {r["slot"] for r in rows} - {train_state.YARD}
+    clues = red_tests.clues(text, rows, repo)
+    hits = {o["field"] for o in train.get("orders") or [] if o.get("field") in slots and not o.get("post")
+            and clues and red_tests.mentions(o.get("why") or "", clues)}
+    return hits.pop() if len(hits) == 1 else None
+
+
 def red_lines(tail: str | None) -> str:
     """The lines of `tail` that say the red (a test runner's own red line, else an error word) with the 3 after each
     (bats names the test's file there), or the whole tail when none does: the paths of passing tests (bash-test lists
@@ -77,9 +100,9 @@ def red_lines(tail: str | None) -> str:
     return tail or ""
 
 
-def culprit(train: dict, verdict: dict, tail: str | None = None) -> str | None:
+def culprit(train: dict, verdict: dict, tail: str | None = None, main: str | None = None) -> str | None:
     """The one car the `car` verdict names, or None (see the module doc); `tail`: the red job's own failed log, else
-    the verdict's."""
+    the verdict's; `main`: the checkout the test names are looked up in (red_tests.py)."""
     if verdict["kind"] != "car":
         return None
     e = verdict["evidence"]
@@ -87,8 +110,11 @@ def culprit(train: dict, verdict: dict, tail: str | None = None) -> str | None:
     rows = [{"slot": c["field"], "files": c.get("files") or []} for c in e.get("cars") or []]
     if train.get("yard"):
         rows.append({"slot": train_state.YARD, "files": [f["path"] for f in train["yard"]]})
-    named = rows if len(rows) == 1 else [r for r in rows if names(r["files"], text, e.get("tests") or [])]
-    return named[0]["slot"] if len(named) == 1 and named[0]["slot"] != train_state.YARD else None
+    repo = red_tests.repo(main, train)
+    slots = [r["slot"] for r in rows] if len(rows) == 1 else cars_named(rows, text, e.get("tests") or [], repo)
+    if len(slots) != 1 and len(rows) > 1 and (car := linked(train, rows, text, repo)) and car in (slots or [car]):
+        slots = [car]
+    return slots[0] if len(slots) == 1 and slots[0] != train_state.YARD else None
 
 
 def failures(tail: str | None, tests: list[str]) -> list[tuple[str, list[str]]]:
@@ -123,7 +149,8 @@ def rows_of(train: dict, evidence: dict) -> list[dict]:
     return rows
 
 
-def split(train: dict, verdict: dict, tail: str | None = None) -> tuple[dict[str, list[str]], bool]:
+def split(train: dict, verdict: dict, tail: str | None = None,
+          main: str | None = None) -> tuple[dict[str, list[str]], bool]:
     """({car: what of the red is its}, whether a failure goes to the session) for a red job (D4, see the module doc):
     a failure naming exactly one car is that car's; none, several or the yard's are the session's."""
     if verdict["kind"] != "car":
@@ -132,14 +159,18 @@ def split(train: dict, verdict: dict, tail: str | None = None) -> tuple[dict[str
     tail, rows = tail if tail is not None else e.get("tail"), rows_of(train, e)
     if len(rows) == 1:
         return ({}, True) if rows[0]["slot"] == train_state.YARD else ({rows[0]["slot"]: []}, False)
-    placed = [([r["slot"] for r in rows if names(r["files"], text, tests)], text, tests)
+    repo = red_tests.repo(main, train)
+    red_tests.prefetch(tail, rows, repo)  # the red's bats names in one git process, not one per failure (D7)
+    placed = [(cars_named(rows, text, tests, repo), text, tests)
               for text, tests in failures(tail, e.get("tests") or [])]
-    placed = [p for p in placed if p[0] or p[2] or PATH.search(p[1])] or [  # a summary line names nothing
-        ([r["slot"] for r in rows if names(r["files"], red_lines(tail), e.get("tests") or [])], "", [])]
+    placed = [p for p in placed if p[0] or p[2] or PATH.search(p[1]) or red_tests.failing(p[1])] or [  # not a summary
+        (cars_named(rows, red_lines(tail), e.get("tests") or [], repo), "", [])]
     cars, rest = {}, False
     for named, text, tests in placed:
-        if len(named) == 1 and named[0] != train_state.YARD:
-            cars.setdefault(named[0], []).extend(tests or [text.split("\n", 1)[0]])
+        car = named[0] if len(named) == 1 else linked(train, rows, text, repo)
+        car = car if car in (named or [car]) else None  # a link picks among the cars named, else it is the only one
+        if car and car != train_state.YARD:
+            cars.setdefault(car, []).extend(tests or [text.split("\n", 1)[0]])
         else:
             rest = True
     return cars, rest
@@ -180,7 +211,7 @@ def actions(top: str, main: str, train: dict, url: str, rid: str, jobs: list[dic
         tail = job_error.job_log(main, j) or logs
         verdict = triage.classify(run, [j], tail, history)
         quiet = verdict["kind"] in QUIET
-        cars, rest = ({}, not quiet) if quiet or mtm_ci.merged(jobs) else split(train, verdict, tail)
+        cars, rest = ({}, not quiet) if quiet or mtm_ci.merged(jobs) else split(train, verdict, tail, main)
         unclear = unclear or (verdict if rest else None)
         said = [f"ordered to {', '.join(cars)}"] if cars else []
         told[j["name"]] = verdict["kind"] if quiet else "; ".join(said + (["yours"] if rest or not cars else []))

@@ -121,7 +121,8 @@ class Healthy(Health):
 
     def test_github_not_answering_judges_nothing(self):
         self.gh.runners = None
-        self.queue(CI_CHANGES)
+        self.log.write_text(LOG.replace("hz01: hetzner says parked", "hz01: hetzner says up"))
+        self.queue(CI_CHANGES)  # hz01 awake: whether its runner is online needs GitHub's list
         self.assertEqual((self.tick(), self.requests()), ("", []))
 
 
@@ -155,8 +156,8 @@ class LazyRunners(Health):
         self.assertIsNone(ci_health.problems(str(self.main), self.now), "asked and unanswered: nothing is judged")
         self.assertEqual(self.gh.runner_lists(), 2)
 
-    def test_the_host_offline_check_asks_for_them_without_a_queued_job(self):
-        self.assertEqual((self.check(), self.gh.runner_lists()), ([], 1), "the Mac's pipeline host runners are awake")
+    def test_no_queued_job_never_asks_for_the_runners(self):
+        self.assertEqual((self.check(), self.gh.runner_lists()), ([], 0), "no job, no host-offline check (D40 T4)")
 
 
 class Problems(Health):
@@ -190,22 +191,38 @@ class Problems(Health):
         (a,) = self.check()
         self.assertIn("no runner of hal2-runners.toml has these labels", a["text"])
 
-    def test_an_idle_pipeline_host_runner_offline_is_reported_once_after_the_grace(self):
+    def test_an_idle_pipeline_host_runner_offline_wakes_nobody_without_a_queued_job(self):
+        """D40 T4: mac-host-hal2-a and -b offline, no queued job needs them: no wake, however long."""
+        self.fleet(**{"mac-host-hal2-a": "offline", "mac-host-hal2-b": "offline"})
+        self.assertEqual([self.check(m) for m in (0, 2, 4, 30)], [[], [], [], []])
+        self.queue(api_job(5, "x", ["ubuntu-latest"], stamp(self.now - dt.timedelta(minutes=30))))
+        self.assertEqual(self.check(31), [], "a GitHub-hosted job does not need a host runner")
+
+    def test_the_same_runner_wakes_once_a_queued_job_waits_for_it(self):
+        self.fleet(**{"mac-host-hal2-a": "offline"})
+        self.queue(api_job(3, "a1-01-ci-route", MAC, stamp(self.now - dt.timedelta(minutes=4))))
+        (a,) = self.check()
+        self.assertIn("mac-host-hal2-a offline", a["text"])
+
+    def test_d60_a_parked_host_runner_with_no_queued_job_is_silent_for_runners_a_and_b(self):
+        """D60: the supervisor parked mac-host-hal2-a (01:23Z) and -b (01:57Z) on purpose: offline, no demand, no wake."""
+        self.log.write_text(LOG + "2026-11-06T01:22:10Z mac-host-hal2-a: stopped: no job for it for 600 s\n"
+                            "2026-11-06T01:23:07Z mac-host-hal2-a: Parked\n"
+                            "2026-11-06T01:57:00Z mac-host-hal2-b: Parked\n")
+        self.fleet(**{"mac-host-hal2-a": "offline", "mac-host-hal2-b": "offline"})
+        self.assertEqual([self.check(m) for m in (0, 3, 10, 60)], [[], [], [], []])
+        self.assertEqual(self.requests(), [])
+
+    def test_d60_an_offline_host_runner_with_a_queued_job_wakes(self):
         self.fleet(**{"mac-host-hal2-b": "offline"})
-        self.assertEqual(self.check(0), [], "first seen: GitHub flaps")
-        self.assertEqual(self.check(2), [])
-        (a,) = self.check(4)
-        self.assertEqual(a["text"], "runners: host runner mac-host-hal2-b is offline for 4 min (the supervisor restarts it)")
-        self.assertEqual(self.check(5), [], "once while it lasts")
-        self.fleet()
-        self.assertEqual(self.check(6), [], "back online: cleared")
-        self.fleet(**{"mac-host-hal2-b": "offline"})
-        self.assertEqual((self.check(7), len(self.check(11))), ([], 1), "offline again: a new problem, after the grace")
+        MACB = ["self-hosted", "macOS", "ARM64", "mac-host-hal2-b"]
+        self.queue(api_job(6, "b1-02-x", MACB, stamp(self.now - dt.timedelta(minutes=5))))
+        (a,) = self.check()
+        self.assertIn("mac-host-hal2-b offline", a["text"])
 
     def test_hand_started_and_parked_runners_are_no_problem_while_idle(self):
         self.fleet(online=False)  # everything offline: the parked servers, the VM and Docker runners, the old laptops
-        found = {a["text"].split()[3] for a in self.check(0) + self.check(5)}
-        self.assertEqual(found, {"mac-host-hal2-a", "mac-host-hal2-b", "mac-host-hal2-c"}, "only the Mac's pipeline host runners")
+        self.assertEqual(self.check(0) + self.check(5), [])
 
 
 class Reading(unittest.TestCase):

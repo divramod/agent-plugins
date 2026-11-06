@@ -143,6 +143,26 @@ class Delegation(Ledger):
         self.assertIn(delegation.STOP + ["18", "--repo", MAIN], self.calls)
         self.assertEqual(delegation.ledger(MAIN)["flaky:u"]["state"], "running")
 
+    def test_the_users_own_order_skips_the_queue_and_starts_at_a_full_limit(self):
+        # hal2 plan 0695 D41 H5: the farmer started the user's order by hand (create.py) while the limit was full.
+        delegation.delegate(flaky(), MAIN, 1, False, NOW)
+        queued = dict(flaky(), key="flaky:q", text="queued q")
+        self.assertEqual(delegation.delegate(queued, MAIN, 1, False, NOW)["state"], "waiting")
+        ordered = dict(flaky(), key="brief:u", text="the user's u", user=True)
+        r = delegation.delegate(ordered, MAIN, 1, False, NOW)
+        self.assertEqual((r["state"], r.get("user")), ("running", True))
+        self.assertTrue(delegation.ledger(MAIN)["brief:u"]["user"], "the ledger keeps the flag")
+        self.assertEqual(delegation.ledger(MAIN)["flaky:q"]["state"], "waiting", "the queue still waits")
+        # One that found no free field waits flagged and starts first in a later round, though the limit is full.
+        self.calls.clear()
+        held = dict(flaky(), key="brief:v", text="the user's v", user=True)
+        with mock.patch.object(delegation, "start", lambda *a, **k: {"wait": delegation.NO_FIELD}):
+            self.assertEqual(delegation.delegate(held, MAIN, 1, False, NOW)["state"], "waiting")
+        self.assertTrue(delegation.ledger(MAIN)["brief:v"]["user"])
+        placed = delegation_round.place(MAIN, {}, 1, False, NOW, None)
+        self.assertEqual([(d["key"], d["state"]) for d in placed], [("brief:v", "running")])
+        self.assertEqual(delegation.ledger(MAIN)["flaky:q"]["state"], "waiting")
+
     def test_auto_starts_servants_while_the_load_allows_one_per_round(self):
         self.assertEqual(delegation.parse_limit(None), "auto")
         self.assertEqual(delegation.parse_limit("auto"), "auto")

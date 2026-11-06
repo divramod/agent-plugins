@@ -5,6 +5,8 @@ culprit wakes the session; the fix is merged only after the run has ended. The r
 fix. On engine_farm.py's farm (a bare origin, no landing), gh is gh_fake.py's."""
 # enforces .adr/deterministic-first.md and .adr/tollman.md
 
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -13,6 +15,8 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import acks
 import early_order
 import mtm_scan
+import run_triage
+import red_tests
 import run_names
 import tick
 import train_state
@@ -279,6 +283,130 @@ class Run41851365404(unittest.TestCase):
         for name in ("c3-01-rust-build-test-linux", "*rust-build-test-linux", "c2-02-lint",
                      "c2-03-agents-build-test-linux"):
             self.assertIn(name, done, "the old key form and the new per-car one, the bare id and the URL (D5)")
+
+
+class Train56_5(unittest.TestCase):
+    """Plan 0714 (L262): train 56-5's bash, agents and python reds name their failing test only by its name (bats
+    `not ok <n> <name>`, unittest `FAIL: <test> (<dotted id>)`), no car path; each is ordered to the car that touched
+    the test's file or its unit, and a test in no car's files stays the session's."""
+    GATE, PY = "code/bash/scripts/gate/", "code/python/scripts/codemap/"
+    RID, URL = "56500000005", "https://github.com/divramod/hal2/actions/runs/56500000005"
+    LOGS = {
+        "d1-01-bash-test-linux": "not ok 3 abort keeps the queue\n# (in test file gate/test-abort.bats, line 9)\n"
+                                 "not ok 4 other works\n# a failure",
+        "d1-02-python-test-linux": "FAIL: test_x (test_main.TestY.test_x)\nAssertionError: 1 != 2",
+        "d1-03-agents-test-linux": "FAIL: test_nobody (test_elsewhere.TestZ.test_nobody)\nAssertionError: 1 != 2",
+        "d1-04-bash-test-linux": "not ok 2 other works\n# (in test file other/test-other.bats, line 3)",
+    }
+    OTHER = "code/bash/scripts/other/test-other.bats"  # in the base, in no car's files
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.main = tmp.name
+        for path, text in ((self.GATE + "test-abort.bats", '@test "abort keeps the queue" {\n  run true\n}\n'),
+                           (self.GATE + "main.sh", "echo\n"), (self.PY + "main.py", "x = 1\n"),
+                           (self.PY + "test_main.py", "import unittest\n"),
+                           ("code/bash/scripts/other/test-other.bats", '@test "other works" {\n  run true\n}\n')):
+            (Path(self.main) / path).parent.mkdir(parents=True, exist_ok=True)
+            (Path(self.main) / path).write_text(text)
+        for argv in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@l",
+                                                                  "commit", "-qm", "base"]):
+            subprocess.run(["git", *argv], cwd=self.main, check=True, capture_output=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.main, capture_output=True,
+                              text=True).stdout.strip()
+        self.cars = [{"field": "08", "files": [self.GATE + "test-abort.bats"]},
+                     {"field": "13", "files": [self.PY + "main.py"]}]
+        self.train = {"train": "56-5", "base": head,
+                      "cars": [{"field": c["field"], "plan": "p" + c["field"], "head": head} for c in self.cars]}
+        red_tests.SEEN.clear()
+
+    def actions(self, *names, orders=()):
+        self.train = {**self.train, "orders": list(orders)}
+        jobs = [{**job(n), "databaseId": 100 + i} for i, n in enumerate(names)]
+        data = ({"id": self.RID, "url": self.URL, "cancelled": False}, [], "", {"cars": self.cars})
+        with mock.patch.object(early_order, "read_log", return_value=[]), \
+                mock.patch.object(train_state, "lines", return_value=[]), \
+                mock.patch.object(early_order.triage, "gather", return_value=data), \
+                mock.patch.object(early_order.triage, "classify", return_value={
+                    "kind": "car", "evidence": {"cars": self.cars, "tail": "", "tests": []}}), \
+                mock.patch.object(early_order.job_error, "job_log",
+                                  side_effect=lambda main, j: self.LOGS[j["name"]]):
+            return early_order.actions(self.main, self.main, self.train, self.URL, self.RID, jobs)
+
+    def test_the_bats_and_the_unittest_red_are_each_ordered_to_the_car_that_touched_their_test_or_unit(self):
+        out = self.actions("d1-01-bash-test-linux", "d1-02-python-test-linux")
+        orders = {a["slot"]: a for a in out if a["kind"] == "early-order"}
+        self.assertEqual(sorted(orders), ["08", "13"])
+        self.assertEqual(orders["08"]["key"], f"early-order:{self.RID}:d1-01-bash-test-linux:08")
+        self.assertEqual(orders["13"]["key"], f"early-order:{self.RID}:d1-02-python-test-linux:13")
+        why = orders["13"]["argv"][orders["13"]["argv"].index("--why") + 1]
+        self.assertEqual(why, "d1-02-python-test-linux: FAIL: test_x (test_main.TestY.test_x)")
+
+    def test_a_bats_red_whose_other_failure_is_in_no_cars_files_orders_the_one_car_and_wakes_the_session(self):
+        out = self.actions("d1-01-bash-test-linux")
+        orders = [a for a in out if a["kind"] == "early-order"]
+        self.assertEqual([a["slot"] for a in orders], ["08"])
+        argv = orders[0]["argv"]
+        self.assertEqual(argv[argv.index("--unit") + 1], "not ok 3 abort keeps the queue",
+                         "its own failure only")
+        self.assertIn("d1-01-bash-test-linux: ordered to 08; yours.", out[-1]["text"], "'other works' is no car's")
+
+    def test_a_test_in_no_cars_files_or_unit_stays_the_session_s(self):
+        out = self.actions("d1-03-agents-test-linux")
+        self.assertEqual([a["kind"] for a in out], ["early-red", "train-red"])
+        self.assertIn("d1-03-agents-test-linux: yours", out[-1]["text"])
+
+    def open_order(self, field, why, **more):
+        return {"id": f"{field}-fix-1", "field": field, "why": why, "jobs": ["d1-05-other-job"], "early": True, **more}
+
+    def test_a_second_job_whose_test_file_an_open_order_names_joins_that_order_though_no_car_holds_it(self):
+        """Train 56-5: bash-test's red named the test file of lint's open order for car 13, and went to the session."""
+        order = self.open_order("13", f"d1-05-other-job: not ok 1 first ({self.OTHER}:3)")
+        out = self.actions("d1-04-bash-test-linux", orders=[order])
+        orders = [a for a in out if a["kind"] == "early-order"]
+        self.assertEqual([(a["slot"], a["key"]) for a in orders],
+                         [("13", f"early-order:{self.RID}:d1-04-bash-test-linux:13")], "ordered to 13: an also")
+        self.assertEqual([a["kind"] for a in out], ["early-red", "early-order"], "no wake for the session")
+        self.assertTrue(out[0]["text"].endswith("ordered to 13"), out[0]["text"])
+        self.assertNotIn("yours", out[0]["text"])
+
+    def test_an_open_order_that_names_the_unit_or_the_test_s_name_takes_it_too(self):
+        for why in ("d1-05-other-job: an error in code/bash/scripts/other/test-x.sh:9",
+                    "d1-05-other-job: not ok 2 other works"):
+            out = self.actions("d1-04-bash-test-linux", orders=[self.open_order("13", why)])
+            self.assertEqual([a["slot"] for a in out if a["kind"] == "early-order"], ["13"], why)
+
+    def test_two_open_orders_naming_it_none_naming_it_or_a_post_merge_order_leave_it_to_the_session(self):
+        names = f"d1-05-other-job: {self.OTHER}"
+        for orders in ([self.open_order("13", names), self.open_order("08", names)],
+                       [self.open_order("13", "d1-05-other-job: nothing alike")],
+                       [self.open_order("13", names, post="55")], []):
+            out = self.actions("d1-04-bash-test-linux", orders=orders)
+            self.assertEqual([a["kind"] for a in out], ["early-red", "train-red"], orders)
+            self.assertIn("d1-04-bash-test-linux: yours", out[-1]["text"])
+
+    def test_the_run_end_triage_places_the_car_whose_open_order_names_the_test_file(self):
+        verdict = {"kind": "car", "evidence": {"cars": self.cars, "tail": self.LOGS["d1-04-bash-test-linux"],
+                                               "tests": []}}
+        order = self.open_order("13", f"d1-05-other-job: {self.OTHER}")
+        self.assertIsNone(early_order.culprit(self.train, verdict, main=self.main), "no open order: unclear")
+        self.assertEqual(early_order.culprit({**self.train, "orders": [order]}, verdict, main=self.main), "13")
+        self.assertIsNone(early_order.culprit({**self.train, "orders": [order]}, verdict), "no checkout: no lookup")
+
+    def test_the_run_end_triage_reads_the_checkout_the_heads_and_the_open_orders_from_its_context(self):
+        """run_triage.cause (the finished run's triage) maps the test and links the open order as the early one does."""
+        unit = {"job": "d1-04-bash-test-linux", "lines": self.LOGS["d1-04-bash-test-linux"].splitlines()}
+        f = {"timeout": False, "tests": [], "files": []}
+        order = self.open_order("13", f"d1-05-other-job: {self.OTHER}")
+        cars = [*self.cars[1:], {"field": "09", "files": ["docs/a.md"]}]  # not the gate's car: it owns the pipeline
+        ctx = {"cars": cars, "yard": [], "main": self.main, "base": self.train["base"],
+               "heads": [{"field": c["field"], "head": c["head"]} for c in self.train["cars"]]}
+        self.assertEqual(run_triage.cause(unit, None, f, ctx, None)[0], "unplaced")
+        self.assertEqual(run_triage.cause(unit, None, f, {**ctx, "orders": [order]}, None), ("car", {
+            "field": "13", "live": False}))
+        py = {"job": "d1-02-python-test-linux", "lines": self.LOGS["d1-02-python-test-linux"].splitlines()}
+        self.assertEqual(run_triage.cause(py, None, f, ctx, None)[1]["field"], "13", "mapped to its unit")
 
 
 if __name__ == "__main__":

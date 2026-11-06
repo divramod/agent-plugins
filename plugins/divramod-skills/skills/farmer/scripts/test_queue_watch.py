@@ -86,6 +86,54 @@ class Findings(unittest.TestCase):
         self.assertEqual(self.kinds([head, waiter()], LIVE), [])
 
 
+class TrainBetweenRuns(unittest.TestCase):
+    """Plan 0695 D43 (F9, train 56-5 after its red run end 22:19Z: 8 reds, 16 waiting): busy, never IDLE-RESERVATION."""
+
+    TRAIN = ticket("tollman-train", hold={"reason": "reserved"}, reserved={"by": "tollman"})
+
+    def queue(self):
+        return [self.TRAIN] + [ticket(f"{n:02d}", enqueued=ago(25)) for n in range(16)]
+
+    def test_a_train_between_its_red_run_and_its_rerun_is_busy_and_gets_no_advice(self):
+        found = qw.findings(self.queue(), NOW, DEAD, between=lambda: True)
+        self.assertEqual([f["kind"] for f in found], [])
+        self.assertFalse(any("clear the order" in f["line"] for f in found))
+
+    def test_the_same_reservation_with_no_train_waiting_is_still_idle(self):
+        found = qw.findings(self.queue(), NOW, DEAD, between=lambda: False)
+        self.assertEqual([f["kind"] for f in found], ["IDLE-RESERVATION"])
+        self.assertIn("never a started landing's", found[0]["fix"])
+        self.assertEqual([f["kind"] for f in qw.findings(self.queue(), NOW, DEAD)], ["IDLE-RESERVATION"])
+
+    def test_a_field_s_reservation_is_idle_even_while_a_train_waits_and_the_check_is_lazy(self):
+        asked = []
+        field = [ticket("28", hold={"reason": "reserved"}), waiter(20)]
+        found = qw.findings(field, NOW, DEAD, between=lambda: asked.append(1) or True)
+        self.assertEqual(([f["kind"] for f in found], asked), (["IDLE-RESERVATION"], []))
+        qw.findings([ticket("28", pid=7, harvest=harvest(10, 5)), waiter()], NOW, LIVE, between=lambda: asked.append(1))
+        self.assertEqual(asked, [], "asked only for a tollman ticket that would be idle")
+
+    def test_the_state_decides_by_train_state_or_open_orders(self):
+        def got(doc):
+            return qw.train_between_runs("/x/hal2", lambda argv, cwd: json.dumps(doc))
+        self.assertEqual([got({"train": {"state": s}, "orders": []}) for s in ("red", "fixing", "retry", "landing")],
+                         [True, True, True, False])
+        self.assertTrue(got({"train": {"state": "landing"}, "orders": [{"id": "o1", "post": True}]}), "a fixed-wait")
+        self.assertFalse(got({"train": None, "orders": []}))
+        self.assertFalse(qw.train_between_runs("/x/hal2", lambda argv, cwd: "not json"))
+        self.assertFalse(qw.train_between_runs("/x/hal2", mock.Mock(side_effect=OSError)))
+
+    def test_the_duty_makes_no_wake_for_it(self):
+        main = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, main, True)
+        with mock.patch.object(mtm_scan, "DATA", main / "state"), \
+                mock.patch.dict(os.environ, {roles.UNDER_TEST: "1", "FARMER_DIR": str(main / "state")}), \
+                mock.patch.object(roles, "git", return_value=""):
+            ctx = {"main": str(main), "now": NOW, "dry": True, "queue_doc": {"queue": self.queue()},
+                   "train_between": lambda: True}
+            self.assertEqual(qw.plan_queue({}, ctx, alive=DEAD), [])
+
+
 class Duty(unittest.TestCase):
     """plan_queue over a temp state folder ($FARMER_DIR); the queue comes from the round's context."""
 
@@ -104,7 +152,7 @@ class Duty(unittest.TestCase):
 
     def tick(self, queue, now=NOW, dry=False, alive=LIVE):
         ctx = {"main": str(self.main), "now": now, "dry": dry, "queue_doc": {"queue": queue}}
-        return qw.plan_queue({"name": "duty:queue"}, ctx, alive=alive)
+        return qw.plan_queue({"name": "duty:queue"}, ctx, alive=alive, gate=None)
 
     def state(self) -> dict:
         return json.loads(qw.state_file(str(self.main)).read_text())
@@ -162,7 +210,7 @@ class Duty(unittest.TestCase):
         self.tick(self.stalled())
         before = self.state()
         ctx = {"main": str(self.main), "now": NOW + dt.timedelta(minutes=40), "dry": False, "queue_doc": None}
-        self.assertEqual(qw.plan_queue({}, ctx, alive=LIVE), [])
+        self.assertEqual(qw.plan_queue({}, ctx, alive=LIVE, gate=None), [])
         self.assertEqual(self.state(), before)
 
     def test_a_broken_state_file_counts_as_empty(self):
@@ -178,7 +226,7 @@ class Duty(unittest.TestCase):
                 mock.patch.object(tick.deliver, "cli", return_value=(0, "[]")):
             ctx = tick.context(str(self.main), str(self.main), {}, NOW, True, paused={})
         self.assertIs(ctx["queue_doc"], doc)
-        self.assertEqual([a["do"] for a in qw.plan_queue({}, ctx, alive=LIVE)], ["wake"])
+        self.assertEqual([a["do"] for a in qw.plan_queue({}, ctx, alive=LIVE, gate=None)], ["wake"])
 
     def test_the_duty_is_wired(self):
         self.assertIn("queue", roles.FARMER.duties)
@@ -196,7 +244,7 @@ class Cli(unittest.TestCase):
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = qw.main(["--repo-dir", "/r", *args], runner=runner, now=NOW)
+            rc = qw.main(["--repo-dir", "/r", *args], runner=runner, now=NOW, gate=None)
         self.assertEqual(calls, [(qw.QUEUE, "/r")])
         return rc, buf.getvalue()
 

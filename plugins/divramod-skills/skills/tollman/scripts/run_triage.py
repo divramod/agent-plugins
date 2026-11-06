@@ -146,8 +146,10 @@ def cause(unit: dict, spec: dict | None, f: dict, ctx: dict, repeat: str | None)
         return "pipeline", piped
     tail = "\n".join(unit["lines"])
     car = None if repeat else early_order.culprit(
-        {"yard": ctx.get("yard") or []},
-        {"kind": "car", "evidence": {"cars": ctx.get("cars") or [], "tail": tail, "tests": f["tests"]}})
+        {"yard": ctx.get("yard") or [], "base": ctx.get("base"), "cars": ctx.get("heads") or [],
+         "orders": ctx.get("orders") or []},
+        {"kind": "car", "evidence": {"cars": ctx.get("cars") or [], "tail": tail, "tests": f["tests"]}},
+        main=ctx.get("main"))
     return ("car", {"field": car, "live": car in set(ctx.get("live") or ())}) if car else ("unplaced", {"field": None})
 
 

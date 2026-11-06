@@ -297,6 +297,9 @@ class Limit(Ledger):
         self.paused = {"02": {}, "03": {}}
         busy = delegation_round.capacity(MAIN, self.slots, 2)
         self.assertEqual(busy, 1)
+        for k, e in delegation.ledger(MAIN).items():  # older waiters would start first (row 25): none wait here
+            if e.get("state") == "waiting":
+                delegation.note(MAIN, {"key": k, "state": "landed"}, NOW)
         a = dict(flaky(), key="flaky:new")
         self.assertEqual(delegation.delegate(a, MAIN, 2, False, NOW, busy=busy)["state"], "running")
         self.assertEqual(delegation.delegate(dict(a, key="flaky:more"), MAIN, 2, False, NOW, busy=busy + 1)["state"],

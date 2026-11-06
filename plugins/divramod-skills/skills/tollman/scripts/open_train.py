@@ -206,7 +206,7 @@ def stops(top: str) -> int:
         print(json.dumps({"status": "interrupted", "message": f"car {', '.join(lacking)} joined unmerged: the next "
                           "start merges it"}), flush=True)
         return 1
-    if red := proof_orders.red_line(main, Path(top).name, train):
+    if red := proof_orders.red_line(main, Path(top).name, train, top=top):
         print(json.dumps({"status": proof_orders.STATUS, "message": red[:300]}), flush=True)
         return 1
     return 0

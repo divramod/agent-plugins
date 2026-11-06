@@ -121,7 +121,8 @@ far as the user can see.
 ## Delegate a fix
 
 The tick does these steps as code (`delegation.py`), and `python3 $S/farmer.py delegate --brief <file> --title
-<title>` does them for a brief you wrote. By hand only when both fail.
+<title>` does them for a brief you wrote; the user's own order adds `--user`: it skips the queue and starts even while
+the foreman limit is full (hal2 plan 0695 D41 H5), never `create.py` by hand. By hand only when both fail.
 
 A ledger gone stale (running entries whose plan landed, whose field is gone or reused) is reconciled by the tick
 (`delegation_sync.py` the verdicts, `delegation_round.py` the facts and the write); by hand, the same code:

@@ -267,7 +267,18 @@ def context(top: str, main: str, items: dict, now: dt.datetime, dry: bool, wirin
             "agents_by_pane": {a.get("pane_id"): a for a in rows},
             "panes": {a["slot"]: a.get("pane_id") for a in rows if a.get("slot") and a.get("checkout")
                       and Path(a["checkout"]).parent == Path.home() / ".hal/git/worktree" / Path(main).name},
-            "landing": landing, "waiting": {t.get("slot") for t in tickets} | paused_by_any_boss(main, now)}
+            "landing": landing, "waiting": {t.get("slot") for t in tickets} | paused_by_any_boss(main, now),
+            "fields": existing_fields(main)}
+
+
+def existing_fields(main: str) -> set[str] | None:
+    """The names of the worktrees that exist (acks.plan drops what is asked of a gone field, L256); None when git
+    cannot say, so nothing is dropped on a failed read."""
+    try:
+        found = {Path(w["path"]).name for w in mtm_scan.worktrees(main)}
+    except Exception:  # an unreadable list is never "no field"
+        return None
+    return found or None
 
 
 def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bool = True,
@@ -297,8 +308,8 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
         ctx.setdefault("told", set()).update(a["slot"] for a in planned if a["do"] in ("send", "relay"))
         actions += [{**a, "item": item["name"]} for a in planned]
     with timed(timing, "acks"):
-        ack_acts = field_pause.skip(stale(acks.plan(ctx["log"], ctx["now"], ctx["panes"]), ctx["now"]),
-                                    ctx["paused_fields"])
+        planned = acks.plan(ctx["log"], ctx["now"], ctx["panes"], fields=ctx.get("fields"))
+        ack_acts = field_pause.skip(stale(planned, ctx["now"]), ctx["paused_fields"])
         actions += [{**a, "item": "acks"} for a in fresh(ack_acts, ctx["log"], ctx["now"], role)]
     # `depends` (the plan graph, read once if a planner needed it) and `waits` (field -> "waits for 0514 (open)"):
     # the summary shows them (plan 0595 step 11)
@@ -333,10 +344,14 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
     if a["do"] == "delegate":  # delegation.delegate logs it once it is placed
         out.setdefault("delegate", []).append(a)
         return
-    if a["do"] == "relay" and not a.get("to") and a["slot"] not in ("", "-"):  # L77, L98: never by field number
-        import session_names
-        a["to"] = session_names.name_of(session_names.field_path(main, a["slot"]))
-    if a["do"] in ("wake", "notify", "relay"):
+    if a["do"] == "relay" and a["slot"] not in ("", "-"):  # D41 H8: by the field's pane, never a name or a number
+        import reach
+        a["pane"], refused = reach.send(a["slot"], main, a["text"], a.get("pane"), out.get("agent_rows"))
+        if refused:
+            a["why"] = f"{a.get('why', '')} not typed: {refused}".strip()
+        else:
+            a["delivered"] = a["pane"]
+    if a["do"] in ("wake", "notify", "relay") and not a.get("delivered"):
         out.setdefault(a["do"], []).append(a)
     note = a.get("why", "") + (f" (exit {a['exit']})" if a.get("exit") else "")
     # A run that exited OFFLINE did not run (the orphan start guard's skip, plan 0426 D2): it logs no key, so the next
@@ -479,11 +494,13 @@ def rest(out: dict, top: str, main: str, handlers: dict, now: dt.datetime | None
            else {"due": [], "settings": {}, "actions": [], "stop": True})
     out["planned"] += rnd["actions"]
     out.update(due=rnd["due"], settings=rnd["settings"], stop=rnd["stop"], waits=rnd.get("waits", {}))
+    out["agent_rows"] = rnd.get("agent_rows")  # the round's one agents list, also for a relay's pane (reach.send)
     if not dry:
         for a in edit + rnd["actions"]:
             with timed(timing, a.get("item", "frame")):
                 execute(a, top, main, out, wiring)
             out["done"].append(a)
+        out.pop("agent_rows", None)  # only for the actions; never in the round's report
         import duty_health
         out["duty_reports"] = duty_health.after_round(top, main, rnd, now or dt.datetime.now(), wiring)
     if go_on and wiring.delegates:

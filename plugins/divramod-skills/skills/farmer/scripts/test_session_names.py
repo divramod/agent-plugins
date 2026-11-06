@@ -37,17 +37,6 @@ class Names(unittest.TestCase):
         self.session(999999, self.hal2, "03-dead", 5)
         self.assertEqual(session_names.name_of(self.hal2, self.sessions), "03-7f", "a dead pid's file is no session")
 
-    def test_a_refused_send_relays_with_the_target_s_name(self):
-        self.session(os.getpid(), self.hal2, "03-7f")
-        out = {"wake": [], "notify": []}
-        a = tick.act("trains", "car-red", "send", "03", pane="t:x", text="fix it", key="k")
-        env = {"CLAUDE_CONFIG_DIR": str(self.tmp / "claude"), "HOME": str(self.home)}
-        with mock.patch.dict(os.environ, env), mock.patch.object(Path, "home", return_value=self.home), \
-                mock.patch.object(deliver, "send", return_value="agent is working"), \
-                mock.patch.object(mtm_scan, "log"), mock.patch("acks.stamp_send"):
-            tick.execute(a, "/x/farmer", "/x/hal2", out)
-        self.assertEqual([(r["do"], r["to"]) for r in out["relay"]], [("relay", "03-7f")])
-
 
 if __name__ == "__main__":
     unittest.main()

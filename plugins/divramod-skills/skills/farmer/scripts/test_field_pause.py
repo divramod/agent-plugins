@@ -4,14 +4,16 @@
 tollman/scripts/test_paused.py."""
 # enforces .adr/paused-fields-never-woken.md (step 5 of the plan)
 
+import argparse
 import io
 import json
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 import field_pause
 import mtm_scan
+import stop_fields
 import tick
 from test_farmer import NOW, Repo
 
@@ -112,6 +114,16 @@ class Round(Repo):
         self.assertEqual(self.kinds(rnd), [("07", "paused-skip", "record"), ("07", "paused-skip", "record"),
                                            ("07", "paused-skip", "record"), ("09", "idle-in-plan", "send"),
                                            ("-", "ran", "ran")])
+
+    def test_a_field_with_the_users_stop_mark_gets_no_lead_or_watch_wake_f6(self):
+        """Plan 0695 D45, D46 (field 49): a stop on the user's word leaves the mark; the mark alone drops the wakes."""
+        user = {"by": "user", "why": "soft stop from the Agents view", "since": "2026-11-05T19:22:00Z"}
+        handlers = {"duty:lead": lambda item, ctx: [act("asks", "wake", "49", "lead", key="lead:s1:1", text="asks"),
+                                                    act("judge", "wake", "49", "watch", key="watch:s1", text="F6")]}
+        rnd = tick.plan_round(str(self.slot), handlers, NOW, all_due=True, paused={"49": user})
+        got = [(a["duty"], a["slot"], a["kind"], a["do"]) for a in rnd["actions"] if a["slot"] == "49"]
+        self.assertEqual(got, [("lead", "49", "paused-skip", "record"), ("watch", "49", "paused-skip", "record")])
+        self.assertIn("paused by user", rnd["actions"][0]["text"] + rnd["actions"][1]["text"])
 
     def test_an_unpaused_round_is_as_before(self):
         rnd = tick.plan_round(str(self.slot), self.handlers, NOW, paused={})
@@ -220,6 +232,61 @@ class WholeRound(Repo):
         kinds = [(e["slot"], e["kind"]) for e in self.log() if e["slot"] in ("07", "09")]
         self.assertEqual(sorted(kinds), [("07", "paused-skip"), ("07", "paused-skip"), ("09", "ask-ack"),
                                          ("09", "idle-in-plan")], "no ack is asked of a session nothing was sent to")
+
+
+class RelayedStop(unittest.TestCase):
+    """Plan 0695 step 58 (D46): the farmer's relayed stop writes the pause mark in code, before the stop."""
+
+    LIST = json.dumps({"agents": [{"pane_id": "%7", "slot": "49", "project": "/y"},
+                                  {"pane_id": "%8", "slot": "12", "project": "/other"}]})
+
+    def go(self, hard, fields=("49",), mark_fails=False, sessions=LIST):
+        calls = []
+
+        def run_cmd(argv, cwd):
+            calls.append(argv)
+            if argv[:3] == ["hal2-cli-git", "worktree", "pause"]:
+                return (1, "no git") if mark_fails else (0, "paused")
+            if argv[:2] == ["hal2-cli-agents", "list"]:
+                return 0, sessions
+            return 0, "ok"
+
+        args = argparse.Namespace(fields=list(fields), hard=hard, soft=not hard, why="stop 49",
+                                              repo="/y", dry_run=False)
+        with mock.patch.object(stop_fields, "run_cmd", run_cmd), \
+                mock.patch.object(tick.mtm_scan, "main_checkout", return_value="/y"), redirect_stdout(io.StringIO()):
+            code = stop_fields.run(args)
+        return code, calls
+
+    def test_the_mark_comes_first_then_the_soft_stop_order(self):
+        code, calls = self.go(hard=False)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[0], ["hal2-cli-git", "worktree", "pause", "49", "--by", "user", "--why", "stop 49"])
+        send = calls[-1]
+        self.assertEqual(send[:3], ["hal2-cli-agents", "send", "%7"])
+        self.assertIn("--force", send)
+        self.assertIn("the user decided: \"stop 49\"", send[3])
+
+    def test_the_hard_stop_is_marked_first_too(self):
+        code, calls = self.go(hard=True)
+        self.assertEqual((code, calls[0][:3], calls[-1][:4]),
+                         (0, ["hal2-cli-git", "worktree", "pause"], ["hal2-cli-agents", "stop", "%7", "--force"]))
+        self.assertEqual(calls[-1][-4:], ["--by", "user", "--why", "stop 49"])
+
+    def test_a_failed_mark_sends_no_stop(self):
+        code, calls = self.go(hard=True, mark_fails=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(calls), 1)
+
+    def test_a_field_without_a_session_is_marked_and_no_failure(self):
+        code, calls = self.go(hard=False, fields=("12",), sessions=json.dumps({"agents": []}))
+        self.assertEqual((code, [c[1] for c in calls]), (0, ["worktree", "list"]))
+
+    def test_the_marked_field_is_what_the_tick_skips(self):
+        """The mark's shape is the pause `field_pause.load` reads: by user, so `paused-skip` follows."""
+        user = {"by": "user", "why": "stop 49", "since": "2026-11-06T18:00:00Z"}
+        a = act("asks", "wake", "49", "lead", key="lead:s1:1", text="asks")
+        self.assertEqual(field_pause.skip([a], {"49": user})[0]["kind"], "paused-skip")
 
 
 if __name__ == "__main__":

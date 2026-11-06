@@ -21,6 +21,7 @@ from pathlib import Path
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import mtm_scan
+import proof_resolved
 import train_state
 from tick import act
 
@@ -41,10 +42,12 @@ def ordered(rows: list[dict], name: str) -> set[str]:
     return {e.get("field") for e in rows if e.get("kind") == "order" and e.get("train") == name}
 
 
-def red_line(main: str, field: str, train: dict, now=None) -> str:
+def red_line(main: str, field: str, train: dict, now=None, top: str | None = None) -> str:
     """The `red` line of a train about to start (or push) with a car whose light checks are red and that has no fix
     order of this train yet (one that formed so, or joined so: plan 0610 E5, E6), its text; "" when it has none."""
-    done = ordered(train_state.lines(main), train["train"])
+    rows = train_state.lines(main)
+    train = proof_resolved.live(top, main, train, rows) if top else train  # a resolved car: the carrier's head (L258)
+    done = ordered(rows, train["train"])
     red = [c for c in red_cars(train) if c["field"] not in done]
     if not red:
         return ""
@@ -61,7 +64,7 @@ def jobs_of(lines: list[str]) -> list[str]:
 
 def actions(top: str, main: str, train: dict, rows: list[dict]) -> list[dict]:
     """Each red car's fix order (one per distinct finding text) and the twins' board note; none twice."""
-    name = train["train"]
+    name, train = train["train"], proof_resolved.live(top, main, train, rows)  # a resolved car: the carrier's head (L258)
     done, out, first = ordered(rows, name), [], {}
     for car in red_cars(train):
         field, text = car["field"], "\n".join(car["proof_red"])

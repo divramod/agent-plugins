@@ -74,6 +74,8 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
         if n["kind"] in lead_fields.KINDS:
             continue
         kind, slot, pane = n["kind"], n.get("slot") or "-", n.get("pane")
+        if kind == "paused":
+            continue  # the user's stop reads as paused: no wake, no send (plan 0695 D29)
         if slot in ctx.get("told", set()):
             continue
         if kind == "idle-in-plan" and lead_depends.wait_of_need(n, ctx):

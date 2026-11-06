@@ -129,10 +129,13 @@ def stale(i: dict, now: dt.datetime) -> bool:
     return now - last >= STALE
 
 
-def plan(log: list[dict], now: dt.datetime, panes: dict, capture=None) -> list[dict]:
+def plan(log: list[dict], now: dt.datetime, panes: dict, capture=None, fields: set[str] | None = None) -> list[dict]:
     """The round's ack follow-ups: re-send once, then wake; a refusal wakes at once; an ask without any ack past
     VOID_AFTER is closed void instead (one record, never re-sent or woken). A wake carries `born` (the refusal's or
-    the re-send's time), so tick.stale never wakes for a day-old one. `now` naive (local) or aware."""
+    the re-send's time), so tick.stale never wakes for a day-old one. `now` naive (local) or aware. `fields` are the
+    names of the fields that exist (None: unknown, nothing dropped): an open instruction to a numbered field that is
+    gone is closed once (`ack-void`, L256, D25), never re-sent or woken, so an "in the barn" never reaches a new
+    session in a reused name."""
     from tick import act  # the tick imports this module
     now = roletime.aware(now)
     capture = capture or (lambda pane: deliver.cli("capture", pane)[1][-3000:] if pane else "")
@@ -141,6 +144,10 @@ def plan(log: list[dict], now: dt.datetime, panes: dict, capture=None) -> list[d
         if "slot" not in i or i["void"] or retired(i):
             continue
         last = i["acks"][-1]["status"] if i["acks"] else None
+        if fields is not None and re.fullmatch(r"\d\d", i["slot"]) and i["slot"] not in fields and last != "done":
+            out.append(act("ack", "ack-void", "record", i["slot"], key=f"ack-void:{i['id']}",
+                           text=f"{i['id']} closed void: field {i['slot']} no longer exists, never re-sent"))
+            continue
         pane = panes.get(i["slot"]) or i["pane"]
         if last is None and now - i["at"] >= VOID_AFTER:
             out.append(act("ack", "ack-void", "record", i["slot"], key=f"ack-void:{i['id']}",
@@ -170,6 +177,7 @@ def main(argv: list[str]) -> int:
     ins.add_argument("slot")
     ins.add_argument("text")
     ins.add_argument("--decision", action="append", default=[])
+    ins.add_argument("--send", action="store_true", help="type it into the field's session by its pane (reach.py)")
     ack = sub.add_parser("ack")
     ack.add_argument("id")
     ack.add_argument("status", choices=STATUSES)
@@ -195,6 +203,10 @@ def main(argv: list[str]) -> int:
         for d in relays:
             mtm_scan.log(main_dir, {"kind": "decision-link", "slot": args.slot, "what": f"{d} relayed as {ack_id}",
                                     "note": "", "decision": d, "ack": ack_id, "by": role}, role)
+        if args.send:  # D41 H8: by the field's pane, found by its cwd, never by a name
+            import reach
+            pane, refused = reach.send(args.slot, main_dir, text)
+            print(f"acks.py: {ack_id} " + (f"not sent: {refused}" if refused else f"sent to {pane}"), file=sys.stderr)
         print(json.dumps({"id": ack_id, "text": text}) if args.json else text)
     elif args.cmd == "ack":
         known = instructions(log).get(args.id)

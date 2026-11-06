@@ -10,9 +10,10 @@
       `wake`, notices for the user as `notify`. --dry-run plans the round and touches nothing; --all-due (dry runs
       only) counts every opted-in duty and task due, to measure a full round. Ends with a `timing:` line: the
       seconds of the frame, each due item (planning and execution), delegations, wake, summary and the total
-  farmer.py delegate --brief <file> --title <title> [--repo <dir>] [--dry-run] [--json]
+  farmer.py delegate --brief <file> --title <title> [--user] [--before <key>] [--repo <dir>] [--dry-run] [--json]
       hand a brief the woken farmer wrote to a foreman (the same limit, worktree choice, prompt and ledger as the tick's
-      delegations); --dry-run prints the calls it would make
+      delegations); --user: the user's own order, which skips the queue and starts even while the foreman limit is
+      full (hal2 plan 0695 D41 H5; never create.py by hand); --dry-run prints the calls it would make
   farmer.py check task <name> | flaky | orphans [--repo <dir>]
       a task's Check (machine form, see tasks.py), or a built-in check for roles/farmer/ROLE.md tasks: flaky ledger
       entries whose foreman runs no plan, worktrees with work and no session; exit 0 fine, 1 with what is wrong
@@ -21,6 +22,9 @@
       the disk step (idle fields' Rust build targets while the disk has under 150 GB free), then `/prune run` for
       the farm; exit 0 both ran, 1 with the failed or timed-out
       step; the farmer task whose Check is `farmer prune-round` (and its Limit) runs it
+  farmer.py stop <fields>... (--soft | --hard) --why <the user's words> [--repo <dir>] [--dry-run]
+      a stop on the user's word (stop_fields.py, hal2 plan 0695 step 58): `hal2-cli-git worktree pause <NN> --by user`
+      first, then the soft stop order or the hard stop; exit 1 when a mark or a stop failed
   farmer.py wake [--done <seq>] [--repo <dir>] [--json]
       what the tick handed to the farmer session (wake.json: items that need judgment, relays, notices, failed
       delegations, each with the file to read for it); prints handoff.md's `## DO FIRST` first and closes the items
@@ -83,6 +87,7 @@ import role_sync
 import roles
 import roletime
 import silence
+import stop_fields
 import migrate
 import prune_round
 import questions
@@ -145,8 +150,17 @@ def run_delegate(args) -> int:
     main_dir = tick.mtm_scan.main_checkout(args.repo)
     settings = due.schedule((Path(tick.git(args.repo, "rev-parse", "--show-toplevel") or args.repo)
                              / tick.ROLE).read_text())[1] if (Path(args.repo) / tick.ROLE).exists() else {}
+    if args.before:
+        waiting = sorted(k for k, e in delegation.ledger(main_dir).items() if e.get("state") == "waiting")
+        if args.before not in waiting:
+            print(f"--before {args.before}: no such waiting delegation; waiting: {', '.join(waiting) or 'none'}", file=sys.stderr)
+            return 2
     a = tick.act("farmer", "brief", "delegate", key=f"brief:{delegation.slug(args.title)}", text=args.title,
                  brief={"brief_file": str(Path(args.brief).resolve())})
+    if args.user:
+        a["user"] = True
+    if args.before:
+        a["before"] = args.before
     result = delegation.delegate(a, main_dir, delegation.parse_limit(settings.get("servant_limit")), args.dry_run,
                                  roletime.utcnow(), delegation.servant_values(settings))
     print(json.dumps(result, indent=1) if args.json else
@@ -168,6 +182,8 @@ def parser() -> argparse.ArgumentParser:
     dg = sub.add_parser("delegate")
     dg.add_argument("--brief", required=True)
     dg.add_argument("--title", required=True)
+    dg.add_argument("--user", action="store_true", help="the user's own order: starts even while the limit is full")
+    dg.add_argument("--before", metavar="KEY", help="when it waits, start it before the waiting delegation KEY (else oldest first)")
     dg.add_argument("--repo", default=os.getcwd())
     dg.add_argument("--dry-run", action="store_true")
     dg.add_argument("--json", action="store_true")
@@ -215,6 +231,7 @@ def parser() -> argparse.ArgumentParser:
     for name in ("silence", "unsilence"):
         sub.add_parser(name).add_argument("--repo", default=os.getcwd())
     questions.add_parsers(sub)
+    stop_fields.add_parser(sub)
     return p
 
 
@@ -239,6 +256,8 @@ def main(argv: list[str]) -> int:
         return prune_round.run(args.repo)
     if args.cmd == "delegate":
         return run_delegate(args)
+    if args.cmd == "stop":
+        return stop_fields.run(args)
     if args.cmd == "wake":
         return role_cli.run_wake(args, WIRING)
     if args.cmd == "handoff":
