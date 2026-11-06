@@ -1,0 +1,144 @@
+c6-01-lint	[12] records-check	﻿2026-11-06T00:34:51.1557406Z ##[group]Run # One lint of the frame alone (gate lint --step, plan 0621 D7): its entry of the frame's steps
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1558326Z ^[[36;1m# One lint of the frame alone (gate lint --step, plan 0621 D7): its entry of the frame's steps^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1559195Z ^[[36;1m# (HAL_FRAME_STEPS) with its own key, packages, timeout and marker; one the entry does not select says^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1560018Z ^[[36;1m# "not needed in this run" and ends green (D8). Its row goes to the summary's file.^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1560784Z ^[[36;1meval "$TASK_LOG"^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1561223Z ^[[36;1mcase "$STEPS" in ''|null) ;; *) export HAL_FRAME_STEPS="$STEPS" ;; esac^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1561819Z ^[[36;1m[ -z "$BASE" ] || export HAL_GATE_BASE="$BASE" HAL_GATE_HEAD="$SHA"^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1562373Z ^[[36;1mcode/bash/scripts/gate/main.sh lint --step "$LINT"^[[0m
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1586989Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1587420Z env:
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1587722Z   HAL2_WORKQUEUE_PRIORITY: normal
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1588054Z   HAL2_MOBILE_HANDOVER: true
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1589158Z   TASK_LOG: echo "[$T] 🎬 $(date -u +%H:%M:%S)"; trap 'c=$?; s=$SECONDS; if [ $c -eq 0 ]; then echo "[$T] 🏁 $(date -u +%H:%M:%S) ⏳ $(printf "%02d:%02d:%02d" $((s/3600)) $((s%3600/60)) $((s%60)))"; else echo "[$T] 💥 $(date -u +%H:%M:%S) ⏳ $(printf "%02d:%02d:%02d" $((s/3600)) $((s%3600/60)) $((s%60))) 
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1590314Z   JOB: lint
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1728136Z   ENTRY: {"job":"lint","key":"8c59d310db24dc2d399e0e7b85466146","package_keys":"bash-lint=8c9e153a1b17a969002837beb07ba442c832111aa3c177554dc216c0346cc8d9 ci-rules=2dd3010ab8ff2e43180683ef8f35691816d38fe2f6e620894c3e5ec5db939de4 leak-scan=b6d70c4ad22f7c83275b44fba31bcd91e6e44fbb0b9953fe00312d79744b16
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1828423Z   KEY: 8c59d310db24dc2d399e0e7b85466146
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1828890Z   BASE: b34d0a61fc5fff997bdbef5489284da19e011508
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1829289Z   SHA: 175627739029188d03baf433b05cef426459629a
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.1925632Z   STEPS: [
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "bash-lint",
+c6-01-lint	[12] records-check	    "key": "8c9e153a1b17a969002837beb07ba442c832111aa3c177554dc216c0346cc8d9",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 10
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "ci-rules",
+c6-01-lint	[12] records-check	    "key": "2dd3010ab8ff2e43180683ef8f35691816d38fe2f6e620894c3e5ec5db939de4",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 5
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "leak-scan",
+c6-01-lint	[12] records-check	    "key": "b6d70c4ad22f7c83275b44fba31bcd91e6e44fbb0b9953fe00312d79744b1622",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 10
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "lua-lint",
+c6-01-lint	[12] records-check	    "key": "da9079b1b4dd4c4c9b49d51ddeef97e6099e663b3bce5a7383a5ebd29aa8ac46",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 5
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "protobuf-lint",
+c6-01-lint	[12] records-check	    "key": "5a827a7e9efe45579c7b0e195df2a13666f67144c2425add2a0a1f47955767cc",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 5
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "python-lint",
+c6-01-lint	[12] records-check	    "key": "b87a475cb767b158a95d2419a97ced47d9750a4711ef17a1b56cfa3c57f19217",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 10
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "ts-lint",
+c6-01-lint	[12] records-check	    "key": "27291aa349dc5eab78dd249a71cecb8982ff1c282b8bab7323e1f6f4a5966ff5",
+c6-01-lint	[12] records-check	    "package_keys": "hal2-erd=9e08dfdd5f81a1ecd733f926f62db31044ecfe65ddb3b8a73b7c331b37b433b7 hal2-excalidraw=4113eea7221bf8e18366c4fd2b4fa48cde9bdd4f59422ba999fe1a22677743c7 hal2-mermaid=3c8abc77c2c0775ddc57502107c2936041418e92b664c8461eaf2927c69b9f48 hal2-statusline=c55e29e39d17e1595f7bd9e5693d7b0e6e60f27c2cfa3ed7c3b921616f29
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 30
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "records-check",
+c6-01-lint	[12] records-check	    "key": "08a8057cf0d55c95215e51ea5a21f674952453b77162fa563e5e335cdc3d0ebc",
+c6-01-lint	[12] records-check	    "package_keys": "",
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 20
+c6-01-lint	[12] records-check	  },
+c6-01-lint	[12] records-check	  {
+c6-01-lint	[12] records-check	    "job": "rust-lint",
+c6-01-lint	[12] records-check	    "key": "d3e3cb1fa998b53887bd6d7e92219cad859e62ec185aaa959aafc48dc319b600",
+c6-01-lint	[12] records-check	    "package_keys": "hal2-agents=eff5c2164b616490b478fe67f6bd45bb7a2a25cb9ea83d8ba007b175649f5ac2 hal2-agents-node=73cb2abe26f97c04c91dc3bcf2d87933c289208e4a01ef92be99c4681e1ee223 hal2-automations=94a0746f173c3b01218cfab20ccfa52e133e09f51f0e289b534befb30bcd342a hal2-automations-node=d31eaad5b85da3abcf3406ca0c78fe6e3a6a86f0269e70
+c6-01-lint	[12] records-check	    "packages": "*",
+c6-01-lint	[12] records-check	    "targets": "*",
+c6-01-lint	[12] records-check	    "timeout": 45
+c6-01-lint	[12] records-check	  }
+c6-01-lint	[12] records-check	]
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.2023893Z   T: 12
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.2024201Z   LINT: records-check
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.2024468Z ##[endgroup]
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.2158255Z [12] 🎬 00:34:51
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.3376717Z gate: lint: records-check
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.4194552Z gate: records-check (packages: all; targets: all)
+c6-01-lint	[12] records-check	2026-11-06T00:34:51.9056981Z [00:34:51] phase build: start
+c6-01-lint	[12] records-check	2026-11-06T00:36:29.8748220Z [00:36:29] phase build: 98s
+c6-01-lint	[12] records-check	2026-11-06T00:36:29.8876636Z [00:36:29] phase check: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:14.0076927Z commit-message: checked by `hal2-cli-records commit-msg`, not here
+c6-01-lint	[12] records-check	2026-11-06T00:37:14.0100199Z shotfile: checked by `hal2-cli-shooter check`, not here
+c6-01-lint	[12] records-check	2026-11-06T00:37:14.0136637Z ok: 2864 records, 2864 valid, 0 legacy, 3662 shaped, 0 problems
+c6-01-lint	[12] records-check	2026-11-06T00:37:14.0297081Z [00:37:14] phase check: 45s
+c6-01-lint	[12] records-check	2026-11-06T00:37:14.0377983Z [00:37:14] phase index: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:25.5437283Z [00:37:25] phase index: 11s
+c6-01-lint	[12] records-check	2026-11-06T00:37:25.6117051Z [00:37:25] phase intent: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:39.6238365Z [00:37:39] phase intent: 14s
+c6-01-lint	[12] records-check	2026-11-06T00:37:39.6616664Z [00:37:39] phase generated: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:50.2258065Z [00:37:50] phase generated: 11s
+c6-01-lint	[12] records-check	2026-11-06T00:37:50.2456595Z [00:37:50] phase uats: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:51.9497396Z plans/uats.md is current
+c6-01-lint	[12] records-check	2026-11-06T00:37:51.9728163Z [00:37:51] phase uats: 1s
+c6-01-lint	[12] records-check	2026-11-06T00:37:51.9857095Z [00:37:51] phase roles: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:52.2400114Z ok: 18 files, 0 lines, 0 legacy, 0 torn, 0 problems
+c6-01-lint	[12] records-check	2026-11-06T00:37:52.2698310Z [00:37:52] phase roles: 1s
+c6-01-lint	[12] records-check	2026-11-06T00:37:52.2846826Z [00:37:52] phase changelog: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:53.4550877Z ok: 236 fragments; the range's plans: 0253-mobile-app, 0263-ci-boost, 0388-windows-navbar-e2e, 0409-plan-store, 0467-train-build-warm, 0479-masterplan-build-blockers, 0483-ci-job-selection, 0484-typescript-test-speed, 0485-mac-and-skills, 0499-daemon-socket-first, 0518-yoga-13-reset, 0519-research-ce
+c6-01-lint	[12] records-check	2026-11-06T00:37:53.4801742Z [00:37:53] phase changelog: 1s
+c6-01-lint	[12] records-check	2026-11-06T00:37:53.5026751Z [00:37:53] phase state-map: start
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.3786913Z ok: 90 declarations, the map current (808 stores); 54 shared stores without a schema, ceiling 54
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.3847236Z finding: hal2.nvim/config-repo (settings, repo:.hal/util/shooter/cfg/nvim/config.yaml): a place in git is a document's (rule sync-follows-the-home)
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.3892122Z finding: hal2.nvim/repo-pane-config (settings, repo:.hal/util/shooter/config/nvim/{tmux.yml,themes.json}): a place in git is a document's (rule sync-follows-the-home)
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.3956292Z [00:37:54] phase state-map: 1s
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.3957743Z finding: hal2.nvim/image-pastes (cache, repo:.hal/util/shooter/tmp/image-pastes/clipboard_*.png): a place in git is a document's (rule sync-follows-the-home)
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.4066948Z finding: hal2.plans/lead-marker (node, repo:plans/LEAD): a place in git is a document's (rule sync-follows-the-home)
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.4117790Z finding: hal2.secrets/repo-store (vault, repo:.secrets/): a place in git is a document's (rule sync-follows-the-home)
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.4487223Z Saved lockfile
+c6-01-lint	[12] records-check	2026-11-06T00:37:54.5719059Z [00:37:54] phase state-scratch: start
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.3573716Z ##[error]gate: lint: records-check failed
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.4468024Z [12] 💥 00:54:51 ⏳ 00:20:00 (exit 1)
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.4586433Z phases of main.sh (total 1200s):
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.5596670Z   build                    98s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.6730167Z   check                    45s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.7476674Z   index                    11s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.8136665Z   intent                   14s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.8436776Z   generated                11s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.9076483Z   uats                     1s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.9486586Z   roles                    1s
+c6-01-lint	[12] records-check	2026-11-06T00:54:51.9846591Z   changelog                1s
+c6-01-lint	[12] records-check	2026-11-06T00:54:52.0496901Z   state-map                1s
+c6-01-lint	[12] records-check	2026-11-06T00:54:52.0600992Z | records-check | `08a8057cf0d55c95215e51ea5a21f674952453b77162fa563e5e335cdc3d0ebc` | **red** |
+c6-01-lint	[12] records-check	2026-11-06T00:54:52.0910503Z ##[error]Process completed with exit code 1.

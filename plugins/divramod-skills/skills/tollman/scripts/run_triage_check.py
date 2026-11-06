@@ -2,10 +2,11 @@
 from the verdict's evidence alone, never from the first verdict: the transient fault and the build-phase timeout
 are read again from the evidence's lines (a running job's step: its duration at the limit, L137), a spec (or a
 failing test's file as the log names it, L195) must stand in them, a car owner must be a car of the train and a repeat
-never a car's, a scratch finding no car touches the runner's (L151). `settle` keeps a verdict both agree on and turns
+never a car's, a scratch finding no car touches the runner's (L151), a time-limit kill with no finding left the runner's (L267). `settle` keeps a verdict both agree on and turns
 any other into `unsure` (no field, what disagrees named): the code never sends a guess (the record security-findings'
 recheck by recompute)."""
 
+import run_triage_limit
 import run_triage_read as read
 import scratch_red
 import transient
@@ -52,6 +53,8 @@ def recheck(e: dict) -> tuple[str, str | None]:
     if transient.TRANSIENT.search(text) or e.get("unserved"):
         return "runner", None
     if (s := e.get("scratch")) and s.get("paths") and not s.get("touched") and scratch_red.read(text):  # L151
+        return "runner", None
+    if e.get("limit") and run_triage_limit.holds(e.get("kill")) and not read.findings(e.get("lines") or []):  # L267
         return "runner", None
     if e.get("green_on") or (not read.TIMEOUT.search(text) and read.budget_only(e.get("lines") or [])):
         return "flake", None

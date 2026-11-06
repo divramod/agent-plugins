@@ -6,6 +6,9 @@ readers, shared per round: gh_runs; git in the main checkout), `of` does both fo
 - `runner`: the run's failed log (`gh run view <id> --log-failed`, its last LOG chars) matches the TRANSIENT
   patterns (transient.py, the farmer's until step 8): a network, registry or runner fault. Nobody is woken; when the
   landing has ended, trains.settle lands the same cars again on a fresh run (train_red.py)
+  Also a red job killed by a time limit with no finding line left (run_triage_read.limit_kill, L267 of plan 0719:
+  the gate's own 20-minute limit ended train 56-7's records-check on a loaded runner; a limit kill with a failing
+  test or an error line of its own stays the car's)
   Also a red job no runner served (gh gives it no step: L64) and a red only of a latency budget or a test's time
   limit (run_triage_read.budget_only, L13: load on the shared host): one fresh run, a repeat counts as runner retries
   Also a records-check red only of files left under the real roots that no car's files could write (scratch_red.py,
@@ -57,6 +60,14 @@ def paused_by(run: dict, pauses=()) -> str | None:
     return next((p.get("field") for p in pauses if stack_red.run_id(p.get("run")) == rid), None)
 
 
+def limit_kills(red: list[dict], tail: str) -> list[dict]:
+    """The time-limit kill of each red job read from its lines in the log's tail (L267), or [] unless every red job
+    was one: a run with one other red job is judged on as before."""
+    kills = [run_triage_read.limit_kill(j, [t for _, t in run_triage_read.job_lines(tail, j.get("name", ""))])
+             for j in red]
+    return kills if all(kills) else []
+
+
 def classify(run: dict, red: list[dict], logs: str, history: dict) -> dict:
     """{kind: runner | main | car | none, evidence}: `run` {id, url}, `red` its red jobs (gh's job objects, or
     {name} only), `logs` its failed log, `history` {main: the barn's head, other: {slot, url, red: [names],
@@ -74,6 +85,8 @@ def classify(run: dict, red: list[dict], logs: str, history: dict) -> dict:
         hit = next(t for t in lines if run_triage_read.BUDGET.search(t))
         return {"kind": "runner", "evidence": {**base, "match": "budget: " + hit.strip()[:200], "budget": True}}
     tests = mtm_scan.failing_tests(tail)
+    if red and (kills := limit_kills(red, tail)):  # L267: the time limit ended every red job, none has a finding
+        return {"kind": "runner", "evidence": {**base, "match": kills[0]["match"], "limit": True, "kills": kills}}
     if not tests and (scratch := scratch_red.runner(scratch_red.read(tail), history.get("cars") or [])):  # L151
         return {"kind": "runner", "evidence": {**base, "match": scratch_red.match(scratch), "scratch": scratch}}
     if hit := smuggled.touched(history.get("smuggles"), tail, tests):

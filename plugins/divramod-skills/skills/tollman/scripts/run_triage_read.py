@@ -13,7 +13,8 @@ data, no IO. run_triage.py places what these find; run_triage_gather.py fetches 
   tests' files as the log names them (`files`, L195: a Rust panic's path, a bats `in test file <path>`, a nextest name
   `<crate>[::<binary>] <module>::<test>`), a build-phase timeout (docker compose's limit, exit 124), a transient fault
   (transient.TRANSIENT), the runner, a budget-only failure (`budget_only`, L13), a job no runner served
-  (`unserved`, L64) and a state-scratch finding of files left under the real roots (`scratch`, scratch_red.py, L151)
+  (`unserved`, L64), a state-scratch finding of files left under the real roots (`scratch`, scratch_red.py, L151)
+  and a time-limit kill with no finding left (`limit`, run_triage_limit.py, L267 of plan 0719)
 - `candidates`: a test file's log form as repository path suffixes, the most specific first (L195)
 """
 
@@ -23,6 +24,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import job_error
 import mtm_ci
 import mtm_scan
+import run_triage_limit
 import scratch_red
 import stack_red
 import transient
@@ -50,6 +52,10 @@ BUDGET = re.compile(r"over budget:|^\s*FAIL\s+\S+: p50 .*\(budget \d|p95=\S+ ms,
 # what only frames a failure (a step's exit, a spec's header, the gate's summary): never its own cause
 FRAME = re.compile(r"##\[error\]Process completed|✘|^failed now|gate: unit .* failed|^\s*FAILED|FAIL \[|panicked at|"
                    r"exit code \d+")
+# L267: what only frames a limit kill, never its cause: the gate's `::error::gate: <frame>: <step> failed` and
+# GitHub's own limit lines (the job's cancel that follows)
+LIMIT_FRAME = re.compile(run_triage_limit.FAILED.pattern + r"|" + run_triage_limit.GITHUB.pattern
+                         + r"|The operation was canceled", re.I)
 LINES = 12  # a unit's error lines kept as evidence
 # L195: where a failing test's file stands in a log: a Rust panic's location (`panicked at <path>:<line>`, the old
 # `panicked at '<msg>', <path>:<line>` too), bats' `(in test file <path>, line <n>)`, nextest's `FAIL [ <t>s]
@@ -153,7 +159,7 @@ def units(jobs: list[dict], log: str) -> list[dict]:
             got = step_lines(lines, step) if step else [t for _, t in lines]
             runner = RUNNER.search("\n".join(t for _, t in lines))
             u = out.setdefault(name, {"unit": name, "job": job["name"], "bare": stack_red.bare(job["name"]),
-                                      "conclusion": job.get("conclusion"), "steps": [], "lines": [],
+                                      "conclusion": job.get("conclusion"), "data": job, "steps": [], "lines": [],
                                       "runner": runner[1] if runner else "", "unserved": unserved(job)})
             u["steps"] += [step["name"]] if step else []
             u["lines"] += got or ([t for _, t in lines] if len(steps) <= 1 else [])
@@ -171,6 +177,25 @@ def budget_only(lines: list[str]) -> bool:
     line only frames a failure."""
     errors = [t for t in lines if ERRORS.search(t) and not NOISE.match(t)]
     return any(BUDGET.search(t) for t in lines) and all(BUDGET.search(t) or FRAME.search(t) for t in errors)
+
+
+def findings(lines: list[str]) -> list[str]:
+    """What names a cause in a unit's lines (L267): a failing spec or test, or an error line that is neither a frame
+    of the failure nor a limit's own line. A test runner's red line (job_error.OWN: `not ok`, `FAIL`, `error:`), a
+    budget, scratch or suite line counts as one."""
+    text = "\n".join(lines)
+    if specs(lines) or mtm_scan.failing_tests(text):
+        return [t for t in lines if ERRORS.search(t)][:LINES] or lines[:1]
+    return [t for t in lines if ((ERRORS.search(t) and not NOISE.match(t)) or job_error.OWN.match(t)
+                                 or BUDGET.search(t) or scratch_red.STRAY.search(t) or scratch_red.SUITE.search(t))
+            and not (FRAME.search(t) or LIMIT_FRAME.search(t))]
+
+
+def limit_kill(job: dict | None, lines: list[str]) -> dict | None:
+    """The time-limit kill of a unit (run_triage_limit.kill) when no finding is left in its lines; a limit kill with a
+    failing test or an error line of its own stays the car's, and a unit without lines has no evidence (L267)."""
+    found = run_triage_limit.kill(job, lines) if lines else None
+    return None if not found or findings(lines) else found
 
 
 def green_units(jobs: list[dict]) -> set[str]:
@@ -225,8 +250,9 @@ def candidates(name: str) -> list[str]:
     return out or ([f"{crate}/src/{binary}.rs", f"{crate}/src/{binary}/main.rs"] if binary else [f"{crate}/src/lib.rs"])
 
 
-def facts(lines: list[str]) -> dict:
-    """What a unit's lines say (see the module doc); `errors` all its error lines, the transient one included."""
+def facts(lines: list[str], job: dict | None = None) -> dict:
+    """What a unit's lines say (see the module doc); `errors` all its error lines, the transient one included;
+    `job` the unit's gh job object, which GitHub's own timed_out data of `limit` reads."""
     text = "\n".join(lines)
     hit = transient.TRANSIENT.search(text)
     errors = [t for t in lines if (ERRORS.search(t) and not NOISE.match(t)) or (hit and hit[0] in t)
@@ -234,7 +260,8 @@ def facts(lines: list[str]) -> dict:
     runner, timeout = RUNNER.search(text), bool(TIMEOUT.search(text))
     return {"errors": errors, "specs": specs(lines), "tests": mtm_scan.failing_tests(text), "files": test_files(text),
             "timeout": timeout, "transient": hit[0] if hit else "", "runner": runner[1] if runner else "",
-            "budget": not timeout and budget_only(lines), "scratch": scratch_red.read(text)}
+            "budget": not timeout and budget_only(lines), "scratch": scratch_red.read(text),
+            "limit": None if timeout else limit_kill(job, lines)}
 
 
 def evidence_lines(errors: list[str], spec: dict | None, others: list[dict]) -> list[str]:

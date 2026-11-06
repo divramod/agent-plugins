@@ -10,6 +10,9 @@ verdict per spec file. The kinds, the first that holds:
 - `runner`: its log shows a transient fault (transient.TRANSIENT): nobody, trains.settle retries
 - `runner` also: a job no runner served (no step, L64), and a state-scratch finding of files left under the real
   roots that no car's files could write (`scratch`, scratch_red.py, L151: another job of the runner's user wrote them)
+- `runner` also: a job the time limit killed with no finding line left (`limit`, run_triage_limit.py, L267 of plan
+  0719: train 56-7's c6-01-lint, records-check ended at the gate's 20 min on a loaded runner): the evidence's `match`
+  says `job limit: <step> after <hh:mm:ss>`; a limit kill with a failing test or an error line of its own is not one
 - `flake`: the same unit is green in another run of the same content (the head's tree), or it failed only on a
   latency budget or a test's time limit (L13, `budget`): nobody, no rerun (D12); a budget flake that repeats
   (`repeat_of`) is the flaky brief's (run_triage_act.py)
@@ -165,8 +168,9 @@ def verdict(run: dict, unit: dict, spec: dict | None, f: dict, ctx: dict) -> dic
     """One verdict, before the recheck."""
     needs = read.needs_red(unit["job"], ctx.get("graph") or {}, ctx.get("red") or [])
     scratch = None if f["specs"] or f["tests"] else scratch_red.runner(f["scratch"], ctx.get("cars"))  # L151
+    limit = None if f["specs"] or f["tests"] else f["limit"]  # L267
     runner = (f["transient"] or ("no runner served the job" if unit.get("unserved") else "")  # L64
-              or (scratch_red.match(scratch) if scratch else ""))
+              or (scratch_red.match(scratch) if scratch else "") or (limit["match"] if limit else ""))
     flake = None if needs or runner else flake_of(unit, ctx.get("others"))
     repeat = None if needs or runner or flake else repeat_of(unit["unit"], spec, f, ctx.get("previous"))
     e = {"run": run.get("url"), "id": run.get("id"), "commit": run.get("sha"), "runner": unit.get("runner") or f["runner"],
@@ -175,6 +179,8 @@ def verdict(run: dict, unit: dict, spec: dict | None, f: dict, ctx: dict) -> dic
          "spec": spec["file"] if spec else None, "needs_red": needs, "green_on": flake, "repeat_of": repeat,
          "cars": [c["field"] for c in ctx.get("cars") or []], "unserved": bool(unit.get("unserved")),
          "budget": f["budget"], "scratch": scratch}
+    if limit:
+        e.update({"limit": True, "match": limit["match"], "kill": limit})
     quiet = "needs-red" if needs else "runner" if runner else "flake" if flake or f["budget"] else None
     kind, why, owner = quiet, None, {}
     if not kind:
@@ -196,14 +202,14 @@ def classify(run: dict, units: list[dict], ctx: dict) -> list[dict]:
     """The verdicts of a finished run's red units (read.units), each rechecked (run_triage_check.recheck)."""
     out = []
     for unit in units:
-        f = read.facts(unit["lines"])
+        f = read.facts(unit["lines"], unit.get("data"))
         if not f["errors"]:
             v = verdict(run, unit, None, f, ctx)
             out.append(v if v["kind"] in QUIET else check.unsure(v, "an error line in the job's failed log"))
             continue
         quiet = (read.needs_red(unit["job"], ctx.get("graph") or {}, ctx.get("red") or []) or f["transient"]
                  or (not f["specs"] and not f["tests"] and scratch_red.runner(f["scratch"], ctx.get("cars")))
-                 or unit.get("unserved") or f["budget"] or flake_of(unit, ctx.get("others")))
+                 or f["limit"] or unit.get("unserved") or f["budget"] or flake_of(unit, ctx.get("others")))
         for spec in ([None] if quiet else f["specs"] or [None]):
             out.append(verdict(run, unit, spec, f, ctx))
     return [check.settle(v) for v in out]

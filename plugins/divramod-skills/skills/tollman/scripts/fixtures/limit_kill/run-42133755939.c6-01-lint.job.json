@@ -1,0 +1,143 @@
+{
+ "name": "c6-01-lint",
+ "status": "completed",
+ "conclusion": "failure",
+ "startedAt": "2026-11-06T00:30:27Z",
+ "completedAt": "2026-11-06T01:01:47Z",
+ "url": "https://github.com/divramod/hal2/actions/runs/42133755939/job/127618874810",
+ "steps": [
+  {
+   "name": "Set up job",
+   "number": 1,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:29Z",
+   "completedAt": "2026-11-06T00:30:29Z"
+  },
+  {
+   "name": "Set up runner",
+   "number": 2,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:29Z",
+   "completedAt": "2026-11-06T00:30:36Z"
+  },
+  {
+   "name": "[01] needed in this run, self-hosted only",
+   "number": 3,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:36Z",
+   "completedAt": "2026-11-06T00:30:36Z"
+  },
+  {
+   "name": "[02] green before",
+   "number": 4,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:36Z",
+   "completedAt": "2026-11-06T00:30:37Z"
+  },
+  {
+   "name": "[03] checkout",
+   "number": 5,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:37Z",
+   "completedAt": "2026-11-06T00:30:43Z"
+  },
+  {
+   "name": "[04] tools",
+   "number": 6,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:43Z",
+   "completedAt": "2026-11-06T00:30:44Z"
+  },
+  {
+   "name": "[05] bash-lint",
+   "number": 7,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:44Z",
+   "completedAt": "2026-11-06T00:30:44Z"
+  },
+  {
+   "name": "[06] ci-rules",
+   "number": 8,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:44Z",
+   "completedAt": "2026-11-06T00:30:53Z"
+  },
+  {
+   "name": "[07] leak-scan",
+   "number": 9,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:53Z",
+   "completedAt": "2026-11-06T00:30:54Z"
+  },
+  {
+   "name": "[08] lua-lint",
+   "number": 10,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:54Z",
+   "completedAt": "2026-11-06T00:30:54Z"
+  },
+  {
+   "name": "[09] protobuf-lint",
+   "number": 11,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:54Z",
+   "completedAt": "2026-11-06T00:30:55Z"
+  },
+  {
+   "name": "[10] python-lint",
+   "number": 12,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:30:55Z",
+   "completedAt": "2026-11-06T00:31:36Z"
+  },
+  {
+   "name": "[11] ts-lint",
+   "number": 13,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:31:36Z",
+   "completedAt": "2026-11-06T00:34:51Z"
+  },
+  {
+   "name": "[12] records-check",
+   "number": 14,
+   "conclusion": "failure",
+   "startedAt": "2026-11-06T00:34:51Z",
+   "completedAt": "2026-11-06T00:54:52Z"
+  },
+  {
+   "name": "[13] rust-lint",
+   "number": 15,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T00:54:52Z",
+   "completedAt": "2026-11-06T01:01:40Z"
+  },
+  {
+   "name": "[14] the lints' summary",
+   "number": 16,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T01:01:40Z",
+   "completedAt": "2026-11-06T01:01:40Z"
+  },
+  {
+   "name": "[15] remember the content green",
+   "number": 17,
+   "conclusion": "skipped",
+   "startedAt": "2026-11-06T01:01:40Z",
+   "completedAt": "2026-11-06T01:01:40Z"
+  },
+  {
+   "name": "Complete runner",
+   "number": 34,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T01:01:40Z",
+   "completedAt": "2026-11-06T01:01:44Z"
+  },
+  {
+   "name": "Complete job",
+   "number": 35,
+   "conclusion": "success",
+   "startedAt": "2026-11-06T01:01:44Z",
+   "completedAt": "2026-11-06T01:01:45Z"
+  }
+ ]
+}
