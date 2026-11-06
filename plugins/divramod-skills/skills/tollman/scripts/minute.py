@@ -29,6 +29,9 @@ Wiring.min_tick); the other duties keep their own crons. A tick on which only `w
 6. CI/CD health (ci_health.py, step 11, D12, D13): every runner of hal2-runners.toml checked each pass, a line only
    for a new problem (a queued job nobody serves, a pipeline host runner offline); a parked cloud machine with a
    queued job gets the supervisor's wake request at once.
+7. the standing train (plan 0695 steps 9, 10, D10, D19): a formed, ready train (hold lifted, tollman awake) starts in
+   this pass, with the round's key (train_start.py); its push and land run start print as one line each, and a ready
+   or started train shown as waiting is a `report check` line (train_report.py).
 6. on the watched run's `workflow finished` (hal2 plan 0490 step 3, D6): the run's triage starts as
    run_triage_wire.py's detached child, which waits for this pass's or round's tick lock, so it reads and plans
    only after the chain of 4. has formed the next train, beside it; the pass goes on at once. The triages written
@@ -63,7 +66,7 @@ from tick import act, default_ref
 
 ITEM = "duty:watch"
 KIND = "watch"  # the duty name in the actions
-PRINTED = ("early-order", "post-order", "chain", "runner", "red", "fixed", "restart")  # the pass's trains lines
+PRINTED = ("early-order", "post-order", "chain", "runner", "red", "fixed", "restart", "report-push", "report-run", "report-check")  # the pass's trains lines
 
 
 def ended(top: str, main: str, doc: dict, log: list[dict]) -> list[dict]:
@@ -72,6 +75,23 @@ def ended(top: str, main: str, doc: dict, log: list[dict]) -> list[dict]:
         return []
     import landing_end
     return landing_end.actions(top, main, doc, log)
+
+def started(top: str, main: str, doc: dict, log: list[dict], now: dt.datetime) -> list[dict]:
+    """7.: the standing train's start and report lines (plan 0695 steps 9, 10); loaded only while a train stands. A
+    formed, ready train (train_start.ready: hold lifted, awake) is started now with the round's own action (key
+    `resume:<train>`, so a round later starts nothing twice); the train's push and land run lines (train_report)
+    and the check that a ready or started train is never reported waiting."""
+    rows = train_state.lines(main)
+    train = train_state.standing(rows)
+    if not train:
+        return []
+    import hold
+    import train_report
+    import train_start
+    held, asleep = hold.of(main), modes.asleep(modes.of(doc))
+    return train_start.actions(top, main, train, doc.get("queue", []), modes.of(doc), held, asleep) + (
+        [] if asleep else train_report.lines(main, rows, train) + train_report.check(main, rows, train, log, now, held))
+
 
 def events(top: str, main: str, dry: bool, doc: dict | None = None, panes: dict | None = None) -> list[dict]:
     """The new events of the watched land run as `record` actions, one line each (the line is the action's text),
@@ -195,7 +215,8 @@ def run(repo: str, wiring, now: dt.datetime | None = None) -> int:
             panes = Panes(lambda: tick.context(top, main, {}, now, False, wiring)["panes"])
             log = read_log(main, wiring.role)
             planned = ([] if asleep else leaver_actions(top, main, doc, now, wiring, panes)) + events(
-                top, main, False, doc, panes) + ([] if asleep else ended(top, main, doc, log))
+                top, main, False, doc, panes) + ([] if asleep else ended(top, main, doc, log)) + started(
+                top, main, doc, log, now)
         for a in tick.fresh(planned, log, now, wiring.role):
             tick.execute(a, top, main, out, wiring)
             if a["duty"] == KIND or a["kind"] in PRINTED:

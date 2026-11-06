@@ -231,6 +231,14 @@ def cmd_busy(_args, listing: str | None = None):
     return 1 if hits else 0
 
 
+def self_ignored(top: Path, rel: str) -> bool:
+    """A folder whose own `.gitignore` (`*`, as ruff writes one) ignores all of it, itself included: `check-ignore` says
+    the folder is not ignored, yet it holds nothing git shows (the prune's field 01, 2026-11-05)."""
+    if not (top / rel).is_dir() or git("-C", str(top), "ls-files", "--others", "--exclude-standard", "--", rel).strip():
+        return False
+    return subprocess.run(["git", "-C", str(top), "check-ignore", "-q", f"{rel}/.gitignore"]).returncode == 0
+
+
 def check(top: Path, rel: str):
     """Why rel must not be deleted, or None."""
     path = (top / rel).resolve() if not (top / rel).is_symlink() else (top / rel).parent.resolve() / (top / rel).name
@@ -245,7 +253,7 @@ def check(top: Path, rel: str):
         return "holds tracked files"
     if holds_protected(top, rel):
         return HOLDS_PROTECTED
-    if subprocess.run(["git", "-C", str(top), "check-ignore", "-q", rel]).returncode != 0:
+    if subprocess.run(["git", "-C", str(top), "check-ignore", "-q", rel]).returncode != 0 and not self_ignored(top, rel):
         return "not git-ignored"
     return None
 

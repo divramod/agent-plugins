@@ -50,3 +50,32 @@ def summary(a: dict, status: str, freed: int, text: str) -> str:
     if a["action"] == "trim":
         return f"trimmed {slot} {', '.join(a.get('paths') or ['the cleanup set'])}: {size} freed"
     return f"{PAST[a['action']]} {slot}: {size} freed, {a['why']}"
+
+
+FAILURE = "failure "  # a report line `failure <field> <action>: <reason>`, read back by prune_timer.py
+
+
+def reason(text: str, fallback: str = "no output") -> str:
+    """Why an action failed: the tool's refusing lines (`skip <path>: not git-ignored`, errors) one after the other, else
+    its last line, at most 240 characters."""
+    lines = [x.strip() for x in str(text).splitlines() if x.strip()]
+    hits = [x for x in lines if x.lower().startswith(("skip", "error", "refus", "facts:", "failed"))]
+    return " | ".join(hits or lines[-1:] or [fallback])[:240]
+
+
+def failed(rows: list[dict]) -> dict[str, list[tuple[str, str]]]:
+    """The failed fields in the order they first failed, each once, with its (action, reason) pairs."""
+    out: dict[str, list[tuple[str, str]]] = {}
+    for r in rows:
+        if r["status"] == "failure":
+            out.setdefault(r["field"], []).append((r["action"], r["why"]))
+    return out
+
+
+def failure_lines(rows: list[dict]) -> list[str]:
+    """`failed: 01, 05` (a field once, however many actions failed) and a `failure <field> <action>: <reason>` line each."""
+    by_field = failed(rows)
+    if not by_field:
+        return []
+    return [f"failed: {', '.join(by_field)}",
+            *(f"{FAILURE}{field} {action}: {why}" for field, acts in by_field.items() for action, why in acts)]

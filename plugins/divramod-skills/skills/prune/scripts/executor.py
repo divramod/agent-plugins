@@ -29,7 +29,7 @@ import busy
 import disk_phase
 import sizes
 import store
-from executor_out import PAST, Out, summary, why_not  # noqa: F401  (re-exported)
+from executor_out import PAST, Out, failure_lines, reason, summary, why_not  # noqa: F401  (re-exported)
 
 
 def free_bytes(main: str) -> int:
@@ -249,7 +249,7 @@ class Run:
         said = [text, summary(b, status, freed, text)]
         for one in reversed(said) if b["action"] == "clear-pointer" else said:
             self.out.line(one)
-        self.row(b, status, freed, b["why"] if status != "skipped" else text)
+        self.row(b, status, freed, {"success": b["why"], "failure": reason(text)}.get(status, text))
         if b["action"] == "remove" and status == "success":
             self.gone.add(slot)
         self.out.end(status)
@@ -277,9 +277,8 @@ class Run:
         after = self.before if self.dry else facts.disk(self.main)
         self.out.line(f"free before: {self.before['free_gb']:g} GB, after: {after['free_gb']:g} GB")
         done = [r for r in self.rows if r["status"] in ("success", "would") and r["action"] != "half-removed"]
-        failed = [r["field"] for r in self.rows if r["status"] == "failure"]
-        if failed:
-            self.out.line(f"failed: {', '.join(failed)}")
+        for one in failure_lines(self.rows):  # a field once, each failure with its reason (the timer's state keeps them)
+            self.out.line(one)
         freed = sum(r["bytes"] for r in done)
         self.out.line(f"prune: {len(done)} {'planned ' if self.dry else ''}actions, {sizes.human(freed)} "
                       f"{'to free' if self.dry else 'freed'}, {len(self.asks)} asks")

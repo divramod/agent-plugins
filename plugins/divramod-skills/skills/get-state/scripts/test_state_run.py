@@ -48,6 +48,9 @@ class Busy(test_state.Fixture):
         self.assertEqual(self.rows()["02"]["agent"], "none")
 
 
+REAL_STATUS = state.src.autopilot_status  # the real reader, before a Fixture mocks it
+
+
 class RunState(test_state.Fixture):
     def set_state(self, field: str, state_word: str, why: str | None = None, plan: str = "0042-the-answer") -> None:
         state_run.runstate.write(self.wt / field, plan, state_word, why)
@@ -89,6 +92,25 @@ class RunState(test_state.Fixture):
         self.mock(state.src, "workqueue_jobs", test_state.REAL_JOBS)
         data = state.collect(str(self.main))
         self.assertEqual((len(reads), [j["field"] for j in data["jobs"]]), (1, ["wt/02"]))
+
+    def test_status_the_cause_comes_from_the_cli_text_before_any_wait(self):
+        """Plan 0695 D14: a frozen field says the autopilot CLI's own `text`; a field it does not name keeps its wait."""
+        self.set_queue(status_doc(waiting=[{"field": "wt/10", "class": "build", "cwd": str(self.wt / "10")}],
+                                  holds=[{"id": "h1", "class": "landing", "field": "proj/07", "state": "holding"}]))
+        self.mock(state.src, "autopilot_status", lambda main: {"02": "frozen by CI (divramod-hal2-a)", "1": "thawed by CI"})
+        rows = self.rows()
+        self.assertEqual(rows["02"]["wq_wait"], "frozen by CI (divramod-hal2-a)")
+        self.assertIn("frozen by CI (divramod-hal2-a)", rows["02"]["cells"][3])
+        self.assertEqual(rows["10"]["wq_wait"], "waits behind landing 07")
+        self.assertEqual(rows["1"]["wq_wait"], "thawed by CI")
+
+    def test_status_the_cli_document_is_read_as_field_to_text(self):
+        doc = {"schema": 1, "repo": "hal2", "fields": [{"field": "07", "status": "frozen_user", "detail": "x", "text": "frozen by user"},
+                                                       {"field": "", "text": "no"}, "junk"]}
+        self.mock(state.src, "tool_json", lambda args, cwd=None: doc)
+        self.assertEqual(REAL_STATUS(str(self.main)), {"07": "frozen by user"})
+        self.mock(state.src, "tool_json", lambda args, cwd=None: None)
+        self.assertIsNone(REAL_STATUS(str(self.main)))
 
     def test_the_pages_show_it(self):
         row = {**view_farmer.DEFAULTS, "wt": "02", "paused": None, "run_state": {"state": "pushing", "why": "", "at": ""},

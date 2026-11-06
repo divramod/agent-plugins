@@ -311,8 +311,11 @@ def main(argv: list[str]) -> int:
     if args.cmd == "due":
         rows = [x for x in rows if x["due"]]
     import tasks  # here: tasks imports tick, which imports this module
+    import timer_state  # here: only the listing needs it, a quiet tollman pass stays light (test_light_start)
     modes = {n: "machine" if s["machine"] else "model" for n, s in tasks.parse(role.read_text()).items()}
     result = {"ok": True, "loop_cron": loop_cron(items), "settings": settings, "tasks": modes,
+              "timers": [timer_state.line(roles.state_dir(args.repo, DATA))],
+              "duties": [{"name": r["name"][5:], "cron": r["cron"]} for r in rows if r["name"].startswith("duty:")],
               "items": [] if args.cmd == "check" else rows}
     if args.json:
         print(json.dumps(result, indent=1))
@@ -320,6 +323,10 @@ def main(argv: list[str]) -> int:
         print(f"{roles.ROLE_FILE} ok; farmer loop cron `{result['loop_cron']}`; {settings}")
         for name, mode in modes.items():
             print(f"- task {name}: {'run by the tick' if mode == 'machine' else 'prose: the woken model runs it'}")
+        for d in result["duties"] if args.cmd == "check" else []:
+            print(f"- duty {d['name']}: {d['cron']}")
+        for text in result["timers"]:
+            print(f"- {text}")
         for x in result["items"]:
             print(f"- {x['name']:40} {x['cron']:16} last {x['last'] or 'never'}" + ("  DUE" if x["due"] else ""))
     return 0

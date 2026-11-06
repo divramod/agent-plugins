@@ -159,7 +159,7 @@ def build_row(w: dict, ctx: dict, facts: dict | None = None) -> dict:
         **{k: v for k, v in f["plan_facts"].items() if k != "plan_slug"},
         **agent_facts(ctx["agents"], path), **f["git_facts"], "git": f["git"],
         "queue": queue_fact(ctx["queue"], path, wt), "paused": ctx["paused"].get(wt),
-        "run_state": state_run.run_state(path), "wq_wait": state_run.wait_of(ctx["wq"], path, bool(w.get("is_main"))),
+        "run_state": state_run.run_state(path), "wq_wait": ctx.get("cause", {}).get(wt) or state_run.wait_of(ctx["wq"], path, bool(w.get("is_main"))),
         "ci": [{k: r[k] for k in ("workflow", "status", "branch", "url")} for r in runs if r["branch"] in ci_branches] if runs else [],
     }
     progress = row.pop("progress_hitch", None)
@@ -199,6 +199,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
         f_agents, f_queue, f_runs = pool.submit(src.agents), pool.submit(src.queue_state, main), pool.submit(src.open_runs, main)
         f_wq = pool.submit(src.workqueue_status)  # read once: the jobs table and each field's workqueue wait
         f_paused = pool.submit(src.paused_fields, main)
+        f_cause = pool.submit(src.autopilot_status, main)  # why a field is frozen (plan 0695 D14), the CLI's words
         f_depends = pool.submit(src.depends, main)
         f_questions = ledger_sources.submit_questions(ledger_rows(slots), pool) if ledgers else None
         f_facts = [pool.submit(worktree_facts, w, default, table_facts) for w in slots]
@@ -208,7 +209,7 @@ def collect(repo: str, here: str | None = None, table_facts: bool = True, ledger
         runs = f_runs.result()
         graph = f_depends.result()
         ctx = {"depends": graph, "own": os.path.realpath(top) if top else None, "default": default, "agents": f_agents.result(), **f_queue.result(),
-               "runs": runs, "paused": f_paused.result() or {}, "wq": f_wq.result(), "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
+               "runs": runs, "paused": f_paused.result() or {}, "wq": f_wq.result(), "cause": f_cause.result() or {}, "log": log, "asking": src.asks(log), "unacked": src.unacked(log)}
         rows = [build_row(w, ctx, f.result()) for w, f in zip(slots, f_facts)]
         questions = f_questions() if f_questions else None
     rows.sort(key=slot_key)

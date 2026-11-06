@@ -130,6 +130,7 @@ class Fixture(unittest.TestCase):
             self.mock(src, name, lambda *a, _v=value: _v)
         self.mock(src, "queue_state", lambda *a, _q=queue, _m=mode: {"queue": _q, "mode": _m})
         self.mock(src, "workqueue_status", lambda: None)  # no real `hal2-cli-workqueue`; a test sets the document it wants
+        self.mock(src, "autopilot_status", lambda *a: None)  # no real `hal2-cli-agents autopilot status`
         self.mock(src, "workqueue_jobs", lambda *a: [{"field": "hal2/16", "class": "test", "head": "cargo nextest"}])
         self.mock(src, "depends", lambda *a: None)  # no real `hal2-cli-plans depends list` (test_state_depends fakes it)
         self.mock(src, "git_numbers", lambda *a: None)  # no real `hal2-cli-git status` of the fixture's worktrees

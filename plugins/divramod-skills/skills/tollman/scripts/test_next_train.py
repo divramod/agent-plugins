@@ -113,7 +113,7 @@ class MergeGreen(Trains):
         self.crop("03", {"three.txt": "3"}, plan="0382-three")
         self.panes["03"] = "%3"
         self.gh.jobs["720"] = [job("d1-01-rust-test", "success"), MERGE]
-        self.assertEqual(self.minute(), f"merge job green: d2-01-git-merge ({self.url})\n",
+        self.assertEqual(self.minute(), f"merge job green: d2-01-git-merge ({self.url})\nland run started: 720 ({self.url})\n",
                          "the landing's process still runs: never stopped, the next minute looks again")
         self.assertEqual((self.train()["train"], len(self.spawned)), (self.a["train"], 1))
         self.ends({"status": "landed", "commit": out(self.cw, "rev-parse", "HEAD"), "run": self.url})

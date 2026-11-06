@@ -169,6 +169,9 @@ if __name__ == "__main__":
     unittest.main()
 
 
+STALE = {"age": None, "interval_s": 60, "mode": "", "records": []}
+
+
 class Autopilot(unittest.TestCase):
     """The foreman limit's duty (hal2 plan 0543 step 24): the Rust tick's report into the frame's acts."""
 
@@ -176,8 +179,8 @@ class Autopilot(unittest.TestCase):
         return {"schema": 1, "repo": "hal2", "mode": mode, "dry_run": True, "working": [], "frozen": [],
                 "changes": list(changes), "tell_tollman": tell}
 
-    def plan(self, report, orders=("44",), **kw):
-        return duties.plan_autopilot({}, ctx(**kw), report=report, orders=list(orders))
+    def plan(self, report, orders=("44",), view=STALE, **kw):
+        return duties.plan_autopilot({}, ctx(**kw), report=report, orders=list(orders), view=view)
 
     def test_a_quiet_or_unreadable_tick_plans_nothing(self):
         self.assertEqual(self.plan(self.report()), [])
@@ -189,7 +192,7 @@ class Autopilot(unittest.TestCase):
                                      {"field": "03", "action": "thaw", "why": "w", "argv": []}))
         self.assertEqual(len(acts), 1)
         self.assertEqual(acts[0]["do"], "run")
-        self.assertEqual(acts[0]["argv"], duties.AUTOPILOT + ["--repo-dir", "/x/hal2", "--spare", "44"])
+        self.assertEqual(acts[0]["argv"][2:], ["tick", "--repo-dir", "/x/hal2", "--spare", "44"])
         self.assertIn("freeze 01, thaw 03", acts[0]["text"])
 
     def test_a_start_runs_its_argv_once_per_cool_down(self):

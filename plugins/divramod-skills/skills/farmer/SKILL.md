@@ -108,6 +108,22 @@ hand): a reserved or dead holder while others wait over 15 min, a gate step over
 others waiting. A new finding wakes, one lasting over 30 min reaches the user once (`alarm.py`). Woken for:
 [instructions/queue.md](instructions/queue.md).
 
+### autopilot
+The foreman limit (`duties.plan_autopilot`, `autopilot_duty.py`, hal2 plans 0543, 0695): the daemon ticks by itself
+(`hal2-agents-node`, every `interval_s`) and journals each act (`autopilot-journal.jsonl`); this duty, every 15 min,
+copies its new journal records into `log.jsonl` (kinds `journal-freeze|thaw|start|skip`, once each), runs the limit
+itself (`hal2-cli-agents autopilot tick`, freezes, thaws, starts) only while the daemon's heartbeat
+(`autopilot-heartbeat.json`) is older than 3 intervals (a busy tick, exit 1 "another autopilot tick of <repo> runs",
+means the daemon ticks and is no failure), relays the hitch threshold's order to the tollman, and wakes the farmer
+plus a notice (`alarm.py autopilot-freeze`) once for a freeze open over 90 min without a Mac job. Its freezes are
+`--by farmer-limit`; the Agents view's holds (`--by agents-view`) are the user's and never thawed here. The seven bulk
+duties are plan 0697's, not this one's (0695 D21).
+
+### runners
+The runner health (`duties.plan_runners`): one `run` of `hal2-cli-ci runner health --json` per round, `--repair` while
+the farm's autopilot switch `runner_repair` is on; a failed repair is a failed run `duty_health` reports (0543 D38;
+declared in ROLE.md since 0695 D27).
+
 ### tasks
 The `## Tasks` of the repository's ROLE.md, each on its cron (`tasks.py`, machine form or prose). Woken for:
 [instructions/task.md](instructions/task.md).

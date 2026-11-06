@@ -131,6 +131,16 @@ def workqueue_status() -> dict | None:
     return raw if isinstance(raw, dict) else None
 
 
+def autopilot_status(main: str) -> dict[str, str] | None:
+    """Each frozen or just thawed field's cause from `hal2-cli-agents autopilot show --status --json` (plan 0695 D14): the
+    field's name (`07`) to the CLI's own `text` (`frozen by CI (<job>)`, `frozen by user`, `thawed by CI`), never a
+    wording of ours; None when the CLI is missing, fails or prints no document."""
+    raw = tool_json(["hal2-cli-agents", "autopilot", "show", "--status", "--json"], main)
+    if not isinstance(raw, dict) or not isinstance(raw.get("fields"), list):
+        return None
+    return {f["field"]: f["text"] for f in raw["fields"] if isinstance(f, dict) and f.get("field") and f.get("text")}
+
+
 def workqueue_jobs(raw: dict | None = None) -> list[dict] | None:
     """The jobs running now from the status document's `live` list (plan 0382 step 5; `raw`: the one already read, else
     read here): `field`, `class`, `head`, `since`, `source`, `flags` each; None when the CLI is missing, fails or gives

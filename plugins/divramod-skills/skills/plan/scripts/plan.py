@@ -718,10 +718,7 @@ def set_cells(path: Path, step: str, values: dict[str, str]) -> dict | None:
     missing = [name for name in values if name not in cols]
     if missing:
         raise PlanError(f"the step table of {slug_of(path)} has no column {', '.join(missing)}")
-    for i in range(header + 2, len(lines)):
-        if not lines[i].lstrip().startswith("|"):
-            break
-        cells = split_row(lines[i])
+    for i, cells in table.rows([l.rstrip("\n") for l in lines], header):
         if cells and cells[cols["#"]] == step:
             if misfit := table.misfit(cells, table.width(lines, header)):
                 raise PlanError(f"step {step} of {slug_of(path)} is not written: its row {misfit}")

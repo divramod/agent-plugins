@@ -82,7 +82,7 @@ class Ends(Farm):
         return [e["key"] for e in read_log(str(self.main), "tollman") if e.get("kind") == kind]
 
     def test_run_41167356202_ends_red_in_its_first_pass_and_lands_again_once_every_fix_is_in(self):
-        self.assertEqual(self.minute(), [], "05:00Z: the run runs, its reds told before")
+        self.assertEqual(self.minute(), [f"land run started: {RID} ({URL})"], "05:00Z: the run runs, its reds told before")
         self.finish()  # 05:00:27Z
         self.assertEqual(self.minute(), [f"workflow finished: failure ({URL})",
                                          f"train {self.name} is red (gate_failed): {', '.join(REDS)}"],
@@ -133,7 +133,7 @@ class Ends(Farm):
 
     def test_a_red_after_the_merge_job_and_a_cancelled_run_end_nothing(self):
         self.finish(merged=True)
-        self.assertEqual(self.minute()[-1], f"workflow finished: failure ({URL})", "post-merge: post_merge.py's")
+        self.assertIn(f"workflow finished: failure ({URL})", self.minute(), "post-merge: post_merge.py's")
         self.assertEqual(self.train()["state"], "landing")
         state = {**watch_events.state(str(self.main)), "conclusion": "cancelled"}
         state["seen"] = [k for k in state["seen"] if not k.startswith("merge:")]
@@ -142,7 +142,7 @@ class Ends(Farm):
     def test_a_green_run_forms_the_next_train_after_the_landing_s_end(self):
         self.finish("success", merged=True)
         self.assertEqual(self.minute(), [f"merge job green: d2-01-git-merge ({URL})",
-                                         f"workflow finished: success ({URL})"], "its process still runs")
+                                         f"workflow finished: success ({URL})", f"land run started: {RID} ({URL})"], "its process still runs")
         self.ends({"status": "landed", "run": URL, "commit": "c" * 40}, land=True)
         self.assertIn(f"train {self.name}: merge job green: the next train forms on the new main", self.minute())
         self.assertEqual([e["kind"] for e in train_state.lines(str(self.main))][-1], "landed")

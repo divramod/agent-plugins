@@ -11,11 +11,13 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import due
+import hold
 import leavers
 import minute
 import mtm_scan
 import pass_timing
 import role_cli
+import roletime
 import tick
 import train_state
 import tollman
@@ -74,12 +76,22 @@ class Pass(Field):
         self.assertEqual(code, 0)
         return out
 
+    def told_run(self):
+        """The log already holds the land run's start line (train_report.py): a pass prints only what a test asks."""
+        for k in ("report:run:501", "report:push:" + "p" * 12):
+            with (self.wm_state / "log.jsonl").open("a") as f:
+                f.write(json.dumps({"at": roletime.utcnow().isoformat(), "key": k, "duty": "report"}) + "\n")
+
     def set_run(self, jobs, **kw):
         self.gh.jobs["501"] = jobs
         self.gh.runs[:] = [dict(RUN, **kw)]
 
 
 class Quiet(Pass):
+    def setUp(self):
+        super().setUp()
+        self.told_run()
+
     def test_the_role_file_with_the_watch_loops_every_minute(self):
         code, check = role_cli.start_check(str(self.wm), tollman.WIRING)
         self.assertEqual((code, check["loop_cron"]), (0, "* * * * *"))
@@ -154,6 +166,7 @@ class Quiet(Pass):
 class Events(Pass):
     def setUp(self):
         super().setUp()
+        self.told_run()
         p = mock.patch.object(train_state, "alive", lambda pid: True)  # the landing's process runs (pid 4711)
         p.start()
         self.addCleanup(p.stop)
@@ -210,7 +223,8 @@ class Events(Pass):
         newer = run(502, "land/" + BRANCH, "2099-01-02T00:00:00Z", status="in_progress")
         self.gh.runs.insert(0, newer)
         self.gh.jobs["502"] = [job("d1-01-rust-test", "failure")]
-        self.assertEqual(self.tick(), "job failed: d1-01-rust-test: step test failed\n",
+        self.assertEqual(self.tick(), "job failed: d1-01-rust-test: step test failed\n"
+                         f"land run started: 502 ({self.gh.runs[0]['url']})\n",
                          "run 502 is a new run: its job is news")
 
     def test_the_round_s_function_returns_the_events_and_a_dry_look_tells_nothing(self):
@@ -271,6 +285,54 @@ class Leavers(Pass):
         with mock.patch.object(mtm_scan, "run_json", lambda args, cwd=None: {"queue": [], "mode": {"mode": "smuggle"}}):
             self.assertEqual(self.tick(), "")
         self.assertEqual(self.check.call_count, 0)
+
+
+class Start(Pass):
+    """Plan 0695 step 9 (D10): a formed, ready train starts in the minute pass, with the round's key."""
+
+    def setUp(self):
+        super().setUp()
+        self.mode = {"mode": "production"}
+        real = mtm_scan.run_json
+        run_json = mock.patch.object(mtm_scan, "run_json", lambda args, cwd=None: {"queue": [], "mode": self.mode}
+                                     if args == mtm_scan.QUEUE else real(args, cwd))
+        alive = mock.patch.object(train_state, "alive", lambda pid: True)
+        for p in (run_json, alive):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def starts(self):
+        return [a for a in self.sh if "restart" in a]
+
+    def test_a_formed_ready_train_starts_in_the_minute(self):
+        self.train("formed")
+        out = self.tick()
+        self.assertEqual(len(self.starts()), 1)
+        self.assertIn(f"train {NAME} lands again", out)
+        self.assertEqual([e["key"] for e in self.wm_log() if e["kind"] == "restart"], [f"resume:{NAME}"])
+
+    def test_a_held_train_a_landing_and_smuggle_mode_start_nothing(self):
+        self.train("formed")
+        with mock.patch.object(hold, "of", lambda main: {"why": "x", "at": "t", "by": "user"}):
+            self.tick()
+        self.assertEqual(self.starts(), [], "a hold: no start")
+        self.mode = {"mode": "smuggle"}
+        self.tick()
+        self.assertEqual(self.starts(), [], "smuggle mode: the tollman sleeps")
+
+    def test_a_landing_in_progress_is_never_started_again(self):
+        self.train("formed", "started")
+        self.tick()
+        self.assertEqual(self.starts(), [])
+
+    def test_a_pass_then_a_round_start_it_once(self):
+        self.train("formed")
+        self.tick()
+        for item in ("duty:trains", "duty:mtm"):  # the round's duties are due: a round, not a pass
+            due.record_run(str(self.wm), item, dt.datetime(2000, 1, 1), role="tollman")
+        self.assertIn("duty:trains", [r["name"] for r in tick.due_items(str(self.wm), None, False, tollman.WIRING)[0]])
+        self.call("tick")
+        self.assertEqual(len(self.starts()), 1, "the round's restart carries the pass's key: dropped as done")
 
 
 if __name__ == "__main__":

@@ -133,6 +133,22 @@ class MilestoneTest(unittest.TestCase):
         steps[0]["status"] = "done"
         self.assertEqual([s["number"] for s in parallel.schedule(steps, {})[0]], ["2"])
 
+    def test_a_blank_line_before_the_milestone_row_keeps_the_plan_open(self):
+        """Plan 0695 row 53: rows 1-2 done, Milestone row 3 after a blank line, row 4 open."""
+        text = PLAN.replace("| 3 | three | after milestone 1: ok", "\n| 3 | Milestone 1: land | the rows above are landed")
+        text = text.replace("| 4 | four | after the landing: ok", "| 4 | four | ok")
+        self.path.write_text(text)
+        (self.path.parent / "decisions.md").write_text("---\ntype: Decisions\nstatus: open\n---\n")
+        self.plan("status", "2", "done")
+
+        after = self.path.read_text()
+        self.assertIn("status: open", after)
+        self.assertNotIn("finished", after.lower())
+        self.assertIn("status: open", (self.path.parent / "decisions.md").read_text())
+        info = self.plan("current")
+        self.assertEqual((info["done"], info["total"]), (2, 4))
+        self.assertEqual([s["number"] for s in info["steps"]], ["1", "2", "3", "4"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -65,6 +65,7 @@ import resolve
 import roletime
 import stack_red
 import train_depends  # noqa: F401  (trains_draft reads it; tests fake trains.train_depends.read)
+import train_start
 import train_state
 import train_wt
 import smuggled
@@ -261,12 +262,13 @@ def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict
         return pre + hold.keep(settle(top, train, result(main), panes, tickets), held)  # held: no restart (L107)
     if held:  # plan 0383 step 7 (D7): the hold; a landing that runs or settles went on above, nothing forms or starts
         return pre + [hold.line(held)]
+    if train and train["state"] == "formed":  # formed, never started: the same train, never a re-draft (train_start.py)
+        return train_start.actions(top, main, train, queue, mode)  # joins first (plan 0610 D17), then the restart
     joins = join_actions(top, main, train, queue, mode)  # until its push (plan 0610 D17): before every start
-    if train and train["state"] in ("retry", "formed"):  # formed, never started: the same train, never a re-draft
-        key = train_state.restart_key(train)  # retry: new after every restart past its checks (plan 0620 D5)
-        first = proof_orders.pending(top, main, train, rows) if train["state"] == "retry" else []  # a joiner's (D6)
-        return joins + (first or [run("restart", "-", key, "restart", top, text=f"train {train['train']} lands again",
-                                      **({"window": RESUME_WINDOW} if train["state"] == "formed" else {}))])
+    if train and train["state"] == "retry":  # new restart key after every restart past its checks (plan 0620 D5)
+        first = proof_orders.pending(top, main, train, rows)  # a joiner's (D6)
+        return joins + (first or [run("restart", "-", train_state.restart_key(train), "restart", top,
+                                      text=f"train {train['train']} lands again")])
     if train and train["state"] in ("red", "fixing", "resolving"):  # a car with red light checks: its fix order
         return joins + proof_orders.actions(top, main, train, rows) * (train["state"] != "resolving")
     if train and train["state"] == "stopped":  # a role car left out twice in a row (plan 0610 D24): tried again

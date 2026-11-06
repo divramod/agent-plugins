@@ -31,14 +31,33 @@ def header(lines: list[str]) -> tuple[int, dict[str, int]] | None:
     return None
 
 
+def is_row(line: str) -> bool:
+    """A body row of the table: a `|` line that is not a separator (`|---|`), which opens another table."""
+    return line.lstrip().startswith("|") and not re.fullmatch(r"[|\s:-]+", line.strip())
+
+
 def rows(lines: list[str], at: int) -> list[tuple[int, list[str]]]:
-    """The rows below the header line `at` and its separator, as (line index, cells), up to the table's end."""
+    """The rows below the header line `at` and its separator, as (line index, cells), up to the table's end. A
+    blank line inside the table does not end it while body rows follow (plan 0695 row 53: a blank line before the
+    Milestone row hid every row below it, so `status` stamped the plan done); only a line of prose or a heading does."""
     found = []
     for i in range(at + 2, len(lines)):
+        if not lines[i].strip():
+            if not _row_follows(lines, i):
+                break
+            continue
         if not lines[i].lstrip().startswith("|"):
             break
         found.append((i, split_row(lines[i])))
     return found
+
+
+def _row_follows(lines: list[str], i: int) -> bool:
+    """True when only blank lines lie between line `i` and the next body row of the same table."""
+    for line in lines[i:]:
+        if line.strip():
+            return is_row(line)
+    return False
 
 
 def width(lines: list[str], at: int) -> int:
