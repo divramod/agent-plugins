@@ -20,7 +20,8 @@ EXCEPTIONS, never else.
    other car rides; then every other wagon waits for the train after it
 5. the minimum (plan 0610 D11, trains.MIN_HITCHED; the user, 2026-10-31: "I said at least 10 hitched fields ... So
    it should be 10 plus."): with fewer hitched fields every wagon waits (`minimum`), unless an alone car rides
-6. the trial merge in queue order (trial.py; no car limit, plan 0463 D1): a conflict, not only in generated files, is
+6. the trial merge in queue order (trial.py; no car limit unless the user's standing `max-cars <n>`: the first n ride,
+   the rest wait, hitched, for a later train, plan 0695 D62): a conflict, not only in generated files, is
    a car with `conflict` and `ahead` (plan 0522 D18); a trial that cannot run is tried once more, then the car rides
    `untried` and `engine.py form` merges it (E15); before it the wagons are ordered by the farm's plan dependencies
    (train_depends.py, plan 0595 D22: a dependent behind its dependency, never left out; the draft's `depends`).
@@ -54,19 +55,22 @@ EXCEPTIONS = {
     "hold": "the user's hold (hold.py, with the user's words)",
     "own-landing": "its own landing runs",
     "alone": "the alone car's own train, right after this one (plan 0610 D9, D15)",
+    "max-cars": "the user's standing max-cars: the train is full, the wagon rides a later one (standing.py; hitch-is-forever)",
     "minimum": "fewer than 10 fields are hitched (the user, 2026-10-31: \"I said at least 10 hitched fields ... So it "
                "should be 10 plus.\"; plan 0610 D11)",
 }
+MAX_CARS = "a train takes at most {n} cars (the user's standing max-cars): it rides a later train"
 MINIMUM = "{n} of {minimum} fields hitched: a train forms once {minimum} are, and takes every one (plan 0610 D11)"
 
 
 def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mode: dict | None, prove,
-          carried=(), first=(), minimum: int = 0) -> dict:
+          carried=(), first=(), minimum: int = 0, max_cars: int = 0) -> dict:
     """{base, cars ([{field, branch, head, plan, ...}] in order), unhitched (always [], kept for its readers),
     waiting ([{field, why, reason}]), alone (the one car rides alone), alone_next (the alone cars that wait for their
     own train), barn_red ([{field, lines}])}. `prove` is trains.PROVE; `carried`: commits whose ancestors ride already
     (the standing train's carrier head); `first`: the alone cars owed their train now; `minimum`: the hitched fields
-    a train needs (0: none, the open train's joins)."""
+    a train needs (0: none, the open train's joins); `max_cars`: the user's standing cap on the cars (0: none; the rest
+    wait, hitched, for the next train)."""
     rides, later = kinds.split(tickets, own, mode)
     wagons, kept = sort_out(main, default, rides, own)  # they wait, hitched (never unhitched, the user 2026-11-04)
     deps = train_depends.read(main) if wagons else train_depends.NONE  # a dependent behind its dependency (0595 D22)
@@ -100,6 +104,9 @@ def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mod
     else:
         acc = base
         for t in plain:
+            if max_cars and len(out["cars"]) >= max_cars:  # full: it keeps its place for a later train
+                out["waiting"].append({"field": t["slot"], "why": MAX_CARS.format(n=max_cars), "reason": "max-cars"})
+                continue
             acc = ride(main, t, acc, base, default, prove, out)
     after = f"after {lead[0]['slot']}, which rides alone" if lead else "right after this one"
     out["waiting"] += [{"field": t["slot"], "why": f"rides alone in its own train, {after}: {why}", "reason": "alone"}

@@ -4,7 +4,7 @@
 A standing order is an open `standing` record of the tollman's records store (role_records): a `rule` from the closed
 table RULES, a `value`, the user's `words` (required: only the user, or the farmer relaying "the user decided", sets
 one; ~/.adr/tollman-follows-the-farmer.md) and `by: user`. The train code reads the open ones: `hold.of` the `hold`,
-`trains.minimum` / `train_cars.of` the `minimum`; `every-wagon-rides` has no train logic (trains_draft.close already
+`trains.minimum` / `train_cars.of` the `minimum`, `trains.draft` the `max-cars`; `every-wagon-rides` has no train logic (trains_draft.close already
 enforces it), the handoff check and `state` read it. One open record per rule: a second `add` of a rule revokes the
 older in the same call. Only a relayed revoke (`how: user`, with the user's words) closes one; no code closer.
 
@@ -27,8 +27,10 @@ TYPE = "standing"
 RULES = {
     "hold": "no train forms, restarts or lands; the value is the reason (hold.py)",
     "minimum": "the hitched fields a train needs; the value is the number (trains.MIN_HITCHED is the default)",
+    "max-cars": "the most cars a train takes, in queue order; the rest wait hitched for the next train (trains.draft)",
     "every-wagon-rides": "every hitched wagon rides the next train; none is held back (trains_draft.close)",
 }
+NUMBERED = ("minimum", "max-cars")
 USER = "user"
 NOT_USER = "a standing order is the user's: `--by user --words \"<the user's words>\"`, typed by the user or relayed by " \
            "the farmer as \"the user decided\" (a session's own is refused)"
@@ -44,8 +46,8 @@ def _check(rule: str, value) -> str:
     if rule not in RULES:
         raise ValueError(f"no standing rule {rule!r}; the rules: {', '.join(RULES)}")
     text = "" if value is None else str(value).strip()
-    if rule == "minimum" and not (text.isdigit() and int(text) >= 1):
-        raise ValueError("the rule minimum needs a whole number from 1 as its --value")
+    if rule in NUMBERED and not (text.isdigit() and int(text) >= 1):
+        raise ValueError(f"the rule {rule} needs a whole number from 1 as its --value")
     return text
 
 
@@ -67,7 +69,7 @@ def value(main: str, rule: str, default=None):
     rec = of(main, rule)
     if rec is None:
         return default
-    return int(rec["value"]) if rule == "minimum" else rec.get("value", "")
+    return int(rec["value"]) if rule in NUMBERED else rec.get("value", "")
 
 
 def add(main: str, rule: str, val, words: str, now: dt.datetime | None = None) -> dict:

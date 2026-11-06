@@ -139,7 +139,7 @@ class Rides(tt.Crops):
     def test_every_ready_ticket_ends_a_car_or_under_a_user_named_exception(self):
         # Plan 0610 D20: plan 0595's train_depends.py ("waits for its dependency", 2942270660) cannot bring a hold back.
         self.assertEqual(set(trains.EXCEPTIONS), {"servant", "barn", "smuggle", "smuggler-ahead", "asleep", "reserved",
-                                                  "hold", "own-landing", "alone", "minimum"})
+                                                  "hold", "own-landing", "alone", "minimum", "max-cars"})
         q = self.queue(**{"07": {"seven.rs": "7\n"}, "09": {"nine.rs": "9\n"}, "14": {"f.rs": "14\n"}})
         out = {"base": "main", "cars": [trains_draft.car(q[0]), trains_draft.car(q[1])], "unhitched": [],
                "alone": False, "barn_red": [],

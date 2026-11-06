@@ -98,6 +98,41 @@ class Orders(Farm):
         self.assertEqual(code, 0)
         self.assertIn("every-wagon-rides", text)
 
+class MaxCars(Orders):
+    """Plan 0695 D62: the standing `max-cars <n>` caps a train; the rest stay hitched for a later train."""
+
+    def three(self):
+        self.crop("07", {"seven.txt": "7"})
+        self.crop("09", {"nine.txt": "9"})
+        self.crop("14", {"f14.txt": "14"})
+
+    def test_a_train_takes_at_most_n_cars_in_queue_order_and_the_rest_stay_hitched(self):
+        standing.add(self.top, "max-cars", 2, WORDS)
+        self.assertEqual(standing.value(self.top, "max-cars"), 2)
+        self.three()
+        self.round()
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09"], "the first two ride")
+        rows = {h["field"]: h for h in train_cars.of(self.top)["hitched"]}
+        self.assertEqual(rows["14"]["where"], "next", "the third rides the next train, still hitched")
+        self.assertTrue(next(x for x in self.gate.tickets if x["slot"] == "14")["ready"], "never unhitched")
+
+    def test_a_revoked_max_cars_takes_every_wagon_again_and_the_value_must_be_a_number(self):
+        with self.assertRaises(ValueError):
+            standing.add(self.top, "max-cars", "x", WORDS)
+        rec = standing.add(self.top, "max-cars", 2, WORDS)
+        self.assertEqual(self.call("standing", "revoke", rec["id"], "--by", "user", "--words", "the user: no cap")[0], 0)
+        self.assertEqual((standing.value(self.top, "max-cars"), self.open_ids()), (None, []))
+        self.three()
+        self.round()
+        self.assertEqual([c["field"] for c in self.train()["cars"]], ["07", "09", "14"])
+
+    def test_the_cap_is_set_by_the_command_and_a_second_one_replaces_the_first(self):
+        code, text = self.call("standing", "add", "max-cars", "--value", "3", "--by", "user", "--words", WORDS)
+        self.assertEqual(code, 0, text)
+        standing.add(self.top, "max-cars", 1, WORDS)
+        self.assertEqual(standing.value(self.top, "max-cars"), 1)
+        self.assertEqual(len(self.open_ids()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

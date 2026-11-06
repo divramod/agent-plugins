@@ -76,6 +76,7 @@ import watch
 import watch_events
 import yard_report
 from tick import act, default_ref
+from trains_text import TEXT, barn_text, reds  # noqa: F401  (re-exported)
 from trains_draft import EXCEPTIONS, open_plan  # noqa: F401  (re-exported)
 from trains_sort import HELD, base_of, current_plan, held_ahead, held_for, servant, sort_out  # noqa: F401  (re-exported)
 
@@ -95,25 +96,6 @@ JOIN_FLAGS = ("conflict", "proof_red", "carried", "untried", "proof_unknown")  #
 LANDED = ("landed", "nothing")  # the landing's results that mean: every car's crop is in the barn
 AGAIN = (None, "interrupted", "waiting", "testing", "paused", "held")  # no result, or one whose rerun goes on (held: L88)
 PRETEST_WAIT, PRETEST_WAITS = "pretest_incomplete", 3  # pretest_train.INCOMPLETE and WAITS (not imported: light start)
-TEXT = {
-    # plan 0610 D21: after the user's split no fix order exists, so the answer goes to the farmer, who relays it
-    "split": TRAIN + ": field {field} is out of the red train by the user's own command: {why}. Fix it on your "
-                     "branch `{field}` (/merge-from-main first), push, then tell the farmer by SendMessage "
-                     "(`farmer-<repo>` in ListAgents) `{field} fixed <sha>`: the farmer relays it to the user, whose "
-                     "word alone puts it back in the queue; the tollman never touches its hitch.",
-    "barn": TRAIN + ": your crop is in the barn (the train of {cars}{run}): /merge-from-main, finish the plan, once finished "
-                    "/cleanup, then clear (the tollman clears a field 00-09 and removes a field above 09 once its work "
-                    "is safe).",  # plan 0360 step 7 (D8): the foreman ends its turn, barn.py clears or removes
-    "milestone": ": your crop rode as {label} and is in the barn, its plan stays open: /merge-from-main, then run "
-                 "`/continue` and carry on with the plan's next rows (do not finish the plan or clean up).",
-    "gone": "field {field}'s worktree is gone; its hitched head {head} rides from its sha (plan 0610 E13)",
-    "stuck": "the train engine's `{verb}` failed ({what}; `{cmd}`): its output follows. Look with `tollman.py status` "
-             "and `tollman.py train --dry-run`; never run a start again by hand while a landing may run (a live one is "
-             "adopted by `restart`, never `engine.py land`).",
-    **train_red.TEXT,  # failed, main_red, car_red, runner_broken (plan 0360 step 5)
-    **pause.TEXT, **smuggled.TEXT,  # paused, resumed, resume_conflict, smuggled_red (plan 0360 step 18)
-    **modes.TEXT,  # in_barn (plan 0360 step 25)
-}
 
 
 def minimum(main: str) -> int:
@@ -122,12 +104,19 @@ def minimum(main: str) -> int:
     return standing.value(main, "minimum", MIN_HITCHED)
 
 
+def cars_cap(main: str) -> int:
+    """The most cars a train takes: the user's open `max-cars` standing order (plan 0695 D62), else 0 (no limit)."""
+    import standing
+    return standing.value(main, "max-cars", 0)
+
+
 def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mode: dict | None = None,
-          carried=(), first=(), minimum: int = 0) -> dict:
+          carried=(), first=(), minimum: int = 0, max_cars: int | None = None) -> dict:
     """The train the queue allows now (trains_draft.draft, proven by PROVE); `carried`: commits whose ancestors ride
     already (the standing train's carrier head, the dry run's); `first`: the alone cars owed their own train
     (`owed`); `minimum`: the hitched fields a train needs (the round's MIN_HITCHED, none for a join)."""
-    return trains_draft.draft(main, tickets, own, base, default, mode, PROVE, carried, first, minimum)
+    cap = max_cars if max_cars is not None else cars_cap(main)
+    return trains_draft.draft(main, tickets, own, base, default, mode, PROVE, carried, first, minimum, cap)
 
 
 def owed(rows: list[dict]) -> list[str]:
@@ -188,14 +177,6 @@ def train_actions(top: str, d: dict, panes: dict, after: str | None = None, barn
 
 
 
-def barn_text(cars: str, link: str | None, car: dict) -> str:
-    """The foreman's "in the barn" text; a milestone car's adds that its plan stays open and it runs `/continue`."""
-    text = TEXT["barn"].format(cars=cars, run=f", {link}" if link else "")
-    if car.get("milestone"):
-        text = text.split(": /merge-from-main")[0] + TEXT["milestone"].format(label=car["milestone"])
-    return text
-
-
 def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) -> list[dict]:
     """Step 6 for a train whose landing's process is gone: landed, started again, or red."""
     name, status = train["train"], (result or {}).get("status")
@@ -221,17 +202,6 @@ def settle(top: str, train: dict, result: dict | None, panes: dict, tickets=()) 
     else:
         why = (reds(result) or result.get("message") or status)[:300]
     return train_red.actions(top, train, result, status, why, run, tickets)  # triage first (plan 0360 step 5)
-
-
-def reds(result: dict) -> str:
-    """The red jobs of a landing's result: each with its own suspects when it names them (a pretest's, plan 0522
-    D14: `a (car 07), b (cars 07, 09)`), else the names and the result's suspects."""
-    red, suspects = result.get("red") or [], result.get("suspects")
-    if red and all(j.get("suspects") for j in red):
-        return ", ".join(f"{j.get('name', '')} (car{'s' * (len(j['suspects']) > 1)} {', '.join(j['suspects'])})"
-                         for j in red)
-    names = ", ".join(j.get("name", "") for j in red)
-    return f"{names}, suspects: {', '.join(suspects)}" if names and suspects else names
 
 
 def plan(top: str, main: str, tickets: list[dict], rows: list[dict], panes: dict, alive=None,
