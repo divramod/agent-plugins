@@ -22,6 +22,8 @@ MAIN = "main"  # orders.MAIN: the tollman's own fix order
 CARRIER = re.compile(r"^train-([1-9]\d*)-([1-9]\d*)$")
 FIX = re.compile(r"^(\d{2}|tollman)-train-[1-9]\d*-[1-9]\d*-(fix|resolve)$")
 KEPT_WORKTREES = re.compile(r"^(tollman-train|tollman-fix|\d{2}-fix)$")
+LEGACY = re.compile(r"^(\d{2})-train-(?:fix|resolve)$")  # a train without a number: `<NN>-train-fix`
+ORDER_ID = re.compile(r"^(\d{2})-(?:fix|resolve)-[1-9]\d*$")  # a fix order's id (orders.py), a resolve's (`19-resolve-2`)
 TRAINISH = re.compile(r"train|^tollman-.*fix$|-resolve$")  # a name that looks like train work
 RAN = ("landing", "red", "fixing", "paused")  # a train whose last start is the run a fix starts from
 
@@ -79,6 +81,20 @@ def parse(name) -> dict | None:
         field, n, a, kind = re.fullmatch(r"(\d{2}|tollman)-train-(\d+)-(\d+)-(fix|resolve)", name).groups()
         return {"kind": kind, "n": int(n), "a": int(a), "field": field}
     return None
+
+
+def merge_field(subject, fields) -> str | None:
+    """The one car field of `fields` that a merge's `subject` names by a systematic name: a fix or resolve branch
+    (`Merge 20-train-3-1-fix into train-3-1 (fix order 20-fix-1)`) or a resolve's id (`resolve 19-resolve-2, field
+    19's crop onto train-56-5`). None when it names no car or more than one (hal2 plan 0718, L266)."""
+    named = set()
+    for word in re.findall(r"[\w-]+", str(subject or "")):
+        field = (parse(word) or {}).get("field")
+        if m := LEGACY.match(word) or ORDER_ID.match(word):
+            field = m[1]
+        if field in fields:
+            named.add(field)
+    return named.pop() if len(named) == 1 else None
 
 
 def off_standard(names) -> list[str]:

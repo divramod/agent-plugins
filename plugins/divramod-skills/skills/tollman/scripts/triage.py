@@ -34,6 +34,7 @@ import gh_runs
 import job_error
 import mtm_ci
 import mtm_scan
+import run_names
 import run_triage_read
 import scratch_red
 import smuggled
@@ -103,12 +104,40 @@ def main_head(main: str) -> str:
     return out if code == 0 else ""
 
 
+def carrier_head(train: dict) -> str:
+    """The carrier's head: the last push (the red run's), else the train's own worktree's HEAD; '' when unknown."""
+    if train.get("head"):
+        return train["head"]
+    code, out = git(train["worktree"], "rev-parse", "HEAD") if train.get("worktree") else (1, "")
+    return out if code == 0 else ""
+
+
+def merge_files(main: str, train: dict, fields: set) -> dict[str, list[str]]:
+    """{field: files} brought onto the carrier by the merges of its first-parent line since the train's base whose
+    subject names that car's field, a resolve or a fix (run_names.merge_field; plan 0718, L266): the car's own head
+    lacks them. One `git log` and one `git diff` per such merge; {} for an unknown carrier or no such merge."""
+    head = carrier_head(train)
+    if not head or not train.get("base"):
+        return {}
+    code, text = git(main, "log", "--first-parent", "--merges", "--format=%H%x09%s", f"{train['base']}..{head}")
+    out: dict[str, list[str]] = {}
+    for line in text.splitlines() if code == 0 else []:
+        sha, _, subject = line.partition("\t")
+        if field := run_names.merge_field(subject, fields):
+            code, names = git(main, "diff", "--name-only", f"{sha}^1", sha)
+            out.setdefault(field, []).extend(names.splitlines() if code == 0 else [])
+    return out
+
+
 def car_files(main: str, train: dict) -> list[dict]:
-    """[{field, files}]: each car's files against the train's base."""
+    """[{field, files}]: each car's files against the train's base, and those a resolve or fix merge of its field
+    brought onto the carrier (merge_files)."""
+    merged = merge_files(main, train, {c.get("field") for c in train.get("cars", [])})
     out = []
     for c in train.get("cars", []):
         code, text = git(main, "diff", "--name-only", f"{train.get('base')}...{c.get('head')}")
-        out.append({"field": c.get("field"), "files": text.splitlines() if code == 0 and text else []})
+        files = text.splitlines() if code == 0 and text else []
+        out.append({"field": c.get("field"), "files": list(dict.fromkeys(files + merged.get(c.get("field"), [])))})
     return out
 
 
