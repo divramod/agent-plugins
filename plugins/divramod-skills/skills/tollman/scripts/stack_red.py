@@ -45,6 +45,14 @@ def bare(name: object) -> str:
     return (staged[1] if staged else name.rsplit("/", 1)[-1]).strip()
 
 
+def named_in(job: str, text: object) -> bool:
+    """True when `job` stands in `text` as a whole job name: not preceded or followed by a job-name character
+    (`[A-Za-z0-9_-]`), so `ts-build-test-linux` is not in `agents-build-test-linux` (learning L263, plan 0716)."""
+    if not job:
+        return False
+    return re.search(rf"(?<![A-Za-z0-9_-]){re.escape(job)}(?![A-Za-z0-9_-])", str(text or "")) is not None
+
+
 def red_jobs(result: dict | None) -> list[dict]:
     """The landing result's red jobs whose job is `stack-test` (`d1-01-stack-test`; older `03-hz01-host-a/01-stack-test`,
     or without the position `03-hz01-host-a/stack-test`), also with the matrix values older runs have

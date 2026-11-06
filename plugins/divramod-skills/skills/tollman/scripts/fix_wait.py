@@ -37,6 +37,7 @@ import mtm_ci
 import mtm_scan
 import run_triage_dedup as dedup
 import run_triage_wire as wire
+import stack_red
 import train_state
 from tick import act
 
@@ -104,7 +105,7 @@ def why_held(red: dict, train: dict, fixed: list[dict], reasons: dict, main: str
         return f"reason: {why}"
     for o in fixed:
         if rid_of(o.get("run")) == rid_of(red.get("run")) and (
-                o.get("field") == red.get("owner") or (red.get("job") and red["job"] in str(o.get("why") or ""))):
+                o.get("field") == red.get("owner") or stack_red.named_in(red.get("job") or "", o.get("why"))):
             return f"fix order {o.get('id')} of {o.get('field')} merged"
     return car_fix(red, train.get("cars") or [], main, read, seen)
 

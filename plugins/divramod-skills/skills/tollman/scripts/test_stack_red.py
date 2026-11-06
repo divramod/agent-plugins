@@ -77,6 +77,16 @@ class Rule(unittest.TestCase):
         self.assertEqual(shape(red), [("red", "run", "-"), ("train-failed", "wake", "-")], "not landed: the old path")
 
 
+class NamedIn(unittest.TestCase):
+    def test_a_job_counts_only_as_a_whole_name(self):
+        j = "ts-build-test-linux"
+        for text in (f"red {j}: x", j, f"x {j}", f"({j})", f"c2:{j}", f"a, {j}."):
+            self.assertTrue(stack_red.named_in(j, text), text)
+        for text in ("agents-build-test-linux", "ts-build-test-linux-2", "c2-06-ts-build-test-linux", "", None):
+            self.assertFalse(stack_red.named_in(j, text), text)
+        self.assertFalse(stack_red.named_in("", "anything"))
+
+
 class Watch(unittest.TestCase):
     """Merge no longer waits for stack-test (plan 0349 step 4): the land run's stack-test job is read itself, for the
     newest landed train, until it ends."""

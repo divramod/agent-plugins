@@ -72,7 +72,7 @@ def cover(job: str, rid: str, rows: list[dict], entry: dict) -> dict:
     known = names(job)
     orders = [e for e in rows if e.get("kind") == "order" and rid_of(e.get("run")) == rid]
     hits = [e for e in orders if known & set(e.get("jobs") or [])]
-    hits = hits or [e for e in orders if any(n in str(e.get("why") or "") for n in known)]
+    hits = hits or [e for e in orders if any(stack_red.named_in(n, e.get("why")) for n in known)]
     if hits:
         fixed = {e.get("id"): e for e in rows if e.get("kind") == "fixed"}
         out = []

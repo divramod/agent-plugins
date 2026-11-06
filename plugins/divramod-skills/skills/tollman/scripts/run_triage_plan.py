@@ -32,11 +32,12 @@ def context(top: str, main: str) -> dict:
     return tick.context(top, main, {}, dt.datetime.now(), False, tollman.WIRING)
 
 
-def dedup_of(standing: dict | None, tickets: list[dict]) -> dict:
-    """run_triage_dedup's data: the open orders of the train standing (`orders` and `post`) and the hitched wagons."""
+def dedup_of(standing: dict | None, tickets: list[dict], closed: list[dict] | None = None) -> dict:
+    """run_triage_dedup's data: the open orders of the train standing (`orders` and `post`), the hitched wagons and
+    the run's train's orders closed `fixed` (`closed`, L265)."""
     s = standing or {}
     return {"orders": list(s.get("orders") or []) + list(s.get("post") or []),
-            "wagons": run_triage_dedup.wagons(tickets)}
+            "wagons": run_triage_dedup.wagons(tickets), "closed": closed or []}
 
 
 def plan(top: str, main: str, url: str, name: str | None, ctx: dict | None, kept: dict, field: str | None,
@@ -44,9 +45,10 @@ def plan(top: str, main: str, url: str, name: str | None, ctx: dict | None, kept
     """{units, actions} of the finished run at `url` of the train `name` (see the module doc); `kept`: {run id: its
     signatures} of the runs triaged before; `train_of(rows, name)`: (the run's train, the train standing now)."""
     ctx = ctx if ctx is not None else context(top, main)
-    train, standing = train_of(train_state.lines(main), name)
+    rows = train_state.lines(main)
+    train, standing = train_of(rows, name)
     tickets = (mtm_scan.run_json(QUEUE, main) or {}).get("queue", [])
-    data = gather(main, train, url, ctx.get("panes") or {}, pipeline_field=field, dedup=dedup_of(standing, tickets),
+    data = gather(main, train, url, ctx.get("panes") or {}, pipeline_field=field, dedup=dedup_of(standing, tickets, run_triage_dedup.closed(rows, train.get("train"))),
                   kept=kept)
     if not data:
         return {"units": {}, "actions": []}

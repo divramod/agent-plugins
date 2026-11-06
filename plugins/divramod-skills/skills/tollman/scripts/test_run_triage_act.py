@@ -18,7 +18,7 @@ import test_run_triage as T
 
 URL = "https://github.com/divramod/hal2/actions/runs/41009203691"
 RID = "41009203691"
-TRAIN = {"train": "train-27", "cars": ["02", "09", "21"]}
+TRAIN = {"train": "train-27", "cars": ["02", "05", "09", "13", "21"]}  # L265: only a car owns a red
 STANDING = {"train": "train-28", "state": "formed"}
 PLANS = {"05": "0428-mac-vm-bash-test", "13": "0430-workqueue-runners-plugin"}
 SPEC = "code/typescript/apps/hal9k-desktop/e2e/electron/ocr.spec.ts"
@@ -192,6 +192,12 @@ class Dedup(unittest.TestCase):
         rec = next(a for a in out if a["key"].endswith(f"{T.WQ}:record"))
         self.assertIn("field 13 runs plan 0430-workqueue-runners-plugin, which names it", rec["text"])
         self.assertEqual({o["slot"] for o in of(out, "triage-order")}, {"27", "05"})
+
+    def test_an_order_naming_a_longer_job_does_not_order_the_red(self):
+        v = {"evidence": {"run": RID, "job": "ts-build-test-linux"}}
+        o = {"run": RID, "field": "19", "why": "agents-build-test-linux: x"}
+        self.assertIsNone(dedup_.ordered(v, [o]))
+        self.assertEqual(dedup_.ordered(v, [{**o, "why": "(ts-build-test-linux) x"}])["field"], "19")
 
     def test_the_helpers(self):
         queue = [{"slot": "19", "ready": {"head": "h1", "at": "t"}}, {"slot": "20", "ready": None}, {"slot": "21"}]

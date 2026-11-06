@@ -44,10 +44,12 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import fix_proof
 import generated
 import mtm_scan
+import orders_newest
 import records_kinds
 import run_names
 import train_state
 from carrier import Done, git
+from logstate import read_log
 from orders_open import close, stopped, told_finished, unpushed
 from orders_text import TEXT, proof_text
 from tick import act
@@ -221,6 +223,8 @@ def fixed(top: str, field: str, sha: str | None, panes: dict, now=None, proof: s
     o = o or p
     if redundant:
         return close(top, main, train, o, now)
+    if newer := orders_newest.superseded(o["id"], sha, train_state.lines(main), read_log(main, train_state.ROLE)):
+        return 0, f"fix order {o['id']}: {sha[:12]} is superseded by {newer[:12]}: no proof, no refusal", []
     code, commit = proven(top, main, o, sha, proof, unproven)
     if code == 2:
         return 1, f"fix order {o['id']} waits: {commit}", []

@@ -73,6 +73,13 @@ def order(top: str, field: str, reds: list[dict], train: dict, url: str, key: st
                     f" (the fix rides train {standing['train']})")
 
 
+def car_fields(train: dict, dedup: dict) -> set[str]:
+    """The fields that may own a red: the train's cars, its carrier and the fields of its fix orders (L265). Empty
+    when the train's cars are unknown (a train read without them): then no field is left out."""
+    cars = {c.get("field") if isinstance(c, dict) else c for c in train.get("cars") or []}
+    return cars | {train.get("carrier")} | {o.get("field") for o in dedup.get("orders") or []} if cars else set()
+
+
 def keys(groups: dict[str, list[dict]], rid: str) -> dict[str, str]:
     """{field: `triage:<run id>:<bare job of its first red>`}; a second order with a taken key adds `:<field>`."""
     out: dict[str, str] = {}
@@ -90,8 +97,12 @@ def actions(top: str, main: str, result: dict, train: dict, standing: dict | Non
     run, panes = result["run"], panes or {}
     rid, url = str(run.get("id")), run.get("url") or ""
     dedup, out, groups, waked = result.get("dedup") or {}, [], {}, []
+    cars = car_fields(train, dedup)
     for v in result["verdicts"]:
         kind = v["kind"]
+        if v.get("owner") and cars and v["owner"] not in cars and v["owner"] != (v["evidence"].get("pipeline") or {}).get(
+                "configured"):  # a field that is no car never owns a red (L265): the no-owner path
+            v = {**v, "owner": None, "live": False}
         if kind in QUIET:
             out.append(record(v, f"{kind}: nobody ordered"))
             out += [flaky(top, v, train)] * bool(kind == "flake" and v["evidence"].get("budget")

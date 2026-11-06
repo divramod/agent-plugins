@@ -155,6 +155,17 @@ class Wait(unittest.TestCase):
         self.assertEqual(len(self.naps), 3)
 
 
+class WhyHeld(unittest.TestCase):
+    def held(self, why):
+        fixed = [{"id": "19-fix-1", "field": "19", "run": URL, "why": why}]
+        r = red("t1", owner="20", job="ts-build-test-linux")
+        return fix_wait.why_held(r, {"cars": []}, fixed, {}, "/m", None, {})
+
+    def test_a_longer_job_name_in_a_fix_orders_why_covers_nothing(self):
+        self.assertIsNone(self.held("agents-build-test-linux: lint x"))
+        self.assertIn("fix order 19-fix-1", self.held("agents-build-test-linux, ts-build-test-linux: x"))
+
+
 class Compact(unittest.TestCase):
     def test_the_triage_keeps_each_red_as_the_wait_reads_it(self):
         v = {"key": "triage:720:d1-01-stack-test/hub-e2e:ocr.spec.ts", "kind": "file", "owner": "05", "cause": "file",

@@ -6,12 +6,13 @@ files a wagon's commits touched, is `touched` (git), injectable.
 
 The data is `result["dedup"]` of run_triage.triage: `orders` (the standing train's open fix orders, `orders` and
 `post` of train_state.standing), `wagons` ([{field, head}], `wagons(tickets)` of the queue's ready entries) and
-`plans` ({field: its current plan}).
+`plans` ({field: its current plan}) and `closed` (the train's orders closed `fixed`, `closed(rows, train)`, plan 0717).
 """
 
 import re
 
 import run_triage
+import stack_red
 import triage
 
 PATH = re.compile(r"[\w.@-]+(?:/[\w.@-]+)+\.\w+")
@@ -22,6 +23,24 @@ def wagons(tickets: list[dict]) -> list[dict]:
     """[{field, head, at}] of the queue's tickets that are marked ready (hitched), as the tollman reads them."""
     return [{"field": t["slot"], "head": t["ready"].get("head"), "at": t["ready"].get("at")}
             for t in tickets or [] if t.get("ready") and t.get("slot")]
+
+
+def closed(rows: list[dict], name: str | None) -> list[dict]:
+    """[{id, field, jobs, why, run, at}] of the orders of train `name` that a `fixed` line closed, `at` the time of
+    that line (L265): read off the train's lines the round already holds, no git or gh."""
+    opened = {e.get("id"): e for e in rows if e.get("kind") == "order" and e.get("train") == name and not e.get("also")}
+    return [{"id": e["id"], "field": o.get("field"), "jobs": o.get("jobs") or [], "why": o.get("why") or "",
+             "run": o.get("run"), "at": e.get("at")}
+            for e in rows if e.get("kind") == "fixed" and e.get("train") == name and (o := opened.get(e.get("id")))]
+
+
+def fixed_for(v: dict, closed_: list[dict], run: dict | None = None) -> dict | None:
+    """The closed order of this train that covers the red: it names the red's job and was fixed after the red's run
+    began (or is the order of this very run): the fix is in, the red is stale (L265)."""
+    e = v.get("evidence") or {}
+    job, at = e.get("job"), (run or {}).get("at")
+    return next((o for o in closed_ or [] if job and (job in o.get("jobs", []) or job in o.get("why", ""))
+                 and ((e.get("run") and o.get("run") == e.get("run")) or (at and o.get("at") and o["at"] >= at))), None)
 
 
 def touched(main: str, wagon: dict, since: str | None = None) -> list[str]:
@@ -70,8 +89,7 @@ def ordered(v: dict, orders: list[dict]) -> dict | None:
     """The open order that already names this red: one of the same run whose `why` names its job (an early or a
     post-merge order, early_order.py, post_merge.py): one place per red, never a second order (D13)."""
     e = v.get("evidence") or {}
-    return next((o for o in orders or [] if e.get("run") and o.get("run") == e["run"] and e.get("job")
-                 and e["job"] in str(o.get("why") or "")), None)
+    return next((o for o in orders or [] if e.get("run") and o.get("run") == e["run"] and stack_red.named_in(e.get("job") or "", o.get("why"))), None)
 
 
 def deferred(v: dict, dedup: dict) -> dict | None:
@@ -99,6 +117,8 @@ def plan_for(v: dict, plans: dict) -> tuple[str, str] | None:
 
 def match(v: dict, dedup: dict, main: str, since: str | None, read=touched) -> str | None:
     """Why this red needs no order of its own (the words of a `record` line), or None."""
+    if o := fixed_for(v, dedup.get("closed") or [], {"at": since}):
+        return f"fixed order {o.get('id', '?')} for {o.get('field')} already closed it (this train)"
     if o := ordered(v, dedup.get("orders") or []):
         return f"fix order {o.get('id', '?')} for {o.get('field')} names it already (this run)"
     if w := wagon_for(v, dedup.get("wagons") or [], since, main, read):

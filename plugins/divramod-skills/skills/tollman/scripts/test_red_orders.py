@@ -50,6 +50,18 @@ class Check(unittest.TestCase):
         self.assertEqual((r["missing"], red_orders.exit_code(r)), (1, 1))
         self.assertIn("MISSING", "\n".join(red_orders.lines(r)))
 
+    def test_train_56_5_a_longer_job_in_the_why_is_no_order(self):
+        """L263: `ts-build-test-linux` is a suffix of `agents-build-test-linux`; its red had no order of its own."""
+        for field in ("19", "18"):
+            self.rows.append({"kind": "order", "field": field, "id": f"{field}-fix-1", "run": URL,
+                              "jobs": ["agents-build-test-linux"], "why": "agents-build-test-linux: lint x"})
+        r = self.check([job("c2-06-ts-build-test-linux")])
+        self.assertEqual((r["runs"][0]["reds"][0]["verdict"], r["missing"], red_orders.exit_code(r)),
+                         ("MISSING", 1, 1))
+        self.rows[-1]["why"] = "agents-build-test-linux, ts-build-test-linux: x"
+        r = self.check([job("c2-06-ts-build-test-linux")])
+        self.assertEqual((r["runs"][0]["reds"][0]["verdict"], r["missing"]), ("ordered", 0))
+
     def test_reasons_and_quiet_triage_cover(self):
         self.entry = {"job_reasons": {"lint": "the barn's red"},
                       "reds": [{"kind": "runner", "job": "c4-01-bash-build-test-mac"}]}
