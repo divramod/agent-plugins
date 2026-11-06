@@ -121,6 +121,17 @@ class Delegation(Ledger):
         self.assertIn("at claude-opus-5-5 high", log[-1]["note"])
         self.assertEqual(delegation.servant_values({}), {"model": "opus", "effort": "medium"})
 
+    def test_a_wait_at_the_limit_says_why(self):
+        delegation.delegate(flaky(), MAIN, 1, False, NOW)
+        second = dict(flaky(), key="flaky:u", text="disable u")
+        self.assertEqual(delegation.delegate(second, MAIN, 1, True, NOW)["reason"], "at the limit: 1 of 1 foremen busy")
+
+    def test_a_ledger_line_without_a_key_is_skipped(self):
+        delegation.delegate(flaky(), MAIN, 1, False, NOW)
+        with delegation.ledger_file(MAIN).open("a") as f:
+            f.write(json.dumps({"kind": "delegate", "status": "done"}) + "\n")
+        self.assertEqual(list(delegation.ledger(MAIN)), ["flaky:t"])
+
     def test_at_the_limit_it_waits_and_starts_once_a_servant_has_landed(self):
         delegation.delegate(flaky(), MAIN, 1, False, NOW)
         second = dict(flaky(), key="flaky:u", text="disable u")

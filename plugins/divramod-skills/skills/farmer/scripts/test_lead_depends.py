@@ -81,6 +81,17 @@ class Told(Base):
         self.assertEqual(lead_depends.plan({}, self.ctx(graph(link()))), [], "told once, whatever the next ticks see")
         self.assertEqual(lead_depends.plan({}, self.ctx(graph(link("main")))), [], "also when it reaches main later")
 
+    def test_at_the_foreman_limit_the_wake_waits_for_a_free_slot(self):
+        busy = [{"slot": s, "state": "working"} for s in ("16", "01", "02")]
+        panes = {"57": "t:57", "16": "t:16", "01": "t:01", "02": "t:02"}
+        full = {**self.ctx(graph(link()), panes=panes), "settings": {"servant_limit": "3"}, "agent_rows": busy}
+        self.assertEqual(lead_depends.plan({}, full), [], "3 of 3 busy: nobody is told")
+        self.assertEqual(self.told(), [], "not recorded: told on a later tick")
+        free = {**full, "agent_rows": busy[:2]}
+        self.assertEqual([a["do"] for a in lead_depends.plan({}, free)], ["send", "run"])
+        auto = {**full, "settings": {}}
+        self.assertEqual([a["do"] for a in lead_depends.plan({}, auto)], ["send", "run"], "auto: not held back")
+
     def test_the_send_gets_an_ack_id_like_every_instruction(self):
         out = lead_depends.plan({}, self.ctx(graph(link())))
         send = out[0]

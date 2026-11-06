@@ -96,10 +96,11 @@ def lines(main: str) -> list[dict]:
 
 
 def ledger(main: str) -> dict[str, dict]:
-    """The latest entry per key."""
+    """The latest entry per key; an old hand-written line without a `key` is skipped."""
     out = {}
     for e in lines(main):
-        out[e["key"]] = {**out.get(e["key"], {}), **e}
+        if "key" in e:
+            out[e["key"]] = {**out.get(e["key"], {}), **e}
     return out
 
 
@@ -277,8 +278,11 @@ def delegate(a: dict, main: str, limit: int | str, dry: bool, now: dt.datetime, 
         overlap_note(a, main, brief)
     # A direct instruction (`prompt`, `role_task`) instead of a plan; kept on a waiting entry for its later start.
     own = {k: a[k] for k in ("prompt", "role_task") if a.get(k)}
-    if not has_room(limit, sum(e.get("state") == "running" for e in held.values()) if busy is None else busy):
-        result = {"key": a["key"], "state": "waiting", "brief": str(brief), "title": a["text"], **own}
+    used = sum(e.get("state") == "running" for e in held.values()) if busy is None else busy
+    if not has_room(limit, used):
+        result = {"key": a["key"], "state": "waiting", "reason": f"the machine load is at {AUTO_LOAD} or more" if limit == "auto"
+                  else f"at the limit: {used} of {limit} foremen busy",
+                  "brief": str(brief), "title": a["text"], **own}
     else:
         role = write_role(main, brief, a["text"][:80], now, a.get("role_task")) if not dry else Path("<role>")
         prompt = a.get("prompt", PROMPT).format(repo=Path(main).name, farmer_slot=roles.slot_name(main), brief=brief, title=a["text"][:80], role=role)

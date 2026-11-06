@@ -52,6 +52,13 @@ class PlanTest(unittest.TestCase):
         self.assertTrue(info["research"])
         self.assertEqual((self.plans / "CURRENT_PLAN").read_text(), "0001-research-macos-plugin-runtimes\n")
 
+    def test_new_with_a_taken_title_takes_a_fresh_number_and_never_overwrites_a_plan(self):
+        first = self.plan("new", "agents view fixes")
+        (self.plans / first["slug"] / "plan.md").write_text("landed plan\n")
+        second = self.plan("new", "agents view fixes")
+        self.assertNotEqual(first["slug"], second["slug"])
+        self.assertEqual((self.plans / first["slug"] / "plan.md").read_text(), "landed plan\n")
+
     def test_new_research_plan_keeps_a_leading_research(self):
         info = self.plan("new", "Research: plugin runtimes", "--research")
 

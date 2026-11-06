@@ -129,10 +129,13 @@ def next_number(root: Path, slug: str = "", reserve: bool = True, dirs: tuple[st
         return max(taken(root, dirs, file), default=0) + 1
     with locked(root, file) as path:
         booked = json.loads(path.read_text() or "{}") if path.is_file() else {}
+        seen = taken(root, dirs, file, path.parent)
         for existing, info in booked.items():
             if slug and existing.split("-", 1)[1] == slug:
-                return info["number"]  # same plan asked twice: same number
-        number = max(taken(root, dirs, file, path.parent), default=0) + 1
+                written = seen.get(info["number"], {}).get(existing, set()) - {"reserved"}
+                if not written:  # a plan folder with that number and slug exists: the slug is taken, not reserved
+                    return info["number"]  # same plan asked twice: same number
+        number = max(seen, default=0) + 1
         key = f"{number:04d}-{slug or 'reserved'}"
         booked[key] = {"number": number, "at": dt.datetime.now().isoformat(timespec="seconds"),
                        "worktree": str(root)}

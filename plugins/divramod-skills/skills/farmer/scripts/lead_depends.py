@@ -90,6 +90,19 @@ def commit_of(main: str, link: dict) -> str:
     return git(main, "rev-parse", "--short", ref)
 
 
+def free_slots(ctx: dict) -> int | None:
+    """How many more foremen may work under the farm's `servant_limit` (the user's cap): the limit minus the busy
+    sessions in the farm's fields; None when the limit is `auto` or unset (then the wake is not held back)."""
+    import delegation
+    import live_sessions
+    limit = delegation.parse_limit((ctx.get("settings") or {}).get("servant_limit"))
+    if limit == "auto":
+        return None
+    fields = set(ctx.get("panes", {}))
+    busy = sum(1 for a in ctx.get("agent_rows") or [] if a.get("slot") in fields and live_sessions.is_busy(a))
+    return limit - busy
+
+
 def plan(item: dict, ctx: dict) -> list[dict]:
     """One `send` (and the run that remembers it) per edge whose dependency has reached its `until` and whose dependent
     field has a live session, not told before (see the module doc)."""
@@ -97,6 +110,7 @@ def plan(item: dict, ctx: dict) -> list[dict]:
     if not nodes:
         return []
     done, panes, out = told(ctx["main"]), ctx.get("panes", {}), []
+    room = free_slots(ctx)
     for node in sorted(nodes.values(), key=lambda n: n["plan"]):
         slot = node.get("field")
         if not slot or not panes.get(slot):
@@ -105,6 +119,9 @@ def plan(item: dict, ctx: dict) -> list[dict]:
             key = edge_key(link["plan"], node["plan"], slot)
             if not link.get("reached") or key in done:
                 continue
+            if room is not None and room <= 0:  # at the farm's foreman limit: told on a later tick, never now
+                return out
+            room = None if room is None else room - 1
             head = commit_of(ctx["main"], link)
             fields = {"dep": link["plan"], "plan": node["plan"], "state": link.get("state"), "field": link.get("field"),
                       "step": first_step(link), "commit": f" ({head})" if head else ""}

@@ -78,6 +78,12 @@ class PlanNumberTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return int(result.stdout)
 
+    def test_a_same_slug_reservation_is_not_reused_once_its_plan_folder_exists(self):
+        self.assertEqual(self.next("--slug", "alpha"), 2)
+        self.assertEqual(self.next("--slug", "alpha"), 2)  # not written yet: the same reservation
+        self.add_plan(self.main, "0002-alpha", commit=True)  # now landed (plan 0617 incident)
+        self.assertEqual(self.next("--slug", "alpha"), 3)
+
     def test_sees_uncommitted_plan_in_another_worktree(self):
         tree = self.base / "wt-user"
         git(self.main, "worktree", "add", "-q", "-b", "user", str(tree))

@@ -286,6 +286,7 @@ def plan_round(top: str, handlers: dict, now: dt.datetime | None = None, dry: bo
     with timed(timing, "context"):
         opted = due.schedule((Path(top) / wiring.role_file).read_text(), wiring.duties)[0]
         ctx = context(top, main, opted, roletime.aware(now), dry, wiring, paused)
+        ctx["settings"] = settings  # the planners read the farm's limits (lead_depends.free_slots)
     actions, role = [], wiring.role
     for item in items:
         with timed(timing, item["name"]):

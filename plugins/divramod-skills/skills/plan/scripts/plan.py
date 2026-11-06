@@ -658,6 +658,8 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
         except plan_number.NumberError as error:
             raise PlanError(str(error)) from error
     path = (into or plans_dir(root) / f"{number:04d}-{slug}") / MAIN
+    if into is None and path.exists():
+        raise PlanError(f"{path} exists already: a plan is never overwritten")
     path.parent.mkdir(parents=True, exist_ok=True)
     values = folder.fields(root, number, title, goal, landing)
     subplans = schema == 2 and not master and not parallel_plan
