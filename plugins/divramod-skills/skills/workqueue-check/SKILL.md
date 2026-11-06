@@ -1,6 +1,6 @@
 ---
 name: workqueue-check
-description: Check hal2's work queue for drift — runs `scripts/check.py`, which reads `hal2-cli-workqueue stats --json` and `report --json` for a window (default 24 h) against the window before and `workqueue-bench compare --json` against the stored baseline, and prints ranked findings (a class or command head whose mean wall or CPU per run rose, new hung, orphan or Docker-stuck runs, benchmarks slower than baseline); the skill only judges: names the likely cause and proposes the fix as a shot or one farmer brief. Read-only: it never changes code and never runs a benchmark (benchmarks need a quiet Mac and the user's go). Use when the user says /workqueue-check, "is the work queue slower", "workqueue drift", "what got slower" or "check the shims' cost". `/workqueue-check h` shows help.
+description: Check hal2's work queue for drift — compares a window (default 24 h) with the one before and the stored benchmark baseline, ranks findings, names the likely cause, proposes a shot or farmer brief. Read-only. Use when the user says /workqueue-check, "is the work queue slower", "workqueue drift", "what got slower" or "check the shims' cost".
 ---
 
 # workqueue-check

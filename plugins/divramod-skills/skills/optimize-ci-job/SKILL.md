@@ -1,6 +1,6 @@
 ---
 name: optimize-ci-job
-description: Take one CI job deep to cut its runtime and CPU load — runs hal2's `ci-job` unit (`code/python/scripts/ci-job/main.py`), whose scripts measure and the skill only judges: fetches the job's log (GitHub GET, cached), splits its wall time into setup / units / tests / tail and its silences, ranks the units (a parallel job is as long as its longest) and the slowest tests, scans the test files for known slow patterns (real sleeps, a repo per test, a python3 per call, a leaked child, a per-run Docker COPY, ssh without multiplexing, a suite rerun, one big bats file), counts the process starts of a command (`spawns`) and times two commands against each other under a noted load (`ab`); then matches the findings with `causes.md` (the learnings of plan 0365) and ranks the fixes by runtime saved, then CPU saved, as shots or one brief to the farmer. Read-only: never edits a workflow, never reruns, cancels or dispatches, never drops or weakens a test. Use when the user says /optimize-ci-job, "optimize this CI job", "why is <job> slow", "cut the CPU load of a job" or "deep look into a CI job". `/optimize-ci-job h` shows help.
+description: Take one CI job deep to cut its runtime and CPU — fetch its log, split wall time into setup, units, tests, tail, rank slow units and tests, scan for known slow patterns, rank fixes as shots or a farmer brief. Read-only. Use when the user says /optimize-ci-job, "optimize this CI job", "why is a job slow", "cut the CPU load of a job" or "deep look into a CI job".
 ---
 
 # optimize-ci-job

@@ -1,6 +1,6 @@
 ---
 name: merge-from-main
-description: merge-from-main — merge the latest default branch (main, master, ...) into the current git worktree, in any repository and on any branch, then run the repo's setup tasks (`setup` verb scripts, `.hal/hooks.toml`) and `.hal/hooks/merge-from-main/post-merge.sh`; resolves merge conflicts and fixes a failing setup or hook itself. Use when the user says /mfm, "merge from main", "update the worktree with main", or a prompt says to run merge-from-main before starting. `/mfm h` shows help.
+description: Restock a worktree — merge the latest default branch into it, run the repo's setup tasks and post-merge hook, fix conflicts and failing setup itself. Use when the user says /mfm, "restock", "merge from main", "update the worktree with main", or a prompt says to run merge-from-main before starting.
 ---
 
 # merge-from-main (`/mfm`)

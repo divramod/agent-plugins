@@ -1,6 +1,6 @@
 ---
 name: restart-claude-code-sessions
-description: Restart every running Claude Code session on the machine in place (the same tmux pane or terminal host, the same conversation, model, effort and Remote Control name), e.g. after the user logged in to another account — one script calls `hal2-cli-agents restart --all`, which asks busy sessions to hand off first, never cuts a running landing or smuggle (skipped and reported), restarts the others one by one and this session last. Use when the user says /restart-claude-code-sessions, "restart all claude sessions", "restart every session", "I logged in to another account" or "restart the agents". `/restart-claude-code-sessions h` shows help.
+description: Restart every running Claude Code session on the machine in place (same pane, conversation, model, Remote Control name) with one script; busy ones hand off first, a running landing is never cut. Use when the user says /restart-claude-code-sessions, "restart all claude sessions", "restart every session", "I logged in to another account" or "restart the agents".
 ---
 
 # restart-claude-code-sessions

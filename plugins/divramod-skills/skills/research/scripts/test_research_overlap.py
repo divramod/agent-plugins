@@ -37,20 +37,20 @@ class ResearchOverlap(unittest.TestCase):
     def test_hits_are_written_logged_and_printed_with_the_research_flag(self):
         folder, err, made = self.new(HIT)
         self.assertEqual(json.loads((folder / "overlap.json").read_text()), HIT)
-        self.assertIn("Overlap: 0571-milestone-hitch, 0131-plan-consistency", (folder / "research.md").read_text())
-        self.assertIn("overlap: research 0131-plan-consistency", err)
+        self.assertIn("CLI-CONTEXT", (folder / "research.md").read_text())
+        self.assertIn("CLI-REPORT", err)
         self.assertIn("--research", made[0])
 
     def test_an_overlap_resolved_research_logs_a_checked_line(self):
         folder, err, _ = self.new(EMPTY)
-        self.assertIn("Overlap: checked", (folder / "research.md").read_text())
-        self.assertIn("overlap: none", err)
+        self.assertIn("CLI-CONTEXT-NONE", (folder / "research.md").read_text())
+        self.assertIn("CLI-REPORT-NONE", err)
 
     def test_without_the_cli_the_doc_is_written_and_says_unchecked(self):
         folder, err, _ = self.new(None)
         self.assertTrue((folder / "research.md").is_file())
         self.assertFalse((folder / "overlap.json").exists())
-        self.assertIn("overlap unchecked", err)
+        self.assertIn("overlap: overlap unchecked", err)
 
 
 if __name__ == "__main__":

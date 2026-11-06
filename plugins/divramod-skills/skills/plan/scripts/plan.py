@@ -63,6 +63,10 @@ front matter is legacy: its `Landing:`, `Grilled:`, `Finished:` and `Autogenerat
                                                            step's file steps/<step>.md from templates/step.md
                                                            when it is missing (never overwrites), named in the
                                                            JSON's `step_file`
+  plan.py finish <step> [--next <step>] [--why t] [--threshold p] [--transcript f] [--plan <slug>]
+                                                           a step boundary in one call (finish.py): status done and
+                                                           next, scope, trailers, run --sync and the context check
+                                                           as one JSON
   plan.py prompt <step> [--part k] [--model m] [--effort e] [--plan <slug>]
                                                            print the Agent call that runs the step in one subagent
                                                            (prompt.py): description `Plan <NNNN> row <step>: <short
@@ -212,6 +216,7 @@ import convert
 import checker
 import context
 import envelope
+import finish
 import folder
 import lessons
 import hitch
@@ -426,6 +431,14 @@ def template_run() -> list[str]:
     return (found.group(1).split() if found else []) + [""] * 3
 
 
+def new_run() -> list[str]:
+    """A new plan's `run` (plan 0682, D3): model and window from the live session, the effort the template's (medium),
+    so a foreman started at high does not make every plan it creates run at high."""
+    words = sizing.run_words(session.live(), template_run())
+    words[1] = template_run()[1] or words[1]
+    return words
+
+
 def or_template(words) -> list[str]:
     return [w or t for w, t in zip(list(words) + ["", "", ""], template_run())][:3]
 
@@ -574,8 +587,9 @@ def describe(root: Path, path: Path) -> dict:
         "next": (before_landing or open_steps or [None])[0],
         "landing": landing,
         "land": land,
-        "problems": problems_of(steps) + (parallel.problems(steps) if extra.get("parallel") else [])
-                    + steps_problems(text, rel(path, root)) + hitch_problems,
+        # the hitch relays the CLI's checks, which repeat the skill's own: each problem once
+        "problems": list(dict.fromkeys(problems_of(steps) + (parallel.problems(steps) if extra.get("parallel") else [])
+                                       + steps_problems(text, rel(path, root)) + hitch_problems)),
         "hitch": hitch_kind,
         **({"hitch_note": hitch_note} if hitch_note else {}),
         "steps": steps,
@@ -655,7 +669,7 @@ def new_plan(root: Path, title: str, goal: str, make_current: bool, fetch: bool 
     if parallel_plan and not master:
         text = parallel_table(text)
     path.write_text(text)
-    set_header(path, "Run", " ".join(sizing.run_words(session.live(), template_run())))
+    set_header(path, "Run", " ".join(new_run()))
     if subplans:
         shape_new.scaffold(root, path.parent, title, goal, research)
     folder.scaffold(path, values)
@@ -982,6 +996,7 @@ def main(argv: list[str]) -> int:
     p_new.add_argument("--parallel", action="store_true",
                        help="the step table gets the columns Needs, Touches and Who (a parallel plan)")
     storerun.add_parsers(sub)
+    finish.add_parser(sub)
     args = parser.parse_args(argv)
     if args.command == "lesson":  # the skill's own file: no repository needed
         return lessons.run(args)
@@ -1125,7 +1140,7 @@ def dispatch_command(root: Path, args) -> int:
                 stamp_finished(master)
             if not spec_info:  # plan 0593 D16: the hits are settled before the plan is written
                 overlap.attach(path, found)
-                print(overlap.report(found, path.parent), file=sys.stderr)
+                print(overlap.report(found), file=sys.stderr)
             result = describe(root, path)
             if not spec_info:
                 result["overlap"] = overlap.lines(found)
@@ -1152,6 +1167,10 @@ def dispatch_command(root: Path, args) -> int:
         elif args.command == "milestone":
             path = resolve(root, args.plan) if args.plan else current_path(root)
             result = add_milestone(root, path, args.after, args.title)
+        elif args.command == "finish":
+            result = finish.run(root, resolve(root, args.plan) if args.plan else current_path(root), args,
+                                finish.Ops(set_status, scaffold_step, lambda p: describe(root, p), read_steps,
+                                           run_values, stamp_finished))
         elif args.command == "prompt":
             result = prompt_call(root, resolve(root, args.plan) if args.plan else current_path(root), args)
         elif args.command in shape_cli.COMMANDS:
@@ -1199,7 +1218,7 @@ def plan_spec_in_place(root: Path, args, info: dict, into: Path, designs: list[d
     Brief from spec.md and the designs, `status: open` and `run`; no second folder. Schema 1 (the spec's plan.md)."""
     path = into / MAIN
     spec_link.fill(path, info, designs, args.goal, seed.context_line(sown) if sown else "")
-    set_header(path, "Run", " ".join(sizing.run_words(session.live(), template_run())))
+    set_header(path, "Run", " ".join(new_run()))
     if args.manual_landing:
         set_header(path, "Landing", "manual")
     if not args.no_current:
@@ -1229,11 +1248,11 @@ def spec_link_args(root: Path, args) -> tuple[dict | None, Path | None, list[dic
     return info, folder, spec_link.accepted(root, folder)
 
 
-def run_values(path: Path, args) -> dict:
+def run_values(path: Path, args, live: dict | None = None) -> dict:
     """`plan.py run`: --check compares `run` with the session's live values, --sync writes them into it, --model,
     --effort and --window set those words (the others kept); a legacy plan's line is `Run:`."""
     before = header_value(path.read_text(), "Run")
-    live = session.live()
+    live = live or session.live()  # `finish` passes the reading it made for the context check
     explicit = {k: v for k, v in (("model", args.model), ("effort", args.effort), ("window", args.window)) if v}
     if args.check and explicit:
         raise PlanError("run --check compares only: set values without it")
@@ -1416,8 +1435,8 @@ def check_records(root: Path, folders: list[Path]) -> tuple[int, list[str]] | No
 
 # What a servant (a field with plans/LEAD) may not do: plan.md is its foreman's (hal2 shows the newest copy). Reading
 # stays: current, list, ready, prompt, masterplan.
-SUBSERVANT_REFUSES = ("new", "status", "end", "assign", "grilled", "landing", "uat", "changelog", "scaffold",
-                     "run", "migrate", "leave", "convert", *shape_cli.COMMANDS)
+SUBSERVANT_REFUSES = ("new", "status", "end", "finish", "assign", "grilled", "landing", "uat", "changelog",
+                     "scaffold", "run", "migrate", "leave", "convert", *shape_cli.COMMANDS)
 PARALLEL_COMMANDS = ("ready", "assign")
 
 

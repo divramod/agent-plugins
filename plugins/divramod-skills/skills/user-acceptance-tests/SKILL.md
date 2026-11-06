@@ -1,6 +1,6 @@
 ---
 name: user-acceptance-tests
-description: Walk a plan's user acceptance tests (UATs) with the user, one check per message, and record each verdict — a thin layer on `hal2-cli-plans uat list|set`, whose queued verdicts already track which checks are confirmed (no second tracker). `/uat` walks the open checks of the plan in the `CURRENT_PLAN` pointer, `/uat <plan>` those of a plan (number or slug), `/uat <plan> <uat>` shows one check and takes its verdict, `/uat do [<plan>] <uat>` also runs the check's command for the user first, `/uat list [<plan>]` lists confirmed against open checks. Plain text, one check per message with its steps, the `Open:` link or `Run:` command and the expected result; the user answers pass, fail, skip or blocked with an optional note; a fail offers the shot. Use when the user says /uat, "walk the UATs", "the acceptance tests of plan 0364", "which UATs are open" or "run UAT U3". `/uat h` shows help.
+description: Walk a plan's UATs with the user, one check per message, recording each verdict (pass, fail, skip, blocked) through `hal2-cli-plans uat`; `/uat do` also runs the check's command. Use when the user says /uat, "walk the UATs", "the acceptance tests of plan 0364", "which UATs are open" or "run UAT U3".
 ---
 
 # user-acceptance-tests (alias uat)

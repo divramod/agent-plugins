@@ -1,6 +1,6 @@
 ---
 name: adapt-merge-queue
-description: Change the merge queue's priorities as the user says — `/adapt-merge-queue 12 18 15` makes worktrees 12, 18 and 15 land first in that order, before every other waiting landing (also one that queues later; the landing holding the queue is never preempted), and reserves each listed worktree's place: a worktree not yet queued gets a reserved ticket there, and at the front the queue waits for it until its own merge-to-main takes it over. hal2 owns the order (`hal2-cli-git worktree queue order`); the skill runs it, prints the queue before and after, and tells every affected session by SendMessage: each listed worktree its place (finished work not queued: land now; still working: keep working, the place waits), each worktree moved back, each worktree whose reservation went. In the farmer session every message carries an ack id (acks.py instruct). `/adapt-merge-queue clear` drops the order and every reservation. Use when the user says /adapt-merge-queue, "change the merge queue's order", "12 first, then 18", "reserve a place in the queue for 18" or "these land first". `/adapt-merge-queue h` shows help.
+description: Change the merge queue's priorities and reserve places, so listed worktrees land first in that order (`/adapt-merge-queue 12 18 15`; `clear` drops the order). Use when the user says /adapt-merge-queue, "change the merge queue's order", "12 first, then 18", "reserve a place in the queue for 18" or "these land first".
 ---
 
 # adapt-merge-queue

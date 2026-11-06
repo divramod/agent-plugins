@@ -1,6 +1,6 @@
 ---
 name: fix-tart
-description: Analyze and fix a failure of hal2's Mac VM runner (the Tart VM `hal2/ci-runner-macos` that hal2-daemon starts per GitHub job and the CI supervisor wakes and parks) — a VM job that waits for good, a start that hangs before `tart run`, a registration that fails with `HTTP 401`, a park between a lane's jobs, a Mac that slept mid-job. Collects the evidence (the VM's `vms list` row, `tart list`, the runner task logs, the daemon log's hal2_vm_node and hal2_ci_supervisor lines, the supervisor journal, pmset's sleeps, the queued GitHub jobs), matches it against known cases, finds the root cause in hal2's code, fixes it with a regression test replaying the incident, gets the stuck job going again (after asking) and records the case so the skill learns. `/fix-tart doctor` looks for VM incidents of the last hours nobody reported; `/fix-tart selfcheck` checks this skill's insider knowledge against the code. Use when the user says /fix-tart, "the Mac VM job waits / is stuck / never started", "mac-vm-a queued forever", "the VM runner does not come up" or "tart hangs". `/fix-tart h` shows help.
+description: Analyze and fix a failure of hal2's Mac VM runner (Tart) — a job that waits forever, a start that hangs, registration 401, a Mac asleep mid-job. Collects evidence, matches known cases, fixes the root cause with a regression test. Use when the user says /fix-tart, "the Mac VM job waits / is stuck / never started", "mac-vm-a queued forever" or "tart hangs".
 ---
 
 # fix-tart

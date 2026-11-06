@@ -20,9 +20,9 @@ barn is put back on its place, its foreman told, and a ticket held by `worktree 
 place and holds no hitched wagon (plan 0610 E18). A train that stands goes on.
 
 While a train stands (`standing`, step 6) it is frozen (plan 0360 D3, frozen.py): nothing leaves it, no wait limit
-ends it (D7), and every later hitch joins it until its push starts (open_train.py, plan 0610 D17): outside its landing
-the round's `join_actions` before its restart, a car with red light checks gets its fix order there; in its landing
-the landing's own process. After the push a wagon rides the next train. Its landing still runs: the watch reads
+ends it (D7), and every later hitch joins it until its first start (open_train.py, plan 0610 D17): the round's
+`join_actions`, a car with red light checks gets its fix order there. From the first start its cars are fixed: a
+later hitch rides the next train (plan 0687 D1). Its landing still runs: the watch reads
 its land run; at its first red job the one car the triage names gets its fix order by code, an unclear culprit wakes once (watch.py,
 plan 0360 step 5; early_order.py, plan 0383 step 5). Landed: every car's foreman is told "in the barn"
 (D12), and the same round goes on to the next train (`chain`, plan 0333 step 6). Red (also a red pretest before the

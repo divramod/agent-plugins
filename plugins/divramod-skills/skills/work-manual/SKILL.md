@@ -1,6 +1,6 @@
 ---
 name: work-manual
-description: Walk the user through the manual work of every farm — the hands-on items (an install, a click in a console, a cable) that plans store in `plans/<plan>/manual/`, written only by `hal2-cli-plans manual`. A script lists every farm's open items by farm and plan, shows one item's guide, and marks one done; the model walks one item at a time. Use when the user says /work-manual, "manual work", "what do I have to do by hand", "my manual items" or "list the hands-on things". `/work-manual h` shows help.
+description: Walk the user through every farm's manual work — the hands-on items (an install, a click in a console, a cable) that plans keep in their `manual/` folder, written only by `hal2-cli-plans manual`; a script lists, shows and marks them done; the model walks one by one. Use when the user says /work-manual, "manual work", "what do I have to do by hand", "my manual items" or "list the hands-on things".
 ---
 
 # work-manual

@@ -151,7 +151,8 @@ class SizingTest(unittest.TestCase):
         self.assertEqual(info["problems"], [])
         self.live = {"ANTHROPIC_MODEL": "claude-opus-5-5[1m]", "CLAUDE_EFFORT": "max"}
         info = self.plan("new", "deploy the nodes")
-        self.assertIn("\nrun: claude-opus-5-5 max 1m\n", (self.root / info["path"]).read_text())
+        self.assertIn("\nrun: claude-opus-5-5 medium 1m\n", (self.root / info["path"]).read_text(),
+                      "a new plan's run takes the template's effort, not the live max (plan 0682)")
         code, lines = self.check()  # the new plans' Briefs are not written yet (plan-brief-filled)
         self.assertEqual((code, len(lines), {l.rsplit("(", 1)[1] for l in lines}), (1, 4, {"plan-brief-filled)"}))
         for path in self.root.glob("plans/*/plan.md"):

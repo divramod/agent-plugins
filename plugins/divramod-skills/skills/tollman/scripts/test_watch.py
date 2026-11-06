@@ -1,11 +1,14 @@
 """Hal2 plan 0360 step 5 (D4, D32): while a train's landing runs, each tick reads its land run; the first red job
-wakes the session once, keyed by the run. The run is found by its branch `land/<carrier>` and its time, and cached
+wakes the session once, keyed by the run. The run is found by its branch (hal2-git's `current` for the carrier, else the `started` line's) and its time, and cached
 as a `run` line of train.jsonl. gh is gh_fake.py's: no real call."""
 
 import datetime as dt
+import json
 import unittest
+from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import land_name
 import tick
 import train_state
 import trains
@@ -24,8 +27,8 @@ def line(kind, at=AT, **kw):
 
 
 FORMED = line("formed", cars=CARS, base="b" * 40)
-STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711)
-OURS = run(501, "land/tollman-hal2", "2026-10-17T10:06:00Z", status="in_progress")
+STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711, land_ref="train-7-1")
+OURS = run(501, "land/train-7-1", "2026-10-17T10:06:00Z", status="in_progress")
 
 
 def shape(actions):
@@ -51,7 +54,16 @@ class LocalPhase(unittest.TestCase):
         self.assertIsNone(self.phase(rows, [OURS]))
 
 
+def no_cli(args, cwd):  # hal2-cli-git cannot say: the started line's branch stands (no real call in a test)
+    return 127, "no hal2-cli-git"
+
+
 class Watch(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(land_name, "cli", no_cli)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def watch(self, gh, rows=(FORMED, STARTED)):
         gh.start(self)
         rows = list(rows)
@@ -83,22 +95,34 @@ class Watch(unittest.TestCase):
         self.assertEqual(tick.fresh(again, log, now, "tollman"), [], "the same tick twice: one wake")
 
     def test_the_run_is_found_by_branch_and_time_and_a_retry_s_newer_run_wins(self):
-        runs = [run(509, "land/07", "2026-10-17T11:30:00Z", status="in_progress"),  # another slot's
-                run(508, "land/tollman-hal2", "2026-10-17T11:20:00Z", status="in_progress"),  # the retry's run
-                run(507, "land/tollman-hal2", "2026-10-17T10:06:00Z"),  # the first start's, red
-                run(400, "land/tollman-hal2", "2026-10-16T09:00:00Z")]  # an earlier train's
+        runs = [run(509, "land/0360-tollman-and-skills-1", "2026-10-17T11:30:00Z", status="in_progress"),  # a field's
+                run(508, "land/train-7-2", "2026-10-17T11:20:00Z", status="in_progress"),  # the retry's run
+                run(507, "land/train-7-1", "2026-10-17T10:06:00Z"),  # the first start's, red
+                run(400, "land/train-6-1", "2026-10-16T09:00:00Z")]  # an earlier train's
         retried = [FORMED, STARTED, line("run", at="2026-10-17T10:07:00Z", run=runs[2]["url"]),
                    line("red", at="2026-10-17T11:00:00Z", status="gate_failed", run=runs[2]["url"]),
                    line("retry", at="2026-10-17T11:01:00Z", why="runner: ECONNRESET"),
-                   line("started", at="2026-10-17T11:15:00Z", pid=4711)]
+                   line("started", at="2026-10-17T11:15:00Z", pid=4711, land_ref="train-7-2")]
         self.assertIsNone(train_state.land_run(retried), "the run of an earlier start is not this start's")
         out = self.watch(FakeGh(runs), retried)
         self.assertEqual(shape(out), [("train-run", "run", f"train-run:{NAME}:508")])
         FakeGh([runs[0], runs[2], runs[3]]).start(self)  # before the retry: its own run, never another slot's
         self.assertEqual(watch.find(MAIN, train_state.standing([FORMED, STARTED]), [FORMED, STARTED]),
-                         (runs[2]["url"], True), "the first start's: after it, on the carrier's branch")
+                         (runs[2]["url"], True), "the first start's: after it, on its own branch")
         self.assertEqual(watch.find(MAIN, train_state.standing([FORMED]), [FORMED]), (None, False),
                          "never started: no run")
+
+    def test_hal2_git_s_current_branch_beats_the_started_line_and_a_line_without_one_finds_no_run(self):
+        fake = lambda args, cwd: (0, json.dumps({"schema": 1, "slot": "tollman-hal2", "kind": "train",
+                                                 "current": "land/train-7-2", "next": "land/train-7-3"}))
+        seen = []
+        FakeGh([run(701, "land/train-7-2", "2026-10-17T10:20:00Z", status="in_progress"), OURS]).start(self)
+        rows = [FORMED, STARTED]
+        with mock.patch.object(land_name, "cli", lambda args, cwd: seen.append((args, cwd)) or fake(args, cwd)):
+            self.assertEqual(watch.find(MAIN, train_state.standing(rows), rows)[0], "https://github.com/x/actions/runs/701")
+        self.assertEqual(seen, [(["worktree", "land-ref", "--slot", "tollman-hal2", "--json"], MAIN)])
+        bare = [FORMED, line("started", at="2026-10-17T10:05:00Z", pid=4711)]
+        self.assertEqual(watch.find(MAIN, train_state.standing(bare), bare), (None, False), "never a built name")
 
 
 class Record(unittest.TestCase):

@@ -1,6 +1,6 @@
 ---
 name: lord
-description: The lord (German Burgherr), the city's head one level above the mayor (the city is the network of the user's machines, every village in it), keeping the user's goals for the next 3-5 years and living in the castle `~/a/city`. `/lord` prints the lord's effective duties (the skill's, overridden and extended by the castle's `roles/lord/ROLE.md`) and works by them. Use when the user says /lord, "lord", "Burgherr", "castle", "Burg", or a session in `~/a/city` needs its role. `/lord h` shows help.
+description: The lord (German Burgherr), the city's head above the mayor, keeping the user's goals for the next 3-5 years, in the castle `~/a/city`. `/lord` prints its duties (the castle's `roles/lord/ROLE.md` extends them). Use when the user says /lord, "lord", "Burgherr", "castle", "Burg", or a session in `~/a/city` needs its role.
 ---
 
 # lord

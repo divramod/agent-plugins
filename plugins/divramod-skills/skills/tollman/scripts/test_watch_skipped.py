@@ -11,6 +11,7 @@ from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import gh_runs
+import land_name
 import train_state
 import watch
 from gh_fake import FakeGh, run
@@ -45,6 +46,11 @@ class PerWorkflow(FakeGh):
 
 
 class Skipped(unittest.TestCase):
+    def setUp(self):  # hal2-cli-git cannot say: the started line's branch stands (no real call in a test)
+        patch = mock.patch.object(land_name, "cli", lambda args, cwd: (127, "no hal2-cli-git"))
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def home(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

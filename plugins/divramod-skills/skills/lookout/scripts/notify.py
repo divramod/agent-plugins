@@ -7,7 +7,12 @@ already recorded. `body` is cut to 200 characters. The desktop backend is termin
 macOS, `notify-send` on Linux, a PowerShell WinRT toast on Windows. Telegram uses the Bot API over urllib; the token
 and chat id are secret names in settings.json (`telegram: {token, chat, repo}`, read with `hal2-cli-secrets show`),
 else `LOOKOUT_TELEGRAM_TOKEN`/`LOOKOUT_TELEGRAM_CHAT`. No secret is printed, logged or put in an error. Tests inject
-`impls` ({backend: fn(title, body, farm, watch)}), `runner` and `urlopen`. Stdlib only.
+`impls` ({backend: fn(title, body, farm, watch)}), `runner`, `urlopen` and `record`. Stdlib only.
+
+After the sends, `send` records ONE notification (plan 0606 D9, D10): `hal2-cli-ring notifications add --from
+lookout --role lookout --farm <farm> --case lookout --channel desktop:<sent|failed> [--channel telegram:...] --
+<title>: <body>`, so the hal9k Ring view lists it. A missing `hal2-cli-ring` or a failed `add` is never raised and
+never an `ok: false` result.
 """
 
 import json
@@ -133,8 +138,36 @@ def _telegram(title, body, farm, watch, *, settings=None, env=None, secrets=read
         raise RuntimeError(f"telegram answered {status}")
 
 
-def send(title, body, farm, watch, backends, *, settings=None, impls=None, runner=_run, urlopen=None):
-    """Notify through each named backend; one result per backend, never raising."""
+RING = "hal2-cli-ring"
+KNOWN = ("desktop", "telegram")  # the backends the notifications store has a channel for
+
+
+def record_argv(binary, farm, results, text):
+    """`notifications add` for one notify call: a channel per known backend that ran (`sent` or `failed`)."""
+    argv = [binary, "notifications", "add", "--from", "lookout", "--role", "lookout", "--farm",
+            str(farm or "unknown"), "--case", "lookout"]
+    for item in results:
+        if item["backend"] in KNOWN:
+            argv += ["--channel", f"{item['backend']}:{'sent' if item['ok'] else 'failed'}"]
+    return argv + ["--", text]
+
+
+def record_notification(farm, text, results, *, which=shutil.which, runner=_run):
+    """Record the call's one notification; (recorded, error text). Never raises; no known backend, nothing to record."""
+    try:
+        if not any(item["backend"] in KNOWN for item in results):
+            return False, None
+        binary = which(RING)
+        if not binary:
+            return False, f"{RING} is not installed"
+        code, err = runner(record_argv(binary, farm, results, text))
+        return (True, None) if code == 0 else (False, one_line(f"{RING} notifications add exit {code}: {err}", 300))
+    except Exception as exc:
+        return False, one_line(f"{type(exc).__name__}: {exc}", 300)
+
+
+def send(title, body, farm, watch, backends, *, settings=None, impls=None, runner=_run, urlopen=None, record=None):
+    """Notify through each named backend; one result per backend, never raising. Then one `notifications add`."""
     title = one_line(title, 100) or "lookout"
     body = one_line(body, BODY_LIMIT)
     settings = paths.load_settings() if settings is None else settings
@@ -150,4 +183,6 @@ def send(title, body, farm, watch, backends, *, settings=None, impls=None, runne
             results.append({"backend": name, "ok": True, "error": None})
         except Exception as exc:
             results.append({"backend": name, "ok": False, "error": one_line(f"{exc}", 300)})
+    text = title if body in ("", title) else f"{title}: {body}"
+    (record or record_notification)(farm, text, results)
     return results

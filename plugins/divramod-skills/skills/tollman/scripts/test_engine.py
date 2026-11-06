@@ -522,13 +522,15 @@ class Frozen(Farm):
         """A `formed` line and only the first car merged (the form's process gone): the same train, its missing car
         merged, marked and started; 11, hitched meanwhile, joins it before its start (plan 0610 D17, E4)."""
         cars = [{"field": f, "branch": f, "head": self.gate.of(f)["ready"]["head"], "plan": ""} for f in ("07", "09")]
-        train_state.append(str(self.main), "formed", OWN, train="07+09@x", cars=cars, base=self.base)
+        train_state.append(str(self.main), "formed", OWN, train="07+09@x", cars=cars, base=self.base,
+                           number=1)  # a train without its number is never started (plan 0607 D4)
         git(self.wm, "merge", "-q", "--no-ff", "-m", f"Merge branch '07' into {self.branch()}", cars[0]["head"])
         self.crop("11", {"eleven.txt": "11"})
         self.round()
         self.assertEqual((self.last, self.state()), ([("join", "run", "-"), ("restart", "run", "-")], [
             ("formed", self.carrier()), ("joined", self.carrier()), ("started", self.carrier())]))
-        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", self.carrier(), "07", "09", "11"])
+        self.assertEqual(self.gate.calls[-1], ["worktree", "queue", "train", self.carrier(), "07", "09", "11",
+                                               "--train", "1", "--attempt", "1"])
         self.assertEqual([m for m in self.subjects() if m.startswith("Merge")],
                          [f"Merge branch '{f}' into {self.branch()}" for f in ("11", "09", "07")],
                          "the missing car and the joiner merged after the one its form had merged")

@@ -1,6 +1,6 @@
 ---
 name: delete-field
-description: Stop a running agent session of the current repository's worktrees — the opposite of create-worktree-session — by its worktree (`03`) or pane (`%54`, `t:<id>`): stops it by signal through `hal2-cli-agents stop` (its terminal host killed, or SIGHUP, SIGTERM, SIGKILL to its tmux pane), never by typing `/exit`, which sessions did not take; the worktree, its branch and its work stay. Refuses its own session, a busy agent (working, starting, blocked), a draft in its prompt, running background tasks and a worktree whose landing runs or waits in the merge queue unless the user confirms. Without an argument it lists the running sessions and asks which. Use when the user says /delete-field, "stop the session in wt 03", "end that agent" or "free a worktree". `/delete-field h` shows help.
+description: Stop the agent session of a worktree (`03`) or pane by signal, never /exit; worktree, branch and work stay. Refuses its own session, a busy agent, a draft, background tasks or a queued landing unless confirmed. Use when the user says /delete-field, "stop the session in wt 03", "end that agent" or "free a worktree".
 ---
 
 # delete-field

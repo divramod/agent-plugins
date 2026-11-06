@@ -56,7 +56,7 @@ class TestGenAliases(unittest.TestCase):
         self.assertEqual(self.run_gen(aliases), 0)
         c = self.stub_path("x").read_text()
         self.assertIn("name: x\n", c)
-        self.assertIn("disable-model-invocation: true", c)
+        self.assertNotIn("disable-model-invocation", c)  # plan 0681: aliases are model-invocable
         self.assertIn("`/handoff clear`", c)
         self.assertIn("`/handoff`", self.stub_path("h").read_text())
         self.assertIn("(../handoff/SKILL.md)", c)  # the flat installed form (D19)
@@ -114,13 +114,13 @@ class TestShippedAliases(unittest.TestCase):
             self.assertEqual(aliases[alias], {"skill": skill, "args": ""})
             self.assertIsNotNone(gen.find_skill(self.ROOT, skill), skill)
             stub = gen.stub(alias, skill, "")
-            self.assertIn(f"`/{alias} <args>` runs `/{skill} <args>`", stub)  # `/mtm milestone`, `/mtm h`
+            self.assertIn(f"`/{alias}` runs `/{skill}` of the {skill} skill, with any arguments appended", stub)  # `/mtm milestone`, `/mtm h`
             self.assertIn(f"with any arguments given to `/{alias}` appended", stub)
             self.assertEqual(gen.wanted_files(self.ROOT)[self.ROOT / "skills" / "shortcuts" / alias / "SKILL.md"], stub)
 
     def test_q_a_reaches_get_open_questions_as_a(self):
         stub = gen.stub("q", "get-open-questions", "")
-        self.assertIn("`/q <args>` runs `/get-open-questions <args>`", stub)  # `/q a`, `/q l`
+        self.assertIn("`/q` runs `/get-open-questions` of the get-open-questions skill, with any arguments appended", stub)  # `/q a`, `/q l`
 
 
 if __name__ == "__main__":

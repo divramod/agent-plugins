@@ -1,6 +1,6 @@
 ---
 name: find-and-fix-vulnerabilities
-description: Find the vulnerabilities in everything the user runs and write the fix plan — `scripts/scan.py` scans every farm in ~/a with osv-scanner, Dockerfile base images, Docker images and VM disks with trivy, the pending security updates of this Mac, Linux or Windows machine, and the servers read-only over ssh; the findings are matched against CISA KEV first, then NVD, GHSA/OSV and the vendors' pages, and printed as one table (one row per vulnerability: CVE, where, version, fixed version, KEV, severity); then it writes one fix plan with a step per fix, KEV first. Read-only until that plan runs: the skill never fixes anything itself. Use when the user says /find-and-fix-vulnerabilities, "find vulnerabilities", "are we affected", "security scan", "CVE check" or "is anything exploited". `/find-and-fix-vulnerabilities h` shows help.
+description: Find the vulnerabilities in everything the user runs (all farms, Docker images, VM disks, this Mac's pending updates, servers read-only), match them against CISA KEV, NVD and GHSA, print one table, write a fix plan with KEV first. Use when the user says /find-and-fix-vulnerabilities, "find vulnerabilities", "are we affected", "security scan", "CVE check" or "is anything exploited".
 ---
 
 # find-and-fix-vulnerabilities

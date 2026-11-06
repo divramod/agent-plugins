@@ -27,8 +27,8 @@ CARS = [{"field": "07", "branch": "07", "head": "7" * 40, "plan": "0360-tollman-
         {"field": "09", "branch": "09", "head": "9" * 40, "plan": ""}]
 SINCE = "2026-10-17T10:20:00Z"
 BY = {"slot": "03", "seq": 41, "since": SINCE}
-OLD = run(501, "land/tollman-hal2", "2026-10-17T10:06:00Z", conclusion="cancelled")
-NEW = run(502, "land/tollman-hal2", "2026-10-17T10:40:00Z", status="in_progress")
+OLD = run(501, "land/train-7-1", "2026-10-17T10:06:00Z", conclusion="cancelled")
+NEW = run(502, "land/train-7-1", "2026-10-17T10:40:00Z", status="in_progress")
 
 
 def line(kind, at=AT, **kw):
@@ -36,7 +36,7 @@ def line(kind, at=AT, **kw):
 
 
 FORMED = line("formed", cars=CARS, base="b" * 40)
-STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711)
+STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711, land_ref="train-7-1")  # restart records land-ref (0607 D6)
 NOTED = line("run", at="2026-10-17T10:07:00Z", run=OLD["url"])
 PAUSED = line("pause", at="2026-10-17T10:21:00Z", field="03", seq=41, since=SINCE, run=OLD["url"])
 
@@ -169,7 +169,7 @@ class Smuggles(unittest.TestCase):
 
     def test_a_smuggled_red_is_an_order_to_that_field_not_a_main_red_wake(self):
         url = "https://github.com/x/actions/runs/601"
-        FakeGh([run(601, "land/tollman-hal2", "2026-10-17T10:50:00Z")],
+        FakeGh([run(601, "land/train-7-1", "2026-10-17T10:50:00Z")],
                jobs={"601": [job("d1-01-rust-test")]},
                logs={"601": "test hub::tenant ... FAILED\nthread panicked at a.txt:3\n"}).start(self)
         out = trains.settle(self.top, self.train, {"status": "gate_failed", "run": url,

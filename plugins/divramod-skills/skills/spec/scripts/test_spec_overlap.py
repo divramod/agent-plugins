@@ -19,24 +19,25 @@ class SpecOverlap(SpecCase):
         info, err, made = self.new_with(HIT)
         folder = self.root / info["dir"] if "dir" in info else (self.root / info["spec"]).parent
         self.assertEqual(json.loads((folder / "overlap.json").read_text()), HIT)
-        self.assertIn("- Overlap: 0571-milestone-hitch, 0131-plan-consistency", (folder / "plan.md").read_text())
-        self.assertIn("settle each hit before writing", err)
-        self.assertEqual(len(info["overlap"]), 2)
+        self.assertIn("\n- CLI-CONTEXT\n", (folder / "plan.md").read_text())
+        self.assertIn("CLI-REPORT", err)
+        self.assertEqual(info["overlap"], ["CLI-LINE-1", "CLI-LINE-2"])
         self.assertEqual(len(made), 1)
         self.assertIn("Login with passkeys", made[0][made[0].index("--goal") + 1])
 
     def test_an_overlap_resolved_spec_has_a_checked_line(self):
         info, err, _ = self.new_with(EMPTY)
         folder = (self.root / info["spec"]).parent
-        self.assertIn("- Overlap: checked", (folder / "plan.md").read_text())
-        self.assertIn("overlap: none", err)
+        self.assertIn("- CLI-CONTEXT-NONE", (folder / "plan.md").read_text())
+        self.assertIn("CLI-REPORT-NONE", err)
 
     def test_without_the_cli_the_spec_is_written_and_says_unchecked(self):
         info, err, _ = self.new_with(None)
         folder = (self.root / info["spec"]).parent
         self.assertTrue((folder / "spec.md").is_file())
         self.assertFalse((folder / "overlap.json").exists())
-        self.assertIn("overlap unchecked", err)
+        self.assertIn("overlap: overlap unchecked", err)
+        self.assertIn("- Overlap: overlap unchecked", (folder / "plan.md").read_text())
 
 
 if __name__ == "__main__":

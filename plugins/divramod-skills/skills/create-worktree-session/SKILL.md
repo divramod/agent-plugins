@@ -1,6 +1,6 @@
 ---
 name: create-worktree-session
-description: Start a new agent session (Claude by default) in the current repository's first free and clean worktree — the first worktree from 01 with no agent session running in it and no work in its worktree (no plan in the CURRENT_PLAN pointer, no uncommitted changes, no commits not merged into main, no landing queued; behind main is fine), creating the worktree when it is missing — detached in the background (a hal2 terminal host, or a tmux window with --tmux), with a fresh session whose first prompt runs /mfm and then an optional task prompt (e.g. `/shoot 13`). The farmer's foremen start with `--from 00` and an explicit `--model` and `--effort` (a new worktree needs free disk). Reports the worktree, the attach command (in the clipboard) and the worktrees it skipped for their work. Use when the user says /create-worktree-session, "new worktree session", "start an agent in a free worktree" or wants a task started in a fresh worktree. `/create-worktree-session h` shows help. The opposite is delete-field.
+description: Start a new agent session (Claude) in the repository's first free, clean worktree, creating it if missing, whose first prompt runs /mfm and an optional task (e.g. /shoot 13); detached, reports the attach command. Use when the user says /create-worktree-session, "new worktree session", "start an agent in a free worktree" or wants a task started in a fresh worktree.
 ---
 
 # create-worktree-session

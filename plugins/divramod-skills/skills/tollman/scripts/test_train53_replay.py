@@ -2,13 +2,16 @@
 07+09 lands once and goes red; car 83 joins with red light checks, the session's `retry` restarts the train, that
 restart ends on `proof_red` (no landing, `starts` unchanged), 83 is ordered and fixed, and the next round restarts
 under a NEW key (it stood on the used `retry:<train>:<starts>` before); car 74, joining the then retrying train with
-other red findings, gets its own fix order. Whole rounds on engine_farm.py's farm."""
+other red findings, gets its own fix order. Whole rounds on engine_farm.py's farm. Train 53 stood before plan 0687 D1
+(a train's cars fixed at its first start): its joins replay with `open_train.fixed` off (`before_the_cut`); today
+they are refused (test_open_train_fixed.py)."""
 # enforces .adr/tollman.md
 
 import unittest
 from unittest import mock
 
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
+import open_train
 import train_state
 import trains
 from engine_farm import Farm, out
@@ -21,6 +24,11 @@ def prove(main, field, head, barn):
     """Cars 83 and 74 have red light checks, each its own finding (so neither is a twin of the other)."""
     name = field.rsplit("/", 1)[-1]
     return {"state": "red", "lines": [f"names: {name}.txt"]} if name in ("83", "74") else GREEN
+
+
+def before_the_cut():
+    """Plan 0610 D17 as train 53 had it: a started train still took joiners (plan 0687 D1 ends that)."""
+    return mock.patch.object(open_train, "fixed", lambda train: False)
 
 
 class Train53(Farm):
@@ -51,7 +59,8 @@ class Train53(Farm):
         still 1), 83 is ordered and fixed, and the next round restarts the train under a new key."""
         self.assertEqual(self.call("retry", "--why", "flaky")[0], 0)
         self.crop("83", {"x83.txt": "83"})
-        self.round()
+        with before_the_cut():
+            self.round()
         t = self.train()
         self.assertEqual((self.last, [c["field"] for c in t["cars"]], t["state"], t["status"], t["starts"]),
                          ([("join", "run", "-"), ("restart", "run", "-")], ["07", "09", "83"], "red", "proof_red", 1),
@@ -72,7 +81,8 @@ class Train53(Farm):
         """L254, car 74: joined with red light checks, the train put to `retry` before its order: the round orders it
         (proof_orders.pending) and starts nothing past it."""
         self.crop("74", {"y74.txt": "74"})
-        self.round()
+        with before_the_cut():
+            self.round()
         self.assertEqual(([c["field"] for c in self.train()["cars"]], self.train()["state"]), (["07", "09", "74"], "red"))
         self.assertEqual(self.kinds("order"), [], "no order yet")
         self.assertEqual(self.call("retry", "--why", "flaky")[0], 0)

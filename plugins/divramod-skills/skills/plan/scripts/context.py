@@ -110,7 +110,25 @@ def drift(live: dict, run: str) -> dict:
     return out
 
 
-def measure(args: argparse.Namespace, home: Path) -> dict:
+def scan_session(args: argparse.Namespace, home: Path) -> tuple[dict | None, Path | None, str | None]:
+    """One parse of the session's transcript (--transcript, else $CLAUDE_CODE_SESSION_ID's): (the scan, the file,
+    None), or (None, the file or None, why it could not be read)."""
+    session_id = args.session or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    transcript = Path(args.transcript) if args.transcript else (
+        session.find_transcript(session_id, home / ".claude" / "projects") if session_id else None)
+    if transcript is None:
+        return None, None, (f"no transcript for session {session_id}" if session_id
+                            else "no session id ($CLAUDE_CODE_SESSION_ID unset)")
+    try:
+        return session.scan(transcript), transcript, None
+    except OSError as error:
+        return None, transcript, f"cannot read {transcript}: {error}"
+
+
+def measure(args: argparse.Namespace, home: Path, scanned: tuple | None = None, live: dict | None = None,
+            plan: tuple[str | None, str] | None = None) -> dict:
+    """The JSON this script prints. `scanned` (scan_session's), `live` (session.values of it) and `plan` (slug, run)
+    are given by a caller that has them already (`plan.py finish`: one parse of the transcript for run and context)."""
     settings, why = autoclear_settings()
     threshold = args.threshold
     if threshold is None:
@@ -121,22 +139,13 @@ def measure(args: argparse.Namespace, home: Path) -> dict:
     result = {"known": False, "used": None, "window": None, "percent": None, "raw_percent": None,
               "threshold": threshold, "stop": None, "source": None,
               "autoclear": can_clear, "autoclear_reason": clear_why, "model_source": None}
-    found = None
-    session_id = args.session or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
-    transcript = Path(args.transcript) if args.transcript else (
-        session.find_transcript(session_id, home / ".claude" / "projects") if session_id else None)
-    if transcript is None:
-        result["source"] = (f"no transcript for session {session_id}" if session_id
-                            else "no session id ($CLAUDE_CODE_SESSION_ID unset)")
-    else:
-        try:
-            found = session.scan(transcript)
-        except OSError as error:
-            result["source"] = f"cannot read {transcript}: {error}"
-    live = session.values(found, home)
-    slug, run = plan_run(Path.cwd())
+    found, transcript, missing = scanned or scan_session(args, home)
+    if missing:
+        result["source"] = missing
+    live = live or session.values(found, home)
+    slug, run = plan or plan_run(Path.cwd())
     result.update(model=live["model"], effort=live["effort"], model_source=live["sources"]["model"],
-                  sources=live["sources"], plan=slug, run=run or None, drift=drift(live, run))
+                  sources=dict(live["sources"]), plan=slug, run=run or None, drift=drift(live, run))
     if found is None:
         return result
     used = found["used"]

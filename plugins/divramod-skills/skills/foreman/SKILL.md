@@ -1,6 +1,6 @@
 ---
 name: foreman
-description: The foreman (German Vorarbeiter), the session that runs a plan in the plan's own field (any worktree 00-99) — it coordinates, hands every step to a hand (a subagent) or a servant, commits per step, hitches its harvest for the tollman and removes its servants' fields once their work is in. `/foreman` prints the foreman's effective duties (the skill's, overridden and extended by the repository's `roles/foreman/ROLE.md`) and works by them. Use when the user says /foreman, "foreman", "fm", "Vorarbeiter", "what does a foreman do", or a session running a plan needs its role. `/foreman h` shows help.
+description: The foreman (German Vorarbeiter), the session running a plan in its own field (worktree 00-99) — coordinates, hands steps to hands or servants, commits per step, hitches its harvest for the tollman. `/foreman` prints its duties. Use when the user says /foreman, "foreman", "fm", "Vorarbeiter", "what does a foreman do", or a session running a plan needs its role.
 ---
 
 # foreman
@@ -32,7 +32,9 @@ edit them through `plan.py edit`/`apply`, never under `plans/`.
 
 ### steps-as-hands
 Every step runs in one hand (a subagent) at its row's model, effort and window, at most five at once; the foreman
-stays on `opus[1m]` high (hal2 record
+stays on `opus[1m]` medium; only planning a big plan (a masterplan, over 8 steps, or steps in 3+ units) runs in a hand
+at effort high, and the foreman never types `/effort` or `/model` (the user, 2026-11-05: "high effort should only be
+for big plans not small ones"; hal2 record
 [plan-steps-as-subagents](https://github.com/divramod/hal2/blob/main/.adr/plan-steps-as-subagents.md)). A hand's
 description is `Plan <NNNN> row <step>: <title>` (`~/.adr/subagent-names-plan-row.md`). In a plan of schema 2 the step is its
 ref (`Plan 0376 row 01.03: <title>`), and `plan.py ready --json` says what runs now.

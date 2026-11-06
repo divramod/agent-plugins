@@ -26,13 +26,13 @@ its `run` actions; none waits for CI.
       process lives after its red was taken (plan 0522 D17); a train with a car whose light checks are red and that
       has no fix order yet goes `red` (`proof_red`) instead, its fix orders first (proof_orders.py, the user
       2026-11-04: every hitched wagon rides); one past its checks that starts nothing: `attempt` (plan 0620 D5)
-  engine.py land [--land-ref <train-...>] [--repo <field>]
+  engine.py land [--repo <field>]
       the detached process: first the train's pretest (pretest_train.py, plan 0349 D75: a red one prints the result
       `pretest_red` and no landing starts), then the wait until the land run before has finished and the answered
-      post-merge fixes merged (next_train.py, plan 0383 step 6), then `hal2-cli-git worktree merge-to-main --json
-      --land-ref <name>` as its child, on the train's own branch `land/<name>` (train_branch.py, plan 0383 D2;
-      `restart` names it). It stays that landing's parent until it ends, because a merge-to-main whose starter is
-      gone ends `interrupted`. Right before it the unchanged-head guard (head_guard.py, plan 0560 D5): the head of
+      post-merge fixes merged (next_train.py, plan 0383 step 6), then `hal2-cli-git worktree merge-to-main --json`
+      as its child, on the train's own branch (train_branch.py, plan 0383 D2; hal2-git names it from the mark and
+      `restart` records what `land-ref` says, plan 0607 D6). It stays that landing's parent until it ends, because
+      a merge-to-main whose starter is gone ends `interrupted`. Right before it the unchanged-head guard (head_guard.py, plan 0560 D5): the head of
       the last red run of the train is refused (`tollman: refused`, the result `refused`, exit 1), any other is
       written as the `push` line; before both open_train.stops: a car that joined and waits for its resolve, is
       unmerged or has red light checks holds the push (plan 0610 E5, E6); then, on the train's first run only, the
@@ -102,7 +102,7 @@ def cli(args: list[str], cwd: str) -> Done:
 
 
 def spawn(top: str, log: Path, ref: str | None) -> int:
-    """Start `land` (`--land-ref ref` only for a train without a number) in a session of its own (no terminal, no
+    """Start `land` (`--land-ref ref` only when one is given) in a session of its own (no terminal, no
     parent that waits), its output in `log`: its pid."""
     with log.open("w") as out:
         argv = [sys.executable, str(Path(__file__).resolve()), "land", "--repo", top, *(["--land-ref", ref] if ref else [])]
@@ -159,14 +159,19 @@ def start(main: str, field: str, train: dict, top: str, now: dt.datetime | None 
     code, commit = fresh(top, train) if train["state"] == "retry" and not train["fixed"] else (0, None)  # a fix merged
     if code:
         return 1, f"train {train['train']} was not retried: {commit[-300:]}"
-    if train_branch.numbered(train) and (named := train_wt.to_run(top, train["number"], train["starts"] + 1))[0]:
+    if not train_branch.numbered(train):  # plan 0607 D4: hal2-git names no landing branch without the numbered mark
+        return 1, f"train {train['train']} not started: it has no number (formed before plan 0398), so no land branch"
+    if (named := train_wt.to_run(top, train["number"], train["starts"] + 1))[0]:
         return 1, f"train {train['train']} not started: {named[1]}"  # the carrier's branch is its run's (D18)
     code, out = cli(["worktree", "queue", "train", field, *(c["field"] for c in train["cars"]), *train_branch.mark(train),
                      "--json"], top)
     if code:
         return 1, f"train {train['train']} was not marked: {out[-300:]}"
-    log, ref = train_state.folder(main) / train_state.LOG, train_branch.ref(train)
-    pid = spawn(top, log, None if train_branch.numbered(train) else ref)  # a numbered mark names its own branch
+    ref, why = land_name.next_ref(top)  # the branch hal2-git pushes this start to, asked after the mark (plan 0607 D6)
+    if ref is None:
+        return 1, f"train {train['train']} was not named: {why}"
+    log = train_state.folder(main) / train_state.LOG
+    pid = spawn(top, log, None)  # the numbered mark names its own branch: no --land-ref
     train_state.append(main, "started", field, now, train=train["train"], pid=pid, log=str(log), commit=commit,
                        land_ref=ref)
     return 0, f"train {train['train']}: landing started (pid {pid}, start {train['starts'] + 1})"
@@ -197,7 +202,7 @@ def land(top: str, ref: str | None = None) -> int:
     code, out = cli(["worktree", "queue", "train", Path(top).name, "--pid", str(os.getpid()), "--json"], top)
     print(*["tollman: the train's pid is not on its mark:", out[-200:]] * bool(code), flush=True)
     argv = LAND + ["--land-ref", ref] * bool(ref)
-    if land_name.refuses(top, ref):  # land/<NN> or land/train-<n>-<a> only, checked before the pretest and the push
+    if land_name.refuses(top, ref):  # only the branch hal2-git names for the mark, checked before the pretest and the push
         return 1
     with workqueue_hold.landing_hold(top):
         if pretest_train.before_landing(top):

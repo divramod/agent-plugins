@@ -1,6 +1,6 @@
 ---
 name: pope
-description: The pope (German Papst), the planet's head and the highest role of the halverse, keeping the user's life goals and living in the cathedral `~/a/planet`. `/pope` prints the pope's effective duties (the skill's, overridden and extended by the cathedral's `roles/pope/ROLE.md`) and works by them. Use when the user says /pope, "pope", "Papst", "cathedral", "Dom", or a session in `~/a/planet` needs its role. `/pope h` shows help.
+description: The pope (German Papst), the planet's head and the halverse's highest role, keeping the user's life goals, in the cathedral `~/a/planet`. `/pope` prints its duties (the cathedral's `roles/pope/ROLE.md` extends them). Use when the user says /pope, "pope", "Papst", "cathedral", "Dom", or a session in `~/a/planet` needs its role.
 ---
 
 # pope

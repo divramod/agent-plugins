@@ -1,6 +1,6 @@
 ---
 name: mayor
-description: The mayor (German Bürgermeister), the village's head one level above the farms (the village is the laptop, every farm on it), living in the town hall `~/a/village` — it stops all work in every farm and sends everyone back to work. `/mayor` prints the mayor's effective duties (the skill's, overridden and extended by the town hall's `roles/mayor/ROLE.md`) and works by them. Use when the user says /mayor, "mayor", "Bürgermeister", "stop every farm", "everyone back to work", or a session in `~/a/village` needs its role. `/mayor h` shows help.
+description: The mayor (German Bürgermeister), the village's head above the farms, in the town hall `~/a/village` — stops all work in every farm and sends everyone back. `/mayor` prints its duties (the town hall's `roles/mayor/ROLE.md` extends them). Use when the user says /mayor, "mayor", "Bürgermeister", "stop every farm", "everyone back to work", or a session in `~/a/village` needs its role.
 ---
 
 # mayor

@@ -2,8 +2,11 @@
 Run from the scripts folder: python3 -m unittest test_notify"""
 import json
 import unittest
+from unittest import mock
 
 import notify
+
+REAL_RECORD = notify.record_notification  # before setUp patches it
 
 
 class FakeReply:
@@ -18,6 +21,12 @@ class FakeReply:
 
 
 class NotifyTest(unittest.TestCase):
+    def setUp(self):
+        # `send` records its notification through hal2-cli-ring: never the real one in a test.
+        patch = mock.patch.object(notify, "record_notification", return_value=(False, None))
+        self.recorder = patch.start()
+        self.addCleanup(patch.stop)
+
     def test_backends_for(self):
         settings = {"notify": ["desktop", "telegram"]}
         self.assertEqual(notify.backends_for({}, settings), ["desktop", "telegram"])
@@ -111,6 +120,44 @@ class NotifyTest(unittest.TestCase):
             return Done()
         self.assertEqual(notify.read_secret("NAME_SEC", "/repo", fake), "value")
         self.assertEqual(seen, [["hal2-cli-secrets", "show", "NAME_SEC", "--repo", "/repo"]])
+
+    def test_send_records_one_notification_with_the_text_and_the_results(self):
+        impls = {"desktop": lambda t, b, f, w: None, "telegram": lambda t, b, f, w: 1 / 0}
+        out = notify.send("Watch w", "found it", "hal2", "w1", ["desktop", "telegram"], settings={}, impls=impls)
+        self.recorder.assert_called_once_with("hal2", "Watch w: found it", out)
+        self.assertEqual([r["ok"] for r in out], [True, False])
+
+    def test_the_record_argv_has_a_channel_per_known_backend(self):
+        results = [{"backend": "desktop", "ok": True, "error": None},
+                   {"backend": "telegram", "ok": False, "error": "x"}, {"backend": "other", "ok": True, "error": None}]
+        self.assertEqual(notify.record_argv("/b/ring", "hal2", results, "T: b"), [
+            "/b/ring", "notifications", "add", "--from", "lookout", "--role", "lookout", "--farm", "hal2",
+            "--case", "lookout", "--channel", "desktop:sent", "--channel", "telegram:failed", "--", "T: b"])
+
+    def test_record_notification_runs_the_cli_and_never_raises(self):
+        ok = [{"backend": "desktop", "ok": True, "error": None}]
+        calls = []
+
+        def good(argv):
+            calls.append(argv)
+            return 0, ""
+        self.assertEqual(REAL_RECORD("hal2", "T", ok, which=lambda _: "/b/ring", runner=good), (True, None))
+        self.assertEqual(calls[0][:3], ["/b/ring", "notifications", "add"])
+        recorded, error = REAL_RECORD("hal2", "T", ok, which=lambda _: "/b/ring", runner=lambda argv: (2, "bad"))
+        self.assertFalse(recorded)
+        self.assertIn("exit 2: bad", error)
+        recorded, error = REAL_RECORD("hal2", "T", ok, which=lambda _: None, runner=good)
+        self.assertEqual((recorded, "not installed" in error), (False, True))
+        boom = mock.Mock(side_effect=OSError("gone"))
+        self.assertIn("OSError", REAL_RECORD("hal2", "T", ok, which=lambda _: "/b/ring", runner=boom)[1])
+
+    def test_nothing_is_recorded_without_a_known_backend(self):
+        calls = []
+        other = [{"backend": "other", "ok": True, "error": None}]
+        self.assertEqual(REAL_RECORD("hal2", "T", other, which=lambda _: "/b/ring", runner=calls.append),
+                         (False, None))
+        self.assertEqual(REAL_RECORD("hal2", "T", [], which=lambda _: "/b/ring", runner=calls.append), (False, None))
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
-"""A join outside a landing and the standing train's cars (hal2 plan 0610 D8, D17; audit E3, E4, E8):
+"""A join outside a landing and the standing train's cars (hal2 plan 0610 D8, D17; audit E3, E4, E8; plan 0687 D1):
 
   tollman.py join <field> [--car <json>] [--repo <dir>]
       the hitched head of `field` joins the standing train as a car (`record`): the round runs it per joiner with the
       car its draft made (open_train.joiners, `--car`); by hand (the session's, instead of a merge into the carrier:
       E8) without `--car`, the same draft decides, and a wagon that waits under a user-named exception is refused
-      with its reason. A train that lands: its landing's own process takes the wagon before the push
-      (open_train.take); once it pushed, the wagon rides the next train
+      with its reason. Only a train never started takes a join: once it started (open_train.fixed, its first
+      `started` line; plan 0687 D1, superseding plan 0610 D17 for started trains) `join` refuses before it touches
+      anything, the wagon stays hitched and rides the next train
   tollman.py join <field> --alone <json> [--repo <dir>]
       a wagon that would ride alone (gate_car.py), hitched while the train stands: on that train's `alone_next` (an
       `alone` line, open_train.owe; plan 0610 D15), so it rides alone in the very next train, its own; the round runs it
@@ -13,11 +14,11 @@
       the standing train's cars and every hitched wagon with where it stands (train_cars.py), read from the queue,
       the train state and the train's branch by code: what every status answer reads
 
-`record` is the join of a train that stands outside its landing (open_train.OPEN: formed, resolving, red, fixing,
-retry): a `joined` line (`merged` false unless the carrier holds the head already, a hand merge) and the queue's mark
-with every car (`--train/--attempt` of its last start; a refusal is noted, the next start marks it). The carrier is
-not touched: the next start merges the car (engine.restart: resolve_train.merge_rest, a conflict waits `resolving`
-with its resolve order) and makes the train red first when its light checks are red (proof_orders.red_line).
+`record` is the join of a train that stands formed, never started (open_train.OPEN, open_train.fixed): a `joined` line
+(`merged` false unless the carrier holds the head already, a hand merge) and the queue's mark with every car
+(`--train/--attempt` of its last start; a refusal is noted, the next start marks it). The carrier is not touched: the
+next start merges the car (engine.restart: resolve_train.merge_rest, a conflict waits `resolving` with its resolve
+order) and makes the train red first when its light checks are red (proof_orders.red_line).
 """
 
 import json
@@ -63,10 +64,9 @@ def join(repo: str, field: str, car: dict | None = None, now=None) -> Done:
     if not train:
         return 1, f"no train stands: field {field} rides the next train's draft"
     name, state = train["train"], train["state"]
-    if open_train.pushed(train):
-        return 1, f"train {name} pushed {train['head'][:12]}: field {field} rides the next train"
-    if state == "landing":
-        return 0, f"train {name} lands: its landing's own process takes field {field} before its push (open_train.take)"
+    if open_train.fixed(train):  # plan 0687 D1: the cars are fixed at the first start
+        return 1, (f"train {name} started ({state}, start {train['starts']}): its cars are fixed, nothing joins (hal2 "
+                   f"plan 0687 D1); field {field} stays hitched and rides the next train")
     if state not in open_train.OPEN:
         return 1, f"train {name} is {state}: nothing joins it now; field {field} rides the next train"
     if gone := train_wt.astray(top, train):

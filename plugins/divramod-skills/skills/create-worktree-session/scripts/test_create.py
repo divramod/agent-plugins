@@ -10,6 +10,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 os.environ.setdefault("HAL2_OVERLAP", "off")  # the start paths' overlap scan (~25 s) has its own tests
+TEXT = {"lines": ["CLI-LINE-1"], "context": "- CLI-CONTEXT", "report": "CLI-REPORT"}  # markers no Python format makes
 
 FAKE = r'''#!/usr/bin/env python3
 import json, os, sys
@@ -138,20 +139,24 @@ class TestCreate(unittest.TestCase):
     def test_overlap_hits_go_into_the_first_prompt_to_settle(self):
         out, prompt = self.overlap_prompt({"plans": [{"slug": "0571-x", "title": "X", "field": "12", "state": "open",
                                                       "score": 0.8, "why": ["same words"], "path": "plans/0571-x/plan.md"}],
-                                           "research": []})
-        self.assertIn("Overlap with unfinished work", prompt)
-        self.assertIn("plan 0571-x", prompt)
-        self.assertIn("Settle each hit", prompt)
-        self.assertIn("plan 0571-x", out["overlap"][0])
+                                           "research": [], "text": TEXT})
+        self.assertIn("Overlap with unfinished work (hal2-cli-plans overlap):\nCLI-REPORT", prompt)
+        self.assertNotIn("Settle each hit", prompt)  # the CLI's report holds the hint, no copy here
+        self.assertEqual(out["overlap"], ["CLI-LINE-1"])
 
     def test_an_overlap_resolved_prompt_stays_as_given(self):
-        out, prompt = self.overlap_prompt({"plans": [], "research": []})
+        out, prompt = self.overlap_prompt({"plans": [], "research": [], "text": {**TEXT, "lines": []}})
         self.assertEqual(prompt, "Run /merge-from-main first, then:\n\nadd reddit as a source")
         self.assertEqual(out["overlap"], [])
 
     def test_a_missing_cli_says_unchecked_and_never_blocks(self):
         out, prompt = self.overlap_prompt(None)
-        self.assertIn("overlap unchecked", prompt)
+        self.assertIn("overlap: overlap unchecked", prompt)
+        self.assertEqual(out["overlap"], ["overlap unchecked"])
+
+    def test_an_answer_without_text_is_unchecked(self):
+        out, prompt = self.overlap_prompt({"plans": [{"slug": "0571-x"}], "research": []})
+        self.assertIn("overlap: overlap unchecked", prompt)
         self.assertEqual(out["overlap"], ["overlap unchecked"])
 
     def test_no_overlap_skips_the_scan(self):

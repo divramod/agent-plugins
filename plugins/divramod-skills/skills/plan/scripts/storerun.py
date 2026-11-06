@@ -1,6 +1,6 @@
 """plan.py in the store home (hal2 plan 0409 step 8; planhome.py has the view): a command renders the plans it needs
 into a scratch view outside the tree, runs plan.py's own code on it (so both homes print the same), applies what it
-changed and, when a step turned done or dropped, calls the store's sync trigger.
+changed and, when a step turned done or dropped (`status`, `finish`), calls the store's sync trigger.
 
 What a command needs: the plan it names (`--plan`, `use`'s plan, `--parent`, `new --spec`'s spec, `check`'s folders), the plans the
 pointers name (CURRENT_PLAN, PREVIOUS_PLAN), and the masterplan each of those belongs to; `list`, `leave`, `convert`,
@@ -74,7 +74,7 @@ def run(root: Path, info: dict, args, dispatch) -> int:
         _VIEW = None
         view.close(apply=code == 0)
     status = str(getattr(args, "status", "") or "").strip().lower()
-    if code == 0 and args.command == "status" and status.startswith(ENDS):
+    if code == 0 and (args.command == "finish" or args.command == "status" and status.startswith(ENDS)):
         planhome.sync(root, "step-done")
     return code
 

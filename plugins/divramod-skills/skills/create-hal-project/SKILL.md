@@ -1,6 +1,6 @@
 ---
 name: create-hal-project
-description: Set up a new hal project in one call — a private GitHub repo divramod/<name>, checked out in ~/a/<name> with the hal layout in its first commit (README with the one-page hal brief, CLAUDE.md, AGENTS.md, INTENT.md, GLOSSARY.md, .gitignore, roles/farmer/ROLE.md, the hal folders, a language-agnostic gate and pre-push hook, .hal/setup.toml, LICENSE placeholder), and a window named by the alias in each of the user's smug ymls (~/.config/smug). Always a dry run first that shows every action as create or exists; it acts only on the user's go in this session (a GitHub repo is outward-facing), is idempotent and never overwrites an existing repo, folder or smug window. Prints the next steps (fields, farmer; no tollman or CI yet). Use when the user says /create-hal-project, "new hal project", "set up a new project", "bootstrap a repo" or "create a project with alias". `/create-hal-project h` shows help.
+description: Set up a new hal project in one call — private GitHub repo, checkout in ~/a/name with the hal layout, gate and smug windows. Dry run first, acts only on the user's go, never overwrites. Use when the user says /create-hal-project, "new hal project", "set up a new project", "bootstrap a repo" or "create a project with alias".
 ---
 
 # create-hal-project

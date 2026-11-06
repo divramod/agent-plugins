@@ -1,6 +1,6 @@
 ---
 name: cleanup
-description: Delete the build artifacts of the current git worktree, or another worktree of the repository named by its folder name, branch or path (`/cleanup 03`, so it runs from another session), to free disk space — every git-ignored, untracked build output and generated file (Rust target/, Xcode and SwiftPM build folders, .build/, generated .xcodeproj and xcframeworks, dist/, caches), without asking. What goes is the repo's `.hal/cleanup` (globs to delete, `!` globs to keep, e.g. fetched dependencies), else generic build folders; it deletes only git-ignored paths that hold no tracked file — never secrets, .env, .hal/, plans/ or shotfiles/ — and reports sizes and how each comes back. /mtm runs it after a fully landed worktree. Refuses while a build or test still runs in the worktree. Use when the user says /cleanup, "clean the worktree", "delete build artifacts", "free disk space" or a disk is full. `/cleanup h` shows help.
+description: Muck out a git worktree, the current one or another by name (`/cleanup 03`) — delete its git-ignored build artifacts to free disk space, never secrets or tracked files. Use when the user says /cleanup, "muck out", "clean the worktree", "delete build artifacts", "free disk space" or a disk is full.
 ---
 
 # cleanup

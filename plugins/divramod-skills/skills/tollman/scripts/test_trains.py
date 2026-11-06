@@ -414,7 +414,7 @@ class Plan(unittest.TestCase):
     FORMED = {"schema": 1, "at": AT, "kind": "formed", "slot": "tollman-hal2", "train": TRAIN["train"],
               "cars": TRAIN["cars"], "base": TRAIN["base"]}
     STARTED = {"schema": 1, "at": AT, "kind": "started", "slot": "tollman-hal2", "train": TRAIN["train"],
-               "pid": 4711}
+               "pid": 4711, "land_ref": "train-7-1"}  # what restart records from hal2-git's land-ref (plan 0607 D6)
 
     def setUp(self):
         FakeGh().start(self)  # a live landing's watch reads gh (plan 0360 step 5): never a real call
@@ -435,7 +435,7 @@ class Plan(unittest.TestCase):
         """Plan 0560 step 2 (L200, train 37): its run goes on after the landing's process died; a restart pushed the
         same candidate a second time. The round watches the run and settles at its end."""
         def runs(status):
-            FakeGh(runs=[run(41, "land/tollman-hal2", AT, status=status)]).start(self)
+            FakeGh(runs=[run(41, "land/train-7-1", AT, status=status)]).start(self)
         rows, died = [self.FORMED, self.STARTED], {"status": "interrupted"}
         runs("in_progress")
         for result in (None, died, {"status": "testing"}):

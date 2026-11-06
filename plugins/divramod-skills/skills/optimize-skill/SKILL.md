@@ -1,6 +1,6 @@
 ---
 name: optimize-skill
-description: Improve one skill by evals under a hard token cap, after microsoft/skillopt (MIT) — a rollout runs the skill's SKILL.md on each eval task in a lean headless `claude -p`, a rule judge scores it by the eval's `checks` (code, no model), the optimizer reflects on the failed train rollouts and proposes bounded edits, and a candidate is kept only if it strictly beats the incumbent on the validation split. It never writes the skill: the result is a `best.diff` the user applies. Runs on the subscription (`ANTHROPIC_API_KEY` is removed from the child env). Use when the user says /optimize-skill, "optimize this skill", "improve the skill by evals", "skillopt" or "make this skill score better". `/optimize-skill h` shows help.
+description: Improve one skill by evals under a hard token cap (after skillopt) — run it on eval tasks, score by rule checks, propose bounded edits, keep a candidate only if it beats the incumbent; the result is a best.diff the user applies. Use when the user says /optimize-skill, "optimize this skill", "improve the skill by evals", "skillopt" or "make this skill score better".
 ---
 
 # optimize-skill

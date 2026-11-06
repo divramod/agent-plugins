@@ -13,6 +13,10 @@ with malformed open questions gets one warning line after the list.
   q.py ... --repo <path>   another checkout
   q.py ... --plan <n>      the questions of plan <n> (a number or a slug) instead of the current plan's
 
+A current plan with a parent (masterplan) also prints the masterplan's questions and those of its rows running in this
+field, each under a `<NNNN> <title>` heading (`qplans.py`, only by the CLI); `--json` adds them as `plans`. A lone
+plan, `--plan`, the tollman's field and the farmer's list print as before.
+
 In the farmer's own worktree (`farmer-<repo>`) it prints the farmer's joined list instead (`farmer.py questions`): the
 farmer's own questions, the log's open asks and every worktree's store; `--path` still names the own store.
 
@@ -32,7 +36,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import qshape  # noqa: E402  (beside this script)
+import qplans  # noqa: E402  (beside this script)
+import qshape  # noqa: E402
 
 sys.path.insert(0, next(str(_p / "scripts") for _p in Path(__file__).resolve().parents if (_p / ".claude-plugin").is_dir()))
 from skillpath import sibling  # noqa: E402  (the skills unit's scripts/, plan 0360 D20)
@@ -246,6 +251,11 @@ def main(argv: list[str]) -> int:
         if done is not None:
             return done
     mode = MODES[args.mode]
+    if not args.plan and not root.name.startswith("tollman-"):
+        found = qplans.sections(cli_path(), root, plan_folder(root), mode, NONE[mode], args.json)
+        if found is not None:
+            print(json.dumps(found, indent=2) if args.json else found)
+            return 0
     done = via_cli(args, root, rel, mode)
     if done is not None:
         return done

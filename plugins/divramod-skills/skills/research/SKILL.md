@@ -1,6 +1,6 @@
 ---
 name: research
-description: Research a question into a cited research doc, research/<NNNN>-<slug>/research.md (YAML front matter + fixed H2 sections, answer first, claim-level [S#] citations, evidence table, confidence with reasons, revisit date and signposts, premortem) — deep mode (default) runs the bundled deep-research Workflow (plan → parallel researchers → independent verification of every claim against its source → premortem of the runner-up → report), quick mode uses 1-3 plain subagents; numbers are unique across every worktree and branch. Also scaffolds a doc, lists and checks the docs, re-runs a verification pass, and revisits an old answer against its signposts. Use when the user says /research, "research this", "deep research", "investigate", "compare options", "find out", or a plan step needs a research doc. `/research h` shows help.
+description: Research a question into a cited research doc research/NNNN-slug/research.md, deep (default, parallel researchers, every claim verified) or quick (1-3 subagents); also scaffolds, lists, checks and revisits docs. Use when the user says /research, "research this", "deep research", "investigate", "compare options", "find out", or a plan step needs a research doc.
 ---
 
 # research

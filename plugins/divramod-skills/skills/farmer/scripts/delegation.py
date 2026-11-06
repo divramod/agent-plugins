@@ -131,16 +131,14 @@ def write_brief(a: dict, main: str, now: dt.datetime) -> Path:
 
 
 def overlap_note(a: dict, main: str, brief: Path) -> None:
-    """Plan 0593 D16: the overlap check of a delegated task, before its foreman starts: the hits beside the brief
-    (`<brief>.overlap.json`) and in its text, so the foreman settles each (build on it, wait, merge into it) before it
-    writes its plan; a tie goes back to the farmer. A missing CLI never blocks (the brief says unchecked)."""
+    # Plan 0593 D16: the overlap check of a delegated task, before its foreman starts: the hits beside the brief
+    # (`<brief>.overlap.json`) and the CLI's report with its settle hint in its text (plan 0684 D7), so the foreman
+    # settles each before it writes its plan. A missing CLI never blocks (the brief says unchecked).
     found = overlap.scan(Path(main), f"{a['text']}\n{a.get('task') or ''}")
     overlap.write(brief.parent, found, brief.name + ".overlap.json")
-    note = "\n".join(f"- {l}" for l in overlap.lines(found)) if found is None or overlap.hits(found) else "- none"
+    note = "\n".join(f"- {line}" for line in overlap.report(found).splitlines())
     with brief.open("a") as f:
-        f.write(f"\n## Overlap with unfinished work\n\n{note}\n" + (
-            "\nSettle each hit before writing the plan: build on it, wait for it, or merge into it; record a ledger "
-            "entry with a link; a tie goes to the farmer.\n" if found is not None and overlap.hits(found) else ""))
+        f.write(f"\n## Overlap with unfinished work\n\n{note}\n")
 
 
 def write_role(main: str, brief: Path, title: str, now: dt.datetime, task: str | None = None) -> Path:

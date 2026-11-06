@@ -1,6 +1,6 @@
 ---
 name: transplant
-description: Transplant a foreman — move it with everything it has grown (its branch, plan, handoff, servants) from one field to another, so it carries on there and the old field is reset to the barn and free (hal2 plan 0286). `/transplant 09` in a foreman's field moves that foreman to field 09; `/transplant 34 09` (the farmer's or the steward's session) moves the foreman of a field that has no live session; `--dry-run` shows every check and changes nothing; `/transplant cancel` ends a prepared one; `/transplant history` lists the earlier ones. It runs the checks, prepares and reserves the target, frees the target of a resting session, has the foreman hand off and commit, drives `hal2-cli-git worktree transplant`, pushes, tells the servants and the farmer and starts the foreman in the target with `/continue`. Only the user starts it. Use when the user says /transplant, "transplant 34 to 09", "umpflanzen", "move this foreman to field 09" or "move the foreman to another worktree". `/transplant h` shows help.
+description: Transplant a foreman — move it with its branch, plan, handoff and servants to another field, which carries on while the old one is reset and free (`/transplant 09`, or `34 09` from the farmer). `--dry-run`, `cancel`, `history`. Only the user starts it. Use when the user says /transplant, "transplant 34 to 09", "umpflanzen" or "move this foreman to field 09".
 ---
 
 # transplant

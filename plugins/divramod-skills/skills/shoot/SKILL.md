@@ -1,6 +1,6 @@
 ---
 name: shoot
-description: shoot — list the open shots of the repo's shotfiles (`shotfiles/*.md` of the main checkout, also from a worktree; the prompts written with hal2-nvim's shooter) as a table of id, shotfile, shot number and title, then shoot the ones the user picks by id (`3`, `1,2,4`, `1-4`), as `<space>00` does from Neovim — the shots are marked sent (`## x shot ...`) in their shotfiles and carried out; in the repository's main checkout it first asks where: a new worktree session per shot (recommended), a free worktree session (running, idle, no plan, nothing unmerged) or here in main; in a worktree it carries them out in this session. `/shoot` shows the 10 most important open shots, `/shoot g` the global shotfiles' shots (ids `g1`, `g2`, ...), `/shoot -a` all of both, `/shoot <shotfile>` the open shots of one shotfile, `/shoot <ids>` shoots shots directly. Use when the user says /shoot, asks which shots are open, or wants to pick the next shot to work on. `/shoot h` shows help.
+description: List the repo's open shots (seeds) as a table and sow the ones picked by id (`3`, `1,2,4`, `1-4`) — marked sent and carried out in a new worktree session each (recommended), a free one or here. `/shoot g` global, `-a` all. Use when the user says /shoot, "sow", asks which shots are open, or wants the next shot picked.
 ---
 
 # shoot
@@ -112,11 +112,14 @@ clipboards (`pbcopy`, `tmux set-buffer`), and stop: nothing is carried out here.
 Resolve every picked id to its `file` and `number` from the list first (for `/shoot <ids>` list first; an
 unknown id: say so and stop), before marking any: ids refer to that list.
 
-1. Mark every picked shot, in the order picked, before working on any:
+1. Mark every picked shot before working on any, the shots of one shotfile in ascending number order (marking
+   renumbers the file as hal2-nvim's send does: that shifts only the open shots below the marked one, so the
+   lower numbers go first and the numbers read from the list stay right; carry them out later in the order picked):
    `hal2-cli-shooter shots mark-sent <file> <number> --json` (a global shot: `--global`). It turns the header
    into `## x shot <n> <title> (<timestamp>) [<worktree>]`, as hal2-nvim's `<space><NN>` does (a global shot:
    `[<repo>/<worktree>]`, e.g. `[hal2/00]`, since the shotfile names no repository), and prints the shot:
-   `{file, path, number, title, line, sent, worktree, body}`. A failure (exit 4 `already sent`, exit 3 `no shot`): report that shot and
+   `{file, path, number, renumbered_to, moves, title, line, sent, worktree, body}` (`number` is the one asked for,
+   `renumbered_to` the shot's number in the renumbered file). A failure (exit 4 `already sent`, exit 3 `no shot`): report that shot and
    leave it out; the shotfile changed since the list.
 2. Print each marked shot in a code block, as `<space>00` shows what was sent:
 

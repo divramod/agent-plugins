@@ -24,6 +24,16 @@ class TrainBranch(unittest.TestCase):
         self.assertIsNone(mtm_ci.running_run(rows, "tollman-hal2"), "the carrier's slot has no run of its own")
         self.assertIsNone(mtm_ci.running_run(rows, "tollman-hal2", "land/train-0294-09"))
 
+    def test_a_plan_named_field_branch_is_found_by_the_tickets_land_ref_and_a_replay_is_no_slot(self):
+        """Plan 0607: `land/<NNNN>-<slug>-<a>` names a plan, so the run belongs to the ticket holding that branch."""
+        branch = "land/0607-land-branch-names-2"
+        rows = mtm_ci.summary([run(1, branch, status="in_progress", conclusion=""), run(2, "land/probe-ci-route")],
+                              lambda rid: [], 0)
+        self.assertEqual([(r["slot"], r["branch"]) for r in rows], [("0607-land-branch-names-2", branch)])
+        self.assertEqual(mtm_ci.running_run(rows, "77", branch)["url"], "https://x/runs/1")
+        self.assertIsNone(mtm_ci.running_run(rows, "77", "land/0607-land-branch-names-1"), "another attempt's")
+        self.assertIsNone(mtm_ci.running_run(rows, "77"))
+
 
 if __name__ == "__main__":
     unittest.main()

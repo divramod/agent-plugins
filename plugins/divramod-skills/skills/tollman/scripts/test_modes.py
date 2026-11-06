@@ -36,7 +36,7 @@ SMUGGLE = {"mode": "smuggle", "by": "user", "at": "2026-10-17T12:00:00Z", "why":
 ASLEEP = "asleep: smuggle mode since 2026-10-17T12:00:00Z (by user)"
 FLAG = {"schema": 1, "by": "user", "at": "2026-10-17T12:00:00Z", "why": "the runners are down"}
 FLAGGED = "asleep: flag since 2026-10-17T12:00:00Z (by user): the runners are down"
-OURS = run(501, "land/tollman-hal2", "2026-10-17T10:06:00Z", status="in_progress")
+OURS = run(501, "land/train-7-1", "2026-10-17T10:06:00Z", status="in_progress")
 
 
 def line(kind, at=AT, **kw):
@@ -44,7 +44,7 @@ def line(kind, at=AT, **kw):
 
 
 FORMED = line("formed", cars=CARS, base="b" * 40)
-STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711)
+STARTED = line("started", at="2026-10-17T10:05:00Z", pid=4711, land_ref="train-7-1")
 HITCHED = {"slot": "11", "state": "waiting", "position": 1, "worktree": "/no/such/farm/11",
            "ready": {"head": "1" * 40, "at": AT}}
 

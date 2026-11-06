@@ -13,7 +13,7 @@ skill's `manifest.toml` declares (hal2's .adr/role-folder-formats.md: `schema`, 
              carried, none for a deletion)
   regenerated  a car's conflicts in generated files took the barn's side (generated.py, plan 0313 step 8):
              `commit` (the train's last, none when nothing differed), `files` (the paths written again), `why`
-  joined     a wagon joined the standing train before its push (open_train.py, train_join.py; plan 0610 D17): `cars`
+  joined     a wagon joined the standing train before its first start (train_join.py; plan 0610 D17, 0687 D1): `cars`
              (one car; a riding field's newer head takes its car's place, E10), `base`, `commit`, `merged` (false: the
              next start merges it), its jobs' pretest (`result`, `seconds`, `jobs`, `why`), `mark` (a refusal)
   declined   a join undone, before plan 0610 (E6: none now): `field`, `head`, `why`

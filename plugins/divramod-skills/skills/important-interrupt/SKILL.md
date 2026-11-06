@@ -1,6 +1,6 @@
 ---
 name: important-interrupt
-description: Quiet the whole Mac in ONE script call, no question asked, for an important call or any moment the user needs 100% compute — every live session is told by code, builds and tests are frozen, the CI runner and CI VMs stopped, the time to quiet measured; `/important-interrupt done` undoes it all. Use when the user says /important-interrupt, "I have a call", "I need 100% compute", "stop everything now", or, for done, "important interrupt is over". `/important-interrupt h` shows help.
+description: Quiet the whole Mac in one script call, no question asked — tell every session, freeze builds and tests, stop the CI runner and VMs; `done` undoes it. Use when the user says /important-interrupt, "I have a call", "I need 100% compute", "stop everything now", or, for done, "important interrupt is over".
 ---
 
 # important-interrupt

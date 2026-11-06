@@ -1,6 +1,6 @@
 ---
 name: git-push
-description: Commit everything uncommitted as Conventional Commits and push — `gp.py scan` groups the changed files by unit (a code unit, a plan, docs, a top folder) and classes each as commit, secret (never committed) or ignore-candidate (build output, caches, logs, editor files, large binaries); you ask the user about the ignore-candidates in one plain-text question in the Q form, write one descriptive `<type>(<scope>): <subject>` per group (with a current plan the scope is `<NNNN>|<step>`), commit each group with the repository's trailers (`Worktree:`, `Plan:`, `Step:`) and push the branch without force. It refuses to push the default branch of a repository that lands through a merge queue (`/mtm` does that). `/gp` does all of it, `/gp scan` only shows the groups, `/gp push` only pushes, `/gp <hint>` gives the commit's subjects a hint. Use when the user says /gp, "commit and push", "commit everything", "push my work" or "commitizen commits". `/gp h` shows help.
+description: Commit everything uncommitted as grouped Conventional Commits and push the branch — scans changes by unit, asks about ignore candidates, never commits secrets, refuses a merge-queue repo's default branch. Use when the user says /gp, "commit and push", "commit everything", "push my work" or "commitizen commits". `/gp scan` only shows the groups.
 ---
 
 # git-push (alias gp)

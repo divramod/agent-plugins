@@ -10,16 +10,24 @@ the ring's exit; every other case only pushes.
 
     alarm(case, reason, repo, slot="", runner=None, which=None, push=None) -> dict
 
-The ring runs `hal2-cli-ring ring --from farmer-<project> --json -- <reason>` (the reason one argument after `--`, so
-a leading `-` stays text), bounded at 60 s. The result's `ring` is `rung` (exit 0), `held` (3: one ring per 30 min,
+The ring runs `hal2-cli-ring ring --from farmer-<project> --json --no-record -- <reason>` (the reason one argument
+after `--`, so a leading `-` stays text; `--no-record`: the alarm writes the notification itself, see below), bounded
+at 60 s. The result's `ring` is `rung` (exit 0), `silent` (exit 0, the ring switch is `silent`: the reason on the
+phone without sound), `off` (exit 0, the switch is `off`: no Find My call, plan 0606 D7; the push still goes out),
+`held` (3: one ring per 30 min,
 shared by every farm), `login` (4: the user runs `hal2-cli-ring login`), `timeout` (no answer in 60 s), `missing` (no
 CLI) or `failed` (1, any other code), None for a case that is not stuck; a stuck case ALWAYS pushes the reason too
 (the ring's cause is added to the push text when the ring did not go out), `pushed` says whether that push went out;
-`outcome` is the ring's state and the push's (`rung, pushed`, `held, pushed`, `failed, push-failed`), for a case that
+`outcome` is the ring's state and the push's (`rung, pushed`, `off, pushed`, `held, pushed`, `failed,
+push-failed`), for a case that
 is not stuck `pushed` or `push-failed`; `why` names the ring's cause. Every call writes one `alarm` line
 into the farmer's journal (log.jsonl, mtm_scan.log): the case, the reason on one line cut to 500 characters, the
-outcome; never a secret (the argv holds only the reason and the role's field). Tests inject `runner(argv, timeout) ->
-(code | None, error text)`, `which` and `push`. Stdlib only. Never raises.
+outcome; never a secret (the argv holds only the reason and the role's field). After ring and push it records ONE
+notification (plan 0606 D10): `hal2-cli-ring notifications add --from farmer-<project> --role farmer --farm
+<project> --case <case> --channel ring:<outcome> --channel push:<sent|failed> -- <reason>`; a missing CLI or a failed
+`add` is noted in the result (`record_error`) and never fails the alarm. Tests inject `runner(argv, timeout) ->
+(code | None, error text[, stdout])`, `which`, `push` and `record(argv) -> error text | None`. Stdlib only. Never
+raises.
 """
 
 import argparse
@@ -40,18 +48,22 @@ EXIT_WHY = {3: "held back: one ring per 30 min (hal2-cli-ring log)",
             4: "login needed: the user runs `hal2-cli-ring login`",
             1: "the ring failed"}
 STATE = {0: "rung", 3: "held", 4: "login"}  # None: `timeout` or `missing`; any other exit: `failed`
+MUTED = ("silent", "off")  # exit 0 with `outcome` silent or off in the ring's --json (plan 0606 D7)
+# The ring state as the notifications store names the ring channel's outcome (hal2-cli-ring notifications add).
+CHANNEL = {"rung": "rung", "silent": "silent", "off": "off", "held": "held", "login": "refused"}
 
 
-def run(argv: list[str], timeout: int = TIMEOUT) -> tuple[int | None, str]:
-    """Run the ring to its end, at most `timeout` seconds: (exit code, error text); None on a timeout or start
-    failure. The default runner."""
+def run(argv: list[str], timeout: int = TIMEOUT) -> tuple[int | None, str, str]:
+    """Run the ring to its end, at most `timeout` seconds: (exit code, error text, stdout); None on a timeout or
+    start failure. The default runner."""
     try:
         done = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
-        return None, f"timed out after {timeout} s"
+        return None, f"timed out after {timeout} s", ""
     except (OSError, subprocess.SubprocessError) as exc:
-        return None, f"{type(exc).__name__}: {exc}"
-    return done.returncode, done.stderr.decode("utf-8", errors="replace")[-300:]
+        return None, f"{type(exc).__name__}: {exc}", ""
+    return (done.returncode, done.stderr.decode("utf-8", errors="replace")[-300:],
+            done.stdout.decode("utf-8", errors="replace")[-2000:])
 
 
 def who(repo: str) -> str:
@@ -64,22 +76,51 @@ def who(repo: str) -> str:
 
 def ring_argv(reason: str, frm: str, binary: str = RING) -> list[str]:
     """Flags first, then `--` and the reason as one argument (the order hal2_core::cli builds argv in)."""
-    return [binary, "ring", "--from", frm, "--json", "--", reason]
+    return [binary, "ring", "--from", frm, "--json", "--no-record", "--", reason]
 
 
-def ring(reason: str, frm: str, runner=None, which=None) -> tuple[bool, int | None, str]:
-    """(rung, exit code, why) of one ring; never raising."""
+def muted(out: str) -> str | None:
+    """`silent` or `off` when the ring's --json says its switch muted it (exit 0), else None (a rung ring)."""
+    try:
+        doc = json.loads(out)
+    except (TypeError, ValueError):
+        return None
+    word = doc.get("outcome") if isinstance(doc, dict) else None
+    return word if word in MUTED else None
+
+
+def ring(reason: str, frm: str, runner=None, which=None) -> tuple[str | None, int | None, str]:
+    """(state, exit code, why) of one ring; state is `rung`, `silent` or `off` for exit 0, else None; never raising."""
     binary = (which or shutil.which)(RING)
     if not binary:
-        return False, None, f"{RING} is not installed"
-    code, err = (runner or run)(ring_argv(reason, frm, binary), TIMEOUT)
+        return None, None, f"{RING} is not installed"
+    code, err, *rest = (runner or run)(ring_argv(reason, frm, binary), TIMEOUT)
     if code == 0:
-        return True, 0, "rung"
+        state = muted(rest[0] if rest else "") or "rung"
+        return state, 0, {"rung": "rung", "silent": "silent: the ring switch is silent (no sound)",
+                          "off": "the ring switch is off"}[state]
     if code is None:
-        return False, None, notice.one_line(f"{RING} did not run: {err}", 300)
+        return None, None, notice.one_line(f"{RING} did not run: {err}", 300)
     why = EXIT_WHY.get(code, f"{RING} exit {code}")
     tail = notice.one_line(err, 200)
-    return False, code, why + (f" ({tail})" if tail and code not in (3, 4) else "")
+    return None, code, why + (f" ({tail})" if tail and code not in (3, 4) else "")
+
+
+def record(argv: list[str], timeout: int = TIMEOUT) -> str | None:
+    """Run `notifications add`; the error text, None when it worked. The default recorder (never raising)."""
+    try:
+        code, err, *_ = run(argv, timeout)
+    except Exception as exc:  # also a test's guard against a real call
+        return notice.one_line(f"{type(exc).__name__}: {exc}", 300)
+    return None if code == 0 else notice.one_line(f"{RING} notifications add: exit {code}: {err}", 300)
+
+
+def record_argv(binary: str, frm: str, project: str, case: str, channels: list[str], reason: str) -> list[str]:
+    """`notifications add` for the alarm's one notification (plan 0606 D10): flags first, `--`, the reason."""
+    argv = [binary, "notifications", "add", "--from", frm, "--role", roles.ROLE, "--farm", project, "--case", case]
+    for channel in channels:
+        argv += ["--channel", channel]
+    return argv + ["--", reason]
 
 
 def journal(repo: str, entry: dict) -> str | None:
@@ -91,8 +132,26 @@ def journal(repo: str, entry: dict) -> str | None:
         return notice.one_line(f"{type(exc).__name__}: {exc}", 300)
 
 
-def alarm(case: str, reason: str, repo: str, slot: str = "", runner=None, which=None, push=None) -> dict:
-    """Ring for a stuck case and always push the reason too (D7, D15); only push for any other case."""
+def record_notification(frm: str, case: str, text: str, state: str | None, pushed: bool, which=None,
+                        record_fn=None) -> str | None:
+    """Record the alarm's ONE notification (ring channel when it was a stuck case, push channel always); the error
+    text when it could not be recorded, None otherwise. Never raises, never fails the alarm."""
+    try:
+        binary = (which or shutil.which)(RING)
+        if not binary:
+            return f"{RING} is not installed: nothing recorded"
+        channels = ([f"ring:{CHANNEL.get(state, 'failed')}"] if state else []) + \
+                   [f"push:{'sent' if pushed else 'failed'}"]
+        project = frm.split("-", 1)[1] if "-" in frm else frm
+        return (record_fn or record)(record_argv(binary, frm, project, case, channels, text))
+    except Exception as exc:
+        return notice.one_line(f"{type(exc).__name__}: {exc}", 300)
+
+
+def alarm(case: str, reason: str, repo: str, slot: str = "", runner=None, which=None, push=None,
+          record_fn=None) -> dict:
+    """Ring for a stuck case and always push the reason too (D7, D15); only push for any other case. One
+    notification with both channels is recorded after both ran (plan 0606 D10)."""
     case = notice.one_line(case, 40)
     text = notice.one_line(reason, REASON_LIMIT) or case
     frm = who(repo)
@@ -100,19 +159,20 @@ def alarm(case: str, reason: str, repo: str, slot: str = "", runner=None, which=
     state, code, why = None, None, "not a stuck case: a push only"
     if stuck:
         try:
-            rang, code, why = ring(text, frm, runner, which)
+            state, code, why = ring(text, frm, runner, which)
         except Exception as exc:  # the push must still go out
-            rang, code, why = False, None, notice.one_line(f"{type(exc).__name__}: {exc}", 300)
-        state = STATE.get(code) or ("missing" if "not installed" in why else "timeout" if code is None and
-                                    "timed out" in why else "failed")
-    rang = state == "rung"
-    body = f"{text} (no ring: {why})" if stuck and not rang else text
+            state, code, why = None, None, notice.one_line(f"{type(exc).__name__}: {exc}", 300)
+        state = state or STATE.get(code) or ("missing" if "not installed" in why else "timeout" if code is None and
+                                             "timed out" in why else "failed")
+    rang = state in ("rung", "silent")  # silent reached the phone, without sound; off did not
+    body = f"{text} (no ring: {why})" if stuck and state not in ("rung", "silent") else text
     sent = (push or notice.send)(f"{frm}: {case}", body)
     pushed = bool(sent and sent.get("ok"))
     outcome = ", ".join(x for x in (state, "pushed" if pushed else "push-failed") if x)
     result = {"case": case, "stuck": stuck, "ring": state, "rang": rang, "exit": code, "pushed": pushed,
               "outcome": outcome, "why": why, "push": sent, "from": frm, "reason": text}
     note = why if pushed else f"{why}; push failed: {(sent or {}).get('error')}"
+    result["record_error"] = record_notification(frm, case, text, state if stuck else None, pushed, which, record_fn)
     result["journal_error"] = journal(repo, {"kind": "alarm", "slot": slot, "what": f"{case}: {text}",
                                              "note": f"{outcome}: {note}"})
     return result

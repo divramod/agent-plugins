@@ -227,7 +227,7 @@ def new(root: Path, title: str, description: str = "", fetch: bool = False, here
             raise SpecError(str(error)) from None
     pointers.write(root, POINTER, folder.name)
     overlap.attach(folder / spec_plan.PLAN, found)
-    print(overlap.report(found, folder), file=sys.stderr)
+    print(overlap.report(found), file=sys.stderr)
     info = describe(root, folder)
     info["overlap"] = overlap.lines(found)
     if sown:

@@ -1,6 +1,6 @@
 ---
 name: ci-analyzer
-description: Analyse hal2's CI for waste and bottlenecks — runs hal2's `ci-analyzer` unit (`code/python/scripts/ci-analyzer/main.py`) over the last N workflow runs (default 40), whose sixteen deterministic checks (empty runs, ugly job names, queue wait, critical path, cancelled runs, repeated checks, cache misses, flaky jobs, idle runners, Mac host load, slow steps, disk, token cost, green markers that missed, setup overhead, unequal lanes of one stage) rank findings by wall time, runner minutes and money; the skill only judges: merges duplicates, ranks the top bottlenecks with run and job ids and minutes, and turns the fixes into shots or one farmer brief. Read-only against GitHub, it never changes a workflow and never reruns, cancels or dispatches. Use when the user says /ci-analyzer, "analyse CI", "CI bottlenecks", "why is CI slow", "CI cost" or "where does CI waste minutes". `/ci-analyzer h` shows help.
+description: Analyse hal2's CI over the last runs for waste and bottlenecks (queue wait, critical path, flaky jobs, cache misses, cost), rank them, turn fixes into shots or a farmer brief. Read-only. Use when the user says /ci-analyzer, "analyse CI", "CI bottlenecks", "why is CI slow", "CI cost" or "where does CI waste minutes".
 ---
 
 # ci-analyzer

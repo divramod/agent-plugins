@@ -1,6 +1,6 @@
 ---
 name: pause
-description: Pause all current work of the agent session at once — the main task, every background shell (frozen with SIGSTOP, so a build or download stops where it is), every subagent and workflow (stopped, their transcripts kept for resuming), monitors, cron jobs and /loop wakeups — and write a pause record (~/skills/pause/<checkout>.md) of what was running and where each piece stood, so the `continue` skill picks it all up again, in this session or a fresh one. Nothing is committed, killed without a record, or lost. Use when the user says /pause, "pause", "stop everything for now", "hold on" or needs the machine's CPU back without losing the work. `/pause h` shows help.
+description: Pause all work of the session at once — main task, background shells (frozen), subagents, workflows, monitors, cron jobs and /loop; writes a pause record so `continue` resumes it all, nothing killed or lost. Use when the user says /pause, "pause", "stop everything for now", "hold on" or needs the machine's CPU back without losing the work.
 ---
 
 # pause

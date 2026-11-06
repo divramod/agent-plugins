@@ -11,3 +11,16 @@ format = "json"
 schema = "code/agents/apps/skills/skills/roles/farmer/schemas/log.schema.json"
 retention = "keep"
 sync = "never"
+
+# The message board (plan 0617 step 28), declared so its readers can name it: hal2.agents reads it for the messages
+# view and the Agents table's Last order column. Pruned by whole lines past 2 MB (manifest.toml's board.jsonl).
+[[state]]
+name = "board"
+home = "node"
+description = "the farmer's message board `roles/farmer/board.jsonl` in its field farmer-<project>: its instructions to the fields and the acks they got, one JSON line each, appended by scripts/board.py (gitignored)"
+at = "state:git/worktree/*/farmer-*/roles/farmer/board.jsonl"
+format = "json"
+schema = "code/agents/apps/skills/skills/roles/farmer/schemas/board.schema.json"
+retention = "size 2MiB"
+sync = "never"
+readers = ["hal2.agents"]

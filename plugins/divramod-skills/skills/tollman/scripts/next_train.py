@@ -6,19 +6,20 @@ on the green merge job of the train before (minute.py) and is pretested at once;
    while a run of the landing workflow on another train's `land/` branch has not completed (the train before, its jobs
    after the merge still running; a run of this train's own earlier start never, plan 0560 D4), the landing waits, polling every POLL seconds, at most MAX_WAIT, one line when
    the runs it waits for change. hal2-git itself waits only while a run's merge job runs (ci/ship.rs). gh failing:
-   no run known, no wait. All that wait the train is open (open_train.py, plan 0490 step 20, D21, D23): each poll a
-   newly hitched wagon joins it, and once more right before the push, also when no run before runs (plan 0610 D17,
-   E4: "take all finished ones into the train" over D9's push first); the push starts after it, no join after the
-   push. A car that joins with a conflict makes the train `resolving`: the wait ends and the push waits for the
-   resolve (open_train.stops).
+   no run known, no wait. The landing's train has started, so its cars are fixed (plan 0687 D1, superseding plan
+   0610 D17 for started trains): no wagon joins in the wait; each poll and once more right before the push the
+   landing's round (open_train.take) only owes a wagon hitched meanwhile that rides alone the very next train (plan
+   0610 D15); every other later hitch rides the next train. A join recorded before the first start that waits for
+   its resolve holds the push (open_train.stops, plan 0687 D4).
 2. The post-merge fixes: each open post-merge order the train carries (train_state's `post`: a red after the merge
    of the train before, post_merge.py) whose foreman answered `done fixed <sha>` (orders.answered, the role's log)
    is checked, proven green (orders.proven, never waited for here: the round runs the proof) and merged into the
    carrier with its `fixed` line (orders.take), so it rides this train's run; a refused, unproven or unanswered one
-   stays open and goes on to the next train. No wagon leaves the train: only fixes and newly hitched wagons join.
+   stays open and goes on to the next train. No wagon leaves the train and none joins: only fixes are merged.
 3. The fix wait (fix_wait.py, plan 0490 step 21, D22): between 1. and 2., when the run before concluded red, the push
    waits until each of its red jobs has its fix car in the train or a named reason; each round merges the answered
-   fixes (2.) and, while a red holds, runs the open train's join round; a timeout wakes the tollman, never pushes.
+   fixes (2.) and, while a red holds, runs the landing's round (open_train.take); a timeout wakes the tollman,
+   never pushes.
 """
 
 import functools
@@ -47,8 +48,8 @@ def others(main: str, own: str | dict) -> list[dict]:
 
 
 def wait(main: str, own: str | dict, sleep=time.sleep, clock=time.monotonic, join=None) -> list[str]:
-    """1.: wait while another land run runs; the lines it printed. `join()`: the open train's round each poll while
-    it runs (its lines), never after it ended."""
+    """1.: wait while another land run runs; the lines it printed. `join()`: the landing's round each poll while it
+    runs (its lines; open_train.take), never after it ended."""
     deadline, told, lines = clock() + MAX_WAIT, "", []
     while runs := others(main, own):
         ids = ", ".join(str(r.get("databaseId")) for r in runs)
@@ -60,7 +61,7 @@ def wait(main: str, own: str | dict, sleep=time.sleep, clock=time.monotonic, joi
             lines.append(f"next train: run {ids} still runs after {MAX_WAIT // 3600} h: the landing goes on")
             print(lines[-1], flush=True)
             break
-        if (joined := join() if join else []) and not lands(main):  # a joiner's resolve: the push waits (0610 E5)
+        if (joined := join() if join else []) and not lands(main):  # no longer landing: the push waits (0610 E5)
             return lines + joined
         lines += joined
         sleep(POLL)
@@ -88,12 +89,12 @@ def before_push(top: str, sleep=time.sleep, clock=time.monotonic) -> list[str]:
     train = train_state.standing(train_state.lines(main))
     if not train:
         return []
-    joins = functools.partial(open_train.take, top, main)  # the open train (plan 0490 step 20)
+    joins = functools.partial(open_train.take, top, main)  # owes alone cars only: no join (plan 0687 D1)
     lines = wait(main, train, sleep, join=joins)  # never its own earlier start's run (plan 0560 D4, L200)
     if lands(main):
         lines += fix_wait.fixes(main, train["train"], lambda: merge_posts(top, main, current(main) or train), joins,
                                 sleep, clock)
-    lines += joins() if lands(main) else []  # every wagon hitched until now, also with no run before (plan 0610 E4)
+    lines += joins() if lands(main) else []  # alone cars hitched until now, also with no run before (plan 0610 E4)
     return lines + (merge_posts(top, main, current(main) or train) if lands(main) else [])
 
 

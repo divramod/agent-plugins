@@ -1,6 +1,6 @@
 ---
 name: grill-plan
-description: Interview the user relentlessly about a plan, design, decision or idea until every branch of its design tree is resolved and nothing is silently assumed — in rounds of questions, each round asking every question whose prerequisites are settled, each with a recommended answer; facts are looked up, never asked; every decision is recorded in its one home (plan, intent doc or ADR) so nothing is asked twice; an autogrill also sizes every step (Model, Effort, Window, Size; a step over 35% of its window is split); `/grill-plan q` asks a single round for one step; a plan in state spec is grilled on its `spec.md`, with its own ledgers and `spec.py grilled`. Questions follow the Q form (plain text after any background). Use when the user says grill (me) / stress-test / poke holes, or when /plan offers it before implementing a plan. `/grill-plan h` shows help.
+description: Interview the user about a plan, design or idea until every branch is resolved, in rounds of Q-form questions with a recommended answer each; every decision recorded in its one home; an autogrill also sizes steps; a spec-state plan is grilled on its spec.md. Use when the user says /grill-plan, grill (me), stress-test or poke holes, or when /plan offers it. `/grill-plan q` asks one round.
 ---
 
 # grill-plan
@@ -95,7 +95,9 @@ full grill.
 ## Auto
 
 One autogrill round: the grill without the user. The plan skill runs one on every new plan before offering it
-(and on a never-grilled plan before it runs); the user asks for more rounds with "another autogrill round".
+(and on a never-grilled plan before it runs); the user asks for more rounds with "another autogrill round". For a big
+plan (a masterplan, over 8 steps, or steps in 3+ units) the round runs in a hand at effort high, else at medium
+([plan](../plan/SKILL.md#new-plan) step 6).
 
 0. Read the plan skill's lessons (`python3 <plan skill>/scripts/plan.py lesson list`; the file is its
    `references/lessons.md`) and let each shape the decisions and steps: a plan never repeats a lesson.

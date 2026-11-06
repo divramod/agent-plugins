@@ -14,8 +14,8 @@ answered post-merge fixes merged first (next_train.merge_posts), then each red i
   owner or naming its job (orders.take merged it), or a car of the train (formed or joined) whose commits after the
   red run's creation touch the red's files (run_triage_dedup's own rule for a hitched wagon), or, for a red that
   names no file, any such commit of a car of its owner;
-- else it holds the push. While one holds, the round ends with the open train's join round (open_train.take: a fix
-  hitched as a wagon joins) and a sleep; the next round looks again. No triage written yet (or a failed one): every
+- else it holds the push. While one holds, the round ends with the landing's round (open_train.take: no car joins a
+  started train, plan 0687 D1; a fix hitched as a wagon rides the next train) and a sleep; the next round looks again. No triage written yet (or a failed one): every
   red is unknown and holds.
 
 A timeout never pushes (D22): TIMEOUT seconds after the wait began (None: the run before's wall time, its creation to

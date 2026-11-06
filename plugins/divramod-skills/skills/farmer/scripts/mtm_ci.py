@@ -99,10 +99,12 @@ def train_of(ref: str) -> str:
 
 
 def slot_of(branch: str) -> str:
-    """`land/07` -> `07`; probes (`land/12-probe`), a train's branch (`land/train-0383-0365`, see `train_of`: it
+    """`land/07` -> `07` (a plan-named `land/0607-land-branch-names-1` is kept whole: plan 0607 names a plan, not a
+    field; `running_run` matches it by the ticket's `land_ref`); probes (`land/12-probe`, `land/probe-...`), a train's branch (`land/train-0383-0365`, see `train_of`: it
     belongs to a train, no worktree) and other branches -> ``."""
     m = re.fullmatch(r"land/([^/]+)", branch or "")
-    return m.group(1) if m and "-probe" not in m.group(1) and not train_of(branch) else ""
+    return m.group(1) if m and "-probe" not in m.group(1) and not m.group(1).startswith("probe-") \
+        and not train_of(branch) else ""
 
 
 def landing_of(branch: str) -> str:
@@ -230,7 +232,8 @@ def summary(runs: list[dict], jobs_of, since: float) -> list[dict]:
         elif o == "running" and stopped_by(jobs):
             o = "failed"  # decided at its first cause, whatever still ends (hal2-git returns then)
         red = red_jobs(jobs) if o == "failed" else []
-        out.append({"id": str(r.get("databaseId")), "slot": slot, "train": train, "outcome": o,
+        out.append({"id": str(r.get("databaseId")), "slot": slot, "train": train, "branch": r.get("headBranch") or "",
+                    "outcome": o,
                     "task": ", ".join(red) if o == "failed" else "", "tests": [], "load_hint": False,
                     "url": r.get("url"), "sha": (r.get("headSha") or "")[:8], "started": started(r)})
     return out
@@ -291,8 +294,10 @@ def landings(run_json, main: str, since: float) -> list[dict]:
 
 
 def running_run(recent: list[dict], slot: str, land_ref: str | None = None) -> dict | None:
-    """The worktree's candidate under test, newest first; `land_ref`: the train branch its ticket lands on (the
-    tollman's carrier), whose run belongs to the train, not to a slot."""
+    """The worktree's candidate under test, newest first; `land_ref`: the branch its ticket lands on, whose run belongs
+    to it by name: a field's plan-named `land/<NNNN>-<slug>-<a>` (plan 0607: the branch names a plan, not a field) or
+    the tollman's train branch (a train's, not a field's)."""
     train = train_of(land_ref or "")
     return next((l for l in recent if l["outcome"] == "running"
-                 and (l["slot"] == slot or (train and l.get("train") == train))), None)
+                 and (l["slot"] == slot or (train and l.get("train") == train)
+                      or (land_ref and l.get("branch") == land_ref))), None)

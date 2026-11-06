@@ -1,6 +1,6 @@
 ---
 name: adr
-description: Decision records (ADRs) of a repository that keeps them in hal2's record format (`.adr/<slug>.md` with a front matter envelope) — decide whether a decision of the current work is promoted to a record (the decision ladder — question, plan decision, decision record), then write it with `hal2-cli-records` — a new record (`add`) or a dated amendment of the record it changes, link it both ways with the plan's ledger entry, regenerate the index and INTENT.md's decision log and run the check; also find what binds a file (`for <path>`), search, list and show records. Use when the user says /adr, "write an ADR", "record this decision", "is there an ADR for", "which rules apply to this file", or when a plan decision outlives its plan. `/adr h` shows help.
+description: Write, find and check decision records (ADRs, `.adr/slug.md`) with `hal2-cli-records` — decide whether a decision becomes a record, add or amend one, link it to the plan's ledger. Use when the user says /adr, "write an ADR", "record this decision", "is there an ADR for", "which rules apply to this file", or a plan decision outlives its plan.
 ---
 
 # adr

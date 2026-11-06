@@ -7,8 +7,9 @@ proof and no trial merge run (`tollman.py train --dry-run` does them); nothing i
    hitched: [{field, head, where, why, reason}]}
 
 `where` of a hitched wagon: `car` (a car of the standing train at this head), `in-branch` (the train's branch holds
-the head but it is no car yet: the next join round records it, E8), `joins` (the train is open: it joins at the next
-join round, before the push, D17), `next` (the train pushed, or is paused or split: it rides the next train), `forms`
+the head but it is no car yet: the next join round records it, E8), `joins` (the train is open, never started: it
+joins at the next join round, D17), `next` (the train started once, its cars fixed, plan 0687 D1; or it is paused or
+split: it rides the next train), `forms`
 (no train stands: it rides the next one), `waits` (a user-named exception: `reason` is trains_draft.EXCEPTIONS' key;
 an alone car owed the very next train, its own, `alone`: plan 0610 D15).
 """
@@ -46,8 +47,7 @@ def of(repo: str) -> dict:
     if train:
         out["train"] = {"train": train["train"], "number": train.get("number"), "state": train["state"],
                         "carrier": train["carrier"], "head": head or None, "pushed": open_train.pushed(train),
-                        "open": train["state"] in open_train.OPEN or train["state"] == "landing"
-                        and not open_train.pushed(train)}
+                        "open": train["state"] in open_train.OPEN and not open_train.fixed(train)}
         out["cars"] = [{"field": c["field"], "head": c["head"], "plan": c.get("plan") or "",
                         "in_branch": holds(c["head"]), **{k: c[k] for k in FLAGS if c.get(k)}} for c in train["cars"]]
     heads = {c["field"]: c["head"] for c in (train or {}).get("cars", [])}
@@ -88,14 +88,16 @@ def where(train, info, field, head, heads, waits, holds, n, minimum, main) -> di
     if field in waits:
         return {"where": "waits", **waits[field]}
     if train and holds(head):
-        return {"where": "in-branch", "why": f"the branch of train {name} holds it but it is no car yet: the next join "
-                                             "round records it (plan 0610 E8)"}
+        return {"where": "in-branch", "why": f"the branch of train {name} holds it but it is no car: its cars are fixed, "
+                                             "it rides the next train (plan 0687 D1)" if open_train.fixed(train) else
+                f"the branch of train {name} holds it but it is no car yet: the next join round records it (plan 0610 E8)"}
     if train and info["open"]:
         more = " as its car's newer head (E10)" if old else ""
         return {"where": "joins", "why": f"joins train {name} ({train['state']}){more} at its next join round, before "
-                                         "its push (plan 0610 D17)"}
+                                         "its first start (plan 0610 D17, plan 0687 D1)"}
     if train:
-        why = f"train {name} pushed" if info["pushed"] else f"train {name} is {train['state']}"
+        why = f"train {name} pushed" if info["pushed"] else f"train {name} started, its cars are fixed (plan 0687 D1)" \
+            if open_train.fixed(train) else f"train {name} is {train['state']}"
         return {"where": "next", "why": f"{why}: it rides the next train"}
     if n < minimum:
         return {"where": "waits", "why": MINIMUM.format(n=n, minimum=minimum), "reason": "minimum"}

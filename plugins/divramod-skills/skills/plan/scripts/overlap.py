@@ -3,11 +3,13 @@
 earlier research) a new plan, spec, research or delegated brief overlaps. Used by plan.py, spec.py, research.py, the
 farmer's delegation and create.py (they reach this module through the plan skill's scripts/).
 
-`scan` returns the CLI's schema 1 answer, or None when it cannot be had (CLI missing or older, a failure, bad JSON,
-`HAL2_OVERLAP=off`): a missing CLI never blocks a start, the caller prints `UNCHECKED`. `hits` counts the plans and
-research found. `write` puts them into the new folder as `overlap.json`; `lines` is what the start prints and what
-goes into the Context, so the model settles each hit (build on it, wait for it, merge into it) before it writes the
-plan, recording a ledger entry with a link; a tie goes to the farmer."""
+The CLI owns the text (plan 0684 D3, D6): its answer carries `text` {lines, context, report}, rendered once in Rust,
+and this module prints it verbatim, never a format of its own over the hits. `scan` returns the CLI's schema 1 answer,
+or None when it cannot be had (CLI missing, a failure, bad JSON, no or ill-typed `text` as an older CLI gives,
+`HAL2_OVERLAP=off`): a missing CLI never blocks a start, the caller prints `UNCHECKED`, the skill's own wording (the CLI
+did not run). `hits` counts the plans and research found. `write` puts the answer into the new folder as
+`overlap.json`; `lines`, `context_line` and `report` are what the start prints and what goes into the Context, so the
+model settles each hit (build on it, wait for it, merge into it) before it writes the plan."""
 import json
 import os
 import shutil
@@ -38,7 +40,17 @@ def scan(root: Path, goal: str, files: list[str] | None = None, research: bool =
         data = json.loads(done.stdout) if done.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
-    return data if isinstance(data, dict) else None
+    return data if isinstance(data, dict) and text(data) is not None else None
+
+
+def text(result: dict | None) -> dict | None:
+    """The answer's `text` when well typed (`lines` a list of str, `context` and `report` str), else None."""
+    found = (result or {}).get("text")
+    if not isinstance(found, dict) or not isinstance(found.get("lines"), list):
+        return None
+    if not all(isinstance(line, str) for line in found["lines"]):
+        return None
+    return found if all(isinstance(found.get(key), str) for key in ("context", "report")) else None
 
 
 def hits(result: dict | None) -> int:
@@ -46,31 +58,15 @@ def hits(result: dict | None) -> int:
 
 
 def lines(result: dict | None) -> list[str]:
-    """One line per hit, plans first; `[overlap unchecked]` for None, `[]` for an empty answer."""
-    if result is None:
-        return [UNCHECKED]
-    out = []
-    for p in result.get("plans") or []:
-        why = "; ".join(p.get("why") or [])
-        out.append(f"plan {p.get('slug')} ({p.get('state') or '?'}, field {p.get('field') or '-'}"
-                   f"{', paused' if p.get('paused') else ''}, score {p.get('score')}): {p.get('title') or ''}"
-                   f" -- {why} -> {p.get('path')}")
-    for r in result.get("research") or []:
-        flags = ("stale, " if r.get("stale") else "") + (f"superseded by {r['superseded_by']}, " if r.get("superseded_by") else "")
-        out.append(f"research {r.get('slug')} ({flags}{r.get('status') or '?'}, score {r.get('score')}): "
-                   f"{r.get('question') or ''} -- {'; '.join(r.get('why') or [])} -> {r.get('path')}")
-    return out
+    """The CLI's line per hit (plans first); `[overlap unchecked]` without a checked answer, `[]` for an empty one."""
+    found = text(result)
+    return [UNCHECKED] if found is None else list(found["lines"])
 
 
 def context_line(result: dict | None) -> str:
-    """The Context line for the new folder's plan.md / spec.md."""
-    if result is None:
-        return f"- Overlap: {UNCHECKED} (hal2-cli-plans overlap missing or failed)."
-    if not hits(result):
-        return "- Overlap: checked (hal2-cli-plans overlap), nothing over the threshold."
-    names = ", ".join([p.get("slug", "?") for p in result.get("plans") or []]
-                      + [r.get("slug", "?") for r in result.get("research") or []])
-    return f"- Overlap: {names} (see [overlap.json](overlap.json)); each settled in the ledger: built on, waited for or merged into."
+    """The Context line for the new folder's plan.md / spec.md: the CLI's own, or the unchecked line."""
+    found = text(result)
+    return f"- Overlap: {UNCHECKED} (hal2-cli-plans overlap missing or failed)." if found is None else found["context"]
 
 
 def write(folder: Path, result: dict | None, name: str = "overlap.json") -> Path | None:
@@ -82,13 +78,11 @@ def write(folder: Path, result: dict | None, name: str = "overlap.json") -> Path
     return target
 
 
-def report(result: dict | None, folder: Path | None = None) -> str:
-    """The text printed (stderr) after the start: the hits and what to do with them."""
-    out = lines(result)
-    if result is not None and hits(result):
-        out.append("settle each hit before writing: build on it, wait for it, or merge into it; record a ledger "
-                   "entry with a link; a tie goes to the farmer" + (f" ({folder.name}/overlap.json)" if folder else ""))
-    return "\n".join(f"overlap: {l}" for l in out) if result is None or hits(result) else "overlap: none"
+def report(result: dict | None) -> str:
+    """The text printed (stderr) after the start: the CLI's report (the hits and the settle hint, or `overlap:
+    none`), or `overlap: overlap unchecked`."""
+    found = text(result)
+    return f"overlap: {UNCHECKED}" if found is None else found["report"]
 
 
 def attach(doc: Path, result: dict | None) -> None:

@@ -1,6 +1,6 @@
 ---
 name: lookout
-description: The user's global lookout, the watches that check something on a schedule and tell when it has changed (an answer has come, a page has changed). A 5-minute timer runs `lookout.py tick`, which runs each due watch's check command as code; a quiet tick costs 0 tokens, only a new find of a watch with a `judge` starts one capped model run (`claude -p`, no tools), then the find is recorded, a daybook item is jotted through the daybook's own command and the user is notified (desktop, Telegram). Records live in `~/.config/hal2/lookout/<farm>.yaml`, one file per farm, in the daybook's watches format. Use when the user says /lookout, "lookout", "watch for", "tell me when", "check every 5 minutes" or "has the answer come". `/lookout start` installs the timer, `/lookout h` shows help.
+description: The global lookout, watches that check something on a schedule and tell when it changed (an answer came, a page changed); a 5-minute timer runs due checks as code, only a new find costs a model call. Use when the user says /lookout, "lookout", "watch for", "tell me when", "check every 5 minutes" or "has the answer come". `/lookout start` installs the timer.
 ---
 
 # lookout

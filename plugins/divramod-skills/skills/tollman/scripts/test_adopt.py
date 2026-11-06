@@ -16,6 +16,7 @@ from unittest import mock
 import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import adopt
 import engine
+import land_name
 import train_state
 
 os.environ.setdefault("HAL2_WORKQUEUE_FREEZE", "0")  # no test takes a real workqueue hold (plan 0466)
@@ -58,13 +59,29 @@ class Adopt(unittest.TestCase):
         self.folder.start()
         self.addCleanup(self.folder.stop)
         self.addCleanup(self.tmp.cleanup)
+        cli = mock.patch.object(land_name, "cli", lambda args, cwd: (127, "no hal2-cli-git"))  # no real call
+        cli.start()
+        self.addCleanup(cli.stop)
 
-    def test_the_started_line_names_the_pid_the_carriers_branch_and_the_landings_start(self):
-        code, text = adopt.adopt(self.main, FIELD, {"train": "t51"}, ENTRY)
-        line = [r for r in train_state.lines(self.main) if r["kind"] == "started"][-1]
+    def adopt(self, entry, said):
+        """adopt.adopt with `worktree land-ref` answering `said` ((code, text)); the started line."""
+        with mock.patch.object(land_name, "cli", lambda args, cwd: said):
+            code, text = adopt.adopt(self.main, FIELD, {"train": "t51"}, entry)
+        return code, text, [r for r in train_state.lines(self.main) if r["kind"] == "started"][-1]
+
+    def test_the_started_line_names_the_pid_the_branch_hal2_git_says_and_the_landings_start(self):
+        said = (0, json.dumps({"schema": 1, "slot": FIELD, "kind": "train", "current": "land/train-51-2",
+                               "next": "land/train-51-3"}))
+        code, text, line = self.adopt(ENTRY, said)
         self.assertEqual((code, line["pid"], line["land_ref"], line["at"]),
-                         (0, os.getpid(), FIELD, "2026-11-04T11:51:10Z"))
+                         (0, os.getpid(), "train-51-2", "2026-11-04T11:51:10Z"))
         self.assertIn("no second one started", text)
+        self.assertIn("land/train-51-2", text)
+
+    def test_a_branch_nobody_names_is_left_out_never_the_carriers_own_name(self):
+        code, text, line = self.adopt(ENTRY, (1, "no numbered mark"))
+        self.assertEqual((code, "land_ref" in line), (0, False))
+        self.assertIn("its branch unknown", text)
 
     def test_an_earlier_starts_landing_log_is_moved_aside_so_its_status_is_not_this_trains(self):
         log = Path(self.main) / train_state.LOG
@@ -74,8 +91,9 @@ class Adopt(unittest.TestCase):
         self.assertTrue(log.with_name(log.name + ".before-adopt").exists())
 
     def test_a_land_ref_on_the_entry_wins(self):
-        adopt.adopt(self.main, FIELD, {"train": "t51"}, {**ENTRY, "land_ref": "train-51-1"})
-        self.assertEqual(train_state.lines(self.main)[-1]["land_ref"], "train-51-1")
+        for held in ("train-51-1", "land/train-51-1"):
+            adopt.adopt(self.main, FIELD, {"train": "t51"}, {**ENTRY, "land_ref": held})
+            self.assertEqual(train_state.lines(self.main)[-1]["land_ref"], "train-51-1")
 
 
 class Restart(unittest.TestCase):

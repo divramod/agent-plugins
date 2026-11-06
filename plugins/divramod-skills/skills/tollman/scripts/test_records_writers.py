@@ -79,18 +79,19 @@ class OnARedTrain(Red, Records):
         self.named(rec, "retry")
         self.assertEqual((rec["of"], rec["train"]), ("train", self.name))
 
-    def test_a_join_by_hand_opens_a_hand_merge_the_round_s_join_none(self):
+    def test_a_started_train_takes_no_join_and_opens_no_hand_merge(self):
+        """Plan 0687 D1, D4: a train's cars are fixed at its first start; a later wagon rides the next train, the
+        round's join and a join by hand alike, so no hand-merge record opens."""
         with mock.patch.object(trains, "PROVE", lambda *a: {"state": "green", "lines": []}):
             self.crop("11", {"eleven.txt": "11"})
-            self.round()  # the round's join (`--car`): code, no record
-            self.assertIn("11", [c["field"] for c in self.train()["cars"]])
-            self.assertEqual(self.opened(), [])
-            twelve = self.crop("12", {"twelve.txt": "12"})
+            self.round()
+            self.assertNotIn("11", [c["field"] for c in self.train()["cars"]])
+            self.crop("12", {"twelve.txt": "12"})
             code, text = self.call("join", "12")
-        self.assertEqual(code, 0, text)
-        rec = self.one("hand-merge", "12")
-        self.named(rec, "joined")
-        self.assertEqual((rec["head"], rec["train"]), (twelve["ready"]["head"], self.name))
+        self.assertEqual(code, 1, text)
+        self.assertIn("rides the next train", text)
+        self.assertNotIn("12", [c["field"] for c in self.train()["cars"]])
+        self.assertEqual(self.opened(), [])
 
     @property
     def name(self):

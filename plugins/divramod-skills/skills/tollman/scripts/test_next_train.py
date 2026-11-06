@@ -270,14 +270,14 @@ class PostMergeRed(Trains):
                "prefixes": []}  # its triage (plan 0490 step 21): the push waits for 20's fix car (D22)
         run_triage_wire.update(str(self.main), "720", lambda e: e.update(at="2099-01-01T01:00:00+00:00", reds=[red]))
         with contextlib.redirect_stdout(io.StringIO()):
-            line, goes, joined = next_train.before_push(str(self.cw), sleep=self.fail)
+            line, goes = next_train.before_push(str(self.cw), sleep=self.fail)
         self.assertTrue(line.startswith(f"fix order 20-fix-1: 20's fix {sha[:12]} merged into train {b['train']}"))
         self.assertEqual(goes, "next train: every red of run 720 has its fix car or a named reason: the push goes")
-        self.assertEqual(joined, f"open train {b['train']}: field 04 (0384-four) joined, pretest none",
-                         "the later hitch joins before the push (plan 0610 D17, E4)")
-        self.assertEqual(out(self.cw, "rev-parse", "HEAD^1^2"), sha, "it rides this train's run, before the joiner")
+        self.assertEqual(out(self.cw, "rev-parse", "HEAD^2"), sha, "it rides this train's run")
         now = self.train()
-        self.assertEqual((now["post"], now["state"], [c["field"] for c in now["cars"]]), ([], "landing", ["03", "04"]))
+        self.assertEqual((now["post"], now["state"], [c["field"] for c in now["cars"]]), ([], "landing", ["03"]),
+                         "the later hitch rides the next train: the cars are fixed at the first start (plan 0687 D1)")
+        self.assertTrue(self.gate.of("04")["ready"], "04 stays hitched")
 
     def test_with_no_train_standing_the_car_fixes_it_in_its_next_harvest(self):
         self.merged()

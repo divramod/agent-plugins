@@ -1,6 +1,6 @@
 ---
 name: grill-message
-description: Grill a message draft before the user sends it — a mail, a LinkedIn, WhatsApp or Telegram message, written by the user or by a steward — on sense, tone (too offensive, too pushy), oversharing (what it tells about the user, weaknesses given away), over-optimism and the channel's form; it reads the context and the earlier messages with that person through the CLI map's tools (`hal2-cli-crm`, `hal2-cli-email`, `gws` for Gmail), asks only what it cannot look up, in the Q form, and puts the improved draft into the clipboard. It never sends. Use when the user says /grill-message, "grill this message", "check this mail before I send it", "is this too much", "does this sound ok", or pastes a draft and asks whether to send it. `/grill-message h` shows help.
+description: Grill a message draft (mail, LinkedIn, WhatsApp, Telegram) before the user sends it, on sense, tone, oversharing and over-optimism; reads earlier messages with that person, puts the improved draft in the clipboard, never sends. Use when the user says /grill-message, "grill this message", "check this mail before I send it", "is this too much" or "does this sound ok".
 ---
 
 # grill-message

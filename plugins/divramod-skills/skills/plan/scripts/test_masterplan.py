@@ -26,12 +26,15 @@ SAMPLE = {
     "current_in": [], "plans_done": 1, "plans_total": 3, "steps_done": 5, "steps_total": 12, "plus": True,
     "rows": [
         {"row": "1", "kind": "done", "status": "done", "needs": [], "slug": "0002-tools", "number": 2, "exists": True,
-         "title": "Tools", "done": 3, "total": 3, "next": None, "checkout": "main", "current_in": []},
+         "title": "Tools", "done": 3, "total": 3, "next": None, "checkout": "main", "current_in": [], "who": []},
         {"row": "2", "kind": "running", "status": "running", "needs": ["1"], "slug": "0003-view", "number": 3,
          "exists": True, "title": "View", "done": 2, "total": 4,
-         "next": {"number": "3", "title": "step 3", "status": "next"}, "checkout": "01", "current_in": ["01"]},
+         "next": {"number": "3", "title": "step 3", "status": "next"}, "checkout": "01", "current_in": ["01"],
+         "who": ["01"]},
     ],
     "problems": [{"row": "4", "slug": "0002-tools", "kind": "linked_twice", "same_as": "1"}],
+    "here": None, "elsewhere": [{"row": "2", "number": 3, "slug": "0003-view", "title": "View", "who": ["01"]}],
+    "symbols": {"masterplan": {"glyph": "🌾", "code": "MP"}, "plan": {"glyph": "🌱", "code": "PL"}},
 }
 PLAN = """---
 type: Plan
@@ -272,6 +275,7 @@ class MasterplanTest(unittest.TestCase):
         self.farm()
         for answer, code, why in (("", 2, "the installed one gave none (exit 2)"), ("null\n", 0, "knows no masterplan"),
                                   ("{}\n", 0, "knows no masterplan"),
+                                  ('{"symbols": {}}\n', 0, "knows no masterplan"),
                                   ("no json", 0, "knows no masterplan")):
             result = self.run_plan("masterplan", cli=self.fake_cli(answer, code))
             self.assertEqual(result.returncode, 0, result.stderr)

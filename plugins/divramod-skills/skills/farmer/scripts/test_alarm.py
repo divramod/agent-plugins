@@ -32,7 +32,8 @@ class Alarm(unittest.TestCase):
         self.repo.mkdir()
         self.data = self.tmp / "state"
         self.calls, self.sent = [], []
-        self.code, self.err = 0, ""
+        self.code, self.err, self.out = 0, "", ""
+        self.recorded, self.record_error = [], None
         patches = [mock.patch.object(mtm_scan, "DATA", self.data),
                    mock.patch.dict(os.environ, {roles.UNDER_TEST: "1", "FARMER_DIR": str(self.data),
                                                 "APPLE_ID_PASSWORD_SEC": SECRET}),
@@ -46,7 +47,11 @@ class Alarm(unittest.TestCase):
 
     def runner(self, argv, timeout):
         self.calls.append((argv, timeout))
-        return self.code, self.err
+        return self.code, self.err, self.out
+
+    def rec(self, argv):
+        self.recorded.append(argv)
+        return self.record_error
 
     def push(self, title, body):
         self.sent.append((title, body))
@@ -54,7 +59,7 @@ class Alarm(unittest.TestCase):
 
     def call(self, case, reason="runner hz01 down 40 min: restart its service", which=lambda _: "/bin/hal2-cli-ring",
              **kw):
-        return alarm.alarm(case, reason, str(self.repo), runner=self.runner, which=which, **kw)
+        return alarm.alarm(case, reason, str(self.repo), runner=self.runner, which=which, record_fn=self.rec, **kw)
 
     def journal(self) -> list[dict]:
         path = mtm_scan.state_dir(str(self.repo)) / "log.jsonl"
@@ -113,11 +118,12 @@ class Alarm(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_the_default_runner_counts_a_timeout_and_a_missing_binary_as_failed(self):
-        code, err = REAL_RUN([str(self.tmp / "no-such-binary")], timeout=5)
+        code, err, out = REAL_RUN([str(self.tmp / "no-such-binary")], timeout=5)
         self.assertIsNone(code)
         self.assertIn("FileNotFoundError", err)
+        self.assertEqual(out, "")
         with mock.patch.object(alarm.subprocess, "run", side_effect=alarm.subprocess.TimeoutExpired(["x"], 60)):
-            self.assertEqual(REAL_RUN(["x"]), (None, "timed out after 60 s"))
+            self.assertEqual(REAL_RUN(["x"]), (None, "timed out after 60 s", ""))
 
     def test_a_case_that_is_not_stuck_only_pushes(self):
         r = self.call("landing-done", "wagon 07 is in the barn")
@@ -129,7 +135,8 @@ class Alarm(unittest.TestCase):
         reason = "--force main red 45 min; field 07 blocked"
         self.call("main-red", reason)
         argv = self.calls[0][0]
-        self.assertEqual(argv, ["/bin/hal2-cli-ring", "ring", "--from", "farmer-hal2", "--json", "--", reason])
+        self.assertEqual(argv, ["/bin/hal2-cli-ring", "ring", "--from", "farmer-hal2", "--json", "--no-record", "--",
+                                reason])
         self.assertNotIn(SECRET, " ".join(argv))
 
     def test_the_reason_is_one_line_cut_to_500(self):
@@ -183,6 +190,66 @@ class Alarm(unittest.TestCase):
                 mock.patch.object(alarm.shutil, "which", return_value=None), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(alarm.main(["dialog", "approve in 07", "--repo", str(self.repo)]), 1)
+
+    def test_a_muted_ring_is_silent_or_off_and_off_still_pushes(self):
+        for word, outcome, rang in (("silent", "silent, pushed", True), ("off", "off, pushed", False)):
+            with self.subTest(word=word):
+                self.sent.clear()
+                self.out = json.dumps({"schema": 1, "outcome": word, "mode": word})
+                r = self.call("main-red", "main red 40 min")
+                self.assertEqual((r["ring"], r["outcome"], r["rang"], r["exit"], r["pushed"]),
+                                 (word, outcome, rang, 0, True))
+                self.assertEqual(len(self.sent), 1)
+        self.assertIn("(no ring: the ring switch is off)", self.sent[0][1])
+        self.out = json.dumps({"schema": 1, "outcome": "rung", "mode": "ring"})
+        self.assertEqual(self.call("main-red", "x")["outcome"], "rung, pushed")
+        self.out = "not json"
+        self.assertEqual(self.call("main-red", "x")["outcome"], "rung, pushed")
+
+    def test_one_notification_with_both_channels_is_recorded_after_ring_and_push(self):
+        self.out = json.dumps({"outcome": "off"})
+        r = self.call("main-red", "main red 40 min")
+        self.assertEqual(self.recorded, [[
+            "/bin/hal2-cli-ring", "notifications", "add", "--from", "farmer-hal2", "--role", "farmer", "--farm", "hal2",
+            "--case", "main-red", "--channel", "ring:off", "--channel", "push:sent", "--", "main red 40 min"]])
+        self.assertIsNone(r["record_error"])
+
+    def test_the_channels_follow_the_ring_state_and_the_push(self):
+        for code, channel in ((0, "ring:rung"), (3, "ring:held"), (4, "ring:refused"), (1, "ring:failed")):
+            with self.subTest(code=code):
+                self.recorded.clear()
+                self.code = code
+                self.call("dialog", "approve in 07")
+                self.assertEqual(self.recorded[0][11:15], ["--channel", channel, "--channel", "push:sent"])
+        self.recorded.clear()
+        with mock.patch.object(notice, "send", return_value={"ok": False, "error": "x"}):
+            self.call("dialog", "approve in 07")
+        self.assertIn("push:failed", self.recorded[0])
+
+    def test_a_case_that_is_not_stuck_records_only_the_push(self):
+        self.call("landing-done", "wagon 07 is in the barn")
+        self.assertEqual(self.recorded[0][9:], ["--case", "landing-done", "--channel", "push:sent", "--",
+                                                 "wagon 07 is in the barn"])
+
+    def test_a_missing_cli_or_a_failed_add_never_fails_the_alarm(self):
+        r = self.call("main-red", "x", which=lambda _: None)
+        self.assertEqual(self.recorded, [])
+        self.assertIn("not installed", r["record_error"])
+        self.assertEqual((r["outcome"], r["pushed"]), ("missing, pushed", True))
+        self.record_error = "exit 2: boom"
+        r = self.call("main-red", "x")
+        self.assertEqual((r["record_error"], r["outcome"]), ("exit 2: boom", "rung, pushed"))
+        broken = mock.Mock(side_effect=RuntimeError("bad"))
+        r = alarm.alarm("dialog", "x", str(self.repo), runner=self.runner, which=lambda _: "/bin/c", record_fn=broken)
+        self.assertIn("RuntimeError", r["record_error"])
+        self.assertTrue(r["pushed"])
+
+    def test_the_default_recorder_reports_an_exit_and_survives_a_raising_run(self):
+        with mock.patch.object(alarm, "run", return_value=(0, "", "")):
+            self.assertIsNone(alarm.record(["x"]))
+        with mock.patch.object(alarm, "run", return_value=(2, "bad flag", "")):
+            self.assertIn("exit 2: bad flag", alarm.record(["x"]))
+        self.assertIn("AssertionError", alarm.record(["x"]))  # setUp's guard stands in for a real call
 
 
 if __name__ == "__main__":

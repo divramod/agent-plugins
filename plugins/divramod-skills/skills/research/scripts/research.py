@@ -454,7 +454,7 @@ def new(root: Path, title: str, question: str = "", plan: str = "", origin: str 
         found = overlap.scan(root, f"{title}\n{question}", research=True)
         overlap.write(folder, found)
         add_log(folder, overlap.context_line(found).removeprefix("- "), today)
-        print(overlap.report(found, folder), file=sys.stderr)
+        print(overlap.report(found), file=sys.stderr)
     return folder
 
 

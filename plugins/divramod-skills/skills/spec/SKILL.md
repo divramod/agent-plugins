@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Write a feature's spec before its steps, optional at every level — `/spec <title>` makes the numbered plan at once in state spec (`plans/<NNNN>-<slug>/plan.md` without steps beside `spec.md`), fills the spec in one pass by default (what the conversation settled goes in unasked, one round of Q-form questions across the whole feature, `## Not yet specified` for what is too vague yet, `/design create` for what needs a picture) and ends at the checkpoint: plan now (`/plan` fills the steps in the same plan), bring it in for later (`/mtm`) or another round (`/grill-plan`). `/spec <n> update` changes a spec any time later, also a planned one, whose plan is flagged for review, never rewritten. `/spec <n>` continues; also `approve`, `abandon`, `list`. A simple feature goes straight to `/plan new`. Use when the user says /spec, "write a spec", "spec this feature", "I want a spec first", "update the spec" or "describe the feature before planning". `/spec h` shows help.
+description: Write a feature's spec (seedling) before its steps — `/spec title` makes plan NNNN in state spec, fills spec.md in one pass with one round of Q-form questions and ends at the checkpoint: plan now, bring in for later or grill; `/spec n update` changes it later. Use when the user says /spec, "write a spec", "spec this feature", "update the spec" or "describe the feature before planning".
 ---
 
 # spec

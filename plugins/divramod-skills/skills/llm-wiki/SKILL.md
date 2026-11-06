@@ -1,6 +1,6 @@
 ---
 name: llm-wiki
-description: A farm's LLM wiki after Karpathy's pattern, in its `office/` folder (raw sources, immutable atoms of one claim each, compiled pages, generated index), kept with hal2-cli-llm-wiki. The CLI does every file name, id, hash, link check, index and lint; this skill does only the judgment — classify a source's segments by number, write atom claims, write page prose from the compile brief (at most 5 subagents, one locked slug each), answer from the query's sections and file a good answer back as an atom, judge the lint brief (report, never rewrite). Use when the user says /llm-wiki, "init the wiki", "add this to the wiki", "ingest", "compile the wiki", "what does the wiki say about", "ask the wiki" or "lint the wiki". `/llm-wiki h` shows help.
+description: Keep a farm's LLM wiki in office/ (raw sources, atoms, compiled pages) with hal2-cli-llm-wiki; the skill only judges — classify, write atoms and page prose, answer from the wiki, judge the lint. Use when the user says /llm-wiki, "init the wiki", "add this to the wiki", "ingest", "compile the wiki", "what does the wiki say about", "ask the wiki" or "lint the wiki".
 ---
 
 # llm-wiki

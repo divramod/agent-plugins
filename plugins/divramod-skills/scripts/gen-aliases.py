@@ -5,8 +5,8 @@
 
 aliases.json maps a shortcut to a skill and the arguments it puts in front of the user's own:
 {"x": {"skill": "handoff", "args": "clear"}} makes `/x` run `/handoff clear`. Each shortcut becomes
-skills/<shortcut>/SKILL.md (flat tree), a stub that hands over to the target skill; it is model-invocation disabled, so only the
-user's typed `/<shortcut>` runs it. In a tree with categories (skills/actions/ exists) the stubs go to
+skills/<shortcut>/SKILL.md (flat tree), a stub that hands over to the target skill; it is model-invocable (plan 0681), so a session
+may call `/<shortcut>` by the Skill tool as well as the user typing it. In a tree with categories (skills/actions/ exists) the stubs go to
 skills/shortcuts/<shortcut>/ (plan 0360, D55); the target is found flat or in any category, and the stub links it in
 the flat installed form `../<skill>/SKILL.md` (D19). Stubs of shortcuts removed from aliases.json are deleted, and
 .claude-plugin/plugin.json lists exactly the skills on disk by their real paths, sorted. --check changes nothing and exits 1 when anything is
@@ -31,8 +31,8 @@ def stub(alias: str, skill: str, args: str) -> str:
     call = f"/{skill} {args}".strip()
     return (
         f"---\nname: {alias}\n"
-        f"description: Shortcut for `{call}` — `/{alias} <args>` runs `{call} <args>` of the {skill} skill.\n"
-        f"disable-model-invocation: true\n---\n\n{MARKER}\n\n"
+        f"description: Shortcut for `{call}` — `/{alias}` runs `{call}` of the {skill} skill, with any arguments appended.\n"
+        f"---\n\n{MARKER}\n\n"
         f"# /{alias}\n\n"
         f"Shortcut for `{call}`. Read [`../{skill}/SKILL.md`](../{skill}/SKILL.md) and carry out `{call}`, with any "
         f"arguments given to `/{alias}` appended, exactly as that skill describes it.\n"

@@ -289,9 +289,7 @@ def main(argv: list[str]) -> int:
     if checked:  # plan 0593 D16: the new session settles the hits first
         found = overlap.scan(repo, prompt)
         if found is None or overlap.hits(found):
-            prompt += ("\n\nOverlap with unfinished work (hal2-cli-plans overlap): " + "; ".join(overlap.lines(found))
-                       + ("\nSettle each hit before writing a plan: build on it, wait for it, or merge into it; "
-                          "record a ledger entry with a link; a tie goes to the farmer." if found else ""))
+            prompt += "\n\nOverlap with unfinished work (hal2-cli-plans overlap):\n" + overlap.report(found)
     if lead and entry and entry.get("path"):
         write_lead(Path(entry["path"]), lead)
     report = start(repo, slot, argv, first_prompt(prompt, "--exact" in argv and not lead, None if lead else role))

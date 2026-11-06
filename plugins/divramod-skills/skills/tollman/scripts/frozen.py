@@ -1,16 +1,16 @@
 """A train is frozen at forming (hal2 plan 0360 D3, D7): before forming a wagon waits only under a user-named
 exception (trains_draft.EXCEPTIONS: a servant's field, a head in the barn, a smuggle entry, the sleep flag, a reserved
 place, the user's hold); a conflict and red light checks ride; from its `formed` line on nothing leaves the train, and
-no wait limit ends it: a red train waits until it is fixed. A later hitch joins the standing train until its push
-starts, in every state before it (formed, resolving, red, fixing, retry, its landing before the push), with its
-resolve or fix order when it has a conflict or red light checks (open_train.py, train_join.py; plan 0490 step 20,
-plan 0610 D17); from the push on it rides the next train. Only the user's own command (`--by-user`, typed by the user
+no wait limit ends it: a red train waits until it is fixed. A later hitch joins the standing train only until its
+first start (formed, resolving), with its resolve or fix order when it has a conflict or red light checks
+(open_train.py, train_join.py; plan 0610 D17); from the first start on its cars are fixed and a later hitch rides the
+next train (plan 0687 D1). Only the user's own command (`--by-user`, typed by the user
 or relayed by the farmer as "the user decided") breaks a formed train up or takes a car out of it; the session never
 passes it on its own judgment. Nothing undoes a forming or a join (plan 0610 E6, E25): a car that does not merge
 waits `resolving` with its resolve order (resolve_train.py), a failed regenerate or a refused mark leaves the train
 standing for its next start, which marks it and merges the cars the carrier lacks (engine.restart).
 
-`merge_car` is the merge of one car into the carrier (`form`'s by resolve_train.merge_rest, open_train.join's);
+`merge_car` is the merge of one car into the carrier (`form`'s and a recorded join's, by resolve_train.merge_rest);
 `lacking` names the cars the carrier lacks (engine.restart, open_train.stops).
 """
 

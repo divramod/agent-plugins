@@ -167,10 +167,10 @@ def unfold(entry: dict) -> dict[str, dict]:
 
 
 def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None = None, gate: Path | None = None,
-            progress: dict | None = None, only: set[str] | None = None, scale: float = 1.0) -> dict:
+            progress: dict | None = None, scale: float = 1.0) -> dict:
     """The pretest of the field `top`'s HEAD (the module doc), its markers below `state`: {result, seconds, jobs, why,
     errors, log, base, head}; the jobs' output in `log`, rewritten. `progress["red"]` names a red job as soon as one
-    is. `only`: the jobs that may run, the others `not needed` (a car that joined an open train: open_train.check).
+    is.
     `scale` multiplies the gate's wait (GATE_SECONDS) and the jobs' budget: the one retry runs with 2 (plan 0623 D3)."""
     began, gate = time.monotonic(), gate or Path(top) / GATE
     cfg, why = read_config(config or Path(top) / CONFIG)
@@ -183,7 +183,6 @@ def pretest(top: str, state: Path, base_ref: str, log: Path, config: Path | None
         try:
             known = gate_jobs(top, gate, max(1.0, asked - time.monotonic()), cli)
             chosen = plan(top, gate, base, head, max(1.0, asked - time.monotonic()), salt(), cli)
-            chosen = {j: e for j, e in chosen.items() if only is None or j in only}
         except NoBuild as e:
             done.update(result="skipped", why=str(e)[:300])
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as e:

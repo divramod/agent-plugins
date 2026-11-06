@@ -1,6 +1,6 @@
 ---
 name: tell
-description: Summarize anything from a URL or a path into a markdown note in ~/skills/tell, shown in hal2-macos — a video, playlist or channel (YouTube, TikTok, X, Vimeo, podcasts, any yt-dlp site), a blog post or web page, a GitHub repo, issue, pull request or discussion, an X post or thread with its replies, a Hacker News thread or a Reddit post (article + discussion), or a local document (PDF, DOCX, PPTX, EPUB, Markdown). A topic instead of a link ("/tell okf", "/tell open knowledge format") finds videos, articles, repos, X posts, HN threads and local documents about it, summarizes the relevant ones and writes a digest. Several inputs at once get a digest across them. Each summary has anchor links back into the source, a links section (books, Wikipedia terms, repos, further reading, each with its date) and related items; modes tldr/summary/detailed/wisdom/qa (+ chapters for videos). Use when the user pastes a link or a file path, or names a topic, and wants a summary, the gist, notes, or answers about it; called without input it opens the last summary in hal2-macos.
+description: Summarize a URL, path or topic into a markdown note in ~/skills/tell, shown in hal2-macos — video, blog post, GitHub repo or issue, X thread, HN or Reddit thread, PDF, DOCX; several inputs give a digest. Use when the user pastes a link or file path or names a topic and wants a summary, the gist, notes or answers about it; `/tell` alone opens the last summary.
 ---
 
 # tell

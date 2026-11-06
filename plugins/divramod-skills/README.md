@@ -39,6 +39,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
     run, kept on disk under a lock in the temp dir and copied per test; the last process out removes it. Also the
     tests' 60 s hang guard (`guard`), a child killed by process group (`spawn`) and, on macOS, the real git first on
     the PATH (`fast_git`).
+  - [skill_listing.py](scripts/skill_listing.py): counts the skill listing per skill and in all (`--json`, `--strict`); `test_description_length.py` holds the Skill listing rule.
 - `skills/<name>/`: one skill each, its `SKILL.md` (what the agent reads), its `scripts/` (with tests), templates and
   references.
   - `skills/halverse/scripts/`: [halverse.py](skills/actions/halverse/scripts/halverse.py) is the command line (its parser:
@@ -83,6 +84,7 @@ Imported from the skills repository by plan 0233 (its `import.sh`); published to
 | [list-free-worktrees](skills/actions/list-free-worktrees/SKILL.md) | lists the idle worktree sessions |
 | [llm-wiki](skills/actions/llm-wiki/SKILL.md) | a farm's LLM wiki (`office/`): the judgment steps over `hal2-cli-llm-wiki`: ingest a source into atoms, compile pages, query, lint; `references/` holds branch design, the LLM lint and calibration |
 | [lookout](skills/actions/lookout/SKILL.md) | global watches: a 5-minute timer runs each due check command as code (0 tokens when quiet), a new find is judged once under a budget, recorded, jotted into the daybook and notified; scripts: `lookout.py`, `runner.py`, `judge.py`, `find.py`, `notify.py`, `checks/email.py` |
+| [disable-rings](skills/actions/disable-rings/SKILL.md) | mute the iPhone ring: `off`, `silent`, `on`, `status` through `hal2-cli-ring mode`; script: `disable_rings.py` |
 | [optimize-skill](skills/actions/optimize-skill/SKILL.md) | improves one skill by its evals under a token cap, after microsoft/skillopt: rule-judged rollouts on `claude -p`, bounded edits, kept only if strictly better on validation, result a `best.diff` the user applies; scripts: `optimize.py`, `loop.py`, `rollout.py`, `judge.py`, `gate.py`, `budget.py` |
 | [lord](skills/roles/lord/SKILL.md), [pope](skills/roles/pope/SKILL.md) | the city's head (Burgherr) in the castle `~/a/city` and the planet's highest head (Papst) in the cathedral `~/a/planet` (each place one setting, `HAL_CITY`, `HAL_PLANET`); one duty `state`: `/s` there opens the goals page (3-5 years, life) |
 | [mayor](skills/roles/mayor/SKILL.md) | the village's head in `~/a/village`: stops every farm's work and sends everyone back to work; duty `state` opens the 1-year goals page |
@@ -118,6 +120,7 @@ The skills repository's own rules (its AGENTS.md), kept for this unit:
 - **Skill shape**: every `SKILL.md` has front matter `name` (its folder's name) and `description`, one `# ` heading
   and a table of calls with a `/<name> h` row before the first numbered section; `hal2-cli-records check` holds it
   (the Skill kind; `c` and `h` are excluded in hal2's `.hal/records.toml`).
+- **Skill listing**: each model-invocable skill's name and description load into every context on every turn ([research 0118](../../../../research/0118-agents-build-blockers/research.md) #2): a description is a trigger, at most 400 characters as listed, use case first (the `/<name>` and the user's phrases), no workflow summary, no `<>`; a skill only the user types carries `disable-model-invocation: true`; the listing at most 25,000 characters in all (`scripts/skill_listing.py` counts it, `test_description_length.py` holds it and the most-used skills' triggers).
 - **Scripts**: deterministic work lives in `skills/<name>/scripts/` or a CLI. A scripts folder whose scripts call
   external tools checks each before use (exit 2 naming the tool) and ships executable `check-prerequisites.sh` and
   `install-prerequisites.sh` (a split skill also aggregators at the top of `scripts/`); `check-plugins.py` enforces it.

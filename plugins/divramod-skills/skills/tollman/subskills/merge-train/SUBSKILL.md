@@ -54,13 +54,13 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    branch, from the base, the car's head in it, no conflict marker left; refused: the foreman told why, the order
    open), the carrier fast-forwarded to it, the cars behind merged (a new conflict: a new order), then marked and
    landed; the landing's pretest (the light checks) runs before the push.
-5. **Open train** (plan 0360 D3, D7, plan 0610 D17; `frozen.py`, `open_train.py`): from its `formed` line on nothing
-   leaves the train. A wagon that hitches while it stands, in any state before its push (formed, resolving, red,
-   fixing, retry), joins it until the push starts, with a resolve or fix order when it has a conflict or red light
-   checks, and a riding car's newer head joins as an update of its car; the join round runs every tick, also before
-   the first start. A hand merge of a hitched head is recorded as a car (`tollman.py join <field>`), never left
-   untracked; `tollman.py cars --json` reads the cars and the waiting wagons by code. After the push a hitch rides the
-   next train. A train formed but never started is started as it is (the cars the field
+5. **Open train until the first start** (plan 0360 D3, D7, plan 0610 D17, plan 0687 D1, D4; `frozen.py`,
+   `open_train.py`): from its `formed` line on nothing leaves the train. A wagon that hitches while it stands formed,
+   never started, joins it, with a resolve or fix order when it has a conflict or red light checks, and a riding car's
+   newer head joins as an update of its car; a hand merge of a hitched head is recorded as a car (`tollman.py join
+   <field>`). From the first start its cars are fixed (landing, red, fixing, retry): a later hitch rides the next
+   train (`tollman.py join` refuses, `tollman.py cars --json` says `next`); joins recorded before the first start
+   still merge at a restart. A train formed but never started is started as it is (the cars the field
    lacks merged first); a queue mark naming other cars is marked again at the next start; no wait limit ends a
    waiting or red train. The session's `unhitch` of a car and `engine.py breakup` are refused; only the user's own
    command (`--by-user --words ...`, a `user-order` record) takes a car out or gives the train up.
@@ -96,7 +96,7 @@ waiting worktrees into one train."; since 2026-10-13 the tollman's, not the farm
    newest smuggle whose files conflict (else the newest smuggle); a red whose failing files or tests name a covered
    smuggle's files (triage `smuggled`) to that smuggle's field: `tollman.py order <slot> --smuggle`, by code.
 9. **Leftovers**: a mark without a train line (a dead tollman's, no train of ours) is cleared and the round
-   starts again at 1. A wagon that gets ready during a run joins the open train (5) until its push, else rides the next.
+   starts again at 1. A wagon that gets ready during a run rides the next train (5).
 
 By hand the same is: `queue --json`, `git merge --no-ff` each pushed head in the own field, `queue train`, `merge-to-main`;
 use the code instead, it writes the state the foremen and the farm view read.

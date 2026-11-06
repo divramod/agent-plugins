@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 
+import land_name
 import train_state
 
 SPAWNED = "HAL2_TOLLMAN_SPAWNED"
@@ -67,10 +68,11 @@ def stale(main: str) -> None:
 
 def adopt(main: str, field: str, train: dict, entry: dict, now: dt.datetime | None = None) -> tuple[int, str]:
     """The `started` line of a landing that runs without one: its pid, the branch hal2-git lands it on (the
-    entry's `land_ref`, else the carrier's own) and its start time."""
-    ref = entry.get("land_ref") or entry.get("branch") or field
+    entry's `land_ref`, else hal2-git's `current` for the carrier; none recorded when neither names one, never the
+    carrier's own name: plan 0607 D4) and its start time."""
+    ref = (entry.get("land_ref") or land_name.current(main, field) or "").removeprefix("land/") or None
     stale(main)
     train_state.append(main, "started", field, started_at(entry) or now, train=train["train"], pid=entry["pid"],
                        land_ref=ref, why="adopted: a landing ran without a started line")
-    return 0, (f"train {train['train']}: adopted the landing that runs (pid {entry['pid']}, land/{ref}); "
+    return 0, (f"train {train['train']}: adopted the landing that runs (pid {entry['pid']}, {f'land/{ref}' if ref else 'its branch unknown'}); "
                "no second one started")

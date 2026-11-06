@@ -1,6 +1,6 @@
 ---
 name: daybook
-description: The farm's daybook, a daily list of what the user does not want to forget there — one file per day (`<farm>/daybook/<YYYY-MM-DD>.md`, jobsearch's `daily/`), open chores carried into the next day, with the farm's unfinished plans and its watches (lookouts). `/daybook` shows today's, `/daybook jot <text>` adds a chore, `/daybook tick <n|text>` ticks one off, `/daybook watch add|rm|list` manages the watches, `/daybook plans` shows only the plans. A stdlib script (`scripts/daybook.py`) does all of it; the model only judges which chore is meant and runs due watches. Works in every farm, also from a worktree (it writes the main checkout's daybook). Alias `/daily`. Use when the user says /daybook, /daily, "daybook", "daily", "jot", "tick off", "watch", "lookout", "Tagebuch", "what is on today" or "don't let me forget". `/daybook h` shows help.
+description: The farm's daybook, a daily list of chores one file per day, open ones carried on, with unfinished plans and watches. `/daybook jot` adds a chore, `tick` ticks one off, `watch` manages lookouts; alias /daily. Use when the user says /daybook, /daily, "daybook", "jot", "tick off", "watch", "lookout", "Tagebuch", "what is on today" or "don't let me forget".
 ---
 
 # daybook

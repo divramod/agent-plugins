@@ -1,6 +1,6 @@
 ---
 name: continue-all-agent-work
-description: The counterpart of stop-all-agent-work — after a system-wide stop (benchmarks done), undo the machine quieting (thaw frozen processes, load the unloaded LaunchAgents such as the Ollama keepalive, start Ollama again, unpause Docker containers) from the stop record, then tell every stopped Claude session through Claude Code's cross-session socket (SendMessage) to resume with /continue, a session whose landing was paused in place runs /mtm again, which adopts it. Use when the user says /continue-all-agent-work, "all agents may continue", "benchmarks are done" or "let them work again". `/continue-all-agent-work h` shows help.
+description: Undo stop-all-agent-work after benchmarks are done — thaw frozen processes, reload LaunchAgents, start Ollama, unpause Docker, tell every stopped Claude session to /continue (a paused landing runs /mtm). Use when the user says /continue-all-agent-work, "all agents may continue", "benchmarks are done" or "let them work again".
 ---
 
 # continue-all-agent-work

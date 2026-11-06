@@ -26,8 +26,8 @@ class DelegationOverlap(Ledger):
         self.assertEqual(result["state"], "running")
         text = brief.read_text()
         self.assertIn("## Overlap with unfinished work", text)
-        self.assertIn("plan 0571-milestone-hitch", text)
-        self.assertIn("Settle each hit before writing the plan", text)
+        self.assertIn("## Overlap with unfinished work\n\n- CLI-REPORT\n", text)  # the CLI's report, its settle hint
+        self.assertNotIn("Settle each hit", text)  # no copy of it
         self.assertEqual(json.loads(brief.with_name(brief.name + ".overlap.json").read_text()), HIT)
         self.assertIn("disable the load-flaky test t", made[0][made[0].index("--goal") + 1])
         (create,) = [c for c in self.calls if c[:2] == delegation.CREATE]
@@ -35,12 +35,12 @@ class DelegationOverlap(Ledger):
 
     def test_an_overlap_resolved_brief_says_none(self):
         _, brief, _ = self.delegate(EMPTY)
-        self.assertIn("## Overlap with unfinished work\n\n- none", brief.read_text())
+        self.assertIn("## Overlap with unfinished work\n\n- CLI-REPORT-NONE\n", brief.read_text())
 
     def test_without_the_cli_the_foreman_still_starts_and_the_brief_says_unchecked(self):
         result, brief, _ = self.delegate(None)
         self.assertEqual(result["state"], "running")
-        self.assertIn("- overlap unchecked", brief.read_text())
+        self.assertIn("## Overlap with unfinished work\n\n- overlap: overlap unchecked\n", brief.read_text())
 
 
 if __name__ == "__main__":

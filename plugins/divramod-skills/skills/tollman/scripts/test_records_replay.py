@@ -55,6 +55,8 @@ class Replay(Red):
     def test_a_clear_loses_no_record_no_car_and_no_standing_order(self):
         before = json.loads(json.dumps(state_cmd.of(str(self.main))))
         after = self.clear()
+        before.pop("at", None)  # the read's own clock, not the state: a second may pass between the two reads
+        after = {k: v for k, v in after.items() if k != "at"}
         everything = {self.fix, self.hand, self.user, self.ask, self.stand}
         self.assertEqual({r["id"] for r in after["records"]}, everything - {self.stand})  # the order is under standing
         self.assertEqual(after, before)

@@ -1,6 +1,6 @@
 ---
 name: steward
-description: The steward (German Verwalter), the session in a farm's main checkout (the yard, on the default branch) and the user's first contact there — it answers questions, writes shots, keeps the daybook and does small work; on a farm with a farmer bigger work becomes a shot or goes to the farmer. `/steward` prints the steward's effective duties (the skill's, overridden and extended by the repository's `roles/steward/ROLE.md`) and works by them. Use when the user says /steward, "steward", "Verwalter", "what does the steward do", "your duties" in the main checkout, or a session in the yard needs its role. `/steward h` shows help.
+description: The steward (German Verwalter), the session in a farm's main checkout (the yard), the user's first contact — answers questions, writes shots, keeps the daybook, does small work; bigger work goes to the farmer. `/steward` prints its duties. Use when the user says /steward, "steward", "Verwalter", "what does the steward do", "your duties", or a session in the yard needs its role.
 ---
 
 # steward

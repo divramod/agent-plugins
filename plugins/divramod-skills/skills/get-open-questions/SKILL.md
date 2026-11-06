@@ -1,6 +1,6 @@
 ---
 name: get-open-questions
-description: List the questions of the session's store on demand, printed by a script in the Q form (`Q<n>: ...` with the options a) b) c) as written, an answered one followed by its answer) — `/q` the open ones, `/q a` the answered ones, `/q l` all (the open first). The store is the current plan's `plans/<plan>/questions.md`, else the checkout's gitignored root `QUESTIONS.md`. No model call, read-only, for every session in every repository (farmer, foreman, servant). A session lists its open questions only when the user asks with /q or when it cannot continue; otherwise it continues and records them. Use when the user says /q, "what questions are open", "show the open questions" or "list the questions". `/q h` shows help.
+description: List the open questions of the current plan (else QUESTIONS.md) in the Q form, by script, no model call; `/q a` the answered, `/q l` all. Use when the user says /q, "what questions are open", "show the open questions" or "list the questions".
 ---
 
 # get-open-questions (alias q)
@@ -15,6 +15,7 @@ a) b) c) onto their own lines (split only on the ordered ` a) `, ` b) `, ` c) `)
 | `/get-open-questions` | the open questions |
 | `/get-open-questions a` or `/get-open-questions answered` | the answered questions, each with its answer |
 | `/get-open-questions l` or `/get-open-questions list` | all questions: the open first, then the answered and dropped |
+| `/get-open-questions`, `a`, `l` in a plan that has a masterplan | also the masterplan's questions and those of its rows running in this field, each under a `<NNNN> <title>` heading (`--json` adds them as `plans`; `--plan <n>` and a lone plan print one store) |
 | `... --repo <dir>` | another checkout; `--json` the same as data (the CLI's JSON), `--path` only the store's path |
 | `/get-open-questions` in the farmer's worktree `farmer-<repo>` | the farmer's joined list instead (`farmer.py questions`): its own questions, the log's open asks and every worktree's store, each under its worktree |
 | `/get-open-questions h` | print this table and stop |

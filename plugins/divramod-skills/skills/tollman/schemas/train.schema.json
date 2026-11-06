@@ -11,7 +11,7 @@
     "number": {"type": "integer", "minimum": 1, "description": "A formed line: the train's number (hal2 plan 0398 D4, train_state.next_number), which names its land branch `land/train-<number>-<start>`; none on a train formed before it."},
     "cars": {
       "type": "array",
-      "description": "A formed line: the cars in the order they are merged, each an object with field, branch, head and plan; a joined line: the one car that joined the open train before its push (open_train.py, plan 0490 step 20), likewise; a landed line: their fields."
+      "description": "A formed line: the cars in the order they are merged, each an object with field, branch, head and plan; a joined line: the one car that joined the open train before its first start (train_join.py, plan 0610 D17, plan 0687 D1), likewise; a landed line: their fields."
     },
     "base": {"type": "string", "minLength": 7, "description": "The carrier's head before the cars were merged; a joined line: before the car joined; an order line: the carrier's head the fix branches from; a resolving line: the carrier's head the resolve branches from (the cars before the conflicting one merged)."},
     "worktree": {"type": "string", "description": "A formed line: the path of the train's own worktree `tollman-train-<plan>-...`, the carrier (hal2 plan 0375 D5)."},

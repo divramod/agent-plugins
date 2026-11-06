@@ -1,6 +1,6 @@
 ---
 name: continue
-description: The one way to carry on after a clear, a pause or a stop, for every role (steward, farmer, tollman, foreman, servant, mayor, lord, pope) — one script finds the role (hal2-cli-agents role), its handoff, a pause record, whether to /mfm, and what changed since the plan last moved (hal2-cli-plans since); the model judges only what changed, rewrites the plan before any code, then continues the role's way. `/continue all`: the farmer's paused and unfinished foremen, one at a time. Use when the user says /continue, /c, "continue", "resume", "unpause" or "go on". `/continue h` shows help.
+description: Carry on after a clear, a pause or a stop, for every role — a script finds the role, its handoff, a pause record, whether to /mfm and what changed since (hal2-cli-plans since); the model judges only that, rewrites the plan before any code, then continues. `/continue all`: the farmer's paused foremen. Use when the user says /continue, /c, "continue", "resume", "unpause" or "go on".
 ---
 
 # continue

@@ -74,9 +74,22 @@ class Gate:
                             "name": f"train-{m['number']}-{m['attempt']}" if m.get("number") else None,
                             "cars": [c["field"] for c in m["cars"]]} for m in marks]}
 
+    def land_ref(self, args, cwd):
+        """`worktree land-ref [--slot <slot>] --json` (schema 1): the carrier's mark `land/train-<n>-<a>` or, without
+        the numbered mark, the CLI's refusal (exit 1, a JSON error object); a read: no call is recorded."""
+        slot = args[args.index("--slot") + 1] if "--slot" in args else Path(cwd).name
+        mark = (self.of(slot) or {}).get("train") or {}
+        if not mark.get("number"):
+            return 1, json.dumps({"error": {"code": "failed", "exit": 1, "hint": None, "details": {},
+                                            "message": f"{slot} is a train's carrier without its numbered mark"}})
+        name = f"land/train-{mark['number']}-{mark['attempt']}"
+        return 0, json.dumps({"schema": 1, "slot": slot, "kind": "train", "current": name, "next": name})
+
     def cli(self, args, cwd):
         if args[:2] == ["worktree", "queue"] and args[2:] == ["--json"]:
             return 0, json.dumps(self.queue())
+        if args[:2] == ["worktree", "land-ref"]:  # hal2-git's land_ref (plan 0607 D4, D6): a train's mark is its name
+            return self.land_ref(args, cwd)
         self.calls.append([a for a in args if a != "--json"])
         if self.refuse and self.refuse in args:
             return 1, f"refused: {self.refuse}"

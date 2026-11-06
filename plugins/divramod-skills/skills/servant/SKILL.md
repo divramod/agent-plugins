@@ -1,6 +1,6 @@
 ---
 name: servant
-description: The servant (German Knecht), a session in a field 30-99 that a foreman created — it does one part of the foreman's plan, reports back to the foreman and never lands. `/servant` prints the servant's effective duties (the skill's, overridden and extended by the repository's `roles/servant/ROLE.md`) and works by them. Use when the user says /servant, "servant", "Knecht", "what does a servant do", or a session in a field holding `plans/LEAD` needs its role. `/servant h` shows help.
+description: The servant (German Knecht), a session in a field 30-99 that a foreman created — does one part of the foreman's plan, reports back and never lands. `/servant` prints its duties (`roles/servant/ROLE.md` extends them). Use when the user says /servant, "servant", "Knecht", "what does a servant do", or a session in a field holding `plans/LEAD` needs its role.
 ---
 
 # servant

@@ -4,8 +4,9 @@ returns each round for a live landing, which it left alone before.
 
 1. The run: nothing records its id while the landing's process lives (hal2-cli-git's `merge-to-main --json` prints
    one JSON line at its end only, ci_land.rs), so it is found by code: the newest run of a landing workflow
-   (mtm_ci.runs_of) on the train's own branch `land/<land_ref>` (its `started` line's, train_branch.py, plan 0383;
-   `land/<carrier>` for a train started before) created at or after the train's last `started` (a retry's fresh
+   (mtm_ci.runs_of) on the train's own branch: the `current` of `hal2-cli-git worktree land-ref --slot <carrier>`
+   (land_name.py, plan 0607 D6), else `land/<land_ref>` of its `started` line (train_branch.py, plan 0383), none for
+   a train that recorded neither (never a built name), created at or after the train's last `started` (a retry's fresh
    commit gives a new run, and its new start leaves the old run behind), never a skipped one (the other landing
    workflow's: its jobs skip by the setting, L134), those of the workflow `.hal/landing.toml` names first. Once found it is noted as a `run` line of
    train.jsonl (`watch.py run <url>`, an action), and later rounds read it from there (train_state.land_run).
@@ -70,7 +71,8 @@ def find(main: str, train: dict | None, rows: list[dict]) -> tuple[str | None, b
     if cached := train.get("land_run"):  # the train as the round sees it (a resumed one has none)
         return cached, False
     since = mtm_ci.started({"createdAt": train.get("since") or train["started"]})  # after a pause: the newer run
-    branch = train_branch.land(train)
+    if not (branch := train_branch.land(train, main)):  # hal2-git's `current`, else the started line's (never built)
+        return None, False
     # a run GitHub skipped (the other landing workflow's: its jobs skip by the setting) is never followed (L134)
     ours = [r for r in mtm_ci.runs_of(mtm_scan.run_json, main) if r.get("headBranch") == branch
             and mtm_ci.started(r) >= since and r.get("conclusion") != "skipped"]
