@@ -10,7 +10,8 @@ CI supervisor's journal, plus the one thing it writes: a request for the supervi
 - the supervisor's power journal (`<state root>/ci-supervisor/power.log`): a cloud machine's last state, `parked`
   or `up`, and whether a wake order is under way. GitHub lists a parked server online for minutes, so a cloud
   machine counts only by the journal's word (the supervisor's own rule, hal2-ci-supervisor README: "the cloud,
-  never GitHub's runner status")
+  never GitHub's runner status"); and an on-demand host runner's last word (plan 0721, L268): `runner <code>:
+  stopped: ...` its park, `started on demand: ...` its start for a queued job, `on-demand start failed: ...`
 - the wake request: the tollman never wakes a machine itself (record park-the-linux-runner-asap: "Only the CI
   supervisor MUST wake and park CI machines"); it leaves `<state root>/ci-supervisor/wake-requests/<machine>.json`
   (`request`) for the supervisor, which reads it on its next look and answers by wake or by deleting it (plan 0383
@@ -35,6 +36,11 @@ TOML = ".github/hal2-runners.toml"
 LOG_TAIL = 256 * 1024  # bytes of the journal read: a machine's last state is always near its end
 SAYS = re.compile(r"^(\S+) (\w+): (?:hetzner|azure) says (\w+)")
 WAKE = re.compile(r"^(\S+) (\w+): wake \(.*\): ok")
+# hal2-ci-supervisor's events.rs `OnDemand` and `ParkCalledOff`, the lines checks/runners.rs journals
+RUNNER = re.compile(r"^(\S+) runner (\S+): (stopped|started on demand|on-demand start failed|on-demand stop failed):")
+CALLED_OFF = re.compile(r"^(\S+) (\S+): park called off")
+RUNNER_STATE = {"stopped": "parked", "started on demand": "starting", "on-demand start failed": "failed",
+                "on-demand stop failed": "up"}
 LIVE = ("queued", "in_progress", "waiting", "pending", "requested")
 ASLEEP = ("parked", "stopped", "deallocated", "off")
 PAGES = 5  # pages of 100 jobs read for one run
@@ -87,16 +93,34 @@ def machines(text: str) -> dict[str, dict]:
     return out
 
 
-def power(path: Path | None = None) -> dict[str, dict]:
-    """`machines` of the journal's tail; {} when it does not exist (no supervisor: no cloud machine is known)."""
+def host_runners(text: str) -> dict[str, dict]:
+    """Each on-demand host runner's last word in the power journal: {code: {state, at}}; `parked` (the supervisor
+    stopped it, no job for it), `starting` (it started it for a queued job), `failed` (that start failed), `up` (a
+    stop failed or was called off: it runs). A runner the journal never names is not in it."""
+    out: dict[str, dict] = {}
+    for line in text.splitlines():
+        if m := RUNNER.match(line):
+            out[m[2]] = {"state": RUNNER_STATE[m[3]], "at": m[1]}
+        elif m := CALLED_OFF.match(line):
+            out[m[2]] = {"state": "up", "at": m[1]}
+    return out
+
+
+def journal(path: Path | None = None) -> str:
+    """The journal's tail, read once a pass (plan 0490 D9); "" when it does not exist (no supervisor)."""
     path = path or supervisor_dir() / "power.log"
     try:
         with path.open("rb") as f:
             f.seek(0, os.SEEK_END)
             f.seek(max(0, f.tell() - LOG_TAIL))
-            return machines(f.read().decode("utf-8", "replace"))
+            return f.read().decode("utf-8", "replace")
     except OSError:
-        return {}
+        return ""
+
+
+def power(path: Path | None = None) -> dict[str, dict]:
+    """`machines` of the journal's tail; {} when it does not exist (no supervisor: no cloud machine is known)."""
+    return machines(journal(path))
 
 
 def github_runners(run_json, main: str) -> dict[str, dict] | None:

@@ -12,6 +12,10 @@ nothing, so a quiet minute costs no model call. The printed line wakes the tollm
      ci_fleet.request: the tollman never wakes a machine); the machine already waking: nothing
    - the Mac VM runner (`vm`), none online `VM_GRACE` (300 s, the supervisor's `wake_grace`) after the job queued:
      `vm`, the line carries the fix-tart doctor's findings
+   - an on-demand host runner the supervisor parked (its journal's `runner <code>: stopped`, plan 0721, L268): left
+     to the supervisor, which starts it for the job by itself (no wake request: those name cloud machines); one it
+     started under `HOST_GRACE` ago is on its way; still parked `PARK_GRACE` (300 s, five of its runner looks)
+     after the job queued: `parked` (the supervisor did not start it), never `offline`
    - any other runner offline `HOST_GRACE` (180 s, the supervisor's restart grace) after the job queued: `offline`
    - no runner of hal2-runners.toml has the labels: `unserved` after `HOST_GRACE`
 
@@ -42,6 +46,7 @@ SCHEMA = 1
 DUTY = "ci-health"  # the actions' duty: a wake that reads instructions/ci-health.md; minute.py prints its text
 VM_GRACE = 300
 HOST_GRACE = 180
+PARK_GRACE = 300  # a parked host runner's start for a queued job: the supervisor's runners look runs every 60 s
 HOURS = "2"  # the window of the doctor
 RUN_LIFE = dt.timedelta(hours=6)  # a land run's longest life (next_train.MAX_WAIT): a job's problem is told once in it
 
@@ -101,8 +106,16 @@ def doctor(main: str) -> str:
     return ", ".join(f"{s} ({n})" for s, n in count.items()) or "no case"
 
 
-def job_problem(job: dict, cands: list[dict], gh, fleet: dict, age: float) -> dict | None:
-    """The problem of one queued job (None: served, on its way, or not yet old enough to say); `gh()` the runners."""
+def since(at: str | None, now: dt.datetime) -> float:
+    """Seconds from `at` to `now`; 0 without a time."""
+    t = ci_fleet.parse_time(at)
+    return (now - t).total_seconds() if t else 0
+
+
+def job_problem(job: dict, cands: list[dict], gh, fleet: dict, age: float, hosts: dict | None = None,
+                now: dt.datetime | None = None) -> dict | None:
+    """The problem of one queued job (None: served, on its way, or not yet old enough to say); `gh()` the runners,
+    `hosts` the host runners' last word in the supervisor's journal (ci_fleet.host_runners)."""
     if any(waking(fleet, r) for r in cands) or any(online(gh, fleet, r) for r in cands):
         return None
     sleeping = sorted({r["machine"] for r in cands if asleep(fleet, r)})
@@ -113,6 +126,12 @@ def job_problem(job: dict, cands: list[dict], gh, fleet: dict, age: float) -> di
         return {**base, "kind": "unserved", "key": f"unserved:{job['job']}"} if age >= HOST_GRACE else None
     if any(r["kind"] == "vm" for r in cands):
         return {**base, "kind": "vm", "key": f"vm:{job['job']}"} if age >= VM_GRACE else None
+    word = [((hosts or {}).get(r["code"]) or {}, r["code"]) for r in cands]
+    if now and any(w.get("state") == "starting" and since(w["at"], now) < HOST_GRACE for w, _ in word):
+        return None  # the supervisor started it for a job: on its way
+    if parked := [code for w, code in word if w.get("state") == "parked"]:  # left to the supervisor (D3)
+        told = {**base, "kind": "parked", "key": f"parked:{job['job']}", "parked": parked}
+        return told if age >= PARK_GRACE else None
     return {**base, "kind": "offline", "key": f"queued-offline:{job['job']}"} if age >= HOST_GRACE else None
 
 
@@ -126,7 +145,8 @@ def problems(main: str, now: dt.datetime) -> list[dict] | None:
 
 def look(main: str, now: dt.datetime, gh) -> list[dict]:
     """`problems` with the runners `gh()` (it raises Unanswered)."""
-    runners, fleet, out = ci_fleet.catalog(main), ci_fleet.power(), []
+    runners, text, out = ci_fleet.catalog(main), ci_fleet.journal(), []
+    fleet, hosts = ci_fleet.machines(text), ci_fleet.host_runners(text)
     train: list[list[dict]] = []  # the standing train's own runners, read for the first job the barn's cannot serve
     for job in ci_fleet.queued_jobs(mtm_scan.run_json, main):
         if "self-hosted" not in job["labels"]:
@@ -136,7 +156,7 @@ def look(main: str, now: dt.datetime, gh) -> list[dict]:
             train = train or [ci_fleet.train_catalog(main, {r["code"] for r in runners})]
             cands = [r for r in train[0] if job["labels"] <= r["labels"]]
         created = ci_fleet.parse_time(job["created"])
-        p = job_problem(job, cands, gh, fleet, (now - created).total_seconds() if created else 0)
+        p = job_problem(job, cands, gh, fleet, (now - created).total_seconds() if created else 0, hosts, now)
         if p:
             out.append({**p, "age": (now - created).total_seconds() if created else 0})
     # D40 T4 (plan 0695 row 26): an idle host runner offline with no queued job that needs it is no problem and wakes
@@ -156,6 +176,9 @@ def line(p: dict, main: str) -> str:
     if p["kind"] == "vm":
         return (f"runners: {what} waits {int(p['age'] // 60)} min for the Mac VM runner, none online; fix-tart doctor: "
                 f"{doctor(main)}")
+    if p["kind"] == "parked":
+        return (f"runners: {what} waits {int(p['age'] // 60)} min for [{need}]: {', '.join(p['parked'])} parked by the "
+                f"CI supervisor and not started for it ({ci_fleet.supervisor_dir() / 'power.log'})")
     if p["kind"] == "unserved":
         return f"runners: {what} waits for [{need}]: no runner of hal2-runners.toml has these labels"
     return f"runners: {what} waits {int(p['age'] // 60)} min for [{need}]: {', '.join(p['codes'])} offline"

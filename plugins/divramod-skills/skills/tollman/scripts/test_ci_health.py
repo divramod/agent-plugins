@@ -31,6 +31,8 @@ HZ = ["self-hosted", "linux", "x64", "hz01-host-a"]
 MAC = ["self-hosted", "macOS", "ARM64", "mac-host-hal2-a"]
 VM = ["self-hosted", "macOS", "ARM64", "hal2", "mac-vm-a"]
 CI_CHANGES = api_job(117778863640, "b1-01-ci-changes", HZ, "2026-10-18T20:17:09Z")
+# L268 (2026-11-06): the supervisor's journal line of its park of mac-host-hal2-a, three minutes before the wake
+PARKED_A = "2026-11-06T01:22:10Z runner mac-host-hal2-a: stopped: no job for it for 600 s\n"
 
 
 def stamp(t):
@@ -206,9 +208,8 @@ class Problems(Health):
 
     def test_d60_a_parked_host_runner_with_no_queued_job_is_silent_for_runners_a_and_b(self):
         """D60: the supervisor parked mac-host-hal2-a (01:23Z) and -b (01:57Z) on purpose: offline, no demand, no wake."""
-        self.log.write_text(LOG + "2026-11-06T01:22:10Z mac-host-hal2-a: stopped: no job for it for 600 s\n"
-                            "2026-11-06T01:23:07Z mac-host-hal2-a: Parked\n"
-                            "2026-11-06T01:57:00Z mac-host-hal2-b: Parked\n")
+        self.log.write_text(LOG + PARKED_A + "2026-11-06T01:57:00Z runner mac-host-hal2-b: stopped: no job for it for "
+                            "600 s\n")
         self.fleet(**{"mac-host-hal2-a": "offline", "mac-host-hal2-b": "offline"})
         self.assertEqual([self.check(m) for m in (0, 3, 10, 60)], [[], [], [], []])
         self.assertEqual(self.requests(), [])
@@ -225,7 +226,71 @@ class Problems(Health):
         self.assertEqual(self.check(0) + self.check(5), [])
 
 
+class ParkedHostRunner(Health):
+    """Plan 0721, L268: "01:25Z wake: host runner mac-host-hal2-a offline 3 min", parked by the CI supervisor (no job
+    for 600 s). A runner the supervisor parked is its business: it starts it for a queued job by itself."""
+
+    def setUp(self):
+        super().setUp()
+        self.log.write_text(LOG + PARKED_A)
+        self.fleet(**{"mac-host-hal2-a": "offline"})  # GitHub lists a stopped runner offline
+
+    def job(self, minutes, labels=MAC, id=3):
+        self.queue(api_job(id, "a1-01-ci-route", labels, stamp(self.now - dt.timedelta(minutes=minutes))))
+
+    def test_l268_the_idle_parked_runner_wakes_nobody(self):
+        self.assertEqual(self.tick(), "")
+        self.assertEqual([self.check(m) for m in (3, 10, 60)], [[], [], []])
+        self.assertEqual(self.requests(), [])
+
+    def test_l268_a_queued_job_for_it_is_never_offline_and_left_to_the_supervisor(self):
+        self.job(4)
+        self.assertEqual(self.check(), [], "4 min, past HOST_GRACE: the supervisor starts it, no `offline`")
+        self.assertEqual(self.requests(), [], "no wake request: those name cloud machines")
+        self.job(6)
+        (a,) = self.check()
+        self.assertNotIn("offline", a["text"])
+        self.assertIn("waits 6 min for [arm64,mac-host-hal2-a,macos]: mac-host-hal2-a parked by the CI supervisor and "
+                      "not started for it", a["text"])
+        self.assertEqual((a["evidence"]["kind"], a["evidence"]["parked"]), ("parked", ["mac-host-hal2-a"]))
+        self.assertEqual(self.check(), [], "told once")
+
+    def test_l268_the_supervisor_starting_it_is_on_its_way(self):
+        start = "runner mac-host-hal2-a: started on demand: run 501 job 3\n"
+        self.log.write_text(LOG + PARKED_A + f"{stamp(self.now - dt.timedelta(minutes=1))} {start}")
+        self.job(10)
+        self.assertEqual(self.check(), [], "started a minute ago: connecting")
+        self.log.write_text(LOG + PARKED_A + f"{stamp(self.now - dt.timedelta(minutes=4))} {start}")
+        (a,) = self.check()
+        self.assertIn("mac-host-hal2-a offline", a["text"], "started 4 min ago and still offline: a dead runner")
+
+    def test_a_failed_start_is_offline(self):
+        self.log.write_text(LOG + PARKED_A + f"{stamp(self.now - dt.timedelta(minutes=4))} runner mac-host-hal2-a: "
+                            "on-demand start failed: launchctl: no such service\n")
+        self.job(4)
+        (a,) = self.check()
+        self.assertIn("mac-host-hal2-a offline", a["text"])
+
+    def test_an_offline_runner_the_supervisor_did_not_park_is_still_offline(self):
+        self.fleet(**{"mac-host-hal2-a": "offline", "mac-host-hal2-b": "offline"})
+        self.job(4, ["self-hosted", "macOS", "ARM64", "mac-host-hal2-b"], id=6)
+        (a,) = self.check()
+        self.assertIn("waits 4 min for [arm64,mac-host-hal2-b,macos]: mac-host-hal2-b offline", a["text"])
+
+
 class Reading(unittest.TestCase):
+    def test_the_journal_gives_each_host_runner_its_last_word(self):
+        got = ci_fleet.host_runners(LOG + PARKED_A + "2026-11-06T01:30:00Z runner mac-host-hal2-a: started on demand: "
+                                    "run 1 job 2\n2026-11-06T01:31:00Z runner mac-host-hal2-b: stopped: no job for it "
+                                    "for 600 s\n2026-11-06T01:31:05Z mac-host-hal2-b: park called off, a fresh look "
+                                    "found run 1 job 3\n2026-11-06T01:32:00Z runner mac-host-hal2-c: on-demand start "
+                                    "failed: x\n")
+        self.assertEqual(got, {"mac-host-hal2-a": {"state": "starting", "at": "2026-11-06T01:30:00Z"},
+                               "mac-host-hal2-b": {"state": "up", "at": "2026-11-06T01:31:05Z"},
+                               "mac-host-hal2-c": {"state": "failed", "at": "2026-11-06T01:32:00Z"}})
+        self.assertEqual(ci_fleet.machines(PARKED_A), {}, "a host runner's line is no cloud machine's")
+        self.assertEqual(ci_fleet.journal(Path("/nonexistent/power.log")), "")
+
     def test_the_journal_gives_each_machine_its_last_state_and_a_wake_under_way(self):
         got = ci_fleet.machines(LOG + WOKEN)
         self.assertEqual((got["hz01"]["state"], got["hz01"]["waking"], got["az01"]["waking"]), ("parked", True, False))
