@@ -24,7 +24,7 @@ import train_state
 import train_wt
 from carrier import git
 from tick import default_ref
-from trains_draft import EXCEPTIONS, MINIMUM, hitched
+from trains_draft import EXCEPTIONS, MAX_CARS, MINIMUM, hitched
 from trains_sort import HELD, held_ahead, sort_out
 
 SCHEMA = 1
@@ -54,14 +54,26 @@ def of(repo: str) -> dict:
     waits = why_waits(main, default, tickets, own, mode)
     if train:  # an alone car hitched while it stands: its own train is the very next (plan 0610 D15)
         waits.update({f: {"why": OWED, "reason": "alone"} for f in open_train.owed_now(rows) if f not in waits})
-    n = hitched(tickets, own)
+    n, least, cap = hitched(tickets, own), trains.minimum(main), trains.cars_cap(main)
     for t in sorted(tickets, key=lambda t: t.get("position", 0)):
         field, h = t.get("slot"), (t.get("ready") or {}).get("head")
         if not h or field == own or train_wt.is_train(field):
             continue
         out["hitched"].append({"field": field, "head": h, **where(train, out["train"], field, h, heads, waits, holds,
-                                                                  n, trains.minimum(main), main)})
+                                                                  n, least, main)})
+    capped(out["hitched"], cap, heads)
     return out
+
+
+def capped(rows: list[dict], cap: int, heads: dict) -> None:
+    """The user's `max-cars` (plan 0722 D2): beyond the room the cap leaves (the standing train's cars counted; a
+    riding field's newer head takes its own car's place), a wagon that `forms` or `joins` waits, reason `max-cars`."""
+    room = cap - len(heads)
+    for r in rows if cap else []:
+        if r["where"] in ("forms", "joins") and r["field"] not in heads:
+            if room <= 0:
+                r.update(where="waits", why=MAX_CARS.format(n=cap), reason="max-cars")
+            room -= 1
 
 
 def why_waits(main: str, default: str, tickets: list[dict], own: str, mode: dict | None) -> dict:

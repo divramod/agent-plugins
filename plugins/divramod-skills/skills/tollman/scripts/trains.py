@@ -99,9 +99,11 @@ PRETEST_WAIT, PRETEST_WAITS = "pretest_incomplete", 3  # pretest_train.INCOMPLET
 
 
 def minimum(main: str) -> int:
-    """The hitched fields a train needs: the user's open `minimum` standing order (standing.py), else MIN_HITCHED."""
+    """The hitched fields a train needs: the user's open `minimum` standing order (standing.py), else MIN_HITCHED; at
+    most the open `max-cars` (plan 0722 D3: a full train never waits for more than it takes)."""
     import standing
-    return standing.value(main, "minimum", MIN_HITCHED)
+    n, cap = standing.value(main, "minimum", MIN_HITCHED), cars_cap(main)
+    return min(n, cap) if cap else n
 
 
 def cars_cap(main: str) -> int:
@@ -111,12 +113,13 @@ def cars_cap(main: str) -> int:
 
 
 def draft(main: str, tickets: list[dict], own: str, base: str, default: str, mode: dict | None = None,
-          carried=(), first=(), minimum: int = 0, max_cars: int | None = None) -> dict:
+          carried=(), first=(), minimum: int = 0, max_cars: int | None = None, riding=()) -> dict:
     """The train the queue allows now (trains_draft.draft, proven by PROVE); `carried`: commits whose ancestors ride
     already (the standing train's carrier head, the dry run's); `first`: the alone cars owed their own train
-    (`owed`); `minimum`: the hitched fields a train needs (the round's MIN_HITCHED, none for a join)."""
+    (`owed`); `minimum`: the hitched fields a train needs (the round's MIN_HITCHED, none for a join); `riding`: a
+    join's standing train's fields, counted against the cap (plan 0722 D2)."""
     cap = max_cars if max_cars is not None else cars_cap(main)
-    return trains_draft.draft(main, tickets, own, base, default, mode, PROVE, carried, first, minimum, cap)
+    return trains_draft.draft(main, tickets, own, base, default, mode, PROVE, carried, first, minimum, cap, riding)
 
 
 def owed(rows: list[dict]) -> list[str]:

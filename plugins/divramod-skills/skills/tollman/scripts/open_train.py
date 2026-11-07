@@ -9,7 +9,8 @@ A formed train never started joins as below; to a started train the round and th
 only owe its alone cars (`owe`, D15, below).
 
 `joiners` drafts the hitched wagons on the carrier's head as the round's draft does (trains.draft: queue order, a
-place the user holds ahead, adjacent production wagons only, the trial merge, the proof, the alone rule, no minimum):
+place the user holds ahead, adjacent production wagons only, the trial merge, the proof, the alone rule, no minimum;
+the user's `max-cars` counting the train's own cars, a full train taking no new field, plan 0722 D2):
 every car of it joins, with what it needs (`conflict`, `proof_red`, `proof_unknown`, `untried`, `carried`: a hand
 merge the carrier holds already is recorded so, E8). A riding field whose ticket holds a newer head joins again: its
 newer head takes its car's place (E10). The train's own cars at their heads stay out.
@@ -91,17 +92,28 @@ def candidates(main: str, train: dict, tickets: list[dict]) -> list[dict]:
     return out
 
 
+def full(main: str, train: dict) -> bool:
+    """Whether the standing train has as many cars as the user's open `max-cars` (plan 0722 D2): no new field joins."""
+    import trains  # the cap; loaded only when a wagon may join
+    cap = trains.cars_cap(main)
+    return bool(cap) and len(train["cars"]) >= cap
+
+
 def draft(main: str, top: str, train: dict, tickets: list[dict], mode: dict | None) -> dict | None:
-    """The round's draft on the carrier's head for the candidates, or None (the train started once, plan 0687 D1; no
-    candidate; or the train has a car that rides alone)."""
+    """The round's draft on the carrier's head for the candidates, its cars counted against the user's `max-cars`
+    (`riding`, plan 0722 D2), or None (the train started once, plan 0687 D1; no candidate; a full train without a
+    riding car's newer head, before any trial merge; or the train has a car that rides alone)."""
     import trains  # the round's draft: loaded only when a wagon may join
     if fixed(train) or not (them := candidates(main, train, tickets)):
+        return None
+    riding = [c["field"] for c in train["cars"]]
+    if full(main, train) and not (them := [t for t in them if t.get("slot") in riding]):
         return None
     default, carrier = default_ref(main), Path(top).name
     if any(gate_car.alone_why(main, default, c["head"]) for c in train["cars"]):
         return None
     head = git(top, "rev-parse", "HEAD")[1]
-    return trains.draft(main, them, carrier, head, default, mode)
+    return trains.draft(main, them, carrier, head, default, mode, riding=riding)
 
 
 def joiners(main: str, top: str, train: dict, tickets: list[dict], mode: dict | None) -> list[dict]:
@@ -116,8 +128,8 @@ def round_of(main: str, top: str, train: dict, tickets: list[dict], mode: dict |
     train (plan 0687 D1): no joiner, only its alone cars (`started_alone`)."""
     if fixed(train):
         return [], started_alone(main, train, tickets)
-    if not (d := draft(main, top, train, tickets, mode)):
-        return [], []
+    if not (d := draft(main, top, train, tickets, mode)):  # a full train still owes its alone cars (0722 D4)
+        return [], started_alone(main, train, tickets) if full(main, train) else []
     heads = {t.get("slot"): (t.get("ready") or {}).get("head") for t in tickets}
     whys = {w["field"]: w["why"] for w in d["waiting"] if w.get("reason") == "alone"}
     fields = [c["field"] for c in d["cars"]] if d["alone"] else d["alone_next"]

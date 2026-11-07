@@ -7,6 +7,7 @@ import farmer_frame  # noqa: F401  (the farmer skill's frame on the import path)
 import frozen
 import modes
 import mtm_scan
+import open_train
 import train_state
 import train_wt
 import trial as trial_merge
@@ -32,7 +33,8 @@ def dry_run(repo: str) -> dict:
     carrier = trial_merge.git(train_wt.folder(train, str(top)), "rev-parse", "HEAD")[1] if train else ""
     d = draft(main, tickets, top.name, base_of(main, default, head), default, modes.of(doc),
               carried=[h for h in (carrier, (train or {}).get("head")) if h], first=[] if train else owed(rows),
-              minimum=0 if train else trains.MIN_HITCHED)  # a standing train: what joins it (no minimum, plan 0610 D17)
+              minimum=0 if train else trains.minimum(main),  # a standing train: what joins it (no minimum, 0610 D17)
+              riding=sorted(rides) if train and not open_train.fixed(train) else ())  # its cars count (0722 D2)
     if train:  # what the standing carrier holds rides it (E9): no car of the next train
         d["riding"] = [c for c in d["cars"] if c.get("carried")]
         d["cars"] = [c for c in d["cars"] if not c.get("carried")]
