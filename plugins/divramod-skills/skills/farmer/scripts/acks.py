@@ -34,6 +34,7 @@ import sys
 import decision_log
 import deliver
 import mtm_scan
+import reply_line
 import roles
 import roletime
 
@@ -55,12 +56,12 @@ def next_id(log: list[dict], slot: str) -> str:
     return f"{slot}-{1 + sum(1 for e in log if e.get('kind') == 'ask-ack' and e.get('slot') == slot)}"
 
 
-def stamp(text: str, ack_id: str, role: str = roles.ROLE) -> str:
+def stamp(text: str, ack_id: str, role: str = roles.ROLE, kind: str | None = "claude", repo: str = "") -> str:
     """The id on the first line (`farmer [<id>]: ...`, a duty kept: `farmer [<id>] (lead): ...`), the reply asked
-    for on the last; `role` is the sending role."""
+    for on the last (by the session's `kind`, reply_line.py); `role` is the sending role."""
     sender = head(role)
     body = sender.sub(f"{role} [{ack_id}]", text, count=1) if sender.match(text) else f"{role} [{ack_id}]: {text}"
-    return f"{body}\n{REPLY_TO.format(id=ack_id, role=role)}"
+    return f"{body}\n{reply_line.line(kind, ack_id, role, repo)}"
 
 
 def stamped_id(text: str, role: str = roles.ROLE) -> str | None:
@@ -73,12 +74,18 @@ def ask_entry(slot: str, ack_id: str, text: str, pane: str | None, by: str) -> d
             "text": text, "pane": pane or "", "by": by}
 
 
-def stamp_send(a: dict, main: str, role: str = roles.ROLE) -> None:
-    """Give a planned send its id and log the `ask-ack` (tick.execute, before it types). Re-sends keep theirs."""
+def stamp_send(a: dict, main: str, role: str = roles.ROLE, agents: list[dict] | None = None) -> None:
+    """Give a planned send its id and log the `ask-ack` (tick.execute, before it types). A re-send keeps its id but
+    gets the reply line of its pane's kind. `agents`: a round's `list --json` rows (None: read here)."""
+    if agents is None:
+        import reach
+        agents = reach.agents_listed()
+    kind = reply_line.kind_of(agents, a.get("pane"), a["slot"], main)
     if a.get("ack_id"):
+        a["text"] = reply_line.swap(a["text"], reply_line.line(kind, a["ack_id"], role, main))
         return
     ack_id = next_id(mtm_scan.entries(mtm_scan.state_dir(main, role) / "log.jsonl"), a["slot"])
-    a.update(ack_id=ack_id, text=stamp(a["text"], ack_id, role))
+    a.update(ack_id=ack_id, text=stamp(a["text"], ack_id, role, kind, main))
     mtm_scan.log(main, ask_entry(a["slot"], ack_id, a["text"], a.get("pane"), "tick"), role)
 
 
@@ -197,7 +204,9 @@ def main(argv: list[str]) -> int:
             print(f"acks.py instruct --decision {e}", file=sys.stderr)
             return 1
         ack_id = next_id(log, args.slot)
-        text = stamp(args.text, ack_id, role)
+        import reach
+        kind = reply_line.kind_of(reach.agents_listed(), None, args.slot, main_dir)
+        text = stamp(args.text, ack_id, role, kind, main_dir)
         mtm_scan.log(main_dir, ask_entry(args.slot, ack_id, text, None, role), role)
         question(main_dir, role, args.slot, ack_id, args.text)
         for d in relays:

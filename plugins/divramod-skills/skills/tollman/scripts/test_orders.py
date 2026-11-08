@@ -93,6 +93,16 @@ class Orders(Red):
         self.round()
         self.assertEqual((self.last, len(self.typed)), ([], 1), "a fixing train waits; nobody is told twice")
 
+    def test_an_order_to_a_codex_pane_ends_with_the_shell_ack(self):
+        self.agent_kinds = {"07": "codex"}
+        code, text = self.call("order", "07", "--why", "its test fails", "--run", RUN)
+        self.assertEqual(code, 0, text)
+        ((pane, msg),) = self.typed
+        last = msg.splitlines()[-1]
+        self.assertIn("acks.py ack 07-", last)
+        self.assertIn("--role tollman --repo ", last)
+        self.assertNotIn("SendMessage to the tollman", msg)
+
     def test_the_carrier_s_remote_is_never_moved_back(self):
         git(self.cw, "commit", "-q", "--allow-empty", "-m", "later")
         ahead = out(self.cw, "rev-parse", "HEAD")

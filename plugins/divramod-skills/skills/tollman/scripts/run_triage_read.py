@@ -4,9 +4,10 @@ data, no IO. run_triage.py places what these find; run_triage_gather.py fetches 
 - `counted`: the red jobs the triage takes: mtm_ci.red_jobs (the gate's reds) and the ship jobs that failed (a red
   hub-deploy is a red job of the run too); a cancelled ship job only stopped
 - `needs_graph`: the workflow's `jobs:` ids and their `needs` (inline forms only, as hal2's workflows write them),
-  keyed by the stage prefix a job's display name starts with (`e4-hz01-host-c` -> `e4`, `e4-01-hub-deploy`)
-- `units`: a red job's units: one per failed `gate <job> <part>` step (`stack-test/hub-e2e`), else one for the job
-  (`runner-image-linux`); each with its log lines, found by the log's step column, else by the task log's
+  keyed by the stage prefix a job's display name starts with (`f2-hz01-host-b` -> `f2`, `f2-03-hub-deploy`; past runs' `e4-hz01-host-c`, `e4-01-hub-deploy`)
+- `units`: a red job's units: one per failed `gate <job> <part>` step (`stack-test/hub-e2e`) or, since plan 0728 put
+  stack-test's suites into one step of the matrix e1, one per red suite of that step (its `::error::stack-test: <suite>
+  failed` and `::group::<suite>` lines), else one for the job (`runner-image-linux`); each with its log lines, found by the log's step column, else by the task log's
   `[NN] 🎬` .. `[NN] 💥` markers
 - `facts`: what a unit's lines say: the error lines, the failing specs (Playwright's `✘ ... › <spec>:<line>`) and
   tests (mtm_scan.failing_tests, which never reads nextest's padded counter `( 14/238)` as a test), the failing
@@ -87,9 +88,17 @@ def prefix(name: str) -> str:
 
 
 def needs_graph(workflow: str) -> dict[str, list[str]]:
-    """{job prefix: the prefixes it needs} from a workflow's text."""
-    graph, inside, job = {}, False, ""
+    """{job prefix: the prefixes it needs} from a workflow's text: the inline `needs: [a, b]` and the block list the
+    generated regions write (plan 0728: `needs:` and a `- id` line each, comments between). A stage of several jobs
+    (a lane's chain `c1-01-..`, `c1-02-..`) has the union of their needs, never its own prefix: the chain's order is no
+    cause of a red (every job of it runs after a red one, `if: !cancelled()`)."""
+    graph: dict[str, list[str]] = {}
+    inside, job, block = False, "", False
     for line in (workflow or "").splitlines():
+        if block and (m := re.match(r"^      - (\S+)", line)):
+            graph[job] += [p for p in [prefix(m[1])] if p and p != job and p not in graph[job]]
+            continue
+        block = block and bool(re.match(r"^\s*#", line))
         if re.match(r"^jobs:\s*$", line):
             inside = True
         elif inside and re.match(r"^\S", line):
@@ -97,9 +106,11 @@ def needs_graph(workflow: str) -> dict[str, list[str]]:
         elif inside and (m := re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)):
             job = prefix(m[1])
             graph.setdefault(job, [])
+        elif inside and job and re.match(r"^    needs:\s*$", line):
+            block = True
         elif inside and job and (m := re.match(r"^    needs:\s*(.+?)\s*$", line)):
-            items = m[1].strip("[]").split(",")
-            graph[job] = [p for p in (prefix(i.strip()) for i in items) if p]
+            items = [prefix(i.strip()) for i in m[1].strip("[]").split(",")]
+            graph[job] += [p for p in items if p and p != job and p not in graph[job]]
     return graph
 
 
@@ -149,20 +160,46 @@ def failed_steps(job: dict) -> list[dict]:
             and (NUMBER.sub("", s.get("name") or "").strip() not in (mtm_ci.STOP_STEP, "fail fast"))]
 
 
+STACK_SUITES = {"hub-e2e", "web-e2e", "web-lighthouse", "n8n-e2e", "node-web-e2e", "web-plugins-e2e", "hub-build",
+                "desktop-e2e"}
+SUITE_RED = re.compile(r"stack-test: (?P<suite>\S+) failed")
+SUITE_GROUP = re.compile(r"##\[group\](?P<suite>\S+)\s*$")
+
+
+def suite_parts(job: dict, step: dict, lines: list[str]) -> dict[str, list[str]]:
+    """Since plan 0728 stack-test's suites are one step of the matrix e1 (`[04] stack-test`), each a log group: {red
+    suite: its lines}, so such a step still gives one unit per suite (`stack-test/hub-e2e`) as a `gate stack-test
+    <suite>` step does; {} for every other step, a past run's `gate` step and a suite-less red."""
+    if stack_red.bare(job.get("name")) != stack_red.STACK or GATE_STEP.match(step.get("name") or ""):
+        return {}
+    red = {found["suite"] for found in map(SUITE_RED.search, lines) if found}
+    parts: dict[str, list[str]] = {}
+    current = None
+    for text in lines:
+        group = SUITE_GROUP.search(text)
+        if group and group["suite"] in STACK_SUITES:
+            current = group["suite"] if group["suite"] in red else None
+        if current:
+            parts.setdefault(current, []).append(text)
+    return parts
+
+
 def units(jobs: list[dict], log: str) -> list[dict]:
     """[{unit, job, bare, steps, lines}] of the run's counted red jobs (see the module doc)."""
     out: dict[str, dict] = {}
     for job in counted(jobs):
         lines, steps = job_lines(log, job["name"]), failed_steps(job)
         for step in steps or [{}]:
-            name = part_of(job, step)
             got = step_lines(lines, step) if step else [t for _, t in lines]
+            parts = suite_parts(job, step, got) if step else {}
             runner = RUNNER.search("\n".join(t for _, t in lines))
-            u = out.setdefault(name, {"unit": name, "job": job["name"], "bare": stack_red.bare(job["name"]),
-                                      "conclusion": job.get("conclusion"), "data": job, "steps": [], "lines": [],
-                                      "runner": runner[1] if runner else "", "unserved": unserved(job)})
-            u["steps"] += [step["name"]] if step else []
-            u["lines"] += got or ([t for _, t in lines] if len(steps) <= 1 else [])
+            for name, part_lines in ({f"{stack_red.STACK}/{suite}": ln for suite, ln in parts.items()}
+                                     or {part_of(job, step): got}).items():
+                u = out.setdefault(name, {"unit": name, "job": job["name"], "bare": stack_red.bare(job["name"]),
+                                          "conclusion": job.get("conclusion"), "data": job, "steps": [], "lines": [],
+                                          "runner": runner[1] if runner else "", "unserved": unserved(job)})
+                u["steps"] += [step["name"]] if step else []
+                u["lines"] += part_lines or ([t for _, t in lines] if len(steps) <= 1 else [])
     return list(out.values())
 
 

@@ -136,6 +136,32 @@ def one(u: dict, **kw) -> dict:
     return run_triage.classify(run, [u], ctx)[0]
 
 
+class SuiteUnits(unittest.TestCase):
+    """Plan 0728: stack-test's suites are one step of the matrix e1, each a log group; a red one still is its own unit,
+    as a past run's `gate stack-test <suite>` step is."""
+
+    JOB = {"name": "e1-02-stack-test", "conclusion": "failure",
+           "steps": [{"name": "[04] stack-test", "conclusion": "failure"}]}
+
+    @staticmethod
+    def line(text: str) -> str:
+        return f"e1-02-stack-test\t[04] stack-test\t2026-11-08T10:00:00.0000000Z {text}"
+
+    def test_one_unit_per_red_suite(self):
+        log = "\n".join(self.line(t) for t in [
+            "##[group]hub-e2e", "hub ok", "##[endgroup]",
+            "##[group]web-e2e", "web went wrong", "##[endgroup]",
+            "##[error]stack-test: web-e2e failed (exit 1)"])
+        got = {u["unit"]: u for u in read.units([self.JOB], log)}
+        self.assertEqual(set(got), {"stack-test/web-e2e"})
+        self.assertIn("web went wrong", got["stack-test/web-e2e"]["lines"])
+        self.assertNotIn("hub ok", got["stack-test/web-e2e"]["lines"])
+
+    def test_no_suite_named_stays_the_job(self):
+        log = self.line("##[error]tools failed")
+        self.assertEqual([u["unit"] for u in read.units([self.JOB], log)], ["stack-test"])
+
+
 class Kinds(unittest.TestCase):
     """The kinds no recorded run shows, each a recorded unit with one line changed."""
 
@@ -283,6 +309,57 @@ class Gather(unittest.TestCase):
         url = "https://github.com/x/actions/runs/41009203691"
         gather.gather(self.main, self.train, url, {}, earlier=[])
         self.assertEqual([c[3] for c in self.gh.calls if c[-1] == "--log-failed"], ["41009203691"])
+
+
+class Graph(unittest.TestCase):
+    """Plan 0728: the lanes' chains (`c1-01-..` .. `c1-07-..`, a prefix of several jobs) and the generated block lists
+    (`needs:` then `- id` lines) of merge-to-main-cloud.yml."""
+    WORKFLOW = """name: x
+jobs:
+  b1-hz01-host-a:
+    name: b1
+  c1-01-rust-release-linux:
+    needs: [a1-mac-vm-a, b1-hz01-host-a]
+  c1-02-agents-linux:
+    needs: [a1-mac-vm-a, b1-hz01-host-a, c1-01-rust-release-linux]
+  c3-01-bash-mac:
+    needs: [b1-hz01-host-a]
+  e2-hz01-host-b:
+    name: e2-${{ matrix.pos }}-${{ matrix.job }}
+    strategy:
+      matrix:
+        include:
+          - {job: stack-test, pos: '01'}
+    # a comment of the region
+    # >>> workflow-jobs stack-test-needs
+    needs:
+      - b1-hz01-host-a
+      # between
+      - c1-01-rust-release-linux
+      - c1-02-agents-linux
+      - c3-01-bash-mac
+    # <<< workflow-jobs stack-test-needs
+    if: always()
+  e4-hz01-host-c:
+    needs: [e2-hz01-host-b]
+"""
+
+    def test_a_chain_is_one_stage_with_the_union_of_its_needs_and_not_its_own(self):
+        graph = read.needs_graph(self.WORKFLOW)
+        self.assertEqual(graph["c1"], ["a1", "b1"])
+        self.assertEqual(graph["c3"], ["b1"])
+
+    def test_a_block_list_of_a_generated_region_is_read(self):
+        graph = read.needs_graph(self.WORKFLOW)
+        self.assertEqual(graph["e2"], ["b1", "c1", "c3"])
+        self.assertEqual(graph["e4"], ["e2"])
+
+    def test_a_red_stack_test_is_a_red_job_its_dependent_needs(self):
+        graph = read.needs_graph(self.WORKFLOW)
+        self.assertEqual(read.needs_red("e4-01-hub-deploy", graph, ["e2-01-stack-test", "c1-02-agents-linux"]),
+                         ["e2-01-stack-test"])
+        self.assertEqual(read.needs_red("c1-02-agents-linux", graph, ["c1-01-rust-release-linux"]), [],
+                         "a chain's order is no cause of a red")
 
 
 if __name__ == "__main__":

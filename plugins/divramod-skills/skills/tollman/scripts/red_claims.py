@@ -30,7 +30,10 @@ import stack_red
 import train_state
 
 LOCK = "orders.lock"
-STAGED = re.compile(r"\b[a-z][1-9]-\d\d-[a-z0-9][a-z0-9-]*[a-z0-9]")
+# In free text (an order's why) a stage prefix alone would also find a lane id (`c1-hz01-host-a`): a job with a place,
+# or one of the one-job lanes' jobs without one (plan 0728 D40, `a1-ci-route`).
+ONE_JOB_LANES = r"ci-route|ci-changes|publish-ios|publish-android|ci-cache-clean-[a-z-]*[a-z]"
+STAGED = re.compile(rf"\b[a-z][1-9]-(?:\d\d-[a-z0-9][a-z0-9-]*[a-z0-9]|(?:{ONE_JOB_LANES})(?![a-z0-9-]))")
 
 
 def rid_of(url) -> str:

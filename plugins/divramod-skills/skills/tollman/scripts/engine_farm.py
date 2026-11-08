@@ -155,7 +155,9 @@ class Farm(Field):
             return 40000 + len(self.spawned)
 
         def agents(*args, **kw):
-            rows = [{"pane_id": p, "slot": f, "checkout": str(self.fields[f]), "state": "idle"} for f, p in self.panes.items()]
+            rows = [{"pane_id": p, "slot": f, "checkout": str(self.fields[f]), "state": "idle",
+                     "kind": getattr(self, "agent_kinds", {}).get(f, "claude")}  # agent_kinds: field -> agent kind (plan 0731)
+                    for f, p in self.panes.items()]
             return 0, json.dumps(rows)
 
         for p in (mock.patch.object(tick, "sh", sh), mock.patch.object(engine, "cli", self.gate.cli),

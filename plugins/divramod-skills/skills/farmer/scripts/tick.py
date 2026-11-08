@@ -334,7 +334,7 @@ def execute(a: dict, top: str, main: str, out: dict, wiring: roles.Wiring = role
             from run_failed import failed  # only once a run failed: a minute pass loads none (plan 0480 D3)
             execute(failed(follow, code, text), top, main, out, wiring)
     if a["do"] == "send":
-        acks.stamp_send(a, main, wiring.role)  # an id and the ack asked for, also when it becomes a relay (plan 0137)
+        acks.stamp_send(a, main, wiring.role, out.get("agent_rows"))  # an id and the ack asked for, also when it becomes a relay (plan 0137)
         states = set(a.get("states", ())) | deliver.READY
         refused = deliver.send(a["pane"], a["text"], states) if a.get("pane") else "no session"
         if refused:

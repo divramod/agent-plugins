@@ -114,6 +114,41 @@ class MtmCiTest(unittest.TestCase):
         jobs.append({"name": "c3-03-rust-lint", "conclusion": "failure"})
         self.assertEqual(mtm_ci.red_jobs(jobs), ["c3-03-rust-lint"])
 
+    def test_a_one_job_lanes_name_has_no_position(self):
+        # Plan 0728 D40: a plain job `<alias>-<job>`, no `NN-`: never an unknown job, its ship jobs stay ship jobs.
+        self.assertEqual([mtm_ci.job_part(n) for n in ("a1-ci-route", "h3-ci-cache-clean-mac-host", "g1-publish-ios")],
+                         ["ci-route", "ci-cache-clean-mac-host", "publish-ios"])
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-publish-ios", "g2-publish-android",
+                                                         "h1-ci-cache-clean-hz-host", "h2-ci-cache-clean-mac-tart")))
+        jobs = [{"name": "e1-01-git-merge", "conclusion": "success"},
+                {"name": "h1-ci-cache-clean-hz-host", "conclusion": "failure"}, {"name": "g1-publish-ios", "conclusion": "failure"}]
+        self.assertEqual(mtm_ci.red_jobs(jobs), [], "a red ship job after the merge stays no red of the landing")
+        jobs = [{"name": "a1-ci-route", "conclusion": "failure"}]
+        self.assertEqual(mtm_ci.red_jobs(jobs), ["a1-ci-route"], "a red job before the merge names its lane")
+
+    def test_the_publishes_after_the_merge_are_ship_jobs(self):
+        # Plan 0728 row 16: publish-ios, publish-linux and publish-android ship what the merge built; a red one is no
+        # red of the landing (they were missing from SHIP_JOBS).
+        for job in ("publish-ios", "publish-linux", "publish-android"):
+            self.assertTrue(mtm_ci.is_ship(f"g1-01-{job}"), job)
+        jobs = [{"name": "e1-01-git-merge", "conclusion": "success"}, {"name": "g1-01-publish-ios", "conclusion": "failure"},
+                {"name": "f3-01-publish-linux", "conclusion": "failure"}, {"name": "g2-01-publish-android", "conclusion": "failure"}]
+        self.assertEqual(mtm_ci.red_jobs(jobs), [], "a red publish is no red of the landing")
+
+    def test_a_job_per_frame_since_plan_0728(self):
+        # Plan 0728 D23: a lane c1-c3 is a chain of jobs `<matrix>-<NN>-<frame>`, the lint a step of its language's
+        # frame (no `lint` job any more); the host jobs keep `<stage><n>-<NN>-<job>` on the VM (`a1-mac-vm-a`).
+        self.assertEqual([mtm_ci.job_part(n) for n in ("c1-06-python-linux", "c2-03-records-check", "c3-02-rust-release-mac",
+                                                       "c3-04-ts-bundle-mobile-ios", "c4-01-bash-test")],
+                         ["python-linux", "records-check", "rust-release-mac", "ts-bundle-mobile-ios", "bash-test"])
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("h2-01-ci-cache-clean-mac-vm", "h2-01-ci-cache-clean-mac-host")))
+        jobs = [{"name": "d2-01-git-merge", "conclusion": "success"},
+                {"name": "c1-06-python-linux", "conclusion": "failure"},
+                {"name": "c1-07-ts-linux", "conclusion": "success"},
+                {"name": "h2-01-ci-cache-clean-mac-vm", "conclusion": "failure"}]
+        self.assertEqual(mtm_ci.red_jobs(jobs), ["c1-06-python-linux"], "a red frame job is a red of the landing")
+        self.assertFalse(mtm_ci.is_ship("c1-06-python-linux"))
+
     def test_a_job_that_stops_its_run_fails_it_at_once_and_the_cancelled_jobs_only_stopped(self):
         # `gh run view --json jobs`, shaped after land run 38215106904 with the lanes' stop step; the job that stops
         # its run mostly ends `cancelled` itself (gate jobs 113753096365, 114169773542), its failed step `failure`.

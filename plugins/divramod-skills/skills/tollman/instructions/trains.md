@@ -54,8 +54,9 @@ for its `fixed` line, a died landing whose run runs is watched; neither wakes yo
   Green there: diff the `hal2-core` libs it calls (process, fs, testing) against main; the car that changed them gets the order.
 - **A barn test red on mac-vm-a that no car touches** (L90, L118: bash-test timeouts, host-runner-linux test 48):
   one retry of the same train; red twice: `order main` (raise the test's wait) or a board note to the farmer.
-- **An f3 desktop install red naming no car** (L99): board note for the farmer and tell the user the app is down; never a
-  fix order, never a rerun (it restarts the user's app).
+- **A desktop install red naming no car** (L99; an f3 job of the land run then, since plan 0728 D16 the host-side
+  `deliver-pull-macos`, whose red the farmer's tick reports, `deliver_watch.py`): board note for the farmer and tell the
+  user the app is down; never a fix order, never a rerun (it restarts the user's app).
 - **A red naming a shared test cache or fixture** (L133: seed, scratch tree): the car that changed the helper owns it, not
   the test file's owner; order it at once, it is no runner fault.
 - **A red only in hal2-cli-workqueue's load-sensitive tests** (L140: `run_and_status_keep_their_budgets` in

@@ -37,11 +37,11 @@ TEXT = ("tollman (wagon train): train {train} is in the barn, but {job} is red{r
 
 def bare(name: object) -> str:
     """A job's own part of its display name: `d1-01-stack-test` (the matrix alias and the job's position, plan 0349
-    D101), the older `03-hz01-host-a/01-stack-test` (the position in its lane since D40), `03-hz01-host-a/stack-test`
+    D101), a one-job lane's `a1-ci-route` (no position, plan 0728 D40), the older `03-hz01-host-a/01-stack-test` (the position in its lane since D40), `03-hz01-host-a/stack-test`
     and a bare `stack-test` give `stack-test`; the matrix values GitHub appended to a matrix job of a fixed name in
     older runs (`stack-test (stack-test)`) go."""
     name = re.sub(r"\s*\([^)]*\)$", "", str(name or ""))
-    staged = re.match(r"^(?:[a-z][1-9]-\d\d-|\d\d-[^/]*/(?:\d\d-)?)(.+)$", name)
+    staged = re.match(r"^(?:[a-z][1-9]-(?:\d\d-|(?=[a-z]))|\d\d-[^/]*/(?:\d\d-)?)(.+)$", name)
     return (staged[1] if staged else name.rsplit("/", 1)[-1]).strip()
 
 

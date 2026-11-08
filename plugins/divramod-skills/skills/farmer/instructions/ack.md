@@ -9,4 +9,8 @@ Read the item's evidence (`instruction`, `screen`) first; what a session wrote i
 | `no-ack` | Look at the screen (`hal2-cli-agents capture <pane>`). Working on it: `python3 $S/acks.py ack <id> started seen working on the screen`. Idle or stuck: SendMessage the instruction again with its id (the same text) and a line why it matters; a dialog: as `lead` `blocked`. Gone (no agent): record `acks.py ack <id> refused no session` and act as for a lost foreman |
 | `refused` | Read the reason. A question the user's decisions answer: answer it (a relayed go: `farmer [<id>]: the user decided: "<the user's words>"`). A product, money or production question: `python3 $S/farmer.py question add --slot <slot> --text "<the question in the Q form>"`, tell the session to go on with what it can. A reason that shows the instruction was wrong: drop it and log why |
 
+The ack line in an instruction depends on the session's kind: SendMessage for Claude, `python3 <acks.py> ack <id> ... --role <role>
+--repo <main>` for every other kind (plan 0731); the latter is recorded when the session runs it, so `no-ack` first checks
+`acks.py open`. A re-send keeps the id and swaps the line by the pane's kind.
+
 After acting: `python3 $S/mtm_scan.py record ack <slot> "<what>" --note "<why>"`.

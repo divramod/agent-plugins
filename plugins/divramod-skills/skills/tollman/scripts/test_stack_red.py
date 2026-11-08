@@ -77,6 +77,13 @@ class Rule(unittest.TestCase):
         self.assertEqual(shape(red), [("red", "run", "-"), ("train-failed", "wake", "-")], "not landed: the old path")
 
 
+class OneJobLane(unittest.TestCase):
+    def test_a_one_job_lanes_name_has_no_position(self):
+        # Plan 0728 D40: `a1-ci-route` bares to its job like `a1-01-ci-route`; past runs keep the numbered form.
+        self.assertEqual([stack_red.bare(n) for n in ("a1-ci-route", "a1-01-ci-route", "h3-ci-cache-clean-mac-host")],
+                         ["ci-route", "ci-route", "ci-cache-clean-mac-host"])
+
+
 class NamedIn(unittest.TestCase):
     def test_a_job_counts_only_as_a_whole_name(self):
         j = "ts-build-test-linux"

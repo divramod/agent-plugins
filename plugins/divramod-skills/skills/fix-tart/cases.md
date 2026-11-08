@@ -2,7 +2,9 @@
 
 Newest first. One case per root cause; a recurrence adds a line under its case. The **signature** is what
 `evidence.py show` prints that identifies the case; the doctor's (`scripts/signatures.py`) is named with its slug.
-Times are UTC.
+Times are UTC. The job names in a case are the names of its day: plan 0728 (2026-11-08) renumbered the lanes (old c2
+is now c1, c3 c2, c4 c3 and c5 c4; the VM's lane is `c3-mac-tart-a`, its jobs `c3-NN-<frame>`, the Mac host's three builds
+run there too) and split the lint job into steps of the `<language>-<os>` jobs; read an old name by that map.
 
 ## 2026-10-19 09:42 · the clone registered again, its runner found no registration (land run 39231126231)
 

@@ -51,13 +51,15 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
              "git-pull-main", "rust-install-apps-mac", "ts-install-desktop-mac", "git-deliver-record",
              "install-mac",  # plan 0544 D7: the pull and the two installs as one job's steps
              "agents-publish", "tmux-publish-mac", "tmux-publish-linux", "nvim-publish",
-             "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-hz-host",
-             "hub-deploy"}  # the hub's deploy on mac-host-b (plan 0349 step 35)
+             "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-mac-tart", "ci-cache-clean-hz-host",
+             "hub-deploy",  # the hub's deploy on mac-host-b (plan 0349 step 35)
+             "publish-ios", "publish-linux", "publish-android"}  # the Linux build's and the phones' publishes after the merge (plan 0728)
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 # Since plan 0349 (D40) the job part of the names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
 # the job is the bare one, as in the names without it. Since D101 a name is `<matrix alias>-<NN>-<job>` (`c3-03-rust-lint`:
-# the stage's letter, the matrix's place in it, the job's position): the old forms stay for the runs before it.
-NEW = r"[a-z][1-9]-\d\d-"
+# the stage's letter, the matrix's place in it, the job's position), a one-job lane's since plan 0728 D40
+# `<matrix alias>-<job>` (`a1-ci-route`, no position): the old forms stay for the runs before it.
+NEW = r"[a-z][1-9]-(?:\d\d-|(?=[a-z]))"
 OLD = r"\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?"
 NAME = re.compile(rf"^(?:{NEW}|{OLD}|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"

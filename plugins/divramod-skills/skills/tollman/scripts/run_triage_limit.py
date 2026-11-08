@@ -1,5 +1,5 @@
 """A red job the time limit killed (hal2 plan 0719, learning L267): pure parser, no IO. Train 56-7's run 42133755939
-(c6-01-lint) was red only because the gate's own 20-minute limit (`stack_limit`, `timeout`) ended its records-check
+(c6-01-lint, a job of the lint box that plan 0728 dissolved into its languages' frames) was red only because the gate's own 20-minute limit (`stack_limit`, `timeout`) ended its records-check
 step while the state-scratch phase ran slow on a loaded runner: the log ends `##[error]gate: lint: records-check
 failed`, `[12] 💥 00:54:51 ⏳ 00:20:00 (exit 1)` and a phase table, with no failing test or error line, and the triage
 named a car's order for it. A kill with no finding is the runner's load, never a car's (the record tollman).
@@ -8,7 +8,8 @@ named a car's order for it. A kill with no finding is the runner's load, never a
 
 - `github`: the job or one of its steps ended `timed_out`, or the log has GitHub's "exceeded the maximum execution
   time" line (a workflow's `timeout-minutes`)
-- `gate`: the step ran one gate step alone (`gate lint --step <name>`: the env lines `LINT:` or `JOB:`), that step
+- `gate`: the step ran one gate step alone (`gate <frame> --step <name>`, the command line in the log, since plan 0728
+  D24; before it `gate lint --step "$LINT"`: the env lines `LINT:` or `JOB:`), that step
   failed (`gate: <frame>: <name> failed`), the frame declared its limit (HAL_FRAME_STEPS, the log's `STEPS:` JSON,
   `"job": "<name>" ... "timeout": <minutes>`) and the step's `[NN] 💥 hh:mm:ss ⏳ hh:mm:ss` marker shows a duration from
   that limit to SLACK s past it. A step the log does not show declared is never taken for a kill
@@ -23,7 +24,8 @@ import re
 SLACK = 90  # s past the limit a killed step still runs: `timeout --kill-after=1m`, and the step's own tail
 MARK = re.compile(r"^\[\d+\] 💥 \d\d:\d\d:\d\d ⏳ (?P<h>\d+):(?P<m>\d\d):(?P<s>\d\d)")
 FAILED = re.compile(r"gate: (?P<frame>[\w-]+): (?P<step>[\w-]+) failed")
-TARGET = re.compile(r"^(?:LINT|JOB): (?P<name>[\w-]+)$")
+TARGET = re.compile(r"^(?:LINT|JOB): (?P<name>[\w-]+)$")  # the lint box's env lines (runs before plan 0728)
+STEP_RUN = re.compile(r"main\.sh\s+\S+\s+--step\s+(?P<name>[A-Za-z0-9][\w-]*)")  # a frame step: `... "$JOB" --step python-lint`
 DECLARED = re.compile(r'"job":\s*"(?P<job>[^"]+)",[^{}]*?"timeout":\s*(?P<min>\d+)')
 GITHUB = re.compile(r"exceeded the maximum execution time", re.I)
 GITHUB_CONCLUSION = "timed_out"
@@ -54,7 +56,7 @@ def gate(lines: list[str]) -> dict | None:
     """The kill of the one gate step the lines show, by its marker against its declared limit."""
     marks = [m for t in lines if (m := MARK.match(t))]
     fails = [m for t in lines if (m := FAILED.search(t))]
-    targets = [m["name"] for t in lines if (m := TARGET.match(t))]
+    targets = [m["name"] for t in lines if (m := TARGET.match(t) or STEP_RUN.search(t))]
     if not marks or not fails or fails[-1]["step"] not in targets:
         return None
     step, m = fails[-1]["step"], marks[-1]

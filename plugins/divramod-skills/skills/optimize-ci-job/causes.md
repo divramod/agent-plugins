@@ -5,7 +5,9 @@ Newest first; a recurrence adds a line under its case. `M=<hal2 checkout>/code/p
 **Symptom** is what `report`, `scan` or `spawns` prints (a smell's id is the one `scan` prints); the **Evidence** is
 the command that proves it on the job at hand; a clue from `scan` is read before it is a finding. The rule for every
 fix: no test dropped or weakened, no assertion changed (the fast-tests record and guide). **Seen**: plan 0365 unless
-a line says otherwise.
+a line says otherwise. The job names in a **Seen** line are the names of its day; plan 0728 (2026-11-08) renumbered
+the lanes (old c2 is now c1, c3 c2, c4 c3, c5 c4) and made each gate a step of its `<language>-<os>` job
+(`gate <frame> --step <step>`, a workflow step `[NN] <step>`).
 
 ## Method traps
 

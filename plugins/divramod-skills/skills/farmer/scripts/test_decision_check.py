@@ -474,5 +474,14 @@ class Replay04(unittest.TestCase):
         self.assertEqual(self.reported(), [])
 
 
+class NonClaudeCommand(unittest.TestCase):
+    def test_a_non_claude_session_is_told_the_command_to_run_itself(self):
+        import reply_line
+        cmd = reply_line.decision_check("/y")
+        self.assertTrue(cmd.startswith("python3 ") and "farmer.py decision-check --message" in cmd)
+        self.assertTrue(cmd.endswith("--repo /y"))
+        self.assertTrue(Path(cmd.split()[1]).is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

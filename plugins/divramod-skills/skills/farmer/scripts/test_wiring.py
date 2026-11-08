@@ -372,7 +372,7 @@ class Round(WagonRepo):
         super().setUp()
         self.sent, self.seen = [], {}
         agents = json.dumps([{"pane_id": "%8", "checkout": str(self.wm), "slot": "tollman-hal2",
-                              "state": "idle"}])
+                              "state": "idle"}, {"pane_id": "%7", "slot": "07", "kind": "claude"}])
         real = tick.sh
 
         def sh(argv, cwd, timeout=900):
@@ -490,7 +490,7 @@ class Acks(WagonRepo):
 
     def test_a_tick_s_send_is_logged_in_the_role_s_log(self):
         a = tick.act("trains", "in-the-barn", "send", "07", pane="%7", text="in the barn")
-        acks.stamp_send(a, str(self.main), "tollman")
+        acks.stamp_send(a, str(self.main), "tollman", [])
         self.assertEqual([(e["kind"], e["id"]) for e in self.wm_log()], [("ask-ack", "07-1")])
         self.assertTrue(a["text"].startswith("tollman [07-1]: in the barn\n"))
         self.assertEqual(self.log(), [])

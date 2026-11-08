@@ -28,7 +28,7 @@ summary). Judgment items, relays for busy sessions and notices go into `wake.jso
 | Duty | Code (the tick) | Woken for | Library |
 |---|---|---|---|
 | `lead` (the foreman duty) | `queue_mode.plan_lead`: `duties.plan_lead`, and (hal2 plan 0360 D75; 0365 D5, D9) every hitched field whose effective mode is smuggle (its entry's own mode, else the merge queue's) told once per mode period or entry "smuggle mode: run /mtm now" (it smuggles), never asking the user, nobody while the tollman's sleep flag stands (the tollman tells every hitched field to land alone, plan 0375) (`queue_mode.py`) | [instructions/lead.md](instructions/lead.md) | [cases.md](subskills/development-lead/cases.md) |
-| `ci` | `duties.plan_ci` (`ci_scan.py`: a red worktree branch told, a queued or running-long run woken for; a red `main` is the tollman's duty `mainred`, skipped here) | [instructions/ci.md](instructions/ci.md) | |
+| `ci` | `duties.plan_ci` (`ci_scan.py`: a red worktree branch told, a queued or running-long run woken for; a red `main` is the tollman's duty `mainred`, skipped here; also `deliver_watch.py`, the Mac's host-side delivery read from `deliver-pull-macos status --json` by its schema 1: a red one woken for and pushed once per sha as `deliver-red`, an unloaded agent woken for once a day; hal2 plan 0728 D20) | [instructions/ci.md](instructions/ci.md), [instructions/delivery.md](instructions/delivery.md) | |
 | `prs` | `duties.plan_prs` (`pr_scan.py`: the open dependency PRs (Renovate, Dependabot) to one foreman per batch, PRs main holds and leftover landing PRs closed, any other PR to the user) | [instructions/prs.md](instructions/prs.md) | |
 | `sync` | `role_sync.py` (main's roles/farmer/ROLE.md differs from the farmer branch's: one foreman merges the latest main, then the farmer branch, and lands it; no plan) | | |
 | `watch` | `duties.plan_watch` (sanity-watch's scan) | [instructions/watch.md](instructions/watch.md) | sanity-watch's |
@@ -210,18 +210,24 @@ clear-and-continue type it, never `/farmer act` (hal2 plan 0608 D8, D9). Run `py
 3. `python3 $S/farmer.py wake --done <highest seq handled>`. Later items wait for the next wake.
 
 **Acks.** Every instruction to a session carries an id and asks for an ack (hal2 plan 0137): the tick stamps its
-sends (`farmer [<id>]: ...`, last line "Reply `ack <id>: started|done|refused <why>`"), and a message you send
+sends (`farmer [<id>]: ...`, last line the reply line by the pane's kind, below), and a message you send
 yourself gets its id from `python3 $S/acks.py instruct <slot> "<text>"` (`--send` types it by the field's pane; never by a name); one that relays a
 user's decision adds `--decision <its at>` (a prefix of the id `decision list` shows), so a foreman naming the
 decision by this id has it in a decision check. When a peer's
 message `ack <id>: <status> [why]` arrives, record it: `python3 $S/acks.py ack <id> <status> [why]`. No ack within
 10 min: the tick re-sends once, 10 min later it wakes you (`no-ack`); a `refused` ack always does
-([instructions/ack.md](instructions/ack.md)). `acks.py open` lists what still waits.
+([instructions/ack.md](instructions/ack.md)). `acks.py open` lists what still waits. **The reply line follows the receiving pane's kind** (plan 0731, D9, D11;
+`scripts/reply_line.py`, kind from `hal2-cli-agents list --json`): a Claude session gets "Reply `ack <id>: started|done|refused <why>`"
+(it answers by SendMessage); every other kind (codex, opencode, grok, antigravity) and a pane with no listed row gets
+`python3 <acks.py> ack <id> started|done|refused "<why>" --role <role> --repo <main checkout>`, which records the ack itself
+(from any cwd). A re-send swaps the line by the pane's kind. A shell ack from a session arrives already recorded.
 Each stamped instruction and each ack also becomes a line of the farmer's **message board**, `roles/farmer/board.jsonl` (the
 farm view's feed; plan 0290 D23): the tick runs `python3 $S/board.py sync --role farmer` before and after a round, once
 per line; `board.py list --role farmer` shows it. The journal `log.jsonl` stays the farmer's own.
 
-**Decision checks.** A foreman continuing after its clear (`/continue`) sends `decision check <slot>: I have these
+**Decision checks.** A non-Claude foreman or servant (codex, opencode, grok, antigravity) cannot SendMessage: it runs
+`reply_line.decision_check`'s command itself, `python3 $S/farmer.py decision-check --repo <main checkout> --message "..."`
+(printed in the instruction that asks it; plan 0731, D12), and reads the answer from its output. A foreman continuing after its clear (`/continue`) sends `decision check <slot>: I have these
 decisions: <list>. Did I forget one?` (`<repo>/<slot>` when it works in another repository). Answer it as code, no
 judgment: `python3 $S/farmer.py decision-check --message "<the message, verbatim>"` compares it with the log's
 `decision` entries for that worktree (and repo-wide ones whose decision is about it: a worktree named only in an aside, a

@@ -52,6 +52,19 @@ class Parser(unittest.TestCase):
                          {"by": "gate", "step": "records-check", "secs": 1200, "limit": 1200})
         self.assertEqual(found["match"], "job limit: records-check after 00:20:00, the gate's 20 min")
 
+    def test_a_frame_step_of_plan_0728_is_a_gate_kill_too(self):
+        """`gate "$JOB" --step records-check` in a job of the frame `python-linux` (D24): the step is read from the command
+        line of the log; no `LINT:` env line is left, and the frame's `JOB:` is no step."""
+        frame = "\n".join(t.replace('main.sh lint --step "$LINT"', 'main.sh "$JOB" --step records-check')
+                          .replace("JOB: lint", "JOB: python-linux").replace("gate: lint:", "gate: python-linux:")
+                          for t in LOG.splitlines() if "LINT: records-check" not in t)
+        lines = read.units([JOB], frame)[0]["lines"]
+        found = limit.gate(lines)
+        self.assertEqual({k: found[k] for k in ("by", "step", "secs", "limit")},
+                         {"by": "gate", "step": "records-check", "secs": 1200, "limit": 1200})
+        elsewhere = frame.replace("--step records-check", "--step python-lint")
+        self.assertIsNone(limit.gate(read.units([JOB], elsewhere)[0]["lines"]), "the failed step is not the one run")
+
     def test_a_step_that_ended_before_its_limit_is_no_kill(self):
         early = LOG.replace("⏳ 00:20:00", "⏳ 00:19:12")
         unit = read.units([JOB], early)[0]

@@ -1,7 +1,7 @@
 """How long each VM job of the last land runs waited for its runner (plan 0391 step 11: under 15 s).
 
 A job's wait is GitHub's started_at minus the later of its created_at and the end of the VM job the VM ran
-before it in the same run: a job chained by `needs`, or a matrix's next under `max-parallel: 1`, has its lane's
+before it in the same run: a job chained by `needs` (the VM lane's chain `c3-NN-<frame>`, plan 0728), or a matrix's next under `max-parallel: 1`, has its lane's
 created_at, so that alone would count the job before as waiting. Pure but `land_runs`, which asks gh.
 """
 

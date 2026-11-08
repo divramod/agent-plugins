@@ -54,6 +54,7 @@ class Reach(unittest.TestCase):
 
     def test_instruct_send_types_by_pane(self):
         with mock.patch.object(reach, "send", return_value=("%7", None)) as send, \
+                mock.patch.object(reach, "agents_listed", return_value=[]), \
                 mock.patch.object(mtm_scan, "main_checkout", return_value="/y"), \
                 mock.patch.object(mtm_scan, "entries", return_value=[]), mock.patch.object(mtm_scan, "log"), \
                 mock.patch.object(mtm_scan, "state_dir", return_value=Path("/nonexistent")), \
@@ -62,6 +63,32 @@ class Reach(unittest.TestCase):
             acks.main(["instruct", "02", "go on", "--send", "--repo", "/y"])
         self.assertEqual(send.call_args.args[:2], ("02", "/y"))
         self.assertIn("sent to %7", err.getvalue())
+
+    def test_instruct_asks_each_kind_its_own_reply(self):
+        texts = {}
+        for kind in ("claude", "codex", "opencode", "grok", "agy"):
+            rows = [{"pane_id": "%7", "slot": "02", "project": "/y", "kind": kind}]
+            with mock.patch.object(reach, "agents_listed", return_value=rows), \
+                    mock.patch.object(mtm_scan, "main_checkout", return_value="/y"), \
+                    mock.patch.object(mtm_scan, "entries", return_value=[]), mock.patch.object(mtm_scan, "log"), \
+                    mock.patch.object(mtm_scan, "state_dir", return_value=Path("/nonexistent")), \
+                    mock.patch.object(acks, "question"), mock.patch("sys.stdout", io.StringIO()) as out:
+                acks.main(["instruct", "02", "go on", "--repo", "/y"])
+            texts[kind] = out.getvalue().splitlines()[-1]
+        self.assertIn("SendMessage", texts.pop("claude"))
+        for kind, last in texts.items():
+            self.assertIn("acks.py ack 02-1 started|done|refused", last, kind)
+            self.assertIn("--role farmer --repo /y", last)
+
+    def test_a_tick_send_to_a_grok_pane_carries_the_shell_line(self):
+        a = tick.act("lead", "x", "send", "02", pane="%7", text="farmer: go")
+        rows = [{"pane_id": "%7", "slot": "02", "project": "/y", "kind": "grok"}]
+        with mock.patch.object(deliver, "send", return_value=None), mock.patch.object(mtm_scan, "log"), \
+                mock.patch.object(mtm_scan, "entries", return_value=[]), \
+                mock.patch.object(mtm_scan, "state_dir", return_value=Path("/nonexistent")):
+            tick.execute(a, "/x/farmer", "/y", {"agent_rows": rows})
+        self.assertIn("acks.py ack 02-1", a["text"].splitlines()[-1])
+        self.assertNotIn("SendMessage", a["text"])
 
 
 if __name__ == "__main__":

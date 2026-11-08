@@ -347,6 +347,12 @@ path_without_gh() { link_tools_except "$1" gh; }
   [ "$(cat "$fake/cancelled")" = 18 ]
 }
 
+@test "github: the merge job of a one-job lane (plan 0728 D40, e1-git-merge, no position) is the merge" {
+  . "$BATS_TEST_DIRNAME/ci-providers.sh"
+  is_merge_job e1-git-merge git-merge
+  ! is_merge_job e1-git-merge-x git-merge
+}
+
 @test "github: the merge job named by its matrix alias (plan 0349 D101, d2-01-git-merge) is the merge, also for MERGE_JOB=merge" {
   run_on 19 land/06 "completed success d2-01-git-merge" "queued none e2-01-git-pull-main"
   printf 'PROVIDER=github\nLAND_WORKFLOWS=merge-to-main.yml\nSHIP_GRACE=15m\nMERGE_JOB=merge\n' > .hal/smuggle.conf

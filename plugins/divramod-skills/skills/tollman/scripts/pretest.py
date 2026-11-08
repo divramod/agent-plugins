@@ -20,8 +20,9 @@ false is no pretest either; `HAL2_PRETEST=on|off` overrides it for one landing.
 
 The selection is CI's: one `gate plan` over the merge base of the barn and HEAD .. HEAD (the same
 `hal2-cli-git changes --keys` call merge-to-main.yml's `changes` makes) names the jobs the range needs and each job's
-content key; the one entry `lint` it folds the lint jobs into (gate/lib/lint.sh) is unfolded into its jobs, each with
-its own key (plan 0522: folded, no lint job was ever selected); a configured job it does not select is `not needed`,
+content key; the one entry `lint` it once folded the lint jobs into (gate/lib/lint.sh; gone since plan 0728 D25: each lint is a
+step of its language's frame on CI, a job of its own here) is still unfolded into its jobs, each with its own key, for
+a gate of an older branch; a configured job it does not select is `not needed`,
 one `gate list` does not know is `skipped`. The gate's calls and jobs use the installed `hal2-cli-git` when it reads
 the checkout's job map (HAL2_CLI_GIT): the tollman builds nothing of its own here (plan 0467 D21), and a range that
 changes hal2-git made `gate plan` build it and time out (plan 0522). The plan builds nothing either way

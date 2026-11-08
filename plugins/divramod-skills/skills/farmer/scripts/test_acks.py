@@ -80,6 +80,61 @@ class Stale(unittest.TestCase):
         self.assertEqual(plan([dict(old, text=acks.stamp("fix it", "20-1", "tollman"))]), [("send", "resend", "20")])
 
 
+def rows(kind):
+    return [{"pane_id": "%7", "slot": "07", "project": "/y", "kind": kind}]
+
+
+CLAUDE = rows("claude")
+
+
+class ReplyByKind(unittest.TestCase):
+    def line(self, kind, role="farmer"):
+        a = tick.act("lead", "x", "send", "07", pane="%7", text="go")
+        with tempfile.TemporaryDirectory() as d:
+            old, mtm_scan.DATA = mtm_scan.DATA, Path(d)
+            try:
+                acks.stamp_send(a, "/y", role, rows(kind) if kind else [])
+            finally:
+                mtm_scan.DATA = old
+        return a["text"].splitlines()[-1]
+
+    def test_claude_gets_send_message_every_other_kind_the_shell_ack(self):
+        self.assertIn("by SendMessage to the farmer session", self.line("claude"))
+        for kind in ("codex", "opencode", "grok", "antigravity", None):
+            last = self.line(kind)
+            self.assertIn(f"python3 {Path(acks.__file__).resolve().parent}/acks.py ack 07-1 started|done|refused", last)
+            self.assertIn("--role farmer --repo /y", last, kind)
+            self.assertNotIn("SendMessage", last)
+
+    def test_a_resend_to_a_grok_pane_carries_the_shell_line(self):
+        first = acks.stamp("farmer: go", "07-1")  # first sent to a Claude pane
+        a = acks.plan([{"at": at(11), **acks.ask_entry("07", "07-1", first, "%7", "tick")}], NOW, {}, lambda p: "")[0]
+        self.assertIn("SendMessage", a["text"])
+        acks.stamp_send(a, "/y", "farmer", rows("grok"))
+        self.assertEqual((a["ack_id"], a["text"].count("\n")), ("07-1", 1))
+        self.assertIn("acks.py ack 07-1", a["text"].splitlines()[-1])
+        self.assertTrue(a["text"].startswith("farmer [07-1]: go"))
+
+    def test_the_tollman_order_to_a_codex_pane_names_its_role(self):
+        self.assertIn("--role tollman --repo /y", self.line("codex", "tollman"))
+
+    def test_the_shell_ack_lands_in_the_scratch_log_from_another_cwd(self):
+        import os
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as elsewhere:
+            repo = Path(d) / "hal2"
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            env = {**os.environ, "FARMER_DIR": d, "HAL2_HOME": d}
+            r = subprocess.run([sys.executable, acks.__file__, "ack", "07-1", "done", "fixed", "abc", "--role",
+                                "tollman", "--repo", str(repo)], cwd=elsewhere, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            logs = list(Path(d).rglob("log.jsonl"))
+            self.assertEqual(len(logs), 1, logs)
+            self.assertIn('"kind": "ack"', logs[0].read_text())
+            self.assertIn("tollman", str(logs[0]))
+
+
 class TickStamps(unittest.TestCase):
     def test_a_send_is_stamped_and_logged_before_it_is_typed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -87,8 +142,8 @@ class TickStamps(unittest.TestCase):
             try:
                 main = str(Path(d) / "hal2")
                 a = tick.act("lead", "no-plan", "send", "07", pane="%7", text="farmer (development lead): fill it")
-                acks.stamp_send(a, main)
-                acks.stamp_send(a, main)  # a second call (a re-send) keeps the id
+                acks.stamp_send(a, main, agents=CLAUDE)
+                acks.stamp_send(a, main, agents=CLAUDE)  # a second call (a re-send) keeps the id
                 log = mtm_scan.entries(mtm_scan.state_dir(main) / "log.jsonl")
                 self.assertEqual([(e["kind"], e["id"], e["slot"]) for e in log], [("ask-ack", "07-1", "07")])
                 self.assertTrue(a["text"].startswith("farmer [07-1] (development lead): fill it\nReply `ack 07-1:"))

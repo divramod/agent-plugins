@@ -45,6 +45,33 @@ class Named(Case):
         self.assertEqual(fix_proof.named(top, "bash-lint: x", "ts-lint"), ["bash-lint"], "the order's own first")
         self.assertEqual(fix_proof.named(top, "nothing here"), [])
 
+    def frames(self):
+        folder = self.tmp / fix_proof.GATE_JOBS
+        folder.mkdir(parents=True)
+        for job, frame in (("python-lint", "python-linux"), ("ts-lint", "ts-linux"), ("rust-test", "rust-linux"),
+                           ("leak-scan", "leak-scan"), ("bash-lint", "bash-linux")):
+            (folder / f"{job}.sh").write_text(f"#!/usr/bin/env bash\n# lane: linux\n# frame: {frame}\n")
+        (folder / "python-test.sh").write_text("# phase: test\n# frame: python-linux\n# frame: other\n")
+
+    def test_a_red_frame_job_is_the_gate_jobs_of_its_steps(self):
+        """Plan 0728 D22: `c1-06-python-linux` is a job per frame; the proof needs its steps' gate jobs (python-test is
+        no known job here, so it is left out; the second `# frame:` line of a file is none)."""
+        self.frames()
+        top = str(self.tmp)
+        self.assertEqual(fix_proof.frames(top)["python-linux"], ["python-lint", "python-test"])
+        self.assertNotIn("leak-scan", fix_proof.frames(top), "a job that is its own frame is a gate job already")
+        self.assertEqual(fix_proof.named(top, "c1-06-python-linux: x.py:1:1: E501"), ["python-lint"])
+        self.assertEqual(fix_proof.named(top, "python-linux, ts-linux"), ["python-lint", "ts-lint"])
+        self.assertEqual(fix_proof.named(top, "c1-07-ts-linux"), ["ts-lint"])
+        self.assertEqual(fix_proof.named(top, "c1-04-rust-linux, c2-02-leak-scan"), ["rust-test", "leak-scan"])
+        self.assertEqual(fix_proof.named(top, "c1-07-ts-linux: ts-lint failed"), ["ts-lint"], "named once")
+
+    def test_a_step_the_text_names_wins_over_its_frame(self):
+        self.frames()
+        self.assertEqual(fix_proof.named(str(self.tmp), "python-linux: python-lint failed, bash-linux"),
+                         ["python-lint", "bash-lint"])
+        self.assertEqual(fix_proof.named(str(self.tmp), "c2-02-leak-scan red"), ["leak-scan"])
+
 
 class Verdict(Case):
     O = {"id": "07-fix-1", "jobs": ["python-lint", "rust-test"]}

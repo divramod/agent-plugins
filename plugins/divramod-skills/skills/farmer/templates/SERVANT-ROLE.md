@@ -35,7 +35,8 @@ you; the user will not answer you.
   of the plan's ledger `decisions.md` with the quoted words and `**Via:** farmer <id>`; a legacy plan: its Decisions
   or Pre-authorized). A legacy handoff names the farmer (`Farmer: <session> (<repo>)` in HANDOFF.md); a plan's
   committed `handoff.md` names no session: the farmer is the session in the worktree `farmer-<repo>` (`ListAgents`). A
-  `decision check <slot>: ...` answer that reaches you: write what it names missing into the plan's ledger.
+  `decision check <slot>: ...` answer that reaches you: write what it names missing into the plan's ledger. A non-Claude session runs the check itself with
+  the command the instruction names (`farmer.py decision-check --message "..."`; plan 0731, D12).
 - **Report** to the farmer in one line each: started (the plan's number), blocked (what and why), done (landed).
 - Never touch other sessions' work, never force-push, never deploy to production without a go.
 

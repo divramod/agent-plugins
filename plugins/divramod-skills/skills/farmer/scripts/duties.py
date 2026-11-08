@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import ci_scan
+import deliver_watch
 import delegation
 import lead_actions
 import lead_depends
@@ -109,9 +110,11 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
     return out
 
 
-def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) -> list[dict]:
+def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None, delivery=None) -> list[dict]:
     """The farmer's CI findings: a red worktree branch is told, a runner fault wakes. A red main is the tollman's
-    (its duty `mainred`, hal2 plan 0360 step 8, D9, D30): skipped here, `log_failed` is never called."""
+    (its duty `mainred`, hal2 plan 0360 step 8, D9, D30): skipped here, `log_failed` is never called. The Mac's
+    delivery (deliver_watch.py, hal2 plan 0728 D20): a red one wakes and pushes once per sha; `delivery` (a list of
+    acts) replaces reading it, for tests."""
     scan = scan if scan is not None else ci_scan.scan(ctx["top"], False)
     out, slots = [], set(ctx.get("panes", {}))
     for f in scan.get("findings", []):
@@ -126,7 +129,7 @@ def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None) ->
                            after=key))
         else:
             out.append(act("ci", kind, "wake", f.get("branch") or "-", key=key, text=f["why"], evidence=f))
-    return out
+    return out + (delivery if delivery is not None else deliver_watch.plan(ctx))
 
 
 def plan_watch(item: dict, ctx: dict, incidents: list[dict] | None = None) -> list[dict]:

@@ -3,8 +3,10 @@
 order's red jobs are green on that sha; the foreman's word alone let records-check go red four times (train 32).
 
 - the jobs: the order line's `jobs`, given by `order --job` or named in its `why`, else in the train's red (`named`):
-  gate job names, a CI job's display name bared (stack_red.bare: `c2-03-lint`, `linux / rust-test`), CI's folded
-  `lint` as the light lint jobs (gate/lint-jobs.txt)
+  gate job names, a CI job's display name bared (stack_red.bare: `c1-06-python-linux`, `linux / rust-test`), a red
+  frame job (`python-linux`, plan 0728 D22: a job per frame, a step per gate) as the gate jobs of its steps (the
+  `# frame:` headers of the gate's job files; the steps the text names itself win), CI's folded `lint` of the runs
+  before plan 0728 as the light lint jobs (gate/lint-jobs.txt)
 - light (a job of `.github/hal2-pretest.toml`): the tollman runs it itself on the sha, pretest.py's run with only
   those jobs, in the proof worktree `cache/proof/.proof-tree` of its role folder (detached at the sha; its build
   output stays warm for the next proof), the result in `cache/proof/<id>-<sha12>.json`, the jobs' output beside it
@@ -49,6 +51,7 @@ TREE = ".proof-tree"  # a dot name: worktree listings leave it out (mtm_scan.py,
 TRIES = 3  # incomplete proofs of one answer before it is refused
 KEEP_DAYS = 14
 LINT_JOBS = "code/bash/scripts/gate/lint-jobs.txt"
+GATE_JOBS = "code/bash/scripts/gate/jobs"  # the job files: `# frame: <frame job>` names the frame a step belongs to
 GREEN = re.compile(r"gate: ([a-z0-9][a-z0-9-]*) green at ([0-9a-f]{7,40})")  # a whole job's: accepted, never asked
 CHECK = re.compile(r"(?<![a-z0-9-])green: (\S[^\n]*?) at ([0-9a-f]{7,40})\b")  # the red check's own green (D6)
 ASK = ("run the check that was red on the fix, its smallest form (the failing test, the build, the lint check or the "
@@ -69,18 +72,39 @@ def known_jobs(top: str) -> set[str]:
     return set(light_jobs(top)[1])
 
 
+def frames(top: str) -> dict[str, list[str]]:
+    """{frame job: its gate jobs} from the job files' first `# frame:` line (gate/lib/frame.sh's frame_meta): a CI job
+    `python-linux` is a frame of `python-lint` and `python-test`. A job that is its own frame (`ci-rules`) is no
+    entry: it is a gate job already."""
+    out: dict[str, list[str]] = {}
+    for f in sorted((Path(top) / GATE_JOBS).glob("*.sh")):
+        with contextlib.suppress(OSError):
+            for line in f.read_text().splitlines():
+                if line.startswith("# frame: "):
+                    if (frame := line.removeprefix("# frame: ").strip()) != f.stem:
+                        out.setdefault(frame, []).append(f.stem)
+                    break
+    return out
+
+
 def named(top: str, *texts: str) -> list[str]:
-    """The gate jobs the first of `texts` names that names any (CI's `lint`: the light lint jobs), in order."""
-    known, light = known_jobs(top), light_jobs(top)[1]
+    """The gate jobs the first of `texts` names that names any, in order: CI's `lint` (before plan 0728) the light lint
+    jobs, a frame job (`python-linux`, `c1-06-python-linux`) the jobs of its steps unless the text names a step of it."""
+    known, light, frame = known_jobs(top), light_jobs(top)[1], frames(top)
     try:
         lint = [x.strip() for x in (Path(top) / LINT_JOBS).read_text().splitlines() if x.strip()[:1] not in ("", "#")]
     except OSError:
         lint = []
     for text in texts:
         found: list[str] = []
-        for token in TOKEN.findall(str(text or "").lower()):
-            job = stack_red.bare(token)
-            found += [j for j in lint if j in light] if job == pretest.LINT else [job] * (job in known)
+        jobs = [stack_red.bare(t) for t in TOKEN.findall(str(text or "").lower())]
+        for job in jobs:
+            if job == pretest.LINT:
+                found += [j for j in lint if j in light]
+            elif job in frame and job not in known:
+                found += [] if any(j in jobs for j in frame[job]) else [j for j in frame[job] if j in known]
+            else:
+                found += [job] * (job in known)
         if found:
             return list(dict.fromkeys(found))
     return []
