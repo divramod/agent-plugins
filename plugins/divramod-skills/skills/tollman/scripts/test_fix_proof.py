@@ -116,7 +116,8 @@ class Verdict(Case):
         with mock.patch.object(fix_proof.mtm_scan, "pid_alive", return_value=True):
             self.assertEqual(self.verdict(line)[0], "wait")
             self.assertTrue(fix_proof.busy(str(self.tmp)))
-        self.assertEqual(self.verdict(line)[0], "start", "its process is gone: again")
+        with mock.patch.object(fix_proof.mtm_scan, "pid_alive", return_value=False):
+            self.assertEqual(self.verdict(line)[0], "start", "its process is gone: again")
         self.result(state="green", attempt=1)
         self.assertEqual(self.verdict(line), ("ok", ""))
         self.result(state="red", attempt=1, errors={"python-lint": "x.py:1:1: E501"})

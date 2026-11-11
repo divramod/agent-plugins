@@ -1,6 +1,6 @@
 {
   "name": "divramod-skills",
-  "version": "0.54.0",
+  "version": "0.55.0",
   "description": "divramod's agent skills: summarize anything (videos, web pages, GitHub repos, X threads, Hacker News, Reddit, documents, or a whole topic), and more.",
   "author": {
     "name": "Arvid Petermann",
@@ -56,6 +56,7 @@
     "./skills/grill-message",
     "./skills/grill-plan",
     "./skills/h",
+    "./skills/hal-deploy-to-hal-server",
     "./skills/halverse",
     "./skills/handoff",
     "./skills/hv",
