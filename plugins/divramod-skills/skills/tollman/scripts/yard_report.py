@@ -88,5 +88,7 @@ def lines(s: dict) -> list[str]:
     """The dry run's lines for what `seen` found."""
     if s["skipped"]:
         return [f"yard: skipped: {s['skipped']}"]
-    return ([f"yard: placed: {e['path']}" + (" (deleted)" if e["deleted"] else "") for e in s["placed"]]
+    head = [f"yard: commits up to {s['head'][:10]} ride as a merge ({len(s.get('paths') or [])} paths)"
+            ] if s.get("head") else []
+    return head + ([f"yard: placed: {e['path']}" + (" (deleted)" if e["deleted"] else "") for e in s["placed"]]
             + [f"yard: left: {x['path']}: {x['why']}" for x in s["left"]])

@@ -44,3 +44,9 @@ farmer (`SendMessage` to `farmer-<repo>`), who starts a foreman (`~/.adr/steward
 The steward alone writes the farm's daybook (the skill [daybook](../daybook/SKILL.md); farmer and tollman keep
 their own journals, `~/.adr/daybook-writers-and-store.md`) and logs everything it does there as a done line with the
 time, committed as it goes (`~/.adr/steward-logs-its-work.md`).
+
+### yard-restock
+A "Yard restock order" from CI (`hal2-cli-git yard restock`: the install could not fast-forward the yard) comes
+first and is done at once as the order says: commit the yard's work, `git pull --no-rebase origin main`, resolve the
+conflicts, never delete, revert, stash or reset a file. It ends with `hal2-cli-git yard restock done <id>` (or
+`--failed --note <why>`); CI waits with no deadline until then (hal2 plan 0789).

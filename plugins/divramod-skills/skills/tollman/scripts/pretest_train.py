@@ -131,8 +131,11 @@ def due(train: dict, tree: str) -> bool:
 
 
 def yard_commit(rows: list[dict], name: str) -> str | None:
-    """The commit the yard's car made in the carrier for the train `name`, if it rode."""
-    return next((e.get("commit") for e in rows if e["kind"] == "yard" and e.get("train") == name), None)
+    """The commit the yard's car made in the carrier for the train `name`, if it rode; `<merged>..<last>` when the
+    yard's commits rode as a merge first (plan 0789 D2): the range then starts before that merge."""
+    e = next((e for e in rows if e["kind"] == "yard" and e.get("train") == name), {})
+    last = e.get("commit") or e.get("merged")
+    return f"{e['merged']}..{last}" if last and e.get("merged") else last
 
 
 def blame(top: str, train: dict, job: str, base: str, yard: str | None = None) -> list[str]:
@@ -148,7 +151,8 @@ def blame_all(top: str, train: dict, jobs: list[str], base: str, yard: str | Non
         gate, deadline, picked = Path(top) / pretest.GATE, time.monotonic() + BLAME_SECONDS, {}
         ranges = [(c["field"], pretest.git(top, "merge-base", base, c["head"]) or base, c["head"])
                   for c in train.get("cars", [])]
-        ranges += [(train_state.YARD, pretest.git(top, "rev-parse", f"{yard}^") or base, yard)] if yard else []
+        first, _, yard = (yard or "").rpartition("..")  # yard_commit's range: its start's parent, else the commit's
+        ranges += [(train_state.YARD, pretest.git(top, "rev-parse", f"{first or yard}^") or base, yard)] if yard else []
         for field, start, head in ranges:
             left = deadline - time.monotonic()
             if left <= 0:

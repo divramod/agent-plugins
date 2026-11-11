@@ -33,8 +33,9 @@ def standing(rows: list[dict]) -> dict | None:
                      "in_barn": [], "post": carry, "declined": []}
         elif not train or e.get("train") != train["train"]:
             continue
-        elif kind == "yard":
-            train["yard"] = e.get("files", [])
+        elif kind == "yard":  # the yard's commits' paths as files with their `head` (plan 0789 D2): every reader sees them
+            train["yard"] = e.get("files", []) + [{"path": p, "head": e["head"]} for p in e.get("paths") or []]
+            train["yard_head"] = e.get("head")
         elif kind == "regenerated":
             train["regenerated"] = e.get("commit")
         elif kind == "joined":  # the open train (plan 0490 step 20, plan 0610 D17): a car added, or a car's newer head
@@ -163,11 +164,14 @@ def land_run(rows: list[dict]) -> str | None:
 def yard_past(rows: list[dict]) -> dict:
     """What yard.sort needs of the past: `carried` ({path: [hash]}: what the yard brought into a train, so a barn
     file that is the yard's own may be changed by it again) and `refused` ({path: hash}: the files of a yard car a
-    session unhitched from a red train)."""
-    past: dict = {"carried": {}, "refused": {}}
+    session unhitched from a red train), `refused_head` (the yard's HEAD such an unhitch took out, plan 0789 D2)."""
+    past: dict = {"carried": {}, "refused": {}, "refused_head": None}
     for e in rows:
         for f in e.get("files", []) if e["kind"] == "yard" else []:
             past["carried"].setdefault(f["path"], []).append(f.get("hash"))
         for f in e.get("files", []) if e["kind"] == "unhitched" and e.get("slot") == YARD else []:
-            past["refused"][f["path"]] = f.get("hash")
+            if "head" not in f:  # a commit's path: its head is refused as a whole
+                past["refused"][f["path"]] = f.get("hash")
+        if e["kind"] == "unhitched" and e.get("slot") == YARD and e.get("head"):
+            past["refused_head"] = e["head"]
     return past

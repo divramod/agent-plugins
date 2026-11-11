@@ -5,22 +5,22 @@ the engine (engine.py) calls them and keeps what was carried in the train state.
 
   survey(yard)                 what `git status` shows there; everything is skipped (and said, never repaired)
                                when the yard is not on the default branch, is in a merge, rebase, cherry-pick,
-                               revert or bisect, or is ahead of the barn
+                               revert or bisect (a yard ahead of the barn rides with its HEAD: yard_head.py,
+                               plan 0789 D2)
   sort(yard, entries, base)    each path `placed`, or `left` with its reason: the name's (yard_rules.py: secret-
                                shaped, junk, a root outside the allowlist), a conflict state, staged and changed
                                again, gitignored, a submodule or nested repository, a file the barn changed since
                                the yard's head, a file a session unhitched from a red train and that is still the
                                same, a deletion of a file another field's crop changes, a symlink leaving the
                                repository, no regular file, larger than 5 MB, a file a car of this train changes
-  look(yard, base, ...)        survey and sort; reads only (the dry run, the farmer's report)
+  look(yard, base, ...)        survey, yard_head.judge (the yard's commits, sorted against their trial merge) and
+                               sort; reads only (the dry run, the farmer's report)
   carry(yard, field, placed)   the placed files' content copied into the tollman's field and committed there
                                as `chore(yard): <n> files from the yard`, by explicit paths, hooks on; each path
                                with the hash of what it carried (a file the barn holds as it is: its hash, no
                                change). No placed file, or nothing that differs: no commit
-  settle(yard, carried)        after the green landing: a carried path whose content in the yard and in the barn
-                               still has the carried hash loses its local change, then `git pull --ff-only`. A
-                               path changed meanwhile stays; a pull that is no fast-forward is said, never forced,
-                               and what was dropped is put back: the yard is then as it was
+  settle(yard, carried)        after the green landing (yard_settle.py): the carried files dropped where still the
+                               same, then `git pull --ff-only`; never forced
 
 This is the only code of the role that changes the yard, and it does so only in `settle`, only for files it
 carried, only after their content is in the barn (hal2's records worktree-no-main-without-consent and
@@ -91,9 +91,6 @@ def survey(yard: str, default: str = "origin/main") -> dict:
     gitdir = Path(run(yard, "rev-parse", "--absolute-git-dir").stdout.strip() or os.path.join(yard, ".git"))
     why = why or next((f"{what} is under way in the yard" for mark, what in UNDER_WAY.items()
                        if (gitdir / mark).exists()), None)
-    ahead = run(yard, "rev-list", "--count", f"{default}..HEAD").stdout.strip()
-    if not why and ahead != "0":
-        why = f"the yard is {ahead or 'an unknown number of'} commits ahead of {default}"
     status = None if why else run(yard, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
     if status and status.returncode:
         why = f"git status failed in the yard: {status.stderr.strip()[-200:]}"
@@ -199,16 +196,24 @@ def fields(yard: str) -> dict[str, str]:
 
 def look(yard: str, base: str = "HEAD", default: str = "origin/main", cars: list[dict] | tuple = (),
          past: dict | None = None) -> dict:
-    """survey and sort: {"skipped": why or None, "placed": [...], "left": [...]}. `cars`: the train's
-    ([{field, head}]). Reads only."""
+    """survey, the yard's commits and sort: {"skipped": why or None, "placed": [...], "left": [...]}, with "head"
+    and "paths" when the yard's HEAD rides (yard_head.judge; the files are then sorted against its trial merge; a
+    head that may not ride skips the whole yard: its files could never settle). `cars`: the train's ([{field,
+    head}]). Reads only."""
+    import yard_head  # it imports this module
     seen = survey(yard, default)
     if seen["skipped"]:
         return {"skipped": seen["skipped"], "placed": [], "left": []}
+    h = yard_head.judge(yard, base, default, cars, past)
+    if h["why"]:
+        return {"skipped": h["why"], "placed": [], "left": []}
+    rides = {"head": h["head"], "paths": h["paths"]} if h["head"] else {}
+    base = h["merge"] or base
     riding = crops(yard, default, {c["field"]: c["head"] for c in cars})
     gone = any(not os.path.lexists(os.path.join(yard, e["path"])) for e in seen["entries"])
     placed, left = sort(yard, seen["entries"], base, riding,
                         {**(crops(yard, default, fields(yard)) if gone else {}), **riding}, past)
-    return {"skipped": None, "placed": placed, "left": left}
+    return {"skipped": None, "placed": placed, "left": left, **rides}
 
 
 def copy(yard: str, field: str, e: dict) -> None:
@@ -281,47 +286,7 @@ def carry(yard: str, field: str, placed: list[dict], cars: list[dict] | tuple = 
     return commit, sorted(carried + same, key=lambda c: c["path"]), ""
 
 
-def settle(yard: str, carried: list[dict], default: str = "origin/main") -> dict:
-    """After the green landing: {"dropped": [path], "kept": [{path, why}], "pulled": bool, "why": str}. A carried
-    path is dropped (a tracked one restored to HEAD, a new one removed) only when its content in the yard and in
-    the barn both still have the carried hash and the index holds nothing else; then `git pull --ff-only`. When
-    that is no fast-forward, what was dropped is put back from the barn (the same content) and kept: the yard is
-    as it was. A yard `survey` would skip is not touched at all."""
-    out = {"dropped": [], "kept": [], "pulled": False, "why": ""}
-    skipped = survey(yard, default)["skipped"]
-    if skipped or not carried:
-        out.update(kept=[{"path": c["path"], "why": skipped} for c in carried if skipped], why=skipped or "")
-        return out
-    paths = [c["path"] for c in carried]
-    barn, head = objects(yard, default, paths), objects(yard, "HEAD", paths)
-    index = {row.split("\t", 1)[1]: row.split()[1]
-             for row in run(yard, "ls-files", "-s", "-z").stdout.split("\0") if "\t" in row}
-    for c in carried:
-        path, want = c["path"], c.get("hash")
-        why = ("changed meanwhile" if blob(yard, path) != want
-               else "the barn does not hold what was carried" if barn.get(path, (None,))[0] != want
-               else "staged differently meanwhile" if index.get(path) not in (None, want, head.get(path, (None,))[0])
-               else "")
-        out["kept"].append({"path": path, "why": why}) if why else out["dropped"].append(path)
-    tracked = [p for p in out["dropped"] if p in head]
-    new = [p for p in out["dropped"] if p not in head]
-    if tracked:
-        run(yard, "checkout", "-q", "HEAD", *FROM, data="\0".join(tracked))
-    if new:
-        run(yard, "rm", "-q", "--cached", "--ignore-unmatch", *FROM, data="\0".join(new))
-    for path in new:
-        if os.path.lexists(os.path.join(yard, path)):
-            os.unlink(os.path.join(yard, path))
-    remote, _, name = default.partition("/")
-    pull = run(yard, "pull", "-q", "--ff-only", remote, name)
-    out.update(pulled=pull.returncode == 0, why="" if pull.returncode == 0 else pull.stderr.strip()[-300:])
-    if pull.returncode and out["dropped"]:
-        there = [c["path"] for c in carried if c["path"] in out["dropped"] and c.get("hash")]
-        if there:
-            run(yard, "restore", f"--source={default}", "--worktree", *FROM, data="\0".join(there))
-        for path in set(out["dropped"]) - set(there):
-            if os.path.lexists(os.path.join(yard, path)):
-                os.unlink(os.path.join(yard, path))
-        out["kept"] += [{"path": p, "why": "put back: the yard was not fast-forwarded"} for p in out["dropped"]]
-        out["dropped"] = []
-    return out
+def settle(yard: str, carried: list[dict], default: str = "origin/main", head: str | None = None) -> dict:
+    """yard_settle.settle (split out by plan 0789 step 5): the only change to the yard, after a green landing."""
+    import yard_settle  # it imports this module
+    return yard_settle.settle(yard, carried, default, head)

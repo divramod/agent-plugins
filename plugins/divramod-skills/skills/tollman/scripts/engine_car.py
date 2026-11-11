@@ -32,9 +32,10 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
             words: str = "") -> Done:
     main, _, train, _ = engine.here(repo)
     its = train["yard"] if train and field == train_state.YARD else None  # the yard's car: no ticket to clear
-    if field == train_state.YARD and not its:
+    head = train.get("yard_head") if its is not None else None  # the yard's commits that rode (plan 0789 D2)
+    if field == train_state.YARD and not (its or head):
         return 1, "the yard rides no train that stands: nothing to unhitch"
-    car = bool(train and (its or any(c["field"] == field for c in train["cars"])))
+    car = bool(train and (its or head or any(c["field"] == field for c in train["cars"])))
     if car and train["state"] not in ("red", "fixing", "split"):
         return 1, (f"{field} rides train {train['train']} ({train['state']}): a running landing is never stopped; "
                    "unhitch it once the train is red")
@@ -49,7 +50,7 @@ def unhitch(repo: str, field: str, why: str, now: dt.datetime | None = None, use
     if code:
         return 1, f"{field} was not unhitched: {out[-300:]}"
     train_state.append(main, "unhitched", field, now, train=train["train"] if car else None, why=why, files=its,
-                       by=frozen.USER if car else None)
+                       **({"head": head} if head else {}), by=frozen.USER if car else None)
     import records_kinds  # plan 0611: the user's order, open until code sees its effect
     records_kinds.add(main, "user-order", field, f"unhitch {field} (the user): {why}", "user",
                       records_kinds.train_event("unhitched", train=train["train"] if car else None, field=field), now,

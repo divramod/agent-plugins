@@ -9,7 +9,7 @@ from test_yard import Yard, git
 
 
 class Surveying(Yard):
-    def test_a_yard_on_another_branch_in_a_merge_or_ahead_is_skipped(self):
+    def test_a_yard_on_another_branch_or_in_a_merge_is_skipped_but_one_ahead_rides(self):
         self.write({"docs/a.md": "changed\n"})
         self.assertEqual(yard.survey(str(self.yard)), {"skipped": None, "entries": [{"xy": " M", "path": "docs/a.md"}]})
         git(self.yard, "checkout", "-q", "-b", "side")
@@ -23,8 +23,9 @@ class Surveying(Yard):
             (self.yard / ".git" / mark).unlink()
         git(self.yard, "commit", "-qam", "never pushed")
         self.write({"docs/b.md": "changed\n"})
-        self.assertEqual(self.look()["skipped"], "the yard is 1 commits ahead of origin/main")
-        self.assertEqual(yard.carry(str(self.yard), str(self.field), self.look()["placed"]), (None, [], ""))
+        seen = self.look()  # plan 0789 D2: its HEAD rides as a merge, its files on top
+        self.assertEqual((seen["skipped"], seen["head"], seen["paths"], [e["path"] for e in seen["placed"]]),
+                         (None, git(self.yard, "rev-parse", "HEAD"), ["docs/a.md"], ["docs/b.md"]))
 
     def test_a_staged_rename_is_a_deletion_and_an_addition(self):
         git(self.yard, "mv", "docs/b.md", "docs/moved.md")

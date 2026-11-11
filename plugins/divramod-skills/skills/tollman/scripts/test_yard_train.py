@@ -141,6 +141,33 @@ class Riding(YardFarm):
                          "once, on the board")
 
 
+class Ahead(YardFarm):
+    def test_a_yard_ahead_of_the_barn_rides_first_and_is_fast_forwarded_after_the_green_landing(self):
+        """Plan 0789 D2: the steward committed (`git add -A && git commit`); its HEAD rides as a merge, the
+        uncommitted file on top; the yard line names the head; after the landing the yard fast-forwards."""
+        git(self.main, "add", "docs/note.md")
+        git(self.main, "commit", "-qm", "steward: everything")
+        head = out(self.main, "rev-parse", "HEAD")
+        (self.main / "docs/more.md").write_text("uncommitted on top\n")
+        self.crop("07", {"seven.txt": "7"})
+        self.round()
+        self.assertEqual(self.first_parents(), [f"Merge branch '07' into {self.branch()}", "chore(yard): 1 file from the yard",
+                                                f"chore(yard): the yard's commits up to {head[:10]}"])
+        line = train_state.lines(str(self.main))[1]
+        self.assertEqual((line["kind"], line["head"], line["paths"], [f["path"] for f in line["files"]]),
+                         ("yard", head, ["docs/note.md"], ["docs/more.md"]))
+        self.assertEqual((self.train()["yard_head"], [f["path"] for f in self.train()["yard"]]),
+                         (head, ["docs/more.md", "docs/note.md"]), "every reader sees the commits' paths too")
+        self.assertEqual(out(self.main, "rev-parse", "HEAD"), head, "the yard as it was before the landing")
+        self.alive.add(40001)
+        self.ends({"status": "landed", "commit": "c0ffee"}, land=True)
+        self.round()
+        self.assertEqual(train_state.lines(str(self.main))[-1]["yard"],
+                         {"dropped": ["docs/more.md"], "kept": [], "pulled": True, "why": ""})
+        self.assertEqual(self.yard(), ("?? .env", out(self.main, "rev-parse", "origin/main")), "fast-forwarded")
+        self.assertEqual(out(self.main, "merge-base", "--is-ancestor", head, "HEAD"), "", "its commits kept")
+
+
 class Skipping(YardFarm):
     def test_a_yard_with_work_but_no_ready_wagon_forms_no_train_by_itself(self):
         self.round()
