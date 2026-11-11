@@ -59,6 +59,8 @@ class Reader(unittest.TestCase):
         self.assertEqual(dv.cell([{**LINK, "field": None}, {**LINK, "plan": 571, "field": "09", "state": "main"}]),
                          "0514 (open), 0571 (09, main)")
         self.assertEqual(dv.cell([]), "")
+        self.assertEqual(dv.cell([{**LINK, "plan": 628, "field": "09", "state": "hitched", "reached": True}]),
+                         "0628 (09, hitched)")
 
     def test_wait_holds_only_the_next_step_it_names(self):
         node = {"depends_on": [{**LINK, "steps": ["22-27", "36"]}]}
@@ -70,6 +72,8 @@ class Reader(unittest.TestCase):
         self.assertEqual(dv.wait_of(whole, "1"), "waits for 0514 (pushed)")  # a plan-level link holds every step
         done = {"depends_on": [{**LINK, "state": "main", "reached": True}]}
         self.assertEqual(dv.wait_of(done, "1"), "")
+        hitched = {"depends_on": [{**LINK, "state": "hitched", "until": "main", "reached": True, "head": "c7d1003970"}]}
+        self.assertEqual(dv.wait_of(hitched, "1"), "")  # a hitched link is met: it no longer waits for main
 
     def test_the_farmers_summary_table_gains_the_columns(self):
         snap = {"now": 0, "load": {"load1": 0.1, "cores": 8}, "queue": [], "findings": [], "landings": [],

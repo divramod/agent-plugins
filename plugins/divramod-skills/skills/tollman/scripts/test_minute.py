@@ -187,6 +187,15 @@ class Events(Pass):
         told = [e["key"] for e in self.wm_log() if e["duty"] == "watch"]
         self.assertEqual(told, ["job:501:d1-01-rust-test", "merge:501", "done:501"], "each in the round's log once")
 
+    def test_a_called_lanes_prefixed_jobs_are_told_by_their_github_names(self):
+        # Plan 0755: a called lane's job is `<lane> / <inner name>` on GitHub; a red ship job after the merge is none.
+        self.train("formed", "started")
+        self.gh.logs["501"] = "c1 / c1-01-rust-build-apps-linux\tbuild\t2026-10-17T10:08:00.1Z error: boom\n"
+        self.set_run([job("c1 / c1-01-rust-build-apps-linux", "failure"), job("e1-01-git-merge", "success"),
+                      job("f1 / f1-02-agents-publish", "failure")])
+        self.assertEqual(self.tick().splitlines(), ["job failed: c1 / c1-01-rust-build-apps-linux: error: boom",
+                                                    f"merge job green: e1-01-git-merge ({URL})"])
+
     def test_several_new_events_are_several_lines_in_order(self):
         self.train("formed", "started")
         self.set_run([job("d1-01-rust-test", "failure"), job("d2-01-git-merge", "success")], status="completed",

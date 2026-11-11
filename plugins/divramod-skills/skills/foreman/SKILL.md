@@ -76,6 +76,7 @@ refused, so add the row (`plan.py milestone --after <id>`) instead of asking for
 farmer's. After a milestone hitch the field **stays on its head** (never a side branch or a reset: a moved head makes a
 stale hitch); the rows below the milestone wait or go to a servant field 30-99; after "in the barn" the same foreman runs
 `/continue` (merge from main, Milestone n marked done, the consistency check, the next rows).
+A plan built in the wrong field (a masterplan's own) is moved out by hand with `hal2-cli-plans carry <plan>` (plan-end.md).
 
 ### hitch-is-forever
 A hitched wagon never leaves the queue again (the user, 2026-11-04: "when a car has hitched, it will never leave the
@@ -101,7 +102,8 @@ listed by `/work-manual`. The plan skill has the details.
 A wait found on another plan becomes `hal2-cli-plans depends add <NNNN> [--steps] [--needs] --until pushed|main` at once
 (plan skill [dependencies](../plan/references/dependencies.md)), never prose only. Told "<NNNN> is pushed" (the farmer's tick): merge
 `origin/<its field>` into your branch (the farmer's merge-the-branch rule) and go on; told it is in main: restock (`/mfm`).
-Never hitch while a dependency is not in main: the tollman rides the wagon after it (hal2 plan 0595 D17).
+Told "<NNNN> is hitched at <sha>": merge that sha (`origin/<its field>`) and go on, never wait for main (hal2 plan 0696).
+Restock main before your own hitch; a hitched dependency merged in rides before you in the same or an earlier train (0595 D22).
 
 ### handoff
 At 35% of its context window, before a new step, the foreman hands off and clears itself (the

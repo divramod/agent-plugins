@@ -28,3 +28,5 @@ back (`running`); commit both `plan.md` files. Between two plans `CURRENT_PLAN` 
   still holds `<field> <the masterplan> <its row>`.
 - On the masterplan `ready --json`, `assign` and `status <row> <status>` work as on a parallel plan. Its rows are no
   steps: not sized, no step file on `next`; `prompt <row>` and `uat` refuse and name the row's plan.
+- A row's plan built in the masterplan's field by mistake: `hal2-cli-plans carry <plan>` moves it to a fresh field
+  ([plan-end.md](plan-end.md)); the reeve itself makes a fresh field per plan.

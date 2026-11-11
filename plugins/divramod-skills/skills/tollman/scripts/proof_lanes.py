@@ -10,7 +10,7 @@
 - `slow` (L86): a moved job, finished or still running, over FACTOR times the same job's time in the last green
   train is flagged with the car that moved it.
 
-A job is keyed by its stage (`c3`): a lane move renames the job id (`c3-hz01-host-b` -> `c3-az03-host-b`), the stage
+A job is keyed by its stage (`c3`; graph 0.0.3's job `c1-06-hz01-host-a` by its lane `c1`, plan 0755 D46): a lane move renames the job id (`c3-hz01-host-b` -> `c3-az03-host-b`), the stage
 stays; a job without a stage is keyed by its id. Labels compare in lower case; a job without `self-hosted` runs on
 GitHub's runners and is never judged, nor is a `runs-on` that is an expression.
 """
@@ -22,12 +22,12 @@ import tomllib
 
 WORKFLOW = re.compile(r"^\.github/workflows/[^/]+\.ya?ml$")
 RUNNERS = ".github/hal2-runners.toml"
-STAGE = re.compile(r"^([a-z][1-9])-")
+STAGE = re.compile(r"^([a-z][1-9][0-9]?)(?:-| / )")  # ` / `: a called lane's job on GitHub, `c3 / c3-02-..` (plan 0755)
 FACTOR = 2  # a moved job slower than this many times its last green time is flagged (L86)
 
 
 def key(job: str) -> str:
-    """A job id's or display name's stage (`c3-01-rust-test` -> `c3`), else the id itself."""
+    """A job id's or display name's stage (`c3-01-rust-test`, `c3 / c3-01-rust-test` -> `c3`), else the id itself."""
     m = STAGE.match(job or "")
     return m[1] if m else job
 

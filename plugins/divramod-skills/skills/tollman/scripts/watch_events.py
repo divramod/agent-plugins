@@ -8,7 +8,7 @@ the round (steps 5 and 6) acts on. `new` returns only the events not seen before
 - `step-failed`: `step failed: <job> <step>`, a red step of a job that still runs (step_red.py, plan 0490 step 25,
   D25: one jobs list a pass while a job runs, none else), keyed `step:<run>:<job>:<step>`; run_triage_step_act.py
   triages it and orders its fix at once
-- `merge-green`: `merge job green: <job> (<run url>)`, the merge job (`d2-01-git-merge`, mtm_ci.merged)
+- `merge-green`: `merge job green: <job> (<run url>)`, the merge job (`e1-01-git-merge`, mtm_ci.merged)
 - `finished`: `workflow finished: <conclusion> (<run url>)`, the run completed
 - `slow-job`: `job slow: <job> runs <n> min, over 2x its median ...`, a job past twice its median time in the last
   green land runs (slow_jobs.py, plan 0490 step 11, D15, L127; the medians are read once per run and kept as `base`)

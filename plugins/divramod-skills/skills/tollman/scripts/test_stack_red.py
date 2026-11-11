@@ -82,9 +82,23 @@ class OneJobLane(unittest.TestCase):
         # Plan 0728 D40: `a1-ci-route` bares to its job like `a1-01-ci-route`; past runs keep the numbered form.
         self.assertEqual([stack_red.bare(n) for n in ("a1-ci-route", "a1-01-ci-route", "h3-ci-cache-clean-mac-host")],
                          ["ci-route", "ci-route", "ci-cache-clean-mac-host"])
+        self.assertEqual([stack_red.bare(n) for n in ("c10-ci-route", "c10-01-ci-route")], ["ci-route", "ci-route"])
 
 
 class NamedIn(unittest.TestCase):
+    def test_graph_0_0_3s_d1_03_is_the_stack_test(self):
+        # Plan 0755 D46: `d1-03-stack-test`, before the merge since; the older names stay found.
+        self.assertEqual(stack_red.bare("d1-03-stack-test"), "stack-test")
+        self.assertEqual(stack_red.stack_job([{"name": "c1-01-rust-build-apps-linux"}, {"name": "d1-03-stack-test"}]),
+                         {"name": "d1-03-stack-test"})
+
+    def test_a_called_lanes_d1_prefix_is_no_part_of_the_job(self):
+        # Plan 0755: lane d1 is a called workflow, GitHub names its job `d1 / d1-03-stack-test`.
+        self.assertEqual(stack_red.bare("d1 / d1-03-stack-test"), "stack-test")
+        self.assertEqual(stack_red.stack_job([{"name": "c1 / c1-01-rust-build-apps-linux"}, {"name": "d1 / d1-03-stack-test"}]),
+                         {"name": "d1 / d1-03-stack-test"})
+        self.assertIsNone(stack_red.stack_job([{"name": "d1 / d1-02-ts-budget-linux"}, {"name": "e1-01-git-merge"}]))
+
     def test_a_job_counts_only_as_a_whole_name(self):
         j = "ts-build-test-linux"
         for text in (f"red {j}: x", j, f"x {j}", f"({j})", f"c2:{j}", f"a, {j}."):

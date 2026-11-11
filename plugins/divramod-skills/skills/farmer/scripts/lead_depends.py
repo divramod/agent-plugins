@@ -7,6 +7,9 @@
                             like every instruction (tick.execute -> acks.stamp_send):
                               "plan 0514 is pushed (ab12cd3): merge origin/38 and go on with step 22"
                               "plan 0514 is main (ab12cd3): restock (/mfm) and go on with step 22"
+                              "plan 0514 is hitched at c7d1003970: merge c7d1003970 (origin/38) and go on with step 22"
+                            a hitched dependency is met for every `until` (plan 0696): the sha is the link's `head`
+                            (the hitched sha, 10 chars), else the branch's head; the dependent is no longer held.
                             The hand relay "38 pushed, 57 merge now" is gone.
   lead_depends.py record ...  the run action after the send: remembers the edge in `depends-told.jsonl`
 
@@ -38,6 +41,9 @@ TEXT_PUSHED = (LEAD + ": plan {dep:04d} is {state}{commit}: merge origin/{field}
                "waited for it (hal2-cli-plans depends list); this is the farmer's word, no need to ask the user.")
 TEXT_MAIN = (LEAD + ": plan {dep:04d} is main{commit}: restock (/mfm) and go on with {step}. Your plan {plan:04d} waited "
              "for it (hal2-cli-plans depends list); this is the farmer's word, no need to ask the user.")
+TEXT_HITCHED = (LEAD + ": plan {dep:04d} is hitched at {sha}: merge {sha} (origin/{field}) and go on with {step}. Your "
+                "plan {plan:04d} waited for it (hal2-cli-plans depends list); this is the farmer's word, no need to ask "
+                "the user.")
 
 
 def graph(ctx: dict) -> dict | None:
@@ -125,7 +131,10 @@ def plan(item: dict, ctx: dict) -> list[dict]:
             head = commit_of(ctx["main"], link)
             fields = {"dep": link["plan"], "plan": node["plan"], "state": link.get("state"), "field": link.get("field"),
                       "step": first_step(link), "commit": f" ({head})" if head else ""}
-            text = (TEXT_MAIN if link.get("state") == "main" else TEXT_PUSHED).format(**fields)
+            if link.get("state") == "hitched":
+                text = TEXT_HITCHED.format(**fields, sha=(link.get("head") or head or "")[:10])
+            else:
+                text = (TEXT_MAIN if link.get("state") == "main" else TEXT_PUSHED).format(**fields)
             record = [sys.executable, os.path.abspath(__file__), "record", "--key", key, "--plan", str(link["plan"]),
                       "--dependent", str(node["plan"]), "--slot", slot, "--state", str(link.get("state")),
                       "--until", str(link.get("until")), "--repo", ctx["top"]]

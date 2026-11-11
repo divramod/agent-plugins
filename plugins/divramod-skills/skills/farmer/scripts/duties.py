@@ -113,7 +113,7 @@ def plan_lead(item: dict, ctx: dict, scan: dict | None = None) -> list[dict]:
 def plan_ci(item: dict, ctx: dict, scan: dict | None = None, log_failed=None, delivery=None) -> list[dict]:
     """The farmer's CI findings: a red worktree branch is told, a runner fault wakes. A red main is the tollman's
     (its duty `mainred`, hal2 plan 0360 step 8, D9, D30): skipped here, `log_failed` is never called. The Mac's
-    delivery (deliver_watch.py, hal2 plan 0728 D20): a red one wakes and pushes once per sha; `delivery` (a list of
+    delivery (deliver_watch.py, hal2 plan 0755 D30): a red or stuck install job wakes and pushes once per sha; `delivery` (a list of
     acts) replaces reading it, for tests."""
     scan = scan if scan is not None else ci_scan.scan(ctx["top"], False)
     out, slots = [], set(ctx.get("panes", {}))

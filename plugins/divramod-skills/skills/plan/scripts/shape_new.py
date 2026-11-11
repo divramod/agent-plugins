@@ -48,10 +48,16 @@ def slug_of(title: str) -> str:
     return slug
 
 
+SHOTFILE_PREFIXES = ("app-", "plugin-", "topic-", "skill-", "role-")
+
+
 def feature(title: str) -> str | None:
-    """The feature the title names first (`plugin-plan 9` -> `plugin-plan`): 99-uat's shotfile, as uat.md's was."""
+    """The feature the title names first, as a shotfile name keeping the name rule of `.adr/shotfiles.md`
+    (`plugin-plan 9` -> `plugin-plan`, `job limit` -> `topic-job`): 99-uat's shotfile, as uat.md's was."""
     word = re.sub(r"[^a-z0-9]+", "-", (title.split() or [""])[0].lower()).strip("-")
-    return word or None
+    if not word:
+        return None
+    return word if word.startswith(SHOTFILE_PREFIXES) else f"topic-{word}"
 
 
 def subplan_body(number: int, title: str, goal: str) -> str:

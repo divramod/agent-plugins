@@ -9,7 +9,7 @@ folder) it reads `train.jsonl` fresh, refuses a clash and only then lets orders.
 message, so two writers (the minute pass, the session) never both claim one red.
 
 A red is (run, job, unit). An order's jobs, for this check, are its line's `jobs` plus every staged job name its why
-names (`c2-06-python-build-test-linux` → `python-build-test-linux`): the why is logged with the line, so the check
+names (`c2-06-python-build-test-linux` → `python-build-test-linux`, graph 0.0.3's `c1-06-ts-linux` so too): the why is logged with the line, so the check
 never knows fewer jobs than the message named (the line's `jobs` stay the proof's, fix_proof.py). An order clashes with an earlier order line of the same run to ANOTHER field that names one of its
 jobs, unless the new order names its own units (`--unit <test or file>`) and none of them is a unit of that line or
 appears in its why: one job may hold several culprits (three different failing tests in one bats job), each told
@@ -30,10 +30,10 @@ import stack_red
 import train_state
 
 LOCK = "orders.lock"
-# In free text (an order's why) a stage prefix alone would also find a lane id (`c1-hz01-host-a`): a job with a place,
-# or one of the one-job lanes' jobs without one (plan 0728 D40, `a1-ci-route`).
+# In free text (an order's why) a stage prefix alone would also find a lane id (`c1-hz01-host-a`): a job with a place
+# (every job of graph 0.0.3, plan 0755 D46), or one of the past runs' one-job lanes without one (plan 0728 D40, `a1-ci-route`).
 ONE_JOB_LANES = r"ci-route|ci-changes|publish-ios|publish-android|ci-cache-clean-[a-z-]*[a-z]"
-STAGED = re.compile(rf"\b[a-z][1-9]-(?:\d\d-[a-z0-9][a-z0-9-]*[a-z0-9]|(?:{ONE_JOB_LANES})(?![a-z0-9-]))")
+STAGED = re.compile(rf"\b[a-z][1-9][0-9]?-(?:\d\d-[a-z0-9][a-z0-9-]*[a-z0-9]|(?:{ONE_JOB_LANES})(?![a-z0-9-]))")
 
 
 def rid_of(url) -> str:

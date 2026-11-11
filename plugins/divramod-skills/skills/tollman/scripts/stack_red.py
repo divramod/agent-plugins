@@ -36,12 +36,13 @@ TEXT = ("tollman (wagon train): train {train} is in the barn, but {job} is red{r
 
 
 def bare(name: object) -> str:
-    """A job's own part of its display name: `d1-01-stack-test` (the matrix alias and the job's position, plan 0349
+    """A job's own part of its display name: `d1-03-stack-test` (graph 0.0.3, before it `d1-01-stack-test`: the matrix alias and the job's position, plan 0349
     D101), a one-job lane's `a1-ci-route` (no position, plan 0728 D40), the older `03-hz01-host-a/01-stack-test` (the position in its lane since D40), `03-hz01-host-a/stack-test`
     and a bare `stack-test` give `stack-test`; the matrix values GitHub appended to a matrix job of a fixed name in
     older runs (`stack-test (stack-test)`) go."""
     name = re.sub(r"\s*\([^)]*\)$", "", str(name or ""))
-    staged = re.match(r"^(?:[a-z][1-9]-(?:\d\d-|(?=[a-z]))|\d\d-[^/]*/(?:\d\d-)?)(.+)$", name)
+    name = re.sub(r"^[a-z][1-9][0-9]? / (?=[a-z][1-9][0-9]?-)", "", name)  # a called lane's `d1 / ` (plan 0755)
+    staged = re.match(r"^(?:[a-z][1-9][0-9]?-(?:\d\d-|(?=[a-z]))|\d\d-[^/]*/(?:\d\d-)?)(.+)$", name)
     return (staged[1] if staged else name.rsplit("/", 1)[-1]).strip()
 
 
@@ -54,7 +55,7 @@ def named_in(job: str, text: object) -> bool:
 
 
 def red_jobs(result: dict | None) -> list[dict]:
-    """The landing result's red jobs whose job is `stack-test` (`d1-01-stack-test`; older `03-hz01-host-a/01-stack-test`,
+    """The landing result's red jobs whose job is `stack-test` (`d1-03-stack-test`, before plan 0755 D46 `d1-01-stack-test`; older `03-hz01-host-a/01-stack-test`,
     or without the position `03-hz01-host-a/stack-test`), also with the matrix values older runs have
     (`03-hz01-host-a/stack-test (stack-test)`)."""
     return [j for j in (result or {}).get("red") or [] if bare(j.get("name", "")) == STACK]
@@ -106,7 +107,7 @@ def run_id(run: str | None) -> str | None:
 
 
 def stack_job(jobs: list[dict]) -> dict | None:
-    """The run's stack-test job (`d1-01-stack-test`, or older `03-hz01-host-a/01-stack-test` and
+    """The run's stack-test job (`d1-03-stack-test` of graph 0.0.3, `d1-01-stack-test` before it, or older `03-hz01-host-a/01-stack-test` and
     `03-hz01-host-a/stack-test`, with or without GitHub's matrix suffix)."""
     return next((j for j in jobs if red_jobs({"red": [j]})), None)
 

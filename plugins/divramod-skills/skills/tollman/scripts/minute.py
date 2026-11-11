@@ -9,7 +9,7 @@ Wiring.min_tick); the other duties keep their own crons. A tick on which only `w
    once per pass; a minute pass is no round, so no round's call runs beside it, and the actions carry keys, so none
    acts twice) and does what it plans: puts the ticket back, tells its foreman, notes it for the board;
 2. reads the new events of the live land run (watch_events.new) and prints each as one line: a job failed (name and
-   its first error line), the merge job (`d2-01-git-merge`) green, the workflow finished (conclusion).
+   its first error line), the merge job (`e1-01-git-merge`) green, the workflow finished (conclusion).
 
 3. on a fresh `job failed` of the watched run: triage, and before its merge job is green the early fix order to
    the one car it names, or the wake for an unclear culprit (early_order.py, plan 0383 step 5, D5); after it the

@@ -12,5 +12,6 @@ never written by hand or guessed.
 - `plan.py check` runs `depends check` over the current plan only (D20) and reports an undeclared wait; silent when
   the installed `hal2-cli-plans` lacks the command.
 - `until pushed`: the dependent starts its waiting steps once the needed steps are done on the dependency's
-  `origin/<field>`; `main`: once they are in the barn. For landing order every dependency counts (D17): the
+  `origin/<field>`; `main`: once they are in the barn. A hitched dependency reaches both (plan 0696): `depends list --json` gives `head`
+  (the hitched sha) and `merge` (`origin/<field>`) on a hitched link; the dependent merges that sha and goes on. For landing order every dependency counts (D17): the
   tollman rides the dependent after its dependency.

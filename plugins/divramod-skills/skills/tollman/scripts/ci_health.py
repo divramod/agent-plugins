@@ -51,6 +51,8 @@ HOURS = "2"  # the window of the doctor
 RUN_LIFE = dt.timedelta(hours=6)  # a land run's longest life (next_train.MAX_WAIT): a job's problem is told once in it
 
 
+VM_KINDS = ("vm", "tart")  # the Mac VM's code: `mac-vm-a`, since plan 0755 D57 `mac-tart-hal2-a`
+
 def clock(t: str) -> str:
     return t[11:16] + "Z" if len(t or "") >= 16 else "?"
 
@@ -124,7 +126,7 @@ def job_problem(job: dict, cands: list[dict], gh, fleet: dict, age: float, hosts
         return {**base, "kind": "wake", "key": f"wake:{job['job']}", "machines": sleeping}
     if not cands:
         return {**base, "kind": "unserved", "key": f"unserved:{job['job']}"} if age >= HOST_GRACE else None
-    if any(r["kind"] == "vm" for r in cands):
+    if any(r["kind"] in VM_KINDS for r in cands):
         return {**base, "kind": "vm", "key": f"vm:{job['job']}"} if age >= VM_GRACE else None
     word = [((hosts or {}).get(r["code"]) or {}, r["code"]) for r in cands]
     if now and any(w.get("state") == "starting" and since(w["at"], now) < HOST_GRACE for w, _ in word):

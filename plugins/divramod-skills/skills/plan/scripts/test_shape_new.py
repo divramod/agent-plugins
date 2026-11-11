@@ -19,6 +19,16 @@ from shape_names import ShapeError, StepRef
 SCRIPT = Path(__file__).resolve().parent / "plan.py"
 
 
+class FeatureNameTest(unittest.TestCase):
+    def test_the_shotfile_keeps_the_name_rule(self):
+        self.assertEqual(shape_new.feature("job limit triage"), "topic-job")
+        self.assertEqual(shape_new.feature("Foo_Bar x"), "topic-foo-bar")
+        self.assertEqual(shape_new.feature("plugin-plan 9"), "plugin-plan")
+        self.assertEqual(shape_new.feature("app-nvim keys"), "app-nvim")
+        self.assertIsNone(shape_new.feature("  "))
+        self.assertIsNone(shape_new.feature("!!"))
+
+
 class ShapeCommandsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -64,7 +74,7 @@ class ShapeCommandsTest(unittest.TestCase):
         self.assertEqual([str(s.id) for s in found.subplans], ["01-deploy-the-hub", "99-uat"])
         self.assertEqual(found.subplans[0].doc.description, "The hub runs.")
         self.assertEqual([s.derived() for s in found.subplans], ["open", "done"])
-        self.assertEqual(found.uat().doc.shotfile, "deploy")
+        self.assertEqual(found.uat().doc.shotfile, "topic-deploy")
         self.assertEqual(shape.check_overview(folder), [])
         info = self.plan("current")
         self.assertEqual((info["total"], info["done"], info["next"]["number"]), (2, 0, "01.01"))

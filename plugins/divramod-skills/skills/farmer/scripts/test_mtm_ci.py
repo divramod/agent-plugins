@@ -72,8 +72,18 @@ class MtmCiTest(unittest.TestCase):
         self.assertTrue(all(mtm_ci.is_ship(n) for n in ("ship / deliver", "08-lmm1ha/linux-host-ship-start", "x / publish-agent-plugins",
                                                          "06-lmm1ha/tmux-publish-hal9k")))
         self.assertFalse(mtm_ci.is_ship("06-xxx1hx/all-tag-versions"))
+        # Graph 0.0.3 (plan 0755 D46): the jobs after the merge under their new names; d1-03 stack-test is before it.
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("f1-03-linux-publish", "f3-01-macos-install", "g1-01-ios-publish",
+                                                        "g1-02-macos-publish", "g2-01-android-publish",
+                                                        "f2-02-runner-image-linux-build", "h1-01-hz-host-install-mac-guard",
+                                                        "h1-02-hz-host-cleanup-cache", "h2-01-mac-tart-cleanup-cache",
+                                                        "h3-01-mac-host-cleanup-cache")))
+        self.assertFalse(mtm_ci.is_ship("d1-03-stack-test"))
         self.assertEqual([mtm_ci.job_part(n) for n in ("merge", "a / merge", "05-xxx1hx/merge", "park")],
                          ["merge", "merge", "merge", "park"])
+
+    def test_two_digit_stages_read_like_one_digit_ones(self):
+        self.assertEqual([mtm_ci.job_part(n) for n in ("c10-01-rust-test", "c19-ci-route")], ["rust-test", "ci-route"])
 
     def test_runner_alias_names_read_as_the_old_codes_did(self):
         self.assertEqual([mtm_ci.job_part(n) for n in ("05-x-host-x/merge", "02-hz01-host-a/bash-lint", "02-mac-host-0/monitor", "05-xxx1hx/merge")],
@@ -134,6 +144,29 @@ class MtmCiTest(unittest.TestCase):
         jobs = [{"name": "e1-01-git-merge", "conclusion": "success"}, {"name": "g1-01-publish-ios", "conclusion": "failure"},
                 {"name": "f3-01-publish-linux", "conclusion": "failure"}, {"name": "g2-01-publish-android", "conclusion": "failure"}]
         self.assertEqual(mtm_ci.red_jobs(jobs), [], "a red publish is no red of the landing")
+
+    def test_a_called_lanes_jobs_carry_the_lane_before_their_name(self):
+        # Plan 0755: a lane of several jobs is a called workflow, GitHub names its jobs `<lane> / <inner name>`.
+        self.assertEqual([mtm_ci.job_part(n) for n in ("e1 / e1-01-git-merge", "c1 / c1-01-rust-build-apps-linux",
+                                                       "d1 / d1-03-stack-test", "f2 / f2-01-git-tag")],
+                         ["git-merge", "rust-build-apps-linux", "stack-test", "git-tag"])
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("f1 / f1-02-agents-publish", "f1 / f1-04-android-publish",
+                                                         "f2 / f2-01-runner-image-linux-build", "f2 / f2-02-hub-deploy",
+                                                         "f4 / f4-01-ios-publish", "f4 / f4-02-macos-publish",
+                                                         "h1 / h1-01-hz-host-cleanup-cache",
+                                                         "h1 / h1-02-hz-host-install-mac-guard")))
+        self.assertFalse(mtm_ci.is_ship("c1 / c1-01-rust-build-apps-linux"))
+        # Plan 0755 D57, D66: stage g's three plain cleanups, host a's the new one.
+        self.assertTrue(all(mtm_ci.is_ship(n) for n in ("g1-01-hz-host-a-cleanup-cache", "g2-01-mac-host-cleanup-cache",
+                                                         "g3-01-mac-tart-cleanup-cache", "f3-01-macos-install")))
+        # Plan 0755 D59: git-tag in lane e1 after the merge, plain or called.
+        self.assertEqual([mtm_ci.job_part(n) for n in ("e1-02-git-tag", "e1 / e1-02-git-tag")], ["git-tag", "git-tag"])
+        jobs = [{"name": "e1 / e1-01-git-merge", "conclusion": "success"},
+                {"name": "g1 / g1-02-macos-publish", "conclusion": "failure"}]
+        self.assertTrue(mtm_ci.merged(jobs))
+        self.assertEqual(mtm_ci.red_jobs(jobs), [])
+        jobs = [{"name": "c2 / c2-03-records-check", "conclusion": "failure"}]
+        self.assertEqual(mtm_ci.red_jobs(jobs), ["c2 / c2-03-records-check"])
 
     def test_a_job_per_frame_since_plan_0728(self):
         # Plan 0728 D23: a lane c1-c3 is a chain of jobs `<matrix>-<NN>-<frame>`, the lint a step of its language's

@@ -179,6 +179,16 @@ class Problems(Health):
         self.assertEqual((a["duty"], a["kind"], a["do"]), ("ci-health", "runner", "wake"))
         self.assertEqual(a["evidence"]["job"]["labels"], sorted(x.lower() for x in VM))
 
+    def test_plan_0755_d57s_tart_alias_is_the_mac_vm_too(self):
+        toml = self.main / ci_fleet.TOML
+        toml.write_text(toml.read_text().replace('"mac-vm-a"', '"mac-tart-hal2-a"'))
+        self.fleet(**{"mac-tart-hal2-a": "offline"})
+        labels = ["self-hosted", "macOS", "ARM64", "hal2", "mac-tart-hal2-a"]
+        self.queue(api_job(9, "c3 / c3-02-rust-release-mac", labels, stamp(self.now - dt.timedelta(minutes=6))))
+        with mock.patch.object(ci_health, "doctor", return_value="ok"):
+            (a,) = self.check()
+        self.assertIn("waits 6 min for the Mac VM runner", a["text"])
+
     def test_a_job_whose_host_runner_is_offline_is_reported_after_the_restart_grace(self):
         self.fleet(**{"mac-host-hal2-a": "offline"})
         self.queue(api_job(3, "a1-01-ci-route", MAC, stamp(self.now - dt.timedelta(minutes=1))))
@@ -215,11 +225,12 @@ class Problems(Health):
         self.assertEqual(self.requests(), [])
 
     def test_d60_an_offline_host_runner_with_a_queued_job_wakes(self):
-        self.fleet(**{"mac-host-hal2-b": "offline"})
-        MACB = ["self-hosted", "macOS", "ARM64", "mac-host-hal2-b"]
-        self.queue(api_job(6, "b1-02-x", MACB, stamp(self.now - dt.timedelta(minutes=5))))
+        # The one Mac host runner (plan 0755 D61), which the supervisor has not parked.
+        self.fleet(**{"mac-host-hal2-a": "offline"})
+        host = ["self-hosted", "macOS", "ARM64", "mac-host-hal2-a"]
+        self.queue(api_job(6, "b1-02-x", host, stamp(self.now - dt.timedelta(minutes=5))))
         (a,) = self.check()
-        self.assertIn("mac-host-hal2-b offline", a["text"])
+        self.assertIn("mac-host-hal2-a offline", a["text"])
 
     def test_hand_started_and_parked_runners_are_no_problem_while_idle(self):
         self.fleet(online=False)  # everything offline: the parked servers, the VM and Docker runners, the old laptops
@@ -272,10 +283,10 @@ class ParkedHostRunner(Health):
         self.assertIn("mac-host-hal2-a offline", a["text"])
 
     def test_an_offline_runner_the_supervisor_did_not_park_is_still_offline(self):
-        self.fleet(**{"mac-host-hal2-a": "offline", "mac-host-hal2-b": "offline"})
-        self.job(4, ["self-hosted", "macOS", "ARM64", "mac-host-hal2-b"], id=6)
+        self.log.write_text(LOG)  # no park of it in the supervisor's log (one Mac host runner, plan 0755 D61)
+        self.job(4, ["self-hosted", "macOS", "ARM64", "mac-host-hal2-a"], id=6)
         (a,) = self.check()
-        self.assertIn("waits 4 min for [arm64,mac-host-hal2-b,macos]: mac-host-hal2-b offline", a["text"])
+        self.assertIn("waits 4 min for [arm64,mac-host-hal2-a,macos]: mac-host-hal2-a offline", a["text"])
 
 
 class Reading(unittest.TestCase):

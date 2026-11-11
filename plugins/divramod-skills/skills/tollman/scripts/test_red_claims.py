@@ -11,6 +11,9 @@ from unittest import mock
 
 import red_claims
 
+# Graph 0.0.3 (plan 0755 D46): a staged name with its place in an order's why is a job, the same one under any form.
+CHAIN_WHY = "c1-06-ts-linux and f1-03-linux-publish went red, not the lane c1-hz01-host-a"
+
 RUN = "https://github.com/divramod/hal2/actions/runs/41824763199"
 
 
@@ -49,6 +52,14 @@ class Clash(unittest.TestCase):
     def test_jobs_of_reads_staged_names(self):
         self.assertEqual(red_claims.jobs_of(["lint"], "c4-01-bash-build-test-mac: x, c2-02-lint: y"),
                          ["lint", "bash-build-test-mac"])
+        self.assertEqual(red_claims.jobs_of(["lint"], "c10-01-bash-build-test-mac: x"), ["lint", "bash-build-test-mac"])
+
+    def test_a_called_lanes_prefixed_name_is_its_bare_job(self):
+        # Plan 0755: a called lane's job is `<lane> / <inner name>` on GitHub, in an order's jobs and its why.
+        self.assertEqual(red_claims.jobs_of(["d1 / d1-03-stack-test"], "c2 / c2-07-python-linux: x"),
+                         ["stack-test", "python-linux"])
+        rows = [line("47", "47-fix-1", ["c2 / c2-07-python-linux"])]
+        self.assertIn("47", red_claims.clash(rows, "55", RUN, ["python-linux"], []) or "")
 
 
 class Order(unittest.TestCase):
@@ -86,6 +97,11 @@ class Order(unittest.TestCase):
     def test_the_run_defaults_to_the_trains(self):
         code, _, _ = red_claims.order("/m", "61", "c4-01-bash-build-test-mac: deliver 73", None, {})
         self.assertEqual(code, 1)
+
+
+class ChainNames(unittest.TestCase):
+    def test_a_why_names_graph_0_0_3s_jobs_not_its_lane_ids(self):
+        self.assertEqual(red_claims.jobs_of([], CHAIN_WHY), ["ts-linux", "linux-publish"])
 
 
 if __name__ == "__main__":

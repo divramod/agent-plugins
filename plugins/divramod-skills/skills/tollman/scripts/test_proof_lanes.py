@@ -64,6 +64,11 @@ class Lanes(unittest.TestCase):
         root = next(p for p in Path(__file__).resolve().parents if (p / ".github/workflows").is_dir())
         text = (root / WF).read_text()
         got = pl.lanes(text)
+        # Plan 0755: a lane of several jobs is a called workflow (`merge-to-main-cloud-lane-c1.yml`); its caller job has
+        # no runs-on, the called file's jobs have them, keyed by the same stage.
+        for called in sorted((root / ".github/workflows").glob("merge-to-main-cloud-lane-*.yml")):
+            for stage, labels in pl.lanes(called.read_text()).items():
+                got.setdefault(stage, set()).update(labels)
         # The stages are the workflow's own job ids (`<stage>-<runner>`), never a copied list: plan 0532 renamed them.
         stages = set(re.findall(r"^  ([a-z][0-9]+)-[A-Za-z0-9-]+:$", text, re.M))
         self.assertGreaterEqual(len(stages), 3)
@@ -147,6 +152,19 @@ class Moved(unittest.TestCase):
         self.assertEqual(pl.mover("c3-02-python-test", moved), ["03"])
         self.assertEqual(pl.mover("e4-01-hub-deploy", moved), ["03"], "L87: the delivery red is the mover's too")
         self.assertEqual(pl.mover("b1-01-ci-changes", moved), [])
+        self.assertEqual(pl.key("c10-01-agents-test"), "c10")
+        self.assertEqual(pl.key("c1-06-hz01-host-a"), "c1", "a job of graph 0.0.3's chain is keyed by its lane (plan 0755 D46)")
+
+    def test_a_called_lanes_prefixed_job_is_keyed_by_its_lane(self):
+        # Plan 0755: GitHub names a called lane's job `<lane> / <inner name>`.
+        moved = {"03": [{"workflow": WF, "job": "c3", "from": [], "to": ["az03-host-b"]}]}
+        self.assertEqual(pl.key("c3 / c3-02-rust-release-mac"), "c3")
+        self.assertEqual(pl.mover("c3 / c3-02-rust-release-mac", moved), ["03"])
+        self.assertEqual(pl.mover("c1 / c1-01-rust-build-apps-linux", moved), [])
+        # Plan 0755 D57's aliases: the ids `c1-01-hz01-host-hal2-a`, a lane caller `c3-mac-tart-hal2-a`.
+        self.assertEqual([pl.key(i) for i in ("c1-01-hz01-host-hal2-a", "c3-mac-tart-hal2-a", "f3-01-mac-host-hal2-a")],
+                         ["c1", "c3", "f3"])
+        self.assertEqual(pl.mover("c3-02-mac-tart-hal2-a", moved), ["03"])
 
 
 class L86(unittest.TestCase):

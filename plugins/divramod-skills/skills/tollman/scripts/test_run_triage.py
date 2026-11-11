@@ -16,6 +16,7 @@ from pathlib import Path
 import run_triage
 import run_triage_gather as gather
 import run_triage_check as check
+import run_triage_read
 import run_triage_read as read
 
 FIX = Path(__file__).with_name("fixtures") / "run_triage"
@@ -310,6 +311,26 @@ class Gather(unittest.TestCase):
         gather.gather(self.main, self.train, url, {}, earlier=[])
         self.assertEqual([c[3] for c in self.gh.calls if c[-1] == "--log-failed"], ["41009203691"])
 
+
+class TwoDigitStages(unittest.TestCase):
+    def test_a_two_digit_stage_is_a_prefix(self):
+        self.assertEqual([run_triage_read.prefix(n) for n in ("c3-01-x", "c10-01-agents-test", "c19-ci-route")], ["c3", "c10", "c19"])
+        self.assertEqual([run_triage_read.prefix(n) for n in ("c1-06-hz01-host-a", "c1-06-ts-linux", "d1-03-stack-test")], ["c1", "c1", "d1"])
+
+
+    def test_a_called_lanes_job_and_its_caller_have_the_lanes_prefix(self):
+        # Plan 0755: a lane of several jobs is a called workflow, GitHub names its jobs `<lane> / <inner name>`.
+        self.assertEqual([run_triage_read.prefix(n) for n in ("d1 / d1-03-stack-test", "c1 / c1-01-rust-build-apps-linux", "f2")],
+                         ["d1", "c1", "f2"])
+        graph = read.needs_graph("jobs:\n  d1:\n    needs: [c1]\n    uses: ./.github/workflows/land-lane-d1.yml\n"
+                                 "  f2:\n    needs: [e1-hz01-host-b, d1]\n")
+        self.assertEqual(graph, {"d1": ["c1"], "f2": ["e1", "d1"]})
+        self.assertEqual(read.needs_red("f2 / f2-03-hub-deploy", graph, ["d1 / d1-03-stack-test", "c2 / c2-03-records-check"]),
+                         ["d1 / d1-03-stack-test"])
+        # Plan 0755 D57's aliases in the job ids: `c1-01-hz01-host-hal2-a`, the lane caller `d1-hz01-host-hal2-b`.
+        graph = read.needs_graph("jobs:\n  d1-hz01-host-hal2-b:\n    needs: [c1-hz01-host-hal2-a, c3-mac-tart-hal2-a]\n"
+                                 "  c1-01-hz01-host-hal2-a:\n    needs: [b1-hz01-host-hal2-a]\n")
+        self.assertEqual(graph, {"d1": ["c1", "c3"], "c1": ["b1"]})
 
 class Graph(unittest.TestCase):
     """Plan 0728: the lanes' chains (`c1-01-..` .. `c1-07-..`, a prefix of several jobs) and the generated block lists

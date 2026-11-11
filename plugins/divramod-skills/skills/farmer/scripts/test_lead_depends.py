@@ -114,6 +114,26 @@ class Told(Base):
         out = lead_depends.plan({}, self.ctx(graph(link("main", True, until="main"))))
         self.assertIn("plan 0514 is main (ab12cd3): restock (/mfm) and go on with step 22", out[0]["text"])
 
+    def test_the_replay_hitched_0628_tells_0684_once_to_merge_the_hitched_sha(self):
+        hitched = link("hitched", True, plan=628, slug="0628-x", field="09", until="main", head="c7d1003970abcdef",
+                       merge="origin/09")
+        nodes = {684: {"plan": 684, "slug": "0684-y", "field": "37", "depends_on": [hitched], "dependents": []}}
+        out = lead_depends.plan({}, self.ctx(nodes, panes={"37": "t:37"}))
+        self.assertEqual(out[0]["slot"], "37")
+        self.assertEqual(out[0]["text"].split(": ", 1)[1].split(". ")[0],
+                         "plan 0628 is hitched at c7d1003970: merge c7d1003970 (origin/09) and go on with step 22")
+        self.run_record(out)
+        self.assertEqual(self.told()[0]["state"], "hitched")
+        self.assertEqual(lead_depends.plan({}, self.ctx(nodes, panes={"37": "t:37"})), [], "told once")
+
+    def test_a_hitched_link_without_a_head_falls_back_to_the_branch_head(self):
+        out = lead_depends.plan({}, self.ctx(graph(link("hitched", True, until="main"))))
+        self.assertIn("is hitched at ab12cd3: merge ab12cd3 (origin/38)", out[0]["text"])
+
+    def test_an_edge_told_as_pushed_is_not_told_again_when_hitched(self):
+        self.run_record(lead_depends.plan({}, self.ctx(graph(link()))))
+        self.assertEqual(lead_depends.plan({}, self.ctx(graph(link("hitched", True)))), [])
+
     def test_a_whole_plan_dependency_says_your_plan(self):
         out = lead_depends.plan({}, self.ctx(graph(link(steps=[]))))
         self.assertIn("merge origin/38 and go on with your plan", out[0]["text"])
@@ -167,6 +187,13 @@ class Blocked(Base):
         self.assertEqual([a["do"] for a in out], ["send", "run"])
         out, _ = self.lead(None)  # no CLI: nothing known, nobody held back
         self.assertEqual([a["do"] for a in out], ["send", "run"])
+
+    def test_a_hitched_until_main_link_no_longer_waits_and_the_foreman_is_nudged(self):
+        hitched = link("hitched", True, until="main", head="c7d1003970", merge="origin/38")
+        out, ctx = self.lead(graph(hitched))
+        self.assertEqual([a["do"] for a in out], ["send", "run"])
+        self.assertNotIn("waits", ctx)
+        self.assertEqual(depends_view.wait_of(graph(hitched)[543], "22"), "")
 
     def test_a_dependency_of_the_whole_plan_holds_every_step(self):
         out, ctx = self.lead(graph(link("open", False, steps=[])), next_step="5")

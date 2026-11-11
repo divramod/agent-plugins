@@ -27,6 +27,13 @@ that slows the hook) and pushes the branch (not when origin's branch is HEAD alr
   what it names, commit, run `plan.py end` again; a cause you cannot fix: push a notification naming the plan and
   the why (`PushNotification`) and stop with the report.
 
+**Built in the wrong field** (e.g. a masterplan's own field): `hal2-cli-plans carry <plan> [--hitch|--land] [--dry-run]`
+moves it out by hand (hal2 plan 0689 D35, D36): a fresh field from 10 at the pushed head, hitched there (`--land`:
+left to its `/mtm`), the source field back on the masterplan, the row `done (hitched, field NN)` (a milestone:
+`running`). The plan's status must already pass `hal2-cli-records check` (D34). It is a tool, not a rule: the reeve
+builds no row itself and makes a fresh field per plan (0630 D69), so no field carries on its own; `--no-start` starts
+no foreman.
+
 Why it is code: fields 09, 23 and 29 (2026-10-30) had every step committed but sat 10-50 min in the pre-push hook
 behind workqueue holds, read as idle and nudged; 09 had handed off before its push. The push is a state now, and
 the end needs no hand-off: `plan.py` and git pass hal2's guard above the threshold.

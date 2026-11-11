@@ -53,15 +53,24 @@ SHIP_JOBS = {"deliver", "rust-publish-apps-all", "ts-publish-desktop-all", "linu
              "agents-publish", "tmux-publish-mac", "tmux-publish-linux", "nvim-publish",
              "ci-cache-clean-mac-host", "ci-cache-clean-mac-vm", "ci-cache-clean-mac-tart", "ci-cache-clean-hz-host",
              "hub-deploy",  # the hub's deploy on mac-host-b (plan 0349 step 35)
-             "publish-ios", "publish-linux", "publish-android"}  # the Linux build's and the phones' publishes after the merge (plan 0728)
+             "publish-ios", "publish-linux", "publish-android",  # the Linux build's and the phones' publishes after the merge (plan 0728)
+             "publish-macos", "install-mac-guard",  # the Mac's publish in the VM and the guard of its install (plan 0755 D26, D29)
+             # Graph 0.0.3 (plan 0755 D46): the names of these jobs since, each the same job as its old name above.
+             "macos-install", "linux-publish", "ios-publish", "android-publish", "macos-publish",
+             "runner-image-linux-build", "hz-host-install-mac-guard",
+             "hz-host-cleanup-cache", "mac-tart-cleanup-cache", "mac-host-cleanup-cache",
+             "hz-host-a-cleanup-cache"}  # plan 0755 D57, D66: lane g1's cleanup of hz01-host-hal2-a
 SHIP_LANES = ("ship", "mac-host-ship", "linux-light-ship")
 # Since plan 0349 (D40) the job part of the names starts with the job's position in its lane (`02-hz01-host-b/03-rust-lint`):
 # the job is the bare one, as in the names without it. Since D101 a name is `<matrix alias>-<NN>-<job>` (`c3-03-rust-lint`:
 # the stage's letter, the matrix's place in it, the job's position), a one-job lane's since plan 0728 D40
 # `<matrix alias>-<job>` (`a1-ci-route`, no position): the old forms stay for the runs before it.
-NEW = r"[a-z][1-9]-(?:\d\d-|(?=[a-z]))"
+NEW = r"[a-z][1-9][0-9]?-(?:\d\d-|(?=[a-z]))"
 OLD = r"\d\d-(?:[a-z0-9]{6}|[a-z0-9]+-[a-z]+-[a-z0-9])/(?:\d\d-)?"
-NAME = re.compile(rf"^(?:{NEW}|{OLD}|(?P<lane>\S+) / )?(?P<job>.+)$")
+# Since plan 0755 a lane of several jobs is a called workflow: GitHub names its jobs `<lane> / <inner name>`
+# (`c1 / c1-01-rust-build-apps-linux`); the caller's part goes first, the inner name parses as before.
+CALLER = r"[a-z][1-9][0-9]? / (?=[a-z][1-9][0-9]?-)"
+NAME = re.compile(rf"^(?:{CALLER})?(?:{NEW}|{OLD}|(?P<lane>\S+) / )?(?P<job>.+)$")
 FIELDS = "databaseId,headBranch,headSha,status,conclusion,createdAt,url"
 STOP_STEP = "fail fast: stop the run"  # the contract with the workflow, hal2-git's ci/fail_fast.rs STOP_STEP
 CANCEL_STEP = "fail fast: cancel the run"  # the stop job's step (plan 0319 D9), hal2-git's CANCEL_STEP
@@ -127,7 +136,7 @@ def outcome(run: dict) -> str:
 
 def job_part(name: str) -> str:
     """The job of a display name: `05-xxx1hx/merge`, `03-hz01-host-b/01-merge` and `linux / merge` -> `merge`, `merge` -> `merge`,
-    `d2-01-git-merge` -> `git-merge`."""
+    `e1-01-git-merge` and `e1 / e1-01-git-merge` -> `git-merge`."""
     return NAME.match(name or "")["job"]
 
 

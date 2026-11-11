@@ -25,10 +25,15 @@ provider_of() { # github, gitlab or none, by the conf's PROVIDER or origin's URL
 
 # Is the job name $1 the merge job $2? `merge`, `linux / merge`, `03-hz01-host-b/merge`, since hal2 plan 0349 D40
 # `03-hz01-host-b/01-merge`, since D101 `d2-01-<job>` (the matrix alias and the job's position), a one-job lane's
-# `d2-<job>` since hal2 plan 0728 D40.
+# `d2-<job>` since hal2 plan 0728 D40; a called lane's job `<lane> / <inner name>` (`e1 / e1-01-git-merge`, hal2 plan
+# 0755) is read by its inner name.
 is_merge_job() {
-  case "$1" in
-    "$2"|*" / $2"|*"/$2"|*/[0-9][0-9]-"$2"|[a-z][1-9]-[0-9][0-9]-"$2"|[a-z][1-9]-"$2") return 0 ;;
+  local name=$1
+  case "$name" in
+    [a-z][1-9]" / "[a-z][1-9]-*|[a-z][1-9]" / "[a-z][1-9][0-9]-*|[a-z][1-9][0-9]" / "[a-z][1-9]*) name=${name#* / } ;;
+  esac
+  case "$name" in
+    "$2"|*" / $2"|*"/$2"|*/[0-9][0-9]-"$2"|[a-z][1-9]-[0-9][0-9]-"$2"|[a-z][1-9][0-9]-[0-9][0-9]-"$2"|[a-z][1-9]-"$2"|[a-z][1-9][0-9]-"$2") return 0 ;;
   esac
   return 1
 }

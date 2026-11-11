@@ -4,7 +4,7 @@ data, no IO. run_triage.py places what these find; run_triage_gather.py fetches 
 - `counted`: the red jobs the triage takes: mtm_ci.red_jobs (the gate's reds) and the ship jobs that failed (a red
   hub-deploy is a red job of the run too); a cancelled ship job only stopped
 - `needs_graph`: the workflow's `jobs:` ids and their `needs` (inline forms only, as hal2's workflows write them),
-  keyed by the stage prefix a job's display name starts with (`f2-hz01-host-b` -> `f2`, `f2-03-hub-deploy`; past runs' `e4-hz01-host-c`, `e4-01-hub-deploy`)
+  keyed by the stage prefix a job's display name starts with (`f2-03-hz01-host-b` -> `f2`, `f2-03-hub-deploy`; past runs' `f2-hz01-host-b`, `e4-hz01-host-c`, `e4-01-hub-deploy`)
 - `units`: a red job's units: one per failed `gate <job> <part>` step (`stack-test/hub-e2e`) or, since plan 0728 put
   stack-test's suites into one step of the matrix e1, one per red suite of that step (its `::error::stack-test: <suite>
   failed` and `::group::<suite>` lines), else one for the job (`runner-image-linux`); each with its log lines, found by the log's step column, else by the task log's
@@ -82,8 +82,8 @@ def counted(jobs: list[dict]) -> list[dict]:
 
 
 def prefix(name: str) -> str:
-    """The stage prefix of a job id or display name (`d1-az02-host-a`, `d1-01-stack-test` -> `d1`), else ''."""
-    m = re.match(r"^([a-z][1-9])-", name or "")
+    """The stage prefix of a job id or name (`d1-03-hz01-host-b`, `d1-03-stack-test`, `d1 / d1-03-stack-test`, `d1`) or ''."""
+    m = re.match(r"^([a-z][1-9][0-9]?)(?:-| / |$)", name or "")
     return m[1] if m else ""
 
 

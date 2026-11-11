@@ -1,5 +1,5 @@
 """A red after the merge (hal2 plan 0383 step 6, D6, L33, L34): a job of a land run fails after its merge job
-(`d2-01-git-merge`) is green, so the train is in the barn (or about to be) and its post-merge jobs still run. Nothing
+(`e1-01-git-merge`) is green, so the train is in the barn (or about to be) and its post-merge jobs still run. Nothing
 holds the next train for it: the code orders the car's foreman by the orders path, and the fix rides the train that
 stands (the next train, formed on the merge's green, minute.py), merged before that train's run starts
 (next_train.py).
